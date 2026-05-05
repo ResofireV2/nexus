@@ -2129,6 +2129,20 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   }, [token, userId]);
 }
 
+// ── Guest Prompt ──────────────────────────────────────────────────────────────
+function GuestPrompt({onAuthRequired}) {
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,color:"var(--t5)"}}>
+      <i className="fa-solid fa-lock" style={{fontSize:28,opacity:.3}}></i>
+      <div style={{fontSize:14,color:"var(--t2)",fontWeight:500}}>Sign in to continue</div>
+      <div style={{display:"flex",gap:10}}>
+        <button className="btn-ghost" onClick={()=>onAuthRequired("login")}>Log in</button>
+        <button className="btn-primary" onClick={()=>onAuthRequired("register")}>Sign up</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Auth Modal Form ───────────────────────────────────────────────────────────
 function AuthModalForm({mode, onLogin, onSwitch}) {
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
@@ -2224,9 +2238,8 @@ function App() {
   if(page==="admin"&&currentUser) return <><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/><Toasts/></>;
 
   const renderPage=()=>{
-    // Pages that require auth — redirect guests to feed with modal
     const requireAuth = (el) => {
-      if(!currentUser){ setAuthModal("login"); return <FeedPage spaces={spaces} tags={tags} currentUser={null} navigate={navigate} spaceFilter={null} livePosts={livePosts} liveEvents={liveEvents} onAuthRequired={m=>setAuthModal(m)}/>; }
+      if(!currentUser) return <GuestPrompt onAuthRequired={m=>setAuthModal(m)}/>;
       return el;
     };
     switch(page) {
