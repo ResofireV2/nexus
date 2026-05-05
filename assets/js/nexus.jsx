@@ -4,7 +4,23 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 
 marked.setOptions({ breaks: true, gfm: true });
-function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t)) : ""; }
+// Allow <a> tags wrapping images (needed for lightbox original URL)
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A" && node.querySelector("img")) {
+    node.setAttribute("data-lightbox-link", "true");
+  }
+  if (node.tagName === "IMG") {
+    // Store the parent link href on the img itself before DOMPurify might strip the <a>
+    const parent = node.parentElement;
+    if (parent && parent.tagName === "A") {
+      node.setAttribute("data-original", parent.getAttribute("href") || "");
+    }
+  }
+});
+function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
+  ADD_TAGS: ["a"],
+  ADD_ATTR: ["href", "target", "rel", "data-original", "data-lightbox-link"]
+}) : ""; }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
@@ -38,9 +54,8 @@ document.addEventListener("click", e => {
   const img = e.target.closest(".md-body img");
   if (!img) return;
   e.preventDefault();
-  // The markdown is [![alt](webp)](original) — img is wrapped in an <a>
   const link = img.closest("a");
-  const originalSrc = link?.href || img.src;
+  const originalSrc = img.getAttribute("data-original") || link?.href || img.src;
   if (_lbSetState) _lbSetState({ src: img.src, originalSrc });
 });
 
