@@ -3,7 +3,6 @@ defmodule Nexus.Uploads.Upload do
   import Ecto.Changeset
 
   @primary_key {:id, :binary_id, autogenerate: true}
-  @foreign_key_type :binary_id
 
   schema "uploads" do
     field :upload_type,   :string
