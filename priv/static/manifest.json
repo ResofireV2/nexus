@@ -1,0 +1,37 @@
+{
+  "name": "Nexus",
+  "short_name": "Nexus",
+  "description": "Ultra fast · Ultra lightweight · Ultra modern forum",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#5B4EF5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["social", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Feed",
+      "url": "/feed",
+      "description": "View the latest posts"
+    },
+    {
+      "name": "New Post",
+      "url": "/compose",
+      "description": "Create a new post"
+    }
+  ]
+}

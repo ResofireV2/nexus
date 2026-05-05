@@ -1,0 +1,27 @@
+FROM elixir:1.17-alpine
+
+# Install build dependencies
+RUN apk add --no-cache \
+  build-base \
+  git \
+  nodejs \
+  npm \
+  inotify-tools
+
+WORKDIR /app
+
+# Install hex and rebar
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+# Copy mix files first for layer caching
+COPY mix.exs mix.lock* ./
+
+# Copy config early (needed by some deps)
+COPY config/ ./config/
+
+# Expose Phoenix port
+EXPOSE 4000
+
+# Default command (overridden by docker-compose)
+CMD ["mix", "phx.server"]

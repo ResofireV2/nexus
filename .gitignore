@@ -1,0 +1,35 @@
+# Build artifacts
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+
+# Environment
+/.env
+/.env.*
+!/.env.example
+
+# Test
+/tmp/
+
+# Uploads (local dev)
+/priv/static/uploads/
+
+# Node
+/assets/node_modules/
+
+# Generated assets
+/priv/static/assets/
+
+# Editor
+.elixir_ls/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dialyzer
+/priv/plts/

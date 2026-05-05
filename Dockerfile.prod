@@ -1,0 +1,43 @@
+FROM elixir:1.17-alpine AS build
+
+RUN apk add --no-cache build-base git nodejs npm openssl
+
+WORKDIR /app
+
+RUN mix local.hex --force && mix local.rebar --force
+
+COPY mix.exs mix.lock* ./
+COPY config/ ./config/
+
+ENV MIX_ENV=prod
+
+RUN mix deps.get --only prod
+RUN mix deps.compile
+
+COPY assets/ ./assets/
+RUN npm install --prefix assets
+RUN npm run deploy --prefix assets
+
+COPY priv/ ./priv/
+COPY lib/ ./lib/
+
+RUN mix compile
+RUN mix phx.digest
+RUN mix release
+
+# Use same base as build to avoid OpenSSL mismatch
+FROM elixir:1.17-alpine
+
+RUN apk add --no-cache openssl ncurses-libs libstdc++
+
+WORKDIR /app
+
+COPY --from=build /app/_build/prod/rel/nexus ./
+
+ENV HOME=/app
+ENV MIX_ENV=prod
+ENV PORT=4000
+
+EXPOSE 4000
+
+CMD ["bin/nexus", "start"]

@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: nexus_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus_prod"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "ecto://nexus:${DB_PASSWORD}@db/nexus_prod"
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      JWT_SECRET: ${JWT_SECRET}
+      PHX_HOST: ${PHX_HOST}
+      PORT: "4000"
+      MIX_ENV: prod
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "bin/nexus eval 'Nexus.Release.migrate()' &&
+             bin/nexus start"
+
+volumes:
+  postgres_data:

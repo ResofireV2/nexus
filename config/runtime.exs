@@ -1,0 +1,67 @@
+import Config
+
+if config_env() == :prod do
+  database_url =
+    System.get_env("DATABASE_URL") ||
+      raise """
+      environment variable DATABASE_URL is missing.
+      For example: ecto://USER:PASS@HOST/DATABASE
+      """
+
+  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+
+  config :nexus, Nexus.Repo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    socket_options: maybe_ipv6
+
+  secret_key_base =
+    System.get_env("SECRET_KEY_BASE") ||
+      raise """
+      environment variable SECRET_KEY_BASE is missing.
+      You can generate one by running: mix phx.gen.secret
+      """
+
+  host = System.get_env("PHX_HOST") || "example.com"
+  port = String.to_integer(System.get_env("PORT") || "4000")
+
+  config :nexus, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+
+  config :nexus, NexusWeb.Endpoint,
+    url: [host: host, port: 443, scheme: "https"],
+    http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}, port: port],
+    secret_key_base: secret_key_base
+
+  # JWT secret for token signing
+  jwt_secret =
+    System.get_env("JWT_SECRET") ||
+      raise "environment variable JWT_SECRET is missing."
+
+  config :nexus, :jwt_secret, jwt_secret
+
+  # Cloudflare R2 / S3-compatible storage
+  if r2_bucket = System.get_env("R2_BUCKET") do
+    config :nexus, :media_storage,
+      bucket: r2_bucket,
+      region: System.get_env("R2_REGION") || "auto",
+      access_key_id: System.get_env("R2_ACCESS_KEY_ID"),
+      secret_access_key: System.get_env("R2_SECRET_ACCESS_KEY"),
+      endpoint: System.get_env("R2_ENDPOINT")
+  end
+
+  # Email delivery
+  cond do
+    postmark_key = System.get_env("POSTMARK_API_KEY") ->
+      config :nexus, Nexus.Mailer,
+        adapter: Swoosh.Adapters.Postmark,
+        api_key: postmark_key
+
+    resend_key = System.get_env("RESEND_API_KEY") ->
+      config :nexus, Nexus.Mailer,
+        adapter: Swoosh.Adapters.Resend,
+        api_key: resend_key
+
+    true ->
+      :ok
+  end
+end

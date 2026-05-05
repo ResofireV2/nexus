@@ -1,0 +1,315 @@
+defmodule NexusWeb.API.V1.AuthController do
+  use NexusWeb, :controller
+
+  alias Nexus.Accounts
+
+  # ---------------------------------------------------------------------------
+  # POST /api/v1/auth/register
+  # ---------------------------------------------------------------------------
+
+  def register(conn, params) do
+    case Accounts.register_user(params) do
+      {:ok, user} ->
+        # Send verification email (non-blocking — failure doesn't stop registration)
+        Task.start(fn -> Accounts.send_verification_email(user) end)
+
+        opts = [
+          user_agent: get_req_header(conn, "user-agent") |> List.first(),
+          ip_address: to_string(:inet.ntoa(conn.remote_ip))
+        ]
+
+        case Accounts.issue_tokens(user, opts) do
+          {:ok, tokens} ->
+            conn
+            |> put_refresh_cookie(tokens.refresh_token)
+            |> put_status(:created)
+            |> json(%{
+              access_token: tokens.access_token,
+              user: user_json(user)
+            })
+
+          {:error, _} ->
+            conn
+            |> put_status(:internal_server_error)
+            |> json(%{error: "Registration succeeded but token issuance failed"})
+        end
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{errors: format_errors(changeset)})
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # POST /api/v1/auth/login
+  # ---------------------------------------------------------------------------
+
+  def login(conn, %{"email" => email, "password" => password}) do
+    case Accounts.authenticate_user(email, password) do
+      {:ok, user} ->
+        opts = [
+          user_agent: get_req_header(conn, "user-agent") |> List.first(),
+          ip_address: to_string(:inet.ntoa(conn.remote_ip))
+        ]
+
+        {:ok, tokens} = Accounts.issue_tokens(user, opts)
+
+        conn
+        |> put_refresh_cookie(tokens.refresh_token)
+        |> json(%{
+          access_token: tokens.access_token,
+          user: user_json(user)
+        })
+
+      {:error, :invalid_credentials} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "Invalid email or password"})
+
+      {:error, :banned} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "This account has been banned"})
+
+      {:error, :no_password} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "This account uses OAuth — please sign in with Google or GitHub"})
+    end
+  end
+
+  def login(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "email and password are required"})
+  end
+
+  # ---------------------------------------------------------------------------
+  # POST /api/v1/auth/logout
+  # ---------------------------------------------------------------------------
+
+  def logout(conn, _params) do
+    raw_token = conn.req_cookies["_nexus_refresh"]
+
+    if raw_token do
+      Accounts.revoke_refresh_token(raw_token)
+    end
+
+    conn
+    |> delete_resp_cookie("_nexus_refresh")
+    |> json(%{ok: true})
+  end
+
+  # ---------------------------------------------------------------------------
+  # POST /api/v1/auth/refresh
+  # ---------------------------------------------------------------------------
+
+  def refresh(conn, _params) do
+    raw_token = conn.req_cookies["_nexus_refresh"]
+
+    cond do
+      is_nil(raw_token) or raw_token == "" ->
+        conn |> put_status(:unauthorized) |> json(%{error: "No refresh token"})
+
+      true ->
+        try do
+          case Accounts.refresh_access_token(raw_token) do
+            {:ok, access_token} ->
+              json(conn, %{access_token: access_token})
+
+            {:error, _} ->
+              conn
+              |> delete_resp_cookie("_nexus_refresh")
+              |> put_status(:unauthorized)
+              |> json(%{error: "Invalid or expired refresh token"})
+          end
+        rescue
+          _ ->
+            conn
+            |> delete_resp_cookie("_nexus_refresh")
+            |> put_status(:unauthorized)
+            |> json(%{error: "Invalid refresh token"})
+        end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # POST /api/v1/auth/magic-link
+  # ---------------------------------------------------------------------------
+
+  def magic_link_request(conn, %{"email" => email}) do
+    Accounts.send_magic_link(email)
+    # Always returns ok to avoid email enumeration
+    json(conn, %{ok: true})
+  end
+
+  # ---------------------------------------------------------------------------
+  # GET /api/v1/auth/magic?token=...
+  # ---------------------------------------------------------------------------
+
+  def magic_link_verify(conn, %{"token" => token}) do
+    case Accounts.authenticate_magic_link(token) do
+      {:ok, user} ->
+        opts = [
+          user_agent: get_req_header(conn, "user-agent") |> List.first(),
+          ip_address: to_string(:inet.ntoa(conn.remote_ip))
+        ]
+
+        {:ok, tokens} = Accounts.issue_tokens(user, opts)
+
+        conn
+        |> put_refresh_cookie(tokens.refresh_token)
+        |> json(%{
+          access_token: tokens.access_token,
+          user: user_json(user)
+        })
+
+      {:error, :invalid_or_expired} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "Invalid or expired magic link"})
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # GET /api/v1/auth/verify-email?token=...
+  # ---------------------------------------------------------------------------
+
+  def verify_email(conn, %{"token" => token}) do
+    case Accounts.verify_email(token) do
+      {:ok, _user} -> json(conn, %{ok: true})
+      {:error, _}  ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Invalid verification token"})
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # GET /api/v1/auth/me
+  # ---------------------------------------------------------------------------
+
+  def me(conn, _params) do
+    json(conn, %{user: user_json(conn.assigns.current_user)})
+  end
+
+  def update_me(conn, params) do
+    user = conn.assigns.current_user
+
+    # Handle password change separately
+    if params["current_password"] && params["new_password"] do
+      case Accounts.change_password(user, params["current_password"], params["new_password"]) do
+        {:ok, _} -> json(conn, %{ok: true, message: "Password updated"})
+        {:error, :invalid_current_password} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "Current password is incorrect"})
+        {:error, changeset} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+      end
+    else
+      case Accounts.update_profile(user, params) do
+        {:ok, updated} ->
+          json(conn, %{user: user_json(updated)})
+        {:error, changeset} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # OAuth — Google
+  # ---------------------------------------------------------------------------
+
+  def oauth_google(conn, _params) do
+    # Stage 3 stub — full OAuth in next iteration
+    # Redirect to Google with client_id, redirect_uri, scope
+    url = Nexus.Auth.OAuth.google_authorize_url()
+    redirect(conn, external: url)
+  end
+
+  def oauth_google_callback(conn, %{"code" => code}) do
+    case Nexus.Auth.OAuth.exchange_google_code(code) do
+      {:ok, profile} ->
+        handle_oauth_callback(conn, "google", profile)
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_gateway)
+        |> json(%{error: "Google OAuth failed: #{reason}"})
+    end
+  end
+
+  def oauth_github(conn, _params) do
+    url = Nexus.Auth.OAuth.github_authorize_url()
+    redirect(conn, external: url)
+  end
+
+  def oauth_github_callback(conn, %{"code" => code}) do
+    case Nexus.Auth.OAuth.exchange_github_code(code) do
+      {:ok, profile} ->
+        handle_oauth_callback(conn, "github", profile)
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_gateway)
+        |> json(%{error: "GitHub OAuth failed: #{reason}"})
+    end
+  end
+
+  defp handle_oauth_callback(conn, provider, profile) do
+    case Accounts.find_or_create_oauth_user(provider, profile.uid, profile) do
+      {:ok, user} ->
+        opts = [
+          user_agent: get_req_header(conn, "user-agent") |> List.first(),
+          ip_address: to_string(:inet.ntoa(conn.remote_ip))
+        ]
+
+        {:ok, tokens} = Accounts.issue_tokens(user, opts)
+
+        conn
+        |> put_refresh_cookie(tokens.refresh_token)
+        |> json(%{
+          access_token: tokens.access_token,
+          user: user_json(user)
+        })
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{errors: format_errors(changeset)})
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------------------------
+
+  defp put_refresh_cookie(conn, token) do
+    put_resp_cookie(conn, "_nexus_refresh", token,
+      http_only: true,
+      same_site: "Lax",
+      max_age: 30 * 24 * 60 * 60,
+      secure: Application.get_env(:nexus, :env) == :prod
+    )
+  end
+
+  defp user_json(user) do
+    %{
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      avatar_url: user.avatar_url,
+      email_verified: user.email_verified,
+      inserted_at: user.inserted_at
+    }
+  end
+
+  defp format_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+  end
+end
