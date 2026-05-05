@@ -110,6 +110,13 @@ defmodule Nexus.Admin do
       "accent_color"      => "#a78bfa",
       "dark_mode_default" => true
     },
+    "uploads" => %{
+      "max_size_mb"      => 5,
+      "convert_to_webp"  => true,
+      "webp_quality"     => 85,
+      "max_width"        => 1200,
+      "allowed_types"    => ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
+    },
     "email" => %{
       "from_address"     => "",
       "from_name"        => "Nexus",

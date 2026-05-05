@@ -56,6 +56,9 @@ defmodule Nexus.MixProject do
       # HTTP client (for OAuth, webhooks, oEmbed)
       {:req, "~> 0.5"},
 
+      # Image processing
+      {:image, "~> 0.54"},
+
       # File uploads
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},

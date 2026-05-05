@@ -1,0 +1,135 @@
+defmodule NexusWeb.API.V1.UploadController do
+  use NexusWeb, :controller
+
+  alias Nexus.{Uploads, Repo}
+  alias Nexus.Uploads.Upload
+  alias Nexus.Accounts
+
+  # POST /api/v1/uploads
+  # Params: file (multipart), type ("post_image" | "avatar" | "logo" | "favicon"), post_id (optional)
+  def create(conn, params) do
+    user    = conn.assigns.current_user
+    type    = params["type"] || "post_image"
+    post_id = params["post_id"]
+
+    # Only admins can upload logos/favicons
+    if type in ["logo", "favicon"] and user.role != "admin" do
+      conn |> put_status(:forbidden) |> json(%{error: "Admin only"})
+    else
+      plug_upload = params["file"]
+
+      if is_nil(plug_upload) or not match?(%Plug.Upload{}, plug_upload) do
+        conn |> put_status(:bad_request) |> json(%{error: "No file provided"})
+      else
+        opts = [user_id: user.id] ++ if(post_id, do: [post_id: post_id], else: [])
+
+        case Uploads.store(plug_upload, type, opts) do
+          {:ok, upload} ->
+            # If avatar upload, update the user's avatar_url to the webp (or original)
+            if type == "avatar" do
+              served_url = served_url(upload.webp_path || upload.original_path)
+              Accounts.update_avatar(user, served_url)
+            end
+
+            # If logo/favicon, update site_settings
+            if type in ["logo", "favicon"] do
+              served_url = served_url(upload.original_path)
+              key = if type == "logo", do: "logo_url", else: "favicon_url"
+              Nexus.Admin.update_setting("general", %{key => served_url})
+            end
+
+            json(conn, %{
+              upload: upload_json(upload),
+              url:    served_url(upload.webp_path || upload.original_path),
+              original_url: served_url(upload.original_path)
+            })
+
+          {:error, reason} when is_binary(reason) ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+
+          {:error, %Ecto.Changeset{} = cs} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
+        end
+      end
+    end
+  end
+
+  # GET /api/v1/admin/uploads
+  def index(conn, params) do
+    opts = [
+      upload_type: params["type"],
+      user_id:     params["user_id"],
+      page:        String.to_integer(params["page"] || "1"),
+      limit:       String.to_integer(params["limit"] || "50")
+    ]
+
+    %{uploads: uploads, total: total, page: page, pages: pages} = Uploads.list_uploads(opts)
+
+    json(conn, %{
+      uploads: Enum.map(uploads, &upload_json/1),
+      total: total,
+      page:  page,
+      pages: pages
+    })
+  end
+
+  # GET /api/v1/admin/uploads/stats
+  def stats(conn, _params) do
+    json(conn, %{stats: Uploads.storage_stats()})
+  end
+
+  # DELETE /api/v1/admin/uploads/:id
+  def delete(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+
+    case Uploads.get_upload(id) do
+      nil ->
+        conn |> put_status(:not_found) |> json(%{error: "Upload not found"})
+
+      upload ->
+        # Only owner or admin can delete
+        if to_string(upload.user_id) == to_string(user.id) or user.role == "admin" do
+          case Uploads.delete(upload) do
+            {:ok, _}     -> json(conn, %{ok: true})
+            {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
+          end
+        else
+          conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})
+        end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------------------------
+
+  defp served_url(nil), do: nil
+  defp served_url(rel_path) do
+    # rel_path is like "uploads/posts/abc.jpg"
+    # We serve it at /uploads/posts/abc.jpg
+    "/" <> rel_path
+  end
+
+  defp upload_json(%Upload{} = u) do
+    %{
+      id:            u.id,
+      upload_type:   u.upload_type,
+      original_name: u.original_name,
+      mime_type:     u.mime_type,
+      size_bytes:    u.size_bytes,
+      width:         u.width,
+      height:        u.height,
+      url:           served_url(u.webp_path || u.original_path),
+      original_url:  served_url(u.original_path),
+      post_id:       u.post_id,
+      user:          u.user && %{id: u.user.id, username: u.user.username},
+      inserted_at:   u.inserted_at
+    }
+  end
+
+  defp format_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
+    end)
+  end
+end

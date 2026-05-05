@@ -310,4 +310,10 @@ defmodule Nexus.Accounts do
     |> User.status_changeset(attrs)
     |> Repo.update()
   end
+
+  def update_avatar(user, avatar_url) do
+    user
+    |> Ecto.Changeset.cast(%{avatar_url: avatar_url}, [:avatar_url])
+    |> Repo.update()
+  end
 end

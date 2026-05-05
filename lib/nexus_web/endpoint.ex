@@ -22,6 +22,12 @@ defmodule NexusWeb.Endpoint do
     gzip: false,
     only: NexusWeb.static_paths()
 
+  # Serve user-uploaded files
+  plug Plug.Static,
+    at: "/uploads",
+    from: {:nexus, "priv/static/uploads"},
+    gzip: false
+
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
@@ -35,7 +41,9 @@ defmodule NexusWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    # Allow up to 50 MB — the per-upload limit is enforced in the Uploads context
+    length: 52_428_800
 
   plug Plug.MethodOverride
   plug Plug.Head

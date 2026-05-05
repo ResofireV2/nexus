@@ -7,6 +7,43 @@ marked.setOptions({ breaks: true, gfm: true });
 function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t)) : ""; }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({src, originalSrc, onClose}) {
+  useEffect(()=>{
+    const fn=e=>{ if(e.key==="Escape") onClose(); };
+    document.addEventListener("keydown",fn);
+    return ()=>document.removeEventListener("keydown",fn);
+  },[]);
+  return (
+    <div className="lb-overlay" onClick={onClose}>
+      <span className="lb-close" onClick={onClose}>×</span>
+      <img src={originalSrc||src} alt="" onClick={e=>e.stopPropagation()}/>
+      {originalSrc&&originalSrc!==src&&
+        <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()}>
+          <i className="fa-solid fa-arrow-up-right-from-square" style={{marginRight:4}}></i>open original
+        </a>}
+    </div>
+  );
+}
+
+// Global lightbox state — lifted outside React so md-body img clicks can trigger it
+let _lbSetState = null;
+function useLightbox() {
+  const [lb, setLb] = useState(null);
+  useEffect(()=>{ _lbSetState = setLb; return ()=>{ _lbSetState=null; }; }, []);
+  return [lb, setLb];
+}
+// Attach delegated click handler to .md-body images once at module load
+document.addEventListener("click", e => {
+  const img = e.target.closest(".md-body img");
+  if (!img) return;
+  e.preventDefault();
+  // The markdown is [![alt](webp)](original) — img is wrapped in an <a>
+  const link = img.closest("a");
+  const originalSrc = link?.href || img.src;
+  if (_lbSetState) _lbSetState({ src: img.src, originalSrc });
+});
+
 // ── API ──────────────────────────────────────────────────────────────────────
 const api = {
   token: localStorage.getItem("nexus_token"),
@@ -392,6 +429,20 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
+.md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
+.md-body a:has(img){display:inline-block;pointer-events:none;}
+/* Lightbox */
+.lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
+.lb-overlay img{max-width:calc(100vw - 48px);max-height:calc(100vh - 80px);border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
+.lb-close{position:fixed;top:16px;right:20px;font-size:24px;color:rgba(255,255,255,.7);cursor:pointer;line-height:1;z-index:10000;}
+.lb-close:hover{color:#fff;}
+.lb-orig{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;}
+.lb-orig:hover{color:rgba(255,255,255,.85);}
+/* Composer image upload button */
+.comp-img-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t4);cursor:pointer;padding:4px 8px;border-radius:6px;border:0.5px solid var(--b2);background:var(--bg2);transition:color .15s,border-color .15s;}
+.comp-img-btn:hover{color:var(--t2);border-color:var(--b3);}
+.comp-img-btn.uploading{opacity:.5;pointer-events:none;}
+.comp-img-btn input{display:none;}
 
 /* Toasts */
 .toast{padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;backdrop-filter:blur(8px);}
@@ -403,6 +454,7 @@ document.head.appendChild(S);
 // ── Toasts ───────────────────────────────────────────────────────────────────
 let _tid = 0; const _tl = new Set();
 function toast(msg, type="ok") { const id=++_tid; _tl.forEach(f=>f({id,msg,type})); setTimeout(()=>_tl.forEach(f=>f({id,rm:true})),3000); }
+function fmtBytes(b) { if(!b)return "0 B"; const u=["B","KB","MB","GB"]; let i=0; while(b>=1024&&i<3){b/=1024;i++;} return `${b.toFixed(i?1:0)} ${u[i]}`; }
 function Toasts() {
   const [list,setList]=useState([]);
   useEffect(()=>{ const f=t=>{ if(t.rm) setList(p=>p.filter(x=>x.id!==t.id)); else setList(p=>[...p,t]); }; _tl.add(f); return ()=>_tl.delete(f); },[]);
@@ -513,9 +565,16 @@ window._tbApply = function(type) {
 };
 window._smPick = function(type) {
   const ta = _activeTA; if (!ta) return;
+  getSm().style.display="none";
+  if (type === "image") {
+    // Trigger the hidden file input attached to the active textarea's composer
+    const input = document.getElementById("comp-img-input");
+    if (input) input.click();
+    return;
+  }
   const lines=ta.value.split("\n");
-  lines[lines.length-1]=type==="code"?"```\ncode here\n```":type==="quote"?"> ":type==="divider"?"---":type==="image"?"![alt](url)":"";
-  ta.value=lines.join("\n"); getSm().style.display="none";
+  lines[lines.length-1]=type==="code"?"```\ncode here\n```":type==="quote"?"> ":type==="divider"?"---":"";
+  ta.value=lines.join("\n");
   ta.focus(); ta.dispatchEvent(new Event("input",{bubbles:true}));
 };
 window._smHover = function(idx) {
@@ -525,8 +584,10 @@ window._smHover = function(idx) {
   });
 };
 
-function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false}) {
+function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null}) {
   const taRef = useRef(); const wrapRef = useRef();
+  const imgInputRef = useRef();
+  const [uploading, setUploading] = useState(false);
   const buildSm = () => {
     const sm = getSm();
     sm.innerHTML = SLASH_ITEMS.map((item,i)=>
@@ -570,12 +631,81 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   const handleBlur = () => {
     setTimeout(()=>{ getTb().style.display="none"; getSm().style.display="none"; }, 200);
   };
+
+  const insertImageMarkdown = (webpUrl, originalUrl, filename) => {
+    const ta = taRef.current; if (!ta) return;
+    const alt = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+    // [![alt](webpUrl)](originalUrl) — WebP embedded, original linked for lightbox
+    const md = `\n[![${alt}](${webpUrl})](${originalUrl})\n`;
+    const pos = ta.selectionStart;
+    const newVal = value.slice(0, pos) + md + value.slice(pos);
+    onChange(newVal);
+    setTimeout(()=>{ ta.focus(); ta.setSelectionRange(pos+md.length, pos+md.length); }, 0);
+  };
+
+  const handleImageFile = async (file) => {
+    if (!file) return;
+    if (!currentUser) { toast("Sign in to upload images", "err"); return; }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", "post_image");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd
+      });
+      const d = await r.json();
+      if (d.upload) {
+        insertImageMarkdown(d.url, d.original_url, file.name);
+        toast("Image uploaded");
+      } else {
+        toast(d.error || "Upload failed", "err");
+      }
+    } catch(e) {
+      toast("Upload failed", "err");
+    } finally {
+      setUploading(false);
+      if (imgInputRef.current) imgInputRef.current.value = "";
+    }
+  };
+
   return (
     <div ref={wrapRef} style={{position:"relative"}}>
       {!value && <div style={{position:"absolute",top:0,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
         onMouseUp={handleSel} onKeyUp={handleSel} onBlur={handleBlur} autoFocus={autoFocus}
-        className="comp-ta" style={{minHeight}} />
+        className="comp-ta" style={{minHeight}}
+        onPaste={e=>{
+          // Handle paste of image files directly into textarea
+          const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
+          if (file) { e.preventDefault(); handleImageFile(file); }
+        }}
+        onDrop={e=>{
+          const file = Array.from(e.dataTransfer?.files||[]).find(f=>f.type.startsWith("image/"));
+          if (file) { e.preventDefault(); handleImageFile(file); }
+        }}
+        onDragOver={e=>e.preventDefault()}
+      />
+      {/* Hidden file input — triggered by slash menu Image pick and the button below */}
+      <input
+        id="comp-img-input"
+        ref={imgInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+        style={{display:"none"}}
+        onChange={e=>handleImageFile(e.target.files[0])}
+      />
+      <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:"0.5px solid var(--b1)",marginTop:4}}>
+        <label className={`comp-img-btn ${uploading?"uploading":""}`} htmlFor="comp-img-input" title="Upload image (or paste/drop)">
+          {uploading
+            ? <><i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}></i> Uploading…</>
+            : <><i className="fa-solid fa-image" style={{fontSize:11}}></i> Add image</>}
+        </label>
+        <span style={{fontSize:11,color:"var(--t5)",marginLeft:2}}>or paste / drag &amp; drop</span>
+      </div>
     </div>
   );
 }
@@ -1079,7 +1209,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         {currentUser&&!post.locked&&(
           <div style={{marginTop:20,paddingBottom:32}}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={setReplyBody} placeholder="Write a reply…" minHeight={72}/>
+              <RichTextArea value={replyBody} onChange={setReplyBody} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
               <div className="reply-box-foot">
                 <div className="ed-toggle">
                   <div className={`ed-opt ${edMode==="markdown"?"active":""}`} onClick={()=>setEdMode("markdown")}>Markdown</div>
@@ -1096,7 +1226,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
 }
 
 // ── Composer ──────────────────────────────────────────────────────────────────
-function ComposePage({spaces, tags, navigate}) {
+function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
   const [spaceId,setSpaceId]=useState(spaces[0]?.id||"");
   const [postType,setPostType]=useState("discussion");
@@ -1151,7 +1281,7 @@ function ComposePage({spaces, tags, navigate}) {
           </div>
         </div>
         <div className="comp-body-area">
-          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false}/>
+          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser}/>
         </div>
         <div className="comp-footer">
           <span className="comp-char">{body.length} characters</span>
@@ -1664,6 +1794,15 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [reports,setReports]=useState([]); const [modLogs,setModLogs]=useState([]);
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
   const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false);
+  const [uploadCfg,setUploadCfg]=useState({});
+  const [uploadStats,setUploadStats]=useState(null);
+  const [uploads,setUploads]=useState([]);
+  const [uploadFilter,setUploadFilter]=useState("");
+
+  const fetchUploadData=()=>{
+    api.get("/admin/uploads/stats").then(d=>setUploadStats(d.stats));
+    api.get("/admin/uploads"+(uploadFilter?`?type=${uploadFilter}`:``)).then(d=>setUploads(d.uploads||[]));
+  };
 
   useEffect(()=>{
     if(currentUser?.role!=="admin")return;
@@ -1673,11 +1812,15 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
     api.get("/tags").then(d=>setTags(d.tags||[]));
     api.get("/reports").then(d=>setReports(d.reports||[]));
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});});
   },[currentUser]);
 
-  if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
+  useEffect(()=>{
+    if(currentUser?.role!=="admin")return;
+    if(sec==="storage") fetchUploadData();
+  },[sec, uploadFilter]);
 
+  if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
   const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");if(key==="appearance")applyBranding(value,general);}finally{setSaving(false);}};
 
   const NAV_SECTIONS = [
@@ -1773,9 +1916,56 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             <F label="Forum name" hint="Appears in the browser tab and emails"><input className="fi" value={general.site_name||""} onChange={e=>setGeneral(p=>({...p,site_name:e.target.value}))} placeholder="Nexus"/></F>
             <F label="Forum description"><input className="fi" value={general.site_description||""} onChange={e=>setGeneral(p=>({...p,site_description:e.target.value}))} placeholder="A short description…"/></F>
             <F label="Base URL"><input className="fi" value={general.base_url||""} onChange={e=>setGeneral(p=>({...p,base_url:e.target.value}))} placeholder="forum.example.com"/></F>
+
+            <div className="fgt" style={{marginTop:20}}>Site logo</div>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
+              {general.logo_url
+                ?<img src={general.logo_url} style={{height:48,borderRadius:8,border:"0.5px solid var(--b2)",background:"var(--bg2)",padding:4}} alt="logo"/>
+                :<div style={{width:48,height:48,borderRadius:8,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:11}}>none</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <label style={{cursor:"pointer"}}>
+                  <input type="file" accept="image/png,image/svg+xml,image/jpeg" style={{display:"none"}} onChange={async e=>{
+                    const f=e.target.files[0]; if(!f)return;
+                    const fd=new FormData(); fd.append("file",f); fd.append("type","logo");
+                    const token=localStorage.getItem("nexus_token");
+                    const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+                    const d=await r.json();
+                    if(d.upload){setGeneral(p=>({...p,logo_url:d.original_url}));toast("Logo uploaded");}
+                    else toast(d.error||"Upload failed");
+                  }}/>
+                  <span className="btn-ghost" style={{fontSize:12,pointerEvents:"none"}}>
+                    <i className="fa-solid fa-arrow-up-from-bracket" style={{marginRight:6}}></i>Upload logo
+                  </span>
+                </label>
+                {general.logo_url&&<span className="btn-ghost" style={{fontSize:12,color:"var(--red)",cursor:"pointer"}} onClick={()=>setGeneral(p=>({...p,logo_url:null}))}>Remove</span>}
+              </div>
+              <div style={{fontSize:11,color:"var(--t5)",lineHeight:1.5}}>PNG or SVG recommended.<br/>Max 400px wide.</div>
+            </div>
+
+            <div className="fgt" style={{marginTop:20}}>Favicon</div>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
+              {general.favicon_url
+                ?<img src={general.favicon_url} style={{width:32,height:32,borderRadius:4,border:"0.5px solid var(--b2)",background:"var(--bg2)",padding:2}} alt="favicon"/>
+                :<div style={{width:32,height:32,borderRadius:4,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:10}}>none</div>}
+              <label style={{cursor:"pointer"}}>
+                <input type="file" accept="image/x-icon,image/png,image/svg+xml" style={{display:"none"}} onChange={async e=>{
+                  const f=e.target.files[0]; if(!f)return;
+                  const fd=new FormData(); fd.append("file",f); fd.append("type","favicon");
+                  const token=localStorage.getItem("nexus_token");
+                  const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+                  const d=await r.json();
+                  if(d.upload){setGeneral(p=>({...p,favicon_url:d.original_url}));toast("Favicon uploaded");}
+                  else toast(d.error||"Upload failed");
+                }}/>
+                <span className="btn-ghost" style={{fontSize:12,pointerEvents:"none"}}>
+                  <i className="fa-solid fa-arrow-up-from-bracket" style={{marginRight:6}}></i>Upload favicon
+                </span>
+              </label>
+              <div style={{fontSize:11,color:"var(--t5)",lineHeight:1.5}}>.ico or 32×32 PNG.<br/>Shown in browser tabs.</div>
+            </div>
           </>}
 
-          {(sec==="branding"||sec==="appearance")&&<>
+          {(sec==="branding"||sec==="appearance")&&<>\
             <div className="fgt">Colors</div>
             <F label="Accent color" hint="Used for buttons, active states, and highlights">
               <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1922,7 +2112,106 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             Badge system coming soon
           </div>}
 
-          {(sec==="storage"||sec==="logs"||sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
+          {sec==="storage"&&<>
+            {/* Upload Settings */}
+            <div className="fgt">Upload settings</div>
+            <F label="Max file size" hint="Per-file limit for all uploads">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="1" max="100" style={{width:80}} value={uploadCfg.max_size_mb||5} onChange={e=>setUploadCfg(p=>({...p,max_size_mb:parseInt(e.target.value)||5}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>MB</span>
+              </div>
+            </F>
+            <F label="Max image width" hint="Images wider than this are resized on upload. Avatars always max at 400px.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="400" max="4000" style={{width:100}} value={uploadCfg.max_width||1200} onChange={e=>setUploadCfg(p=>({...p,max_width:parseInt(e.target.value)||1200}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>px wide</span>
+              </div>
+            </F>
+            <F label="Convert to WebP" hint="Serve smaller WebP versions embedded in posts. Originals are always kept.">
+              <Tgl label="Enabled" on={uploadCfg.convert_to_webp!==false} onChange={v=>setUploadCfg(p=>({...p,convert_to_webp:v}))}/>
+            </F>
+            {uploadCfg.convert_to_webp!==false&&<F label="WebP quality" hint="1–100. 80–90 is a good balance of size and quality.">
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <input type="range" min="50" max="100" value={uploadCfg.webp_quality||85} onChange={e=>setUploadCfg(p=>({...p,webp_quality:parseInt(e.target.value)}))} style={{flex:1,accentColor:"var(--ac)"}}/>
+                <span style={{fontSize:13,color:"var(--ac)",fontVariantNumeric:"tabular-nums",minWidth:28}}>{uploadCfg.webp_quality||85}</span>
+              </div>
+            </F>}
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={async()=>{setSaving(true);try{await api.patch("/admin/settings/uploads",{value:uploadCfg});toast("Upload settings saved");}finally{setSaving(false);}}} disabled={saving}>{saving?"…":"Save upload settings"}</button>
+            </div>
+
+            {/* Storage stats */}
+            <div className="fgt" style={{marginTop:28}}>Storage usage</div>
+            {uploadStats
+              ?<>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10,marginBottom:20}}>
+                  {[
+                    {k:"post_image", label:"Post images", icon:"fa-image"},
+                    {k:"avatar",     label:"Avatars",     icon:"fa-circle-user"},
+                    {k:"logo",       label:"Logos",       icon:"fa-palette"},
+                    {k:"favicon",    label:"Favicons",    icon:"fa-star"},
+                  ].map(({k,label,icon})=>{
+                    const s=uploadStats.by_type?.[k]||{count:0,bytes:0};
+                    return <div key={k} style={{background:"var(--bg2)",borderRadius:10,padding:"12px 14px",border:"0.5px solid var(--b1)"}}>
+                      <i className={`fa-solid ${icon}`} style={{fontSize:14,color:"var(--ac)",marginBottom:6,display:"block"}}></i>
+                      <div style={{fontSize:18,fontWeight:600,color:"var(--t1)"}}>{s.count}</div>
+                      <div style={{fontSize:11,color:"var(--t5)"}}>{label}</div>
+                      <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{fmtBytes(s.bytes)}</div>
+                    </div>;
+                  })}
+                </div>
+                <div style={{fontSize:12,color:"var(--t4)",marginBottom:20}}>
+                  Total: <strong style={{color:"var(--t2)"}}>{uploadStats.total_count} files</strong> · <strong style={{color:"var(--t2)"}}>{fmtBytes(uploadStats.total_bytes)}</strong>
+                </div>
+              </>
+              :<div style={{fontSize:13,color:"var(--t5)",padding:"12px 0"}}>Loading stats…</div>}
+
+            {/* Upload browser */}
+            <div className="fgt" style={{marginTop:8}}>All uploads</div>
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              {["","post_image","avatar","logo","favicon"].map(f=>(
+                <button key={f} className={uploadFilter===f?"btn-primary":"btn-ghost"} style={{fontSize:11,padding:"4px 12px",borderRadius:20}} onClick={()=>setUploadFilter(f)}>
+                  {f||"all"}
+                </button>
+              ))}
+              <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",borderRadius:20,marginLeft:"auto"}} onClick={fetchUploadData}>
+                <i className="fa-solid fa-rotate" style={{marginRight:4}}></i>Refresh
+              </button>
+            </div>
+            {uploads.length===0
+              ?<div style={{padding:"20px 0",color:"var(--t5)",fontSize:13}}>No uploads yet</div>
+              :<div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                <table className="atbl">
+                  <thead><tr><th style={{width:48}}>File</th><th>Name</th><th>Type</th><th>Size</th><th>Dims</th><th>By</th><th>Date</th><th style={{width:40}}></th></tr></thead>
+                  <tbody>
+                    {uploads.map(u=>(
+                      <tr key={u.id}>
+                        <td>
+                          {u.url&&<img src={u.url} style={{width:36,height:36,objectFit:"cover",borderRadius:4,border:"0.5px solid var(--b1)"}} alt=""/>}
+                        </td>
+                        <td style={{maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--t3)"}}>{u.original_name}</td>
+                        <td><span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{u.upload_type}</span></td>
+                        <td style={{fontSize:11,color:"var(--t5)"}}>{fmtBytes(u.size_bytes)}</td>
+                        <td style={{fontSize:11,color:"var(--t5)"}}>{u.width&&u.height?`${u.width}×${u.height}`:"-"}</td>
+                        <td style={{fontSize:11,color:"var(--t4)"}}>{u.user?.username||"-"}</td>
+                        <td style={{fontSize:11,color:"var(--t5)"}}>{ago(u.inserted_at)}</td>
+                        <td>
+                          <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={async()=>{
+                            if(!confirm("Delete this file?"))return;
+                            await api.delete(`/admin/uploads/${u.id}`);
+                            setUploads(p=>p.filter(x=>x.id!==u.id));
+                            fetchUploadData();
+                            toast("Deleted");
+                          }}>✕</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>}
+          </>}
+
+          {(sec==="logs"||sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
             <i className="fa-solid fa-tools" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}></i>
             This section is not yet available
           </div>}
@@ -2237,6 +2526,8 @@ function App() {
   // Admin gets its own full shell
   if(page==="admin"&&currentUser) return <><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/><Toasts/></>;
 
+  const [lb, setLb] = useLightbox();
+
   const renderPage=()=>{
     const requireAuth = (el) => {
       if(!currentUser) return <GuestPrompt onAuthRequired={m=>setAuthModal(m)}/>;
@@ -2248,7 +2539,7 @@ function App() {
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
       case "saved":       return requireAuth(<SavedPage navigate={navigate}/>);
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>setCurrentUser(u)} navigate={navigate}/>);
-      case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate}/>);
+      case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate}/>);
@@ -2269,6 +2560,7 @@ function App() {
           {renderPage()}
         </div>
       </div>
+      {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
       {authModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAuthModal(null)}>
           <div style={{width:"100%",maxWidth:380,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:32,position:"relative"}}>

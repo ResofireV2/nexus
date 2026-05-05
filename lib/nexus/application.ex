@@ -3,6 +3,12 @@ defmodule Nexus.Application do
 
   @impl true
   def start(_type, _args) do
+    # Ensure upload directories exist
+    static = Application.app_dir(:nexus, "priv/static")
+    for dir <- ~w(uploads/posts uploads/avatars uploads/logos uploads/webp/posts uploads/webp/avatars uploads/webp/logos) do
+      File.mkdir_p!(Path.join(static, dir))
+    end
+
     children = [
       NexusWeb.Telemetry,
       Nexus.Repo,

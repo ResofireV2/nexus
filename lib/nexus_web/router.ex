@@ -86,6 +86,9 @@ defmodule NexusWeb.Router do
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through [:api, :authenticated]
 
+    # File uploads
+    post "/uploads", UploadController, :create
+
     # Subscriptions
     post   "/spaces/:slug/subscribe", SpaceController, :subscribe
     delete "/spaces/:slug/subscribe", SpaceController, :unsubscribe
@@ -168,14 +171,19 @@ defmodule NexusWeb.Router do
   scope "/api/v1/admin", NexusWeb.API.V1 do
     pipe_through [:api, :admin]
 
-    get    "/dashboard",          AdminController, :dashboard
-    get    "/users",              AdminController, :list_users
-    get    "/users/:id",          AdminController, :get_user
-    patch  "/users/:id/role",     AdminController, :update_role
-    delete "/users/:id",          AdminController, :delete_user
-    get    "/settings",           AdminController, :get_settings
-    patch  "/settings/:key",      AdminController, :update_settings
-    post   "/test-email",         AdminController, :test_email
+    get    "/dashboard",          AdminController,  :dashboard
+    get    "/users",              AdminController,  :list_users
+    get    "/users/:id",          AdminController,  :get_user
+    patch  "/users/:id/role",     AdminController,  :update_role
+    delete "/users/:id",          AdminController,  :delete_user
+    get    "/settings",           AdminController,  :get_settings
+    patch  "/settings/:key",      AdminController,  :update_settings
+    post   "/test-email",         AdminController,  :test_email
+
+    # Uploads management
+    get    "/uploads",            UploadController, :index
+    get    "/uploads/stats",      UploadController, :stats
+    delete "/uploads/:id",        UploadController, :delete
 
     # Spaces (admin only)
     post   "/spaces",             SpaceController, :create
