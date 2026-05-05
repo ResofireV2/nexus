@@ -2521,12 +2521,12 @@ function App() {
 
   const logout=()=>{api.post("/auth/logout",{});api.setToken(null);setCurrentUser(null);navigate("feed");};
 
+  const [lb, setLb] = useLightbox();
+
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
 
   // Admin gets its own full shell
   if(page==="admin"&&currentUser) return <><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/><Toasts/></>;
-
-  const [lb, setLb] = useLightbox();
 
   const renderPage=()=>{
     const requireAuth = (el) => {
