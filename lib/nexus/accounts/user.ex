@@ -22,6 +22,9 @@ defmodule Nexus.Accounts.User do
     field :avatar_url,           :string
     field :cover_url,            :string
     field :bio,                  :string
+    field :last_seen_at,         :utc_datetime
+    field :current_streak,       :integer, default: 0
+    field :longest_streak,       :integer, default: 0
 
     field :status,               :string, default: "active"
     field :status_until,         :utc_datetime

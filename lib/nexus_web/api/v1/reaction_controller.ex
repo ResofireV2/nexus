@@ -33,6 +33,20 @@ defmodule NexusWeb.API.V1.ReactionController do
           Forum.list_reactions(reply_id: reaction.reply_id)
         end
 
+        # Track activity stats
+        Nexus.Activity.increment_stat(user.id, :reactions_given)
+        # Track reactions received for the post/reply author
+        Task.start(fn ->
+          target = if reaction.post_id do
+            Nexus.Forum.get_post(reaction.post_id)
+          else
+            Nexus.Forum.get_reply(reaction.reply_id)
+          end
+          if target && target.user_id && target.user_id != user.id do
+            Nexus.Activity.increment_stat(target.user_id, :reactions_received)
+          end
+        end)
+
         conn |> put_status(:created) |> json(%{ok: true, reactions: reactions, user_reaction: reaction.emoji})
 
       {:error, changeset} ->

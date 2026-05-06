@@ -5,7 +5,10 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
-    json(conn, %{stats: Admin.dashboard_stats()})
+    stats = Admin.dashboard_stats()
+    dau_7  = Nexus.Activity.daily_active_users(7)
+    dau_30 = Nexus.Activity.daily_active_users(30)
+    json(conn, %{stats: Map.merge(stats, %{dau_7: dau_7, dau_30: dau_30})})
   end
 
   # ---------------------------------------------------------------------------

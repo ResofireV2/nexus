@@ -40,6 +40,7 @@ defmodule NexusWeb.API.V1.PostController do
           else
             NexusWeb.FeedChannel.broadcast_new_post(post)
             Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
+            Nexus.Activity.increment_stat(user.id, :posts_count)
             conn |> put_status(:created) |> json(%{post: post_json(post)})
           end
 

@@ -18,6 +18,7 @@ defmodule NexusWeb.Router do
 
   pipeline :authenticated do
     plug NexusWeb.Plugs.RequireAuth
+    plug NexusWeb.Plugs.ActivityTracker
   end
 
   pipeline :admin do

@@ -38,6 +38,7 @@ defmodule NexusWeb.API.V1.ReplyController do
               if pending do
                 conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
               else
+                Nexus.Activity.increment_stat(user.id, :replies_count)
                 conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
               end
 
