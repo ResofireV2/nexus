@@ -226,11 +226,12 @@ defmodule Nexus.Uploads do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  defp upload_dir("post_image"), do: "posts"
-  defp upload_dir("avatar"),     do: "avatars"
-  defp upload_dir("cover_image"), do: "covers"
-  defp upload_dir("logo"),       do: "logos"
-  defp upload_dir("favicon"),    do: "logos"
+  defp upload_dir("post_image"),   do: "posts"
+  defp upload_dir("avatar"),       do: "avatars"
+  defp upload_dir("cover_image"),  do: "covers"
+  defp upload_dir("logo"),         do: "logos"
+  defp upload_dir("favicon"),      do: "logos"
+  defp upload_dir("group_image"),  do: "avatars"
 
   defp max_width_for("avatar", _settings),       do: 400
   defp max_width_for("logo",   _settings),       do: 400
