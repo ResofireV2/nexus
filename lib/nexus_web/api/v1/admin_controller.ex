@@ -210,6 +210,22 @@ defmodule NexusWeb.API.V1.AdminController do
         conn |> put_status(:not_found) |> json(%{error: "User not found"})
 
       user ->
+        # Fetch post/reply counts and reactions received
+        import Ecto.Query
+        alias Nexus.Repo
+
+        post_count = Repo.one(from p in Nexus.Forum.Post,
+          where: p.user_id == ^user.id and p.hidden == false and p.pending_approval == false,
+          select: count(p.id)) || 0
+
+        reply_count = Repo.one(from r in Nexus.Forum.Reply,
+          where: r.user_id == ^user.id and r.hidden == false,
+          select: count(r.id)) || 0
+
+        reactions_received = Repo.one(from s in Nexus.Activity.UserDailyStat,
+          where: s.user_id == ^user.id,
+          select: sum(s.reactions_received)) || 0
+
         json(conn, %{
           user: %{
             id: user.id,
@@ -218,7 +234,11 @@ defmodule NexusWeb.API.V1.AdminController do
             bio: user.bio,
             avatar_url: user.avatar_url,
             cover_url: user.cover_url,
-            inserted_at: user.inserted_at
+            last_seen_at: user.last_seen_at,
+            inserted_at: user.inserted_at,
+            post_count: post_count,
+            reply_count: reply_count,
+            reactions_received: reactions_received
           }
         })
     end

@@ -602,6 +602,15 @@ select option{background:#1a1a2e;color:var(--t1);}
 .lb-close{position:fixed;top:16px;right:20px;font-size:24px;color:rgba(255,255,255,.7);cursor:pointer;line-height:1;z-index:10000;}
 .lb-close:hover{color:#fff;}
 .lb-orig{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;}
+/* User card popover */
+.ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
+.ucard-wrap.visible{pointer-events:auto;}
+.ucard{background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;width:260px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);animation:rxPop .15s ease;}
+.ucard-cover{height:56px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
+.ucard-body{padding:12px 14px 14px;}
+.ucard-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 6px;text-align:center;flex:1;}
+.ucard-stat-n{font-size:15px;font-weight:500;color:var(--t1);}
+.ucard-stat-l{font-size:10px;color:var(--t5);margin-top:2px;}
 /* Quote tooltip */
 .quote-tooltip{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--t2);cursor:pointer;z-index:9000;display:flex;align-items:center;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.6);user-select:none;}
 .quote-tooltip:hover{background:var(--s3);color:var(--t1);}
@@ -647,14 +656,112 @@ const SPACE_COLORS = ["#a78bfa","#f472b6","#34d399","#60a5fa","#fbbf24","#f87171
 function spaceColor(space) { return space?.color || SPACE_COLORS[(space?.id||0) % SPACE_COLORS.length]; }
 
 // Rounded-square avatar
-function RsAv({user, size=34, color}) {
+// ── User card popover ─────────────────────────────────────────────────────────
+let _ucardSetState = null;
+function useUserCard() {
+  const [card, setCard] = useState(null); // {user, x, y}
+  useEffect(()=>{ _ucardSetState = setCard; return ()=>{ _ucardSetState=null; }; },[]);
+  return [card, setCard];
+}
+function openUserCard(username, anchorEl) {
+  if (!_ucardSetState) return;
+  const rect = anchorEl.getBoundingClientRect();
+  _ucardSetState({username, x: rect.left, y: rect.bottom + 8, loading: true, user: null});
+  api.get(`/users/${username}`).then(d=>{
+    if (d.user) _ucardSetState(p=>p?.username===username ? {...p, user:d.user, loading:false} : p);
+  }).catch(()=>_ucardSetState(null));
+}
+
+function UserCardPopover({card, setCard, currentUser, navigate}) {
+  const ref = useRef();
+  useEffect(()=>{
+    if (!card) return;
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setCard(null); };
+    setTimeout(()=>document.addEventListener("mousedown", fn), 0);
+    return ()=>document.removeEventListener("mousedown", fn);
+  },[card]);
+
+  if (!card) return null;
+
+  const u = card.user;
+  const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
+  const ROLE_BG = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
+
+  const startDM = async () => {
+    setCard(null);
+    const d = await api.post("/threads/direct", {username: card.username});
+    if (d.thread) navigate("dm", {threadId: d.thread.id, threadName: card.username});
+    else toast(d.error||"Could not start conversation","err");
+  };
+
+  // Flip horizontally if card would go off right edge
+  const cardW = 260;
+  const x = Math.min(card.x, window.innerWidth - cardW - 12);
+  // Flip vertically if card would go off bottom
+  const cardH = 300;
+  const y = card.y + cardH > window.innerHeight ? card.y - cardH - 60 : card.y;
+
+  return (
+    <div ref={ref} className={`ucard-wrap ${card?"visible":""}`} style={{left:x, top:y}}>
+      <div className="ucard">
+        {/* Cover */}
+        <div className="ucard-cover" style={{background: u?.cover_url ? `url(${u.cover_url}) center/cover` : "linear-gradient(135deg,#1e1c2e,#312e55)"}}>
+          {/* Avatar overlapping cover */}
+          <div style={{position:"absolute",bottom:-20,left:14}}>
+            {u?.avatar_url
+              ?<img src={u.avatar_url} style={{width:44,height:44,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
+              :<div style={{width:44,height:44,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
+          </div>
+        </div>
+        {/* Body */}
+        <div className="ucard-body">
+          {card.loading&&!u
+            ?<div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
+            :<>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8,paddingTop:18}}>
+                <div>
+                  <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",cursor:"pointer"}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>{u.username}</div>
+                  <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>Joined {new Date(u.inserted_at).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
+                </div>
+                {u.role&&u.role!=="member"&&<div style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:ROLE_BG[u.role],color:ROLE_COLOR[u.role],border:`0.5px solid ${ROLE_COLOR[u.role]}44`,flexShrink:0}}>{u.role}</div>}
+              </div>
+              {u.bio&&<p style={{fontSize:12,color:"var(--t3)",margin:"0 0 10px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{u.bio}</p>}
+              {/* Stats */}
+              <div style={{display:"flex",gap:6,marginBottom:10}}>
+                <div className="ucard-stat"><div className="ucard-stat-n">{u.post_count||0}</div><div className="ucard-stat-l">posts</div></div>
+                <div className="ucard-stat"><div className="ucard-stat-n">{u.reply_count||0}</div><div className="ucard-stat-l">replies</div></div>
+                <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{u.reactions_received||0}</div><div className="ucard-stat-l">reactions</div></div>
+              </div>
+              {/* Last seen */}
+              {u.last_seen_at&&<div style={{fontSize:11,color:"var(--t5)",marginBottom:10,display:"flex",alignItems:"center",gap:5}}>
+                <i className="fa-solid fa-clock" style={{fontSize:10}}></i>
+                Active {ago(u.last_seen_at)}
+              </div>}
+              {/* Actions */}
+              <div style={{display:"flex",gap:7}}>
+                {currentUser&&currentUser.username!==u.username&&<button className="btn-ghost" style={{flex:1,fontSize:12,padding:"6px 0",borderRadius:8}} onClick={startDM}>
+                  <i className="fa-solid fa-message" style={{fontSize:11,marginRight:5}}></i>Message
+                </button>}
+                <button className="btn-ghost" style={{flex:1,fontSize:12,padding:"6px 0",borderRadius:8}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>
+                  <i className="fa-solid fa-user" style={{fontSize:11,marginRight:5}}></i>Profile
+                </button>
+              </div>
+            </>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RsAv({user, size=34, color, noCard=false}) {
   const bg = color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
+  const handleClick = noCard ? undefined : (e)=>{ e.stopPropagation(); if(user?.username) openUserCard(user.username, e.currentTarget); };
   if (user?.avatar_url) return (
-    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`}} alt={user.username}/>
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`,cursor:noCard?"default":"pointer"}} alt={user.username} onClick={handleClick}/>
   );
   return (
-    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0}}>
+    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0,cursor:noCard?"default":"pointer"}} onClick={handleClick}>
       {initials}
     </div>
   );
@@ -1650,7 +1757,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
         {replies.map(r=>(
           <div key={r.id} className="reply-item">
             {r.user?.avatar_url
-              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)"}} alt={r.user.username}/>
+              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
               :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
             <div className="reply-body-wrap">
               <div className="reply-meta">
@@ -3218,6 +3325,7 @@ function App() {
   const logout=()=>{api.post("/auth/logout",{});api.setToken(null);updateCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};
 
   const [lb, setLb] = useLightbox();
+  const [userCard, setUserCard] = useUserCard();
 
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
 
@@ -3263,6 +3371,7 @@ function App() {
       </div>
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
+      {userCard&&<UserCardPopover card={userCard} setCard={setUserCard} currentUser={currentUser} navigate={navigate}/>}
       {authModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAuthModal(null)}>
           <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:20,padding:40,position:"relative"}}>
