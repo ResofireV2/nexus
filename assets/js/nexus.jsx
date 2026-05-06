@@ -1869,7 +1869,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             <i className="fa-solid fa-quote-left" style={{fontSize:10}}></i> Quote
           </div>
         )}
-        {currentUser&&!post.locked&&(
+        {currentUser&&!post.locked&&(<>
           {typingUsers.length>0&&<div style={{padding:"4px 0 6px",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
             <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
             {typingUsers.length===1?"Someone is":"Multiple people are"} typing…
@@ -1882,7 +1882,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               </div>
             </div>
           </div>
-        )}
+        </>)}
       </div>
     </div>
   );
