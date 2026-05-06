@@ -3698,6 +3698,7 @@ function App() {
   const navigate=useCallback((p,props={})=>{
     const url = pageToUrl(p, props);
     window.history.pushState({page:p, props}, "", url);
+    if(p==="messages") setMsgPageKey(k=>k+1);
     setPage(p);setPageProps(props);window.scrollTo(0,0);
     window._nexusNavigate = navigate;
   },[]);
@@ -3811,7 +3812,7 @@ function App() {
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
-      case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate} onOpen={()=>{setMsgCount(0);setMsgPageKey(k=>k+1);}}/>);
+      case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
