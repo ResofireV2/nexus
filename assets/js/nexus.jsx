@@ -1950,13 +1950,13 @@ function SpacesAdmin({spaces, onRefresh}) {
     setSaving(true);
     try {
       if(editing==="new") {
-        const d=await api.post("/spaces",form);
+        const d=await api.post("/admin/spaces",form);
         if(d.space){toast("Space created");onRefresh();close();}
         else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
       } else {
         // Explicitly build payload to avoid any stale closure issues with form state
         const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility};
-        const d=await api.patch(`/spaces/${editing.slug}`,payload);
+        const d=await api.patch(`/admin/spaces/${editing.slug}`,payload);
         if(d.space){toast("Space updated");onRefresh();close();}
         else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
       }
@@ -1965,7 +1965,7 @@ function SpacesAdmin({spaces, onRefresh}) {
 
   const del=async(s)=>{
     if(!confirm(`Delete space "${s.name}"? This cannot be undone.`))return;
-    await api.delete(`/spaces/${s.slug}`);
+    await api.delete(`/admin/spaces/${s.slug}`);
     toast("Space deleted"); onRefresh();
   };
 
