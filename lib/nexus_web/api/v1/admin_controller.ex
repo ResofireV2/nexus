@@ -89,6 +89,18 @@ defmodule NexusWeb.API.V1.AdminController do
     json(conn, %{settings: Admin.get_settings()})
   end
 
+  # GET /api/v1/branding — public, returns only safe display settings
+  def get_branding(conn, _params) do
+    s = Admin.get_settings()
+    json(conn, %{
+      settings: %{
+        general:    Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url"]),
+        appearance: Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css"]),
+        registration: Map.take(s["registration"]||%{}, ["open"])
+      }
+    })
+  end
+
   # PATCH /api/v1/admin/settings/:key
   def update_settings(conn, %{"key" => key, "value" => value}) do
     case Admin.update_setting(key, value) do

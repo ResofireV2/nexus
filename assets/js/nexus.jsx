@@ -3380,7 +3380,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);}).catch(()=>{});
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);}).catch(()=>{});
   },[]);
 
   useEffect(()=>{

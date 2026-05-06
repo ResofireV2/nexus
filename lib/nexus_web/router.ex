@@ -82,6 +82,7 @@ defmodule NexusWeb.Router do
     get "/stats",                  FeedController,   :stats
     get "/users",                  AdminController,  :list_users_public
     get "/users/:username",        AdminController,  :get_user_public
+    get "/branding",              AdminController,  :get_branding
   end
 
   # API v1 — authenticated member actions
