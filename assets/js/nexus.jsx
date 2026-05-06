@@ -36,12 +36,21 @@ function isAudioUrl(url) {
   return /\.(mp3|ogg|wav|flac|m4a)(\?.*)?$/i.test(url);
 }
 
+// Extract raw URL from either a plain URL or a GFM auto-linked <a href="url">url</a>
+function extractBareUrl(text) {
+  const stripped = text.trim();
+  // Plain bare URL
+  if (/^https?:\/\/[^\s<>"]+$/.test(stripped)) return stripped;
+  // GFM auto-linked: <a href="URL">URL</a> — extract href
+  const m = stripped.match(/^<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>.*<\/a>$/);
+  if (m) return m[1];
+  return null;
+}
+
 // Paragraph override — detect bare media URLs and render embeds
 mdRenderer.paragraph = function(text) {
-  const stripped = text.trim();
-  // Only process if paragraph is a single bare URL (no spaces, no markdown)
-  if (/^https?:\/\/\S+$/.test(stripped)) {
-    const url = stripped;
+  const url = extractBareUrl(text);
+  if (url) {
     const ytId = getYouTubeId(url);
     if (ytId) return `<div class="md-embed"><iframe src="https://www.youtube-nocookie.com/embed/${ytId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
     const vmId = getVimeoId(url);
