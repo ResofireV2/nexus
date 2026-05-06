@@ -40,6 +40,14 @@ defmodule NexusWeb.API.V1.ReplyController do
               else
                 Nexus.Activity.increment_stat(user.id, :replies_count)
                 Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
+
+                # Broadcast to PostChannel so all connected viewers receive the reply in real-time
+                Phoenix.PubSub.broadcast(
+                  Nexus.PubSub,
+                  "post:#{post.id}",
+                  {:new_reply, reply_json(reply)}
+                )
+
                 conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
               end
 

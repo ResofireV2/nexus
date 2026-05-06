@@ -3,15 +3,23 @@ defmodule NexusWeb.FeedChannel do
 
   @impl true
   def join("feed:global", _payload, socket) do
+    send(self(), {:after_join, "feed:global"})
     {:ok, socket}
   end
 
-  def join("feed:space:" <> _space_slug, _payload, socket) do
+  def join("feed:space:" <> space_slug, _payload, socket) do
+    send(self(), {:after_join, "feed:space:#{space_slug}"})
     {:ok, socket}
   end
 
   def join(_topic, _payload, _socket) do
     {:error, %{reason: "Unknown feed topic"}}
+  end
+
+  @impl true
+  def handle_info({:after_join, topic}, socket) do
+    Phoenix.PubSub.subscribe(Nexus.PubSub, topic)
+    {:noreply, socket}
   end
 
   @doc """
