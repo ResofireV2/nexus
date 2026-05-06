@@ -8,8 +8,8 @@ defmodule Nexus.Auth.JWT do
 
   use Joken.Config
 
-  @access_token_ttl 15 * 60
-  # 15 minutes in seconds
+  @access_token_ttl 60 * 60
+  # 60 minutes in seconds
 
   @impl true
   def token_config do

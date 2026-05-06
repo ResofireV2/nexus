@@ -3677,6 +3677,32 @@ function App() {
     else setAuthChecked(true);
   },[]);
 
+  // Proactively refresh the session when the user returns to the tab.
+  // Without this, a 15-minute idle causes the access token to expire silently.
+  // On visibility restore we attempt a token refresh before any API calls fire,
+  // preventing the app from seeing a 401 and briefly clearing the logged-in state.
+  useEffect(()=>{
+    const onVisible = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (!api.token) return;
+      // Proactively refresh — tryRefresh is a no-op if token is still fresh
+      // because the server will just issue a new one if the cookie is valid
+      const refreshed = await api.tryRefresh();
+      if (refreshed) {
+        // Refresh succeeded — silently re-verify the user in case role/status changed
+        api.request("GET", "/auth/me", null, false, true).then(d=>{
+          if (d.user) updateCurrentUser(d.user);
+        }).catch(()=>{});
+      } else if (!api.token) {
+        // Refresh failed and we have no token — session truly expired
+        updateCurrentUser(null);
+        window.dispatchEvent(new Event("nexus:logout"));
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
     api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);}).catch(()=>{});
