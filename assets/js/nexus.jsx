@@ -120,9 +120,10 @@ function useLightbox() {
 }
 // Attach delegated click handler to .md-body images once at module load
 document.addEventListener("click", e => {
-  // Handle click on image directly
   const img = e.target.closest(".md-body img");
   if (!img) return;
+  // Don't intercept YouTube lite embed thumbnails — let the yt handler take it
+  if (img.closest(".yt-lite")) return;
   e.preventDefault();
   e.stopPropagation();
   const originalSrc = img.getAttribute("data-original") || img.src;
