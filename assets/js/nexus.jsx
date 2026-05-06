@@ -183,19 +183,19 @@ select option{background:#1a1a2e;color:var(--t1);}
 .topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:8px;flex-shrink:0;position:relative;z-index:50;}
 .logo-text{font-size:15px;font-weight:500;color:#fff;letter-spacing:-.5px;}
 .logo-text em{font-style:normal;color:var(--ac);}
-.tb-search{flex:1;max-width:280px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:20px;padding:7px 14px;font-size:12px;color:var(--t4);display:flex;align-items:center;gap:8px;cursor:text;}
-.tb-search input{background:transparent;border:none;outline:none;font-size:12px;color:var(--t2);font-family:inherit;flex:1;}
+.tb-search{flex:1;max-width:400px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:24px;padding:10px 18px;font-size:14px;color:var(--t4);display:flex;align-items:center;gap:10px;cursor:text;}
+.tb-search input{background:transparent;border:none;outline:none;font-size:14px;color:var(--t2);font-family:inherit;flex:1;}
 .tb-search input::placeholder{color:var(--t4);}
-.icon-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;transition:background .1s;color:rgba(255,255,255,0.55);}
+.icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;transition:background .1s;color:rgba(255,255,255,0.55);}
 .icon-btn:hover{background:rgba(255,255,255,0.09);}
-.icon-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
+.icon-badge{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
 .icon-badge.green{background:var(--green);}
-.write-btn{font-size:12px;color:#0d0d14;background:var(--ac);border:none;border-radius:20px;padding:6px 16px;font-weight:500;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
+.write-btn{font-size:13px;color:#0d0d14;background:var(--ac);border:none;border-radius:24px;padding:9px 22px;font-weight:500;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
 .write-btn:hover{opacity:.9;}
 
 /* Avatar menu */
 .av-wrap{position:relative;margin-left:2px;}
-.av-circle{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;}
+.av-circle{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
 .av-circle:hover{border-color:rgba(167,139,250,.5);}
 .av-circle.open{border-color:var(--ac);}
 .av-dd{position:absolute;top:calc(100% + 10px);right:0;width:200px;background:var(--s2);border:0.5px solid var(--b3);border-radius:14px;padding:6px;z-index:200;opacity:0;pointer-events:none;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}
@@ -930,21 +930,21 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
   return (
     <div className="topbar">
       <div className="tb-search">
-        <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"rgba(255,255,255,0.25)"}}></i>
+        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:"rgba(255,255,255,0.25)"}}></i>
         <input placeholder="search threads…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onSearch?.(q)}/>
       </div>
-      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
         {currentUser ? <>
           <div className="icon-btn" onClick={()=>navigate("notifications")} title="Notifications">
-            <i className="fa-solid fa-bell" style={{fontSize:13}}></i>
+            <i className="fa-solid fa-bell" style={{fontSize:16}}></i>
             {notifCount>0&&<div className="icon-badge"/>}
           </div>
           <div className="icon-btn" onClick={()=>navigate("messages")} title="Messages">
-            <i className="fa-solid fa-message" style={{fontSize:13}}></i>
+            <i className="fa-solid fa-message" style={{fontSize:16}}></i>
             {msgCount>0&&<div className="icon-badge green"/>}
           </div>
           <div className="icon-btn" title="Docs">
-            <i className="fa-solid fa-file-lines" style={{fontSize:13}}></i>
+            <i className="fa-solid fa-file-lines" style={{fontSize:16}}></i>
           </div>
           <button className="write-btn" onClick={()=>navigate("compose")}>+ write</button>
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
