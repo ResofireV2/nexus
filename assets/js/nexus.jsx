@@ -218,6 +218,7 @@ S.textContent = `
   --t4:rgba(255,255,255,0.25);
   --t5:rgba(255,255,255,0.15);
   --ac:#a78bfa;
+  --ac-on:#0d0d14;
   --ac-bg:rgba(167,139,250,0.09);
   --ac-border:rgba(167,139,250,0.25);
   --ac-text:#c4b5fd;
@@ -290,7 +291,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .icon-btn:hover{background:rgba(255,255,255,0.09);}
 .icon-badge{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
 .icon-badge.green{background:var(--green);}
-.write-btn{font-size:15px;color:#0d0d14;background:var(--ac);border:none;border-radius:24px;padding:10px 24px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
+.write-btn{font-size:15px;color:var(--ac-on);background:var(--ac);border:none;border-radius:24px;padding:10px 24px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
 .write-btn:hover{opacity:.9;}
 
 /* Avatar menu */
@@ -421,7 +422,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-char{font-size:11px;color:var(--t5);}
 
 /* Buttons */
-.btn-primary{font-size:14px;padding:9px 22px;border-radius:22px;background:var(--ac);color:#0d0d14;border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
+.btn-primary{font-size:14px;padding:9px 22px;border-radius:22px;background:var(--ac);color:var(--ac-on);border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
 .btn-primary:hover{opacity:.9;}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed;}
 .btn-ghost{font-size:13px;padding:7px 18px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
@@ -541,7 +542,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thr-preview{font-size:12px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
 .bubble{max-width:72%;min-width:60px;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
-.mine .bubble{background:var(--ac);color:#0d0d14;font-weight:500;border-bottom-right-radius:4px;}
+.mine .bubble{background:var(--ac);color:var(--ac-on);font-weight:500;border-bottom-right-radius:4px;}
 .theirs .bubble{background:rgba(255,255,255,0.07);color:var(--t2);border:0.5px solid var(--b1);border-bottom-left-radius:4px;}
 
 /* Profile */
@@ -832,9 +833,49 @@ function setBrandingState(state) {
   _brandingListeners.forEach(fn => fn(_brandingState));
 }
 
+// ── Contrast-aware color utilities ───────────────────────────────────────────
+function hexToRgb(hex) {
+  const h = hex.replace("#","");
+  const full = h.length===3 ? h.split("").map(c=>c+c).join("") : h;
+  const n = parseInt(full,16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function luminance([r,g,b]) {
+  const ch = v => { v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); };
+  return 0.2126*ch(r)+0.7152*ch(g)+0.0722*ch(b);
+}
+// Given a hex accent color, derive all CSS variable variants
+function deriveAccentVars(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const rgb = hexToRgb(hex);
+  const lum = luminance(rgb);
+  // Text on solid accent background: white for dark colors, near-black for light
+  const onAccent = lum > 0.35 ? "#0d0d14" : "#ffffff";
+  // Tinted bg: accent at low opacity
+  const [r,g,b] = rgb;
+  const acBg = `rgba(${r},${g},${b},0.12)`;
+  const acBorder = `rgba(${r},${g},${b},0.30)`;
+  // ac-text: for text ON dark bg WITH accent color — if accent is very light, darken it slightly
+  const acText = lum > 0.6
+    ? `rgb(${Math.round(r*0.7)},${Math.round(g*0.7)},${Math.round(b*0.7)})`
+    : lum > 0.35
+    ? hex
+    : `rgb(${Math.min(255,Math.round(r*1.3))},${Math.min(255,Math.round(g*1.3))},${Math.min(255,Math.round(b*1.3))})`;
+  return {onAccent, acBg, acBorder, acText};
+}
+
 function applyBranding(app={}, gen={}) {
   const r = document.documentElement;
-  if (app.accent_color) r.style.setProperty("--ac", app.accent_color);
+  if (app.accent_color) {
+    r.style.setProperty("--ac", app.accent_color);
+    const vars = deriveAccentVars(app.accent_color);
+    if (vars) {
+      r.style.setProperty("--ac-on", vars.onAccent);   // text ON solid accent bg
+      r.style.setProperty("--ac-bg", vars.acBg);        // tinted accent bg
+      r.style.setProperty("--ac-border", vars.acBorder); // accent border
+      r.style.setProperty("--ac-text", vars.acText);    // accent-colored text on dark bg
+    }
+  }
   // Avatar radius: 0=square, 50=circle. Default 22%
   r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
   if (gen.site_name) document.title = gen.site_name + " · Nexus";
@@ -2269,7 +2310,7 @@ function DMPage({threadId, threadName, currentUser, navigate}) {
           <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName}…`} value={text} onChange={e=>setText(e.target.value)}/>
         </div>
         <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
-          <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"#0d0d14"}}></i>
+          <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
         </button>
       </form>
     </div>
@@ -2685,7 +2726,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             <F label="Accent color" hint="Used for buttons, active states, and highlights">
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:36,height:36,borderRadius:8,background:branding.accent_color||"#a78bfa",border:"0.5px solid var(--b2)",cursor:"pointer",flexShrink:0}}/>
-                <input className="fi" value={branding.accent_color||""} onChange={e=>setBranding(p=>({...p,accent_color:e.target.value}))} placeholder="#a78bfa" style={{fontFamily:"monospace"}}/>
+                <input className="fi" value={branding.accent_color||""} onChange={e=>{const v=e.target.value;setBranding(p=>({...p,accent_color:v}));if(/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}}} placeholder="#a78bfa" style={{fontFamily:"monospace"}}/>
               </div>
             </F>
             <div className="fgt" style={{marginTop:16}}>Avatars</div>
