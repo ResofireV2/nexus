@@ -1334,7 +1334,6 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
         <SbItem icon="fa-fire" label="Trending" targetPage="feed" targetProps={{sort:"top"}}/>
         {currentUser&&<SbItem icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>}
         {currentUser&&<SbItem icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>}
-        <SbItem icon="fa-magnifying-glass" label="Search" targetPage="search"/>
         <SbItem icon="fa-users" label="Members" targetPage="members"/>
         <div className="sb-divider"/>
         <div className="sb-label">Spaces</div>
