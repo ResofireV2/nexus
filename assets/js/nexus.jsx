@@ -119,18 +119,24 @@ const api = {
   token: localStorage.getItem("nexus_token"),
   refreshing: false,
   setToken(t) { this.token = t; t ? localStorage.setItem("nexus_token", t) : localStorage.removeItem("nexus_token"); },
-  async request(method, path, body, retry=true) {
+  async request(method, path, body, retry=true, silentAuth=false) {
     const h = {"Content-Type":"application/json"};
     if (this.token) h["Authorization"] = `Bearer ${this.token}`;
-    const res = await fetch(`/api/v1${path}`, {method, headers:h, body: body ? JSON.stringify(body) : undefined, credentials:"include"});
-    if (res.status === 401 && retry && path !== "/auth/refresh" && path !== "/auth/login") {
-      // Try refreshing the token once
-      const refreshed = await this.tryRefresh();
-      if (refreshed) return this.request(method, path, body, false);
-      this.setToken(null);
-      window.dispatchEvent(new Event("nexus:logout"));
+    try {
+      const res = await fetch(`/api/v1${path}`, {method, headers:h, body: body ? JSON.stringify(body) : undefined, credentials:"include"});
+      if (res.status === 401 && retry && path !== "/auth/refresh" && path !== "/auth/login") {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) return this.request(method, path, body, false, silentAuth);
+        this.setToken(null);
+        localStorage.removeItem("nexus_user");
+        // Only force logout if this isn't the silent initial auth check
+        if (!silentAuth) window.dispatchEvent(new Event("nexus:logout"));
+        return {};
+      }
+      return res.json();
+    } catch {
+      return {};
     }
-    return res.json();
   },
   async tryRefresh() {
     if (this.refreshing) return false;
@@ -196,18 +202,18 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Layout */
 .app-root{display:flex;justify-content:center;height:100vh;overflow:hidden;background:var(--bg);}
 .app-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
-.sidebar{width:220px;min-width:220px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
-.sb-logo{height:48px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
+.sidebar{width:260px;min-width:260px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
+.sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
-.sb-label{font-size:10px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
+.sb-label{font-size:11px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
 .sb-label:first-child{margin-top:2px;}
-.sb-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;position:relative;transition:background .1s;}
+.sb-item{display:flex;align-items:center;gap:12px;padding:10px 18px;cursor:pointer;position:relative;transition:background .1s;}
 .sb-item:hover{background:rgba(255,255,255,0.04);}
 .sb-item.active{background:var(--ac-bg);}
 .sb-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
-.sb-item i{width:16px;text-align:center;font-size:13px;flex-shrink:0;color:var(--t3);}
+.sb-item i{width:18px;text-align:center;font-size:15px;flex-shrink:0;color:var(--t3);}
 .sb-item.active i{color:var(--ac);}
-.sb-item-name{font-size:13px;color:var(--t3);flex:1;}
+.sb-item-name{font-size:15px;color:var(--t3);flex:1;}
 .sb-item.active .sb-item-name{color:var(--ac-text);font-weight:500;}
 .sb-item-count{font-size:11px;color:var(--t5);}
 .sb-item.active .sb-item-count{color:rgba(167,139,250,0.55);}
@@ -235,7 +241,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .icon-btn:hover{background:rgba(255,255,255,0.09);}
 .icon-badge{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
 .icon-badge.green{background:var(--green);}
-.write-btn{font-size:13px;color:#0d0d14;background:var(--ac);border:none;border-radius:24px;padding:9px 22px;font-weight:500;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
+.write-btn{font-size:15px;color:#0d0d14;background:var(--ac);border:none;border-radius:24px;padding:10px 24px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
 .write-btn:hover{opacity:.9;}
 
 /* Avatar menu */
@@ -295,7 +301,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .last-ago{font-size:10px;color:var(--t5);}
 
 /* Right panel */
-.right-panel{width:220px;min-width:220px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
+.right-panel{width:260px;min-width:260px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
 .rw{border-radius:12px;border:0.5px solid rgba(255,255,255,0.08);padding:13px 14px;}
 .rw-label{font-size:10px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:11px;}
 .live-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;}
@@ -2739,7 +2745,7 @@ function App() {
   );
 
   useEffect(()=>{
-    if(api.token) api.get("/auth/me").then(d=>{if(d.user)updateCurrentUser(d.user);setAuthChecked(true);}).catch(()=>setAuthChecked(true));
+    if(api.token) api.request("GET", "/auth/me", null, true, true).then(d=>{if(d.user)updateCurrentUser(d.user);setAuthChecked(true);}).catch(()=>setAuthChecked(true));
     else setAuthChecked(true);
   },[]);
 
