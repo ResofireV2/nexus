@@ -2263,11 +2263,30 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   );
 }
 
-function DMPage({threadId, threadName, currentUser, navigate}) {
+function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTopic}) {
   const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const endRef=useRef(); const imgRef=useRef();
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
+    // Join DM channel for real-time messages
+    joinTopic?.(`dm:${threadId}`);
+    return ()=>{ leaveTopic?.(`dm:${threadId}`); };
+  },[threadId]);
+
+  // Listen for real-time messages on this thread
+  useEffect(()=>{
+    const fn = e => {
+      if(String(e.detail.threadId)===String(threadId) && e.detail.message) {
+        setMessages(p=>{
+          // Deduplicate by id
+          if(p.some(m=>m.id===e.detail.message.id)) return p;
+          return [...p, e.detail.message];
+        });
+        setTimeout(()=>endRef.current?.scrollIntoView(),50);
+      }
+    };
+    window.addEventListener("nexus:dm_message", fn);
+    return ()=>window.removeEventListener("nexus:dm_message", fn);
   },[threadId]);
   const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);try{const d=await api.post(`/threads/${threadId}/messages`,{body:text});if(d.message){setMessages(p=>[...p,d.message]);setText("");setTimeout(()=>endRef.current?.scrollIntoView(),50);}}finally{setSending(false);}};
   const sendImage=async file=>{
@@ -3219,6 +3238,23 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const wsRef = useRef(null);
   const heartbeatRef = useRef(null);
   const refSeq = useRef(1);
+  const joinedTopics = useRef(new Set());
+
+  // Expose a way to join additional channels after connect (e.g. DM threads)
+  const joinTopic = useCallback((topic) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (joinedTopics.current.has(topic)) return;
+    joinedTopics.current.add(topic);
+    ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_join", {}]));
+  }, []);
+
+  const leaveTopic = useCallback((topic) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    joinedTopics.current.delete(topic);
+    ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_leave", {}]));
+  }, []);
 
   useEffect(() => {
     if (!token || !userId) return;
@@ -3229,11 +3265,10 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
 
     ws.onopen = () => {
-      // Join feed:global for new posts
       send([null, String(refSeq.current++), "feed:global", "phx_join", {}]);
-      // Join personal notification channel
+      joinedTopics.current.add("feed:global");
       send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
-      // Heartbeat every 30s
+      joinedTopics.current.add(`notifications:${userId}`);
       heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
     };
 
@@ -3246,17 +3281,23 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           else onNewNotif?.();
         }
         if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCount?.(payload?.count||0);
+        // DM real-time: dispatch custom event so DMPage can listen
+        if (event === "new_message" && topic.startsWith("dm:")) {
+          window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
+        }
       } catch {}
     };
 
     ws.onerror = () => {};
-    ws.onclose = () => { clearInterval(heartbeatRef.current); };
+    ws.onclose = () => { clearInterval(heartbeatRef.current); joinedTopics.current.clear(); };
 
     return () => {
       clearInterval(heartbeatRef.current);
       ws.close();
     };
   }, [token, userId]);
+
+  return {joinTopic, leaveTopic};
 }
 
 // ── Guest Prompt ──────────────────────────────────────────────────────────────
@@ -3369,7 +3410,7 @@ function App() {
   }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
-  useSocket(
+  const {joinTopic, leaveTopic} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
@@ -3435,7 +3476,7 @@ function App() {
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
-      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate}/>);
+      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)}/>;
