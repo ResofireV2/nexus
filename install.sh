@@ -3,7 +3,9 @@ set -e
 
 # ─────────────────────────────────────────────
 #  Nexus — one-command installer
-#  Usage: curl -fsSL https://raw.githubusercontent.com/ResofireV2/nexus/master/install.sh | bash
+#  Usage:
+#    curl -fsSL https://raw.githubusercontent.com/ResofireV2/nexus/master/install.sh -o install.sh
+#    bash install.sh
 # ─────────────────────────────────────────────
 
 REPO="https://github.com/ResofireV2/nexus.git"
@@ -35,11 +37,26 @@ echo ""
 # ── Root check ───────────────────────────────
 [[ $EUID -ne 0 ]] && die "Please run as root: sudo bash install.sh"
 
+# ── Detect curl pipe ─────────────────────────
+if [ ! -t 0 ]; then
+  echo -e "${YELLOW}"
+  echo "  It looks like you piped this script through curl."
+  echo "  Please download and run it instead:"
+  echo ""
+  echo "    curl -fsSL https://raw.githubusercontent.com/ResofireV2/nexus/master/install.sh -o install.sh"
+  echo "    bash install.sh"
+  echo -e "${NC}"
+  exit 1
+fi
+
 # ── Collect config ───────────────────────────
 echo -e "${YELLOW}Configure your forum:${NC}\n"
 
 read -p "  Domain (e.g. forum.example.com): " DOMAIN
 [[ -z "$DOMAIN" ]] && die "Domain is required"
+
+read -p "  Email for SSL certificate (Let's Encrypt): " LE_EMAIL
+[[ -z "$LE_EMAIL" ]] && die "Email is required for SSL"
 
 read -p "  Include www redirect? (y/n) [y]: " WWW
 WWW=${WWW:-y}
@@ -68,8 +85,6 @@ systemctl start docker
 ok "Dependencies installed"
 
 # ── Create persistent data directories ───────
-# These live on the HOST — never touched by Docker rebuilds.
-# Your database and uploads survive here regardless of app updates.
 banner "Creating persistent data directories..."
 mkdir -p "$DATA_DIR/postgres"
 mkdir -p "$DATA_DIR/uploads/posts"
@@ -103,7 +118,7 @@ ok "Secrets generated"
 
 # ── Write .env ───────────────────────────────
 banner "Writing configuration..."
-cat > "$INSTALL_DIR/.env" <<EOF
+cat > "$INSTALL_DIR/.env" << EOF
 PHX_HOST=$DOMAIN
 SECRET_KEY_BASE=$SECRET_KEY_BASE
 JWT_SECRET=$JWT_SECRET
@@ -124,7 +139,11 @@ www.$DOMAIN {
 }"
 fi
 
-cat > /etc/caddy/Caddyfile <<EOF
+cat > /etc/caddy/Caddyfile << EOF
+{
+    email $LE_EMAIL
+}
+
 $DOMAIN {
     reverse_proxy localhost:4000
 
@@ -168,7 +187,7 @@ done
 
 # ── Write update script ──────────────────────
 banner "Installing management scripts..."
-cat > /usr/local/bin/nexus-update <<'UPDATESCRIPT'
+cat > /usr/local/bin/nexus-update << 'UPDATESCRIPT'
 #!/bin/bash
 set -e
 CYAN='\033[0;36m'; GREEN='\033[0;32m'; NC='\033[0m'
@@ -181,7 +200,7 @@ UPDATESCRIPT
 chmod +x /usr/local/bin/nexus-update
 
 # ── Write backup script ──────────────────────
-cat > /usr/local/bin/nexus-backup <<'BACKUPSCRIPT'
+cat > /usr/local/bin/nexus-backup << 'BACKUPSCRIPT'
 #!/bin/bash
 set -e
 BACKUP_DIR="/opt/nexus-backups"
