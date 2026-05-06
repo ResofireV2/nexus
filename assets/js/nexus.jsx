@@ -879,6 +879,11 @@ function AuthPage({onLogin}) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, onAuthRequired}) {
+  const [branding, setBranding] = useState({logo_url:null, site_name:null});
+  useEffect(()=>{
+    setBranding({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name});
+    onBrandingChange(b=>setBranding({logo_url:b.logo_url, site_name:b.site_name}));
+  },[]);
   const SbItem = ({icon, label, count, badge, targetPage, targetProps={}}) => {
     const active = page===targetPage && JSON.stringify(pageProps)===JSON.stringify(targetProps);
     return (
