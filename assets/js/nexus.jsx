@@ -345,11 +345,11 @@ select option{background:#1a1a2e;color:var(--t1);}
 .post-body{font-size:14px;color:var(--t3);line-height:1.75;padding-bottom:18px;border-bottom:0.5px solid var(--b1);}
 .reaction-row{display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;}
 /* React button */
-.rx-trigger{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 12px;border:0.5px solid rgba(255,255,255,0.12);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--t4);transition:all .15s;user-select:none;position:relative;}
+.rx-trigger{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 10px;border:0.5px solid transparent;border-radius:20px;cursor:pointer;background:transparent;color:var(--t4);transition:all .15s;user-select:none;position:relative;}
 .rx-trigger:hover{border-color:var(--b2);color:var(--t2);background:rgba(255,255,255,0.06);}
 .rx-trigger.reacted{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 /* Reaction picker */
-.rx-picker{position:absolute;bottom:calc(100% + 8px);left:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;}
+.rx-picker{position:absolute;bottom:calc(100% + 8px);right:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;}
 @keyframes rxPop{from{opacity:0;transform:scale(.92) translateY(4px);}to{opacity:1;transform:scale(1) translateY(0);}}
 .rx-pick-btn{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:all .1s;border:1.5px solid transparent;}
 .rx-pick-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.15);}
@@ -743,7 +743,6 @@ function ReactionButton({postId, replyId, initialReactions=[], initialUserReacti
       <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
         <span style={{fontSize:16,lineHeight:1}}>{userReaction||"❤️"}</span>
         {totalCount>0&&<span>{totalCount}</span>}
-        {!totalCount&&<span>React</span>}
         {open&&(
           <div className="rx-picker" onClick={e=>e.stopPropagation()}>
             {REACTIONS.map(({emoji,label})=>(
@@ -1411,7 +1410,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
               </span>
             </div>
             <div className="post-body"><Md text={post.body}/></div>
-            <div className="reaction-row">
+            <div className="reaction-row" style={{justifyContent:"flex-end"}}>
               <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
             </div>
           </div>
@@ -1439,7 +1438,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
                 </span>
               </div>
               <div className="reply-text"><Md text={r.body}/></div>
-              <div className="reaction-row" style={{marginTop:6}}>
+              <div className="reaction-row" style={{marginTop:6,justifyContent:"flex-end"}}>
                 <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
               </div>
             </div>
