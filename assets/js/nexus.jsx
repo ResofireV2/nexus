@@ -999,7 +999,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           const active = page==="feed" && pageProps?.space===s.slug;
           return (
             <div key={s.id} className={`sb-item ${active?"active":""}`} onClick={()=>navigate("feed",{space:s.slug})}>
-              <i className="fa-solid fa-layer-group" style={{color:active?col:undefined}}></i>
+              <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{color:active?col:undefined}}></i>
               <span className="sb-item-name">{s.name}</span>
               {s.post_count>0&&<span className="sb-item-count">{s.post_count}</span>}
             </div>
@@ -1083,7 +1083,7 @@ function RightPanel({spaces, liveEvents=[]}) {
           const w=Math.max(8, Math.round((s.post_count||0)/max*100));
           return (
             <div key={s.id} className="pulse-row">
-              <div className="p-name"><i className="fa-solid fa-layer-group" style={{fontSize:10,color:col,width:14,textAlign:"center"}}></i>{s.name.slice(0,7)}</div>
+              <div className="p-name"><i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center"}}></i>{s.name.slice(0,7)}</div>
               <div className="p-bar-wrap"><div className="p-bar" style={{width:`${w}%`,background:col}}></div></div>
               <div className="p-count" style={{color:col}}>{s.post_count||0}</div>
             </div>
@@ -1937,11 +1937,11 @@ function TagsAdmin({tags, onRefresh}) {
 // ── Admin Spaces CRUD ─────────────────────────────────────────────────────────
 function SpacesAdmin({spaces, onRefresh}) {
   const [editing,setEditing]=useState(null); // null | "new" | space object
-  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",visibility:"public"});
+  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"});
   const [saving,setSaving]=useState(false);
 
-  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",visibility:"public"}); setEditing("new"); };
-  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",visibility:s.visibility}); setEditing(s); };
+  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"}); setEditing("new"); };
+  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",icon:s.icon||"fa-layer-group",visibility:s.visibility}); setEditing(s); };
   const close=()=>setEditing(null);
 
   const autoSlug=name=>name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
@@ -1998,17 +1998,40 @@ function SpacesAdmin({spaces, onRefresh}) {
         <div><label className="f-label">Slug</label><input className="fi" value={form.slug} onChange={e=>setForm(p=>({...p,slug:e.target.value}))} style={{fontFamily:"monospace"}}/></div>
       </div>
       <div style={{marginBottom:12}}><label className="f-label">Description</label><input className="fi" value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Optional description"/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
         <div><label className="f-label">Visibility</label>
           <select className="fi" value={form.visibility} onChange={e=>setForm(p=>({...p,visibility:e.target.value}))}>
             <option value="public">Public</option>
             <option value="private">Private</option>
           </select>
         </div>
-        <div><label className="f-label">Color</label>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-            {COLORS.map(c=><div key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",border:`2px solid ${form.color===c?"#fff":"transparent"}`,transition:"border-color .1s"}}/>)}
+        <div><label className="f-label">Icon <span style={{fontSize:10,color:"var(--t5)"}}>(Font Awesome class)</span></label>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{width:36,height:36,borderRadius:8,background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <i className={`fa-solid ${form.icon||"fa-layer-group"}`} style={{fontSize:15,color:form.color||"#a78bfa"}}></i>
+            </div>
+            <input className="fi" value={form.icon||""} onChange={e=>setForm(p=>({...p,icon:e.target.value}))} placeholder="fa-layer-group" style={{fontFamily:"monospace",fontSize:12}}/>
           </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
+            {["fa-layer-group","fa-code","fa-gamepad","fa-music","fa-film","fa-book","fa-globe","fa-flask","fa-paint-brush","fa-bolt","fa-heart","fa-star","fa-comments","fa-trophy","fa-wrench","fa-rocket","fa-leaf","fa-camera","fa-graduation-cap","fa-briefcase"].map(ic=>(
+              <div key={ic} onClick={()=>setForm(p=>({...p,icon:ic}))} title={ic}
+                style={{width:28,height:28,borderRadius:6,background:form.icon===ic?"var(--ac-bg)":"rgba(255,255,255,0.04)",border:`1px solid ${form.icon===ic?"var(--ac-border)":"transparent"}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .1s"}}>
+                <i className={`fa-solid ${ic}`} style={{fontSize:12,color:form.icon===ic?form.color||"#a78bfa":"var(--t4)"}}></i>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <label className="f-label">Color</label>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <input type="color" value={form.color||"#a78bfa"} onChange={e=>setForm(p=>({...p,color:e.target.value}))}
+            style={{width:40,height:36,borderRadius:8,border:"0.5px solid var(--b2)",background:"none",cursor:"pointer",padding:2}}/>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {COLORS.map(c=><div key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:24,height:24,borderRadius:"50%",background:c,cursor:"pointer",border:`2px solid ${form.color===c?"#fff":"transparent"}`,transition:"border-color .1s"}}/>)}
+          </div>
+          <input className="fi" value={form.color||""} onChange={e=>setForm(p=>({...p,color:e.target.value}))}
+            style={{fontFamily:"monospace",fontSize:12,width:100}} placeholder="#a78bfa"/>
         </div>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>

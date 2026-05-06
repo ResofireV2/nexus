@@ -7,6 +7,7 @@ defmodule Nexus.Forum.Space do
     field :slug,        :string
     field :description, :string
     field :color,       :string, default: "#5B4EF5"
+    field :icon,        :string, default: "fa-layer-group"
     field :visibility,  :string, default: "public"
     field :position,    :integer, default: 0
     field :post_count,  :integer, default: 0
@@ -20,7 +21,7 @@ defmodule Nexus.Forum.Space do
 
   def changeset(space, attrs) do
     space
-    |> cast(attrs, [:name, :slug, :description, :color, :visibility, :position])
+    |> cast(attrs, [:name, :slug, :description, :color, :icon, :visibility, :position])
     |> validate_required([:name, :slug])
     |> validate_length(:name, min: 1, max: 50)
     |> validate_inclusion(:visibility, ~w(public private))

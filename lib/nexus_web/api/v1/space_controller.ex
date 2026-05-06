@@ -95,6 +95,7 @@ defmodule NexusWeb.API.V1.SpaceController do
       slug: space.slug,
       description: space.description,
       color: space.color,
+      icon: space.icon || "fa-layer-group",
       visibility: space.visibility,
       position: space.position,
       post_count: space.post_count
