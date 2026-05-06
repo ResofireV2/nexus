@@ -1041,7 +1041,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
-                        {p.body&&<div className="thread-preview">{p.body.replace(/[#*`]/g,"").slice(0,120)}</div>}
+                        {p.body&&<div className="thread-preview">{p.body.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
                             <div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>
@@ -1364,7 +1364,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                     <RsAv user={r.user} size={34} color={col}/>
                     <div className="thread-body">
                       <div className="thread-top">
-                        <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/[#*`]/g,"").slice(0,120)}</div>
+                        <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>
                         {r.post&&<div className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>in: {r.post.title?.slice(0,30)}</div>}
                       </div>
                       <div className="participants-row"><span className="part-label">{r.user?.username} · {ago(r.inserted_at)}</span></div>
@@ -1549,7 +1549,7 @@ function ProfilePage({username, currentUser, navigate}) {
                     <RsAv user={p.user} size={34} color={pc}/>
                     <div className="thread-body">
                       <div className="thread-top"><div className="thread-title">{p.title}</div>{p.space&&<div className="thread-tag" style={{background:`${pc}20`,color:pc}}>{p.space.name}</div>}</div>
-                      {p.body&&<div className="thread-preview">{p.body.replace(/[#*`]/g,"").slice(0,120)}</div>}
+                      {p.body&&<div className="thread-preview">{p.body.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>}
                       <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
                     </div>
                     <div className="thread-meta">
