@@ -2580,7 +2580,15 @@ function AuthModalForm({mode, onLogin, onSwitch}) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
-  const [currentUser,setCurrentUser]=useState(null);
+  const [currentUser,setCurrentUser]=useState(()=>{
+    // Load cached user immediately to prevent flash of default avatar
+    try { const u=localStorage.getItem("nexus_user"); return u?JSON.parse(u):null; } catch { return null; }
+  });
+  const updateCurrentUser = (user) => {
+    setCurrentUser(user);
+    if (user) localStorage.setItem("nexus_user", JSON.stringify(user));
+    else localStorage.removeItem("nexus_user");
+  };
   const [authChecked,setAuthChecked]=useState(false);
   const [spaces,setSpaces]=useState([]);
   const [tags,setTags]=useState([]);
@@ -2629,7 +2637,7 @@ function App() {
   );
 
   useEffect(()=>{
-    if(api.token) api.get("/auth/me").then(d=>{if(d.user)setCurrentUser(d.user);setAuthChecked(true);}).catch(()=>setAuthChecked(true));
+    if(api.token) api.get("/auth/me").then(d=>{if(d.user)updateCurrentUser(d.user);setAuthChecked(true);}).catch(()=>setAuthChecked(true));
     else setAuthChecked(true);
   },[]);
 
@@ -2649,9 +2657,9 @@ function App() {
     return () => clearInterval(interval);
   },[currentUser]);
 
-  useEffect(()=>{const fn=()=>{setCurrentUser(null);setPage("feed");};window.addEventListener("nexus:logout",fn);return ()=>window.removeEventListener("nexus:logout",fn);},[]);
+  useEffect(()=>{const fn=()=>{updateCurrentUser(null);setPage("feed");};window.addEventListener("nexus:logout",fn);return ()=>window.removeEventListener("nexus:logout",fn);},[]);
 
-  const logout=()=>{api.post("/auth/logout",{});api.setToken(null);setCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};
+  const logout=()=>{api.post("/auth/logout",{});api.setToken(null);updateCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};
 
   const [lb, setLb] = useLightbox();
 
@@ -2670,7 +2678,7 @@ function App() {
         return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} onAuthRequired={m=>setAuthModal(m)}/>;
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
       case "saved":       return requireAuth(<SavedPage navigate={navigate}/>);
-      case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>setCurrentUser(u)} navigate={navigate}/>);
+      case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
@@ -2702,7 +2710,7 @@ function App() {
               <div style={{fontSize:18,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
               <div style={{fontSize:13,color:"var(--t4)",marginTop:4}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
             </div>
-            <AuthModalForm mode={authModal} onLogin={u=>{setCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)}/>
+            <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)}/>
           </div>
         </div>
       )}

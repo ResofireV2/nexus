@@ -137,7 +137,9 @@ defmodule NexusWeb.API.V1.AdminController do
             id: user.id,
             username: user.username,
             role: user.role,
+            bio: user.bio,
             avatar_url: user.avatar_url,
+            cover_url: user.cover_url,
             inserted_at: user.inserted_at
           }
         })
