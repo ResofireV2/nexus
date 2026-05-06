@@ -176,9 +176,7 @@ defmodule Nexus.Messaging do
   def send_message(thread, user_id, attrs) do
     result =
       %Message{}
-      |> Message.changeset(attrs)
-      |> Ecto.Changeset.put_change(:thread_id, thread.id)
-      |> Ecto.Changeset.put_change(:user_id, user_id)
+      |> Message.changeset(Map.merge(attrs, %{"user_id" => user_id, "thread_id" => thread.id}))
       |> Repo.insert()
 
     case result do
