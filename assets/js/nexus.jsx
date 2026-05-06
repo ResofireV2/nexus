@@ -1016,13 +1016,6 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           <div className="sb-divider"/>
           <SbItem icon="fa-shield-halved" label="Admin Panel" targetPage="admin"/>
         </>}
-        {!currentUser&&<>
-          <div className="sb-divider"/>
-          <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
-            <button onClick={()=>onAuthRequired?.("login")} style={{width:"100%",padding:"8px",borderRadius:8,background:"transparent",border:"0.5px solid var(--b2)",color:"var(--t3)",cursor:"pointer",fontFamily:"inherit",fontSize:12}}>Log in</button>
-            <button onClick={()=>onAuthRequired?.("register")} style={{width:"100%",padding:"8px",borderRadius:8,background:"var(--ac)",border:"none",color:"#0d0d14",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500}}>Sign up</button>
-          </div>
-        </>}
       </div>
     </div>
   );
