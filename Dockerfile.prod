@@ -1,6 +1,6 @@
 FROM elixir:1.17-alpine AS build
 
-RUN apk add --no-cache build-base git nodejs npm openssl
+RUN apk add --no-cache build-base git nodejs npm openssl vips-dev
 
 WORKDIR /app
 
@@ -25,14 +25,25 @@ RUN mix compile
 RUN mix phx.digest
 RUN mix release
 
-# Use same base as build to avoid OpenSSL mismatch
+# Runtime image
 FROM elixir:1.17-alpine
 
-RUN apk add --no-cache openssl ncurses-libs libstdc++
+RUN apk add --no-cache openssl ncurses-libs libstdc++ vips
 
 WORKDIR /app
 
 COPY --from=build /app/_build/prod/rel/nexus ./
+
+# Create upload subdirectories — these will be bind-mounted over by docker-compose
+# so this just ensures the paths exist in the image as a fallback
+RUN mkdir -p priv/static/uploads/posts \
+             priv/static/uploads/avatars \
+             priv/static/uploads/covers \
+             priv/static/uploads/logos \
+             priv/static/uploads/webp/posts \
+             priv/static/uploads/webp/avatars \
+             priv/static/uploads/webp/covers \
+             priv/static/uploads/webp/logos
 
 ENV HOME=/app
 ENV MIX_ENV=prod

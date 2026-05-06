@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: nexus_prod
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /opt/nexus-data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nexus -d nexus_prod"]
       interval: 30s
@@ -26,6 +26,8 @@ services:
       PHX_HOST: ${PHX_HOST}
       PORT: "4000"
       MIX_ENV: prod
+    volumes:
+      - /opt/nexus-data/uploads:/app/priv/static/uploads
     ports:
       - "4000:4000"
     depends_on:
@@ -34,6 +36,3 @@ services:
     command: >
       sh -c "bin/nexus eval 'Nexus.Release.migrate()' &&
              bin/nexus start"
-
-volumes:
-  postgres_data:

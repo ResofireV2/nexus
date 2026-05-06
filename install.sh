@@ -8,6 +8,7 @@ set -e
 
 REPO="https://github.com/ResofireV2/nexus.git"
 INSTALL_DIR="/opt/nexus"
+DATA_DIR="/opt/nexus-data"
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -37,7 +38,7 @@ echo ""
 # ── Collect config ───────────────────────────
 echo -e "${YELLOW}Configure your forum:${NC}\n"
 
-read -p "  Domain (e.g. billyrayfoss.com): " DOMAIN
+read -p "  Domain (e.g. forum.example.com): " DOMAIN
 [[ -z "$DOMAIN" ]] && die "Domain is required"
 
 read -p "  Include www redirect? (y/n) [y]: " WWW
@@ -66,9 +67,25 @@ systemctl enable docker caddy
 systemctl start docker
 ok "Dependencies installed"
 
+# ── Create persistent data directories ───────
+# These live on the HOST — never touched by Docker rebuilds.
+# Your database and uploads survive here regardless of app updates.
+banner "Creating persistent data directories..."
+mkdir -p "$DATA_DIR/postgres"
+mkdir -p "$DATA_DIR/uploads/posts"
+mkdir -p "$DATA_DIR/uploads/avatars"
+mkdir -p "$DATA_DIR/uploads/covers"
+mkdir -p "$DATA_DIR/uploads/logos"
+mkdir -p "$DATA_DIR/uploads/webp/posts"
+mkdir -p "$DATA_DIR/uploads/webp/avatars"
+mkdir -p "$DATA_DIR/uploads/webp/covers"
+mkdir -p "$DATA_DIR/uploads/webp/logos"
+chmod -R 755 "$DATA_DIR"
+ok "Data directories created at $DATA_DIR"
+
 # ── Clone repo ───────────────────────────────
 banner "Cloning Nexus..."
-if [[ -d "$INSTALL_DIR" ]]; then
+if [[ -d "$INSTALL_DIR/.git" ]]; then
   warn "Directory $INSTALL_DIR already exists — pulling latest..."
   cd "$INSTALL_DIR" && git pull
 else
@@ -81,7 +98,7 @@ ok "Repository ready at $INSTALL_DIR"
 banner "Generating secrets..."
 SECRET_KEY_BASE=$(openssl rand -base64 48)
 JWT_SECRET=$(openssl rand -base64 32)
-DB_PASSWORD=$(openssl rand -base64 24)
+DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
 ok "Secrets generated"
 
 # ── Write .env ───────────────────────────────
@@ -92,6 +109,7 @@ SECRET_KEY_BASE=$SECRET_KEY_BASE
 JWT_SECRET=$JWT_SECRET
 DB_PASSWORD=$DB_PASSWORD
 EOF
+chmod 600 "$INSTALL_DIR/.env"
 ok ".env written"
 
 # ── Write Caddyfile ──────────────────────────
@@ -134,7 +152,6 @@ ok "Caddy configured for $DOMAIN"
 # ── Launch ───────────────────────────────────
 banner "Building and launching Nexus (this takes 5-10 minutes)..."
 cd "$INSTALL_DIR"
-docker compose -f docker-compose.prod.yml pull 2>/dev/null || true
 docker compose -f docker-compose.prod.yml up -d --build
 
 # ── Wait for startup ─────────────────────────
@@ -149,12 +166,55 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
+# ── Write update script ──────────────────────
+banner "Installing management scripts..."
+cat > /usr/local/bin/nexus-update <<'UPDATESCRIPT'
+#!/bin/bash
+set -e
+CYAN='\033[0;36m'; GREEN='\033[0;32m'; NC='\033[0m'
+echo -e "${CYAN}▶ Updating Nexus...${NC}"
+cd /opt/nexus
+git pull origin master
+docker compose -f docker-compose.prod.yml up -d --build
+echo -e "${GREEN}✓ Nexus updated. Database and uploads at /opt/nexus-data are untouched.${NC}"
+UPDATESCRIPT
+chmod +x /usr/local/bin/nexus-update
+
+# ── Write backup script ──────────────────────
+cat > /usr/local/bin/nexus-backup <<'BACKUPSCRIPT'
+#!/bin/bash
+set -e
+BACKUP_DIR="/opt/nexus-backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+CYAN='\033[0;36m'; GREEN='\033[0;32m'; NC='\033[0m'
+
+mkdir -p "$BACKUP_DIR"
+
+echo -e "${CYAN}▶ Backing up database...${NC}"
+docker exec nexus-db-1 pg_dump -U nexus nexus_prod | gzip > "$BACKUP_DIR/db_$DATE.sql.gz"
+
+echo -e "${CYAN}▶ Backing up uploads...${NC}"
+tar -czf "$BACKUP_DIR/uploads_$DATE.tar.gz" -C /opt/nexus-data uploads/
+
+# Keep last 10 backups of each
+ls -t "$BACKUP_DIR"/db_*.sql.gz 2>/dev/null | tail -n +11 | xargs rm -f
+ls -t "$BACKUP_DIR"/uploads_*.tar.gz 2>/dev/null | tail -n +11 | xargs rm -f
+
+echo -e "${GREEN}✓ Backup complete${NC}"
+ls -lh "$BACKUP_DIR/db_$DATE.sql.gz" "$BACKUP_DIR/uploads_$DATE.tar.gz"
+BACKUPSCRIPT
+chmod +x /usr/local/bin/nexus-backup
+ok "nexus-update and nexus-backup installed"
+
 echo ""
 echo -e "${GREEN}"
 echo "  ✓ Nexus is live!"
 echo ""
-echo "  URL:   https://$DOMAIN"
+echo "  URL:        https://$DOMAIN"
+echo "  App code:   $INSTALL_DIR"
+echo "  Data:       $DATA_DIR  ← database + uploads (never deleted on update)"
 echo ""
-echo "  To view logs:   docker compose -f $INSTALL_DIR/docker-compose.prod.yml logs -f app"
-echo "  To update:      cd $INSTALL_DIR && git pull && docker compose -f docker-compose.prod.yml up -d --build"
+echo "  To update:  nexus-update"
+echo "  To backup:  nexus-backup"
+echo "  To view logs: docker compose -f $INSTALL_DIR/docker-compose.prod.yml logs -f app"
 echo -e "${NC}"
