@@ -574,14 +574,29 @@ function pageToUrl(page, props={}) {
   }
 }
 let _cssEl = null;
+let _brandingState = {logo_url: null, site_name: null, favicon_url: null};
+let _brandingListeners = [];
+function onBrandingChange(fn) { _brandingListeners.push(fn); }
+function setBrandingState(state) {
+  _brandingState = {..._brandingState, ...state};
+  _brandingListeners.forEach(fn => fn(_brandingState));
+}
+
 function applyBranding(app={}, gen={}) {
   const r = document.documentElement;
   if (app.accent_color) r.style.setProperty("--ac", app.accent_color);
-  if (gen.site_name) document.title = gen.site_name;
+  if (gen.site_name) document.title = gen.site_name + " · Nexus";
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
     _cssEl.textContent = app.custom_css;
   }
+  // Apply favicon
+  if (gen.favicon_url) {
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    link.href = gen.favicon_url;
+  }
+  setBrandingState({logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null});
 }
 
 // ── Rich Text Area ────────────────────────────────────────────────────────────
@@ -877,8 +892,10 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
   };
   return (
     <div className="sidebar">
-      <div className="sb-logo">
-        <span className="logo-text">nexus<em>.</em></span>
+      <div className="sb-logo" style={{cursor:"pointer"}} onClick={()=>navigate("feed",{})}>
+        {branding.logo_url
+          ?<img src={branding.logo_url} style={{height:32,maxWidth:140,objectFit:"contain"}} alt={branding.site_name||"nexus"}/>
+          :<span className="logo-text">{branding.site_name||<>nexus<em>.</em></>}</span>}
       </div>
       <div className="sb-scroll">
         <div className="sb-label">Explore</div>
@@ -2081,7 +2098,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                 ?<img src={general.favicon_url} style={{width:32,height:32,borderRadius:4,border:"0.5px solid var(--b2)",background:"var(--bg2)",padding:2}} alt="favicon"/>
                 :<div style={{width:32,height:32,borderRadius:4,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:10}}>none</div>}
               <label style={{cursor:"pointer"}}>
-                <input type="file" accept="image/x-icon,image/png,image/svg+xml" style={{display:"none"}} onChange={async e=>{
+                <input type="file" accept="image/x-icon,image/png,image/svg+xml,image/webp" style={{display:"none"}} onChange={async e=>{
                   const f=e.target.files[0]; if(!f)return;
                   const fd=new FormData(); fd.append("file",f); fd.append("type","favicon");
                   const token=localStorage.getItem("nexus_token");
