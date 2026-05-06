@@ -4,7 +4,96 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 
 marked.setOptions({ breaks: true, gfm: true });
-function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t)) : ""; }
+// Allow <a> tags wrapping images (needed for lightbox original URL)
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A" && node.querySelector("img")) {
+    node.setAttribute("data-lightbox-link", "true");
+  }
+  if (node.tagName === "IMG") {
+    const parent = node.parentElement;
+    if (parent && parent.tagName === "A") {
+      node.setAttribute("data-original", parent.getAttribute("href") || "");
+    }
+  }
+});
+
+// Custom marked renderer — media embeds + lightbox image links
+const mdRenderer = new marked.Renderer();
+
+// ── Media embed helpers ───────────────────────────────────────────────────────
+function getYouTubeId(url) {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+function getVimeoId(url) {
+  const m = url.match(/vimeo\.com\/(?:video\/)?([0-9]+)/);
+  return m ? m[1] : null;
+}
+function isVideoUrl(url) {
+  return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url);
+}
+function isAudioUrl(url) {
+  return /\.(mp3|ogg|wav|flac|m4a)(\?.*)?$/i.test(url);
+}
+
+// Extract raw URL from either a plain URL or a GFM auto-linked <a href="url">url</a>
+function extractBareUrl(text) {
+  const stripped = text.trim();
+  // Plain bare URL
+  if (/^https?:\/\/[^\s<>"]+$/.test(stripped)) return stripped;
+  // GFM auto-linked: <a href="URL">URL</a> — extract href
+  const m = stripped.match(/^<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>.*<\/a>$/);
+  if (m) return m[1];
+  return null;
+}
+
+// Paragraph override — detect bare media URLs and render embeds
+mdRenderer.paragraph = function(text) {
+  const url = extractBareUrl(text);
+  if (url) {
+    const ytId = getYouTubeId(url);
+    if (ytId) return `<div class="yt-lite" data-id="${ytId}">
+      <img class="yt-thumb" src="https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg" alt="YouTube video" loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'"/>
+      <div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
+    </div>`;
+    const vmId = getVimeoId(url);
+    if (vmId) return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
+    if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
+    if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
+  }
+  return `<p>${text}</p>`;
+};
+
+// Link override — lightbox for image links, external for regular links
+mdRenderer.link = function(href, title, text) {
+  if (text && text.includes('<img ')) {
+    return text.replace('<img ', `<img data-original="${href}" `);
+  }
+  return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+};
+
+marked.use({ renderer: mdRenderer });
+
+// @mention tokenizer — turns @username into a styled link
+marked.use({
+  extensions: [{
+    name: "mention",
+    level: "inline",
+    start(src) { return src.indexOf("@"); },
+    tokenizer(src) {
+      const m = src.match(/^@([a-zA-Z0-9_]+)/);
+      if (m) return { type: "mention", raw: m[0], username: m[1] };
+    },
+    renderer(token) {
+      return `<a class="mention-link" href="/profile/${token.username}" data-mention="${token.username}">@${token.username}</a>`;
+    }
+  }]
+});
+
+function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
+  ADD_TAGS: ["iframe", "video", "source", "audio", "svg", "path"],
+  ADD_ATTR: ["data-original", "data-lightbox-link", "data-id", "allowfullscreen", "loading", "frameborder", "src", "controls", "preload", "viewBox", "d", "fill", "width", "height"]
+}) : ""; }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
@@ -15,18 +104,30 @@ function Lightbox({src, originalSrc, onClose}) {
     return ()=>document.removeEventListener("keydown",fn);
   },[]);
   return (
-    <div className="lb-overlay" onClick={onClose}>
-      <span className="lb-close" onClick={onClose}>×</span>
-      <img src={originalSrc||src} alt="" onClick={e=>e.stopPropagation()}/>
+    <div className="lb-overlay" onMouseDown={e=>{if(e.button===0)onClose();}}>
+      <span className="lb-close" onMouseDown={e=>{e.stopPropagation();onClose();}}>×</span>
+      <img src={originalSrc||src} alt=""/>
       {originalSrc&&originalSrc!==src&&
-        <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()}>
+        <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onMouseDown={e=>e.stopPropagation()}>
           <i className="fa-solid fa-arrow-up-right-from-square" style={{marginRight:4}}></i>open original
         </a>}
     </div>
   );
 }
 
-// Global lightbox state — lifted outside React so md-body img clicks can trigger it
+// YouTube lite embed — click thumbnail to load and play video
+document.addEventListener("click", e => {
+  const yt = e.target.closest(".yt-lite:not(.active)");
+  if (!yt) return;
+  const id = yt.getAttribute("data-id");
+  if (!id) return;
+  yt.classList.add("active");
+  const iframe = document.createElement("iframe");
+  iframe.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`;
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+  iframe.allowFullscreen = true;
+  yt.appendChild(iframe);
+});
 let _lbSetState = null;
 function useLightbox() {
   const [lb, setLb] = useState(null);
@@ -35,12 +136,21 @@ function useLightbox() {
 }
 // Attach delegated click handler to .md-body images once at module load
 document.addEventListener("click", e => {
+  // Handle mention link clicks — SPA navigation
+  const mention = e.target.closest(".mention-link");
+  if (mention) {
+    e.preventDefault();
+    const username = mention.getAttribute("data-mention");
+    if (username && window._nexusNavigate) window._nexusNavigate("profile", {username});
+    return;
+  }
   const img = e.target.closest(".md-body img");
   if (!img) return;
+  // Don't intercept YouTube lite embed thumbnails — let the yt handler take it
+  if (img.closest(".yt-lite")) return;
   e.preventDefault();
-  // The markdown is [![alt](webp)](original) — img is wrapped in an <a>
-  const link = img.closest("a");
-  const originalSrc = link?.href || img.src;
+  e.stopPropagation();
+  const originalSrc = img.getAttribute("data-original") || img.src;
   if (_lbSetState) _lbSetState({ src: img.src, originalSrc });
 });
 
@@ -49,24 +159,30 @@ const api = {
   token: localStorage.getItem("nexus_token"),
   refreshing: false,
   setToken(t) { this.token = t; t ? localStorage.setItem("nexus_token", t) : localStorage.removeItem("nexus_token"); },
-  async request(method, path, body, retry=true) {
+  async request(method, path, body, retry=true, silentAuth=false) {
     const h = {"Content-Type":"application/json"};
     if (this.token) h["Authorization"] = `Bearer ${this.token}`;
-    const res = await fetch(`/api/v1${path}`, {method, headers:h, body: body ? JSON.stringify(body) : undefined});
-    if (res.status === 401 && retry && path !== "/auth/refresh" && path !== "/auth/login") {
-      // Try refreshing the token once
-      const refreshed = await this.tryRefresh();
-      if (refreshed) return this.request(method, path, body, false);
-      this.setToken(null);
-      window.dispatchEvent(new Event("nexus:logout"));
+    try {
+      const res = await fetch(`/api/v1${path}`, {method, headers:h, body: body ? JSON.stringify(body) : undefined, credentials:"include"});
+      if (res.status === 401 && retry && path !== "/auth/refresh" && path !== "/auth/login") {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) return this.request(method, path, body, false, silentAuth);
+        this.setToken(null);
+        localStorage.removeItem("nexus_user");
+        // Only force logout if this isn't the silent initial auth check
+        if (!silentAuth) window.dispatchEvent(new Event("nexus:logout"));
+        return {};
+      }
+      return res.json();
+    } catch {
+      return {};
     }
-    return res.json();
   },
   async tryRefresh() {
     if (this.refreshing) return false;
     this.refreshing = true;
     try {
-      const res = await fetch("/api/v1/auth/refresh", {method:"POST", headers:{"Content-Type":"application/json"}});
+      const res = await fetch("/api/v1/auth/refresh", {method:"POST", headers:{"Content-Type":"application/json"}, credentials:"include"});
       if (res.ok) {
         const d = await res.json();
         if (d.access_token) { this.setToken(d.access_token); return true; }
@@ -78,7 +194,7 @@ const api = {
   get: p => api.request("GET", p),
   post: (p,b) => api.request("POST", p, b),
   patch: (p,b) => api.request("PATCH", p, b),
-  delete: p => api.request("DELETE", p),
+  delete: (p,b) => api.request("DELETE", p, b),
 };
 
 // ── Global CSS ───────────────────────────────────────────────────────────────
@@ -90,6 +206,7 @@ S.textContent = `
 :root{
   --bg:#0d0d14;
   --s1:#13121e;
+  --av-radius:22%;
   --s2:#18182a;
   --s3:#1e1c2e;
   --b1:rgba(255,255,255,0.07);
@@ -101,6 +218,7 @@ S.textContent = `
   --t4:rgba(255,255,255,0.25);
   --t5:rgba(255,255,255,0.15);
   --ac:#a78bfa;
+  --ac-on:#0d0d14;
   --ac-bg:rgba(167,139,250,0.09);
   --ac-border:rgba(167,139,250,0.25);
   --ac-text:#c4b5fd;
@@ -124,19 +242,20 @@ select option{background:#1a1a2e;color:var(--t1);}
 @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
 
 /* Layout */
-.app-shell{display:flex;height:100vh;overflow:hidden;}
-.sidebar{width:220px;min-width:220px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
-.sb-logo{height:48px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
+.app-root{display:flex;justify-content:center;height:100vh;overflow:hidden;background:var(--bg);}
+.app-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
+.sidebar{width:320px;min-width:320px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
+.sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
-.sb-label{font-size:10px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
+.sb-label{font-size:11px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
 .sb-label:first-child{margin-top:2px;}
-.sb-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;position:relative;transition:background .1s;}
+.sb-item{display:flex;align-items:center;gap:12px;padding:10px 18px;cursor:pointer;position:relative;transition:background .1s;}
 .sb-item:hover{background:rgba(255,255,255,0.04);}
 .sb-item.active{background:var(--ac-bg);}
 .sb-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
-.sb-item i{width:16px;text-align:center;font-size:13px;flex-shrink:0;color:var(--t3);}
+.sb-item i{width:18px;text-align:center;font-size:15px;flex-shrink:0;color:var(--t3);}
 .sb-item.active i{color:var(--ac);}
-.sb-item-name{font-size:13px;color:var(--t3);flex:1;}
+.sb-item-name{font-size:15px;color:var(--t3);flex:1;}
 .sb-item.active .sb-item-name{color:var(--ac-text);font-weight:500;}
 .sb-item-count{font-size:11px;color:var(--t5);}
 .sb-item.active .sb-item-count{color:rgba(167,139,250,0.55);}
@@ -154,22 +273,30 @@ select option{background:#1a1a2e;color:var(--t1);}
 .main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
 
 /* Topbar */
-.topbar{height:48px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:8px;flex-shrink:0;position:relative;z-index:50;}
+.topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:8px;flex-shrink:0;position:relative;z-index:50;}
 .logo-text{font-size:15px;font-weight:500;color:#fff;letter-spacing:-.5px;}
 .logo-text em{font-style:normal;color:var(--ac);}
-.tb-search{flex:1;max-width:280px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:20px;padding:7px 14px;font-size:12px;color:var(--t4);display:flex;align-items:center;gap:8px;cursor:text;}
-.tb-search input{background:transparent;border:none;outline:none;font-size:12px;color:var(--t2);font-family:inherit;flex:1;}
+.tb-search{flex:1;max-width:400px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:24px;padding:10px 18px;font-size:14px;color:var(--t4);display:flex;align-items:center;gap:10px;cursor:text;}
+.tb-search input{background:transparent;border:none;outline:none;font-size:14px;color:var(--t2);font-family:inherit;flex:1;}
 .tb-search input::placeholder{color:var(--t4);}
-.icon-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;transition:background .1s;color:rgba(255,255,255,0.55);}
+.tb-search-drop{position:absolute;top:calc(100% + 8px);left:0;right:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:14px;overflow:hidden;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5);}
+.tb-search-item{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .1s;}
+.tb-search-item:hover{background:rgba(255,255,255,0.05);}
+.tb-search-section{font-size:10px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.07em;padding:8px 14px 4px;}
+.tb-search-title{font-size:13px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.tb-search-sub{font-size:11px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.tb-search-all{padding:10px 14px;font-size:12px;color:var(--ac-text);cursor:pointer;text-align:center;border-top:0.5px solid var(--b1);}
+.tb-search-all:hover{background:rgba(255,255,255,0.04);}
+.icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;transition:background .1s;color:rgba(255,255,255,0.55);}
 .icon-btn:hover{background:rgba(255,255,255,0.09);}
-.icon-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
+.icon-badge{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
 .icon-badge.green{background:var(--green);}
-.write-btn{font-size:12px;color:#0d0d14;background:var(--ac);border:none;border-radius:20px;padding:6px 16px;font-weight:500;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
+.write-btn{font-size:15px;color:var(--ac-on);background:var(--ac);border:none;border-radius:24px;padding:10px 24px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
 .write-btn:hover{opacity:.9;}
 
 /* Avatar menu */
 .av-wrap{position:relative;margin-left:2px;}
-.av-circle{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;}
+.av-circle{width:38px;height:38px;border-radius:var(--av-radius);background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
 .av-circle:hover{border-color:rgba(167,139,250,.5);}
 .av-circle.open{border-color:var(--ac);}
 .av-dd{position:absolute;top:calc(100% + 10px);right:0;width:200px;background:var(--s2);border:0.5px solid var(--b3);border-radius:14px;padding:6px;z-index:200;opacity:0;pointer-events:none;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}
@@ -224,23 +351,23 @@ select option{background:#1a1a2e;color:var(--t1);}
 .last-ago{font-size:10px;color:var(--t5);}
 
 /* Right panel */
-.right-panel{width:220px;min-width:220px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
-.rw{border-radius:12px;border:0.5px solid rgba(255,255,255,0.08);padding:13px 14px;}
-.rw-label{font-size:10px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:11px;}
+.right-panel{width:320px;min-width:320px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
+.rw{border-radius:12px;border:0.5px solid rgba(255,255,255,0.08);padding:15px 16px;}
+.rw-label{font-size:11px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;}
 .live-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;}
-.l-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
-.l-txt{font-size:11px;color:var(--t3);line-height:1.5;flex:1;}
+.l-av{width:22px;height:22px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
+.l-txt{font-size:13px;color:var(--t3);line-height:1.5;flex:1;}
 .l-txt strong{color:var(--t2);font-weight:500;}
-.l-ago{font-size:10px;color:var(--t5);flex-shrink:0;margin-top:2px;}
+.l-ago{font-size:11px;color:var(--t5);flex-shrink:0;margin-top:2px;}
 .pulse-row{display:flex;align-items:center;gap:8px;padding:5px 0;}
-.p-name{font-size:11px;color:var(--t3);width:68px;flex-shrink:0;display:flex;align-items:center;gap:6px;}
+.p-name{font-size:13px;color:var(--t3);width:80px;flex-shrink:0;display:flex;align-items:center;gap:6px;}
 .p-bar-wrap{flex:1;height:3px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;}
 .p-bar{height:3px;border-radius:3px;}
-.p-count{font-size:10px;color:var(--t4);width:24px;text-align:right;flex-shrink:0;}
+.p-count{font-size:12px;color:var(--t4);width:24px;text-align:right;flex-shrink:0;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.stat-card{background:rgba(255,255,255,0.04);border-radius:8px;padding:10px 12px;}
-.stat-n{font-size:18px;font-weight:500;color:#e8e4ff;line-height:1;}
-.stat-l{font-size:10px;color:var(--t4);margin-top:3px;}
+.stat-card{background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 14px;}
+.stat-n{font-size:20px;font-weight:500;color:#e8e4ff;line-height:1;}
+.stat-l{font-size:12px;color:var(--t4);margin-top:3px;}
 
 /* Post view */
 .post-shell{flex:1;display:flex;overflow:hidden;}
@@ -250,16 +377,31 @@ select option{background:#1a1a2e;color:var(--t1);}
 .post-title{font-size:20px;font-weight:600;color:var(--t1);letter-spacing:-.3px;line-height:1.35;margin-bottom:12px;}
 .post-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
 .post-body{font-size:14px;color:var(--t3);line-height:1.75;padding-bottom:18px;border-bottom:0.5px solid var(--b1);}
-.reaction-row{display:flex;gap:6px;padding:12px 0;flex-wrap:wrap;}
-.rx-btn{font-size:12px;color:var(--t4);padding:4px 11px;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);transition:all .1s;}
-.rx-btn:hover{border-color:var(--b2);color:var(--t2);}
-.rx-btn.lit{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
+.reaction-row{display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;}
+/* React button */
+.rx-trigger{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 10px;border:0.5px solid transparent;border-radius:20px;cursor:pointer;background:transparent;color:var(--t4);transition:all .15s;user-select:none;position:relative;}
+.rx-trigger:hover{border-color:var(--b2);color:var(--t2);background:rgba(255,255,255,0.06);}
+.rx-trigger.reacted{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
+/* Reaction picker */
+.rx-picker{position:absolute;bottom:calc(100% + 8px);right:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;}
+@keyframes rxPop{from{opacity:0;transform:scale(.92) translateY(4px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.rx-pick-btn{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:all .1s;border:1.5px solid transparent;}
+.rx-pick-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.15);}
+.rx-pick-btn.selected{border-color:var(--ac);background:var(--ac-bg);}
+/* Reaction count pills */
+.rx-pills{display:flex;gap:5px;flex-wrap:wrap;}
+.rx-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 10px;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--t4);transition:all .1s;}
+.rx-pill:hover{border-color:var(--b2);color:var(--t2);}
+.rx-pill.mine{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
 .replies-count{font-size:12px;color:var(--t3);}
 .reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);display:flex;gap:12px;}
-.reply-av{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
+.reply-av{width:40px;height:40px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .reply-body-wrap{flex:1;}
-.reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
+.reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.reply-item:hover .reply-quote-btn{opacity:1;}
+.reply-quote-btn:hover{color:var(--ac-text);}
 .reply-author{font-size:13px;font-weight:500;color:var(--t2);}
 .reply-time{font-size:11px;color:var(--t5);}
 .reply-text{font-size:13px;color:var(--t3);line-height:1.65;}
@@ -280,10 +422,10 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-char{font-size:11px;color:var(--t5);}
 
 /* Buttons */
-.btn-primary{font-size:13px;padding:7px 20px;border-radius:20px;background:var(--ac);color:#0d0d14;border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
+.btn-primary{font-size:14px;padding:9px 22px;border-radius:22px;background:var(--ac);color:var(--ac-on);border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
 .btn-primary:hover{opacity:.9;}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed;}
-.btn-ghost{font-size:12px;padding:6px 16px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
+.btn-ghost{font-size:13px;padding:7px 18px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
 .btn-ghost:hover{color:var(--t1);border-color:var(--b2);}
 
 /* Tags / space pills */
@@ -294,82 +436,89 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-box-ta{width:100%;background:transparent;border:none;outline:none;font-size:13px;color:var(--t2);font-family:inherit;resize:none;min-height:72px;line-height:1.6;padding:14px 16px;caret-color:var(--ac);}
 .reply-box-ta::placeholder{color:rgba(255,255,255,0.15);}
 .reply-box-foot{padding:8px 12px;border-top:0.5px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;}
-.ed-toggle{display:flex;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;overflow:hidden;}
-.ed-opt{font-size:11px;padding:3px 11px;color:var(--t4);cursor:pointer;}
-.ed-opt.active{background:rgba(255,255,255,0.08);color:var(--t2);}
 
-/* Floating rich text toolbar */
-.float-tb{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:999px;display:flex;align-items:center;gap:2px;padding:4px 8px;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.6);}
-.float-tb-btn{font-size:12px;color:var(--t3);padding:4px 9px;border-radius:999px;cursor:pointer;border:none;background:transparent;font-family:inherit;transition:all .1s;}
-.float-tb-btn:hover{background:rgba(255,255,255,0.08);color:var(--t1);}
-.float-tb-sep{width:0.5px;height:14px;background:var(--b2);margin:0 2px;}
+
+/* Composer toolbar */
+.comp-toolbar{display:flex;align-items:center;gap:2px;padding:6px 8px;border-bottom:0.5px solid var(--b1);}
+.comp-tb-btn{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--t4);font-family:inherit;font-size:13px;transition:all .1s;}
+.comp-tb-btn:hover{background:rgba(255,255,255,0.07);color:var(--t1);}
+.comp-tb-sep{width:0.5px;height:16px;background:var(--b1);margin:0 3px;}
 .slash-menu{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;width:214px;overflow:hidden;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.6);}
 .slash-item{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;color:var(--t3);cursor:pointer;border-bottom:0.5px solid var(--b1);transition:background .1s;}
 .slash-item:last-child{border-bottom:none;}
 .slash-item:hover,.slash-item.sel{background:rgba(255,255,255,0.05);color:var(--t1);}
+/* Mention dropdown */
+.mention-drop{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:4px;z-index:9000;min-width:200px;max-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.5);overflow:hidden;}
+.mention-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .1s;}
+.mention-item:hover,.mention-item.sel{background:rgba(255,255,255,0.07);}
+.mention-av{width:28px;height:28px;border-radius:var(--av-radius);object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;}
+.mention-name{font-size:13px;color:var(--t1);font-weight:500;}
 .slash-icon{width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
 .slash-desc{font-size:11px;color:var(--t5);margin-top:1px;}
 
 /* Auth */
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);}
-.auth-card{width:100%;max-width:360px;padding:32px;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;}
-.auth-logo{text-align:center;margin-bottom:24px;}
-.auth-title{font-size:18px;font-weight:600;color:var(--t1);margin-top:8px;}
-.auth-sub{font-size:13px;color:var(--t4);margin-top:4px;}
-.fg{margin-bottom:14px;}
-.fl{font-size:12px;color:var(--t3);margin-bottom:5px;display:block;}
-.fi{width:100%;padding:9px 13px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--t1);font-size:13px;outline:none;transition:border-color .15s;}
+.auth-card{width:100%;max-width:440px;padding:40px;background:var(--s2);border:0.5px solid var(--b2);border-radius:20px;}
+.auth-logo{text-align:center;margin-bottom:28px;}
+.auth-title{font-size:22px;font-weight:600;color:var(--t1);margin-top:10px;}
+.auth-sub{font-size:14px;color:var(--t4);margin-top:6px;}
+.fg{margin-bottom:18px;}
+.fl{font-size:13px;color:var(--t3);margin-bottom:6px;display:block;}
+.fi{width:100%;padding:11px 15px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;color:var(--t1);font-size:15px;outline:none;transition:border-color .15s;}
 .fi:focus{border-color:var(--ac);}
 .fi::placeholder{color:var(--t5);}
-.ferr{font-size:12px;color:var(--red);margin-top:4px;}
+.ferr{font-size:13px;color:var(--red);margin-top:4px;}
 .link{color:var(--ac);cursor:pointer;}
-.auth-switch{text-align:center;font-size:12px;color:var(--t4);margin-top:18px;}
+.auth-switch{text-align:center;font-size:13px;color:var(--t4);margin-top:20px;}
+.remember-row{display:flex;align-items:center;gap:8px;margin-bottom:18px;cursor:pointer;user-select:none;}
+.remember-row input{width:16px;height:16px;accent-color:var(--ac);cursor:pointer;}
+.remember-row span{font-size:13px;color:var(--t3);}
 
 /* Admin */
-.admin-shell{display:flex;height:100vh;overflow:hidden;}
-.admin-topbar{height:48px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;}
-.admin-badge{font-size:10px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:3px 9px;display:flex;align-items:center;gap:5px;}
-.admin-sidenav{width:220px;min-width:220px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
+.admin-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
+.admin-topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 24px;gap:14px;flex-shrink:0;}
+.admin-badge{font-size:12px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:6px;}
+.admin-sidenav{width:320px;min-width:320px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
 .admin-sidenav-scroll{flex:1;overflow-y:auto;padding:12px 0;}
-.admin-sn-label{font-size:10px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
+.admin-sn-label{font-size:12px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 18px;margin-bottom:4px;margin-top:16px;}
 .admin-sn-label:first-child{margin-top:2px;}
-.admin-sn-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;position:relative;transition:background .1s;}
+.admin-sn-item{display:flex;align-items:center;gap:14px;padding:12px 20px;cursor:pointer;position:relative;transition:background .1s;}
 .admin-sn-item:hover{background:rgba(255,255,255,0.04);}
 .admin-sn-item.active{background:var(--ac-bg);}
 .admin-sn-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
-.admin-sn-item i{width:16px;text-align:center;font-size:12px;flex-shrink:0;color:var(--t4);}
+.admin-sn-item i{width:20px;text-align:center;font-size:17px;flex-shrink:0;color:var(--t4);}
 .admin-sn-item.active i{color:var(--ac);}
-.admin-sn-item-name{font-size:13px;color:var(--t3);flex:1;}
+.admin-sn-item-name{font-size:16px;color:var(--t3);flex:1;}
 .admin-sn-item.active .admin-sn-item-name{color:var(--ac-text);font-weight:500;}
-.admin-sn-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}
+.admin-sn-badge{font-size:12px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:3px 9px;font-weight:500;}
 .admin-content-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-.admin-content-header{padding:0 28px;height:52px;border-bottom:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.admin-content-title{font-size:15px;font-weight:600;color:var(--t1);letter-spacing:-.2px;}
-.admin-content-body{flex:1;overflow-y:auto;padding:24px 28px;}
+.admin-content-header{padding:0 36px;height:64px;border-bottom:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.admin-content-title{font-size:20px;font-weight:600;color:var(--t1);letter-spacing:-.2px;}
+.admin-content-body{flex:1;overflow-y:auto;padding:32px 36px;}
 
 /* Admin content bits */
-.page-sub{font-size:13px;color:var(--t4);margin-bottom:20px;}
-.admin-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
-.admin-stat-card{background:rgba(255,255,255,0.03);border:0.5px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 18px;transition:border-color .1s;}
+.page-sub{font-size:14px;color:var(--t4);margin-bottom:20px;}
+.admin-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.admin-stat-card{background:rgba(255,255,255,0.03);border:0.5px solid rgba(255,255,255,0.08);border-radius:14px;padding:18px 20px;transition:border-color .1s;}
 .admin-stat-card:hover{border-color:rgba(255,255,255,0.14);}
-.asc-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
-.asc-n{font-size:22px;font-weight:600;color:var(--t1);letter-spacing:-.5px;line-height:1;margin-bottom:4px;}
-.asc-l{font-size:12px;color:var(--t4);}
-.asc-delta{font-size:11px;margin-top:4px;display:flex;align-items:center;gap:4px;}
+.asc-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
+.asc-n{font-size:30px;font-weight:600;color:var(--t1);letter-spacing:-.5px;line-height:1;margin-bottom:6px;}
+.asc-l{font-size:14px;color:var(--t4);}
+.asc-delta{font-size:13px;margin-top:4px;display:flex;align-items:center;gap:4px;}
 .delta-up{color:var(--green);}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
-.panel{background:rgba(255,255,255,0.02);border:0.5px solid var(--b1);border-radius:14px;padding:18px 20px;}
-.panel-title{font-size:13px;font-weight:500;color:var(--t3);margin-bottom:14px;display:flex;align-items:justify-content:space-between;}
-.fgt{font-size:11px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--b1);}
-.f-label{font-size:12px;color:var(--t3);margin-bottom:5px;display:block;}
-.f-hint{font-size:11px;color:var(--t5);margin-top:3px;}
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px;}
+.panel{background:rgba(255,255,255,0.02);border:0.5px solid var(--b1);border-radius:14px;padding:20px 22px;}
+.panel-title{font-size:14px;font-weight:500;color:var(--t3);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.fgt{font-size:13px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:0.5px solid var(--b1);}
+.f-label{font-size:14px;color:var(--t3);margin-bottom:7px;display:block;}
+.f-hint{font-size:12px;color:var(--t5);margin-top:4px;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .toggle-row:last-child{border-bottom:none;}
-.tgl{width:36px;height:20px;border-radius:20px;position:relative;cursor:pointer;transition:background .2s;}
-.tgl-knob{position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s;}
+.tgl{width:46px;height:26px;border-radius:20px;position:relative;cursor:pointer;transition:background .2s;}
+.tgl-knob{position:absolute;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;}
 .atbl{width:100%;border-collapse:collapse;}
-.atbl th{text-align:left;font-size:10px;color:var(--t5);padding:6px 10px;letter-spacing:.05em;text-transform:uppercase;border-bottom:0.5px solid var(--b1);}
-.atbl td{padding:9px 10px;font-size:12px;color:var(--t3);border-bottom:0.5px solid rgba(255,255,255,0.04);}
+.atbl th{text-align:left;font-size:12px;color:var(--t5);padding:10px 14px;letter-spacing:.05em;text-transform:uppercase;border-bottom:0.5px solid var(--b1);}
+.atbl td{padding:13px 14px;font-size:14px;color:var(--t3);border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .atbl tr:last-child td{border-bottom:none;}
 .atbl tr:hover td{background:rgba(255,255,255,0.02);}
 
@@ -381,28 +530,32 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* DM */
 .dm-shell{flex:1;display:flex;overflow:hidden;}
-.dm-sidebar{width:260px;min-width:260px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
+.dm-sidebar{width:320px;min-width:320px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
 .dm-search{padding:10px 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .dm-search-inner{background:rgba(255,255,255,0.04);border:0.5px solid rgba(255,255,255,0.09);border-radius:20px;display:flex;align-items:center;padding:7px 13px;gap:8px;}
 .dm-search-inner input{background:transparent;border:none;outline:none;font-size:12px;color:var(--t2);font-family:inherit;flex:1;}
 .dm-search-inner input::placeholder{color:var(--t5);}
 .thread-row{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;border-bottom:0.5px solid rgba(255,255,255,0.04);transition:background .1s;}
 .thread-row:hover,.thread-row.active{background:rgba(255,255,255,0.03);}
-.thr-av{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;}
+.thr-av{width:38px;height:38px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;}
 .thr-name{font-size:13px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-preview{font-size:12px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
-.bubble{max-width:72%;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
-.mine .bubble{background:var(--ac);color:#0d0d14;font-weight:500;border-bottom-right-radius:4px;}
+.bubble{max-width:72%;min-width:60px;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
+.mine .bubble{background:var(--ac);color:var(--ac-on);font-weight:500;border-bottom-right-radius:4px;}
+.mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}
 .theirs .bubble{background:rgba(255,255,255,0.07);color:var(--t2);border:0.5px solid var(--b1);border-bottom-left-radius:4px;}
 
 /* Profile */
-.profile-cover{height:160px;background:var(--s2);position:relative;flex-shrink:0;overflow:hidden;}
+.profile-cover{height:160px;background:var(--s2);position:relative;flex-shrink:0;overflow:hidden;transition:height .3s ease;}
+.profile-cover.expanded{height:420px;}
 .profile-cover-edit{position:absolute;top:12px;right:14px;font-size:11px;padding:4px 12px;border-radius:20px;background:rgba(0,0,0,.4);color:var(--t3);border:0.5px solid var(--b2);cursor:pointer;}
+.profile-cover-expand{position:absolute;bottom:12px;right:14px;font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(0,0,0,.4);color:var(--t3);border:0.5px solid var(--b2);cursor:pointer;display:flex;align-items:center;gap:5px;}
+.profile-cover-expand:hover{color:var(--t1);}
 .profile-cover-gradient{position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,var(--bg),transparent);}
 .profile-info-wrap{padding:0 28px 20px;border-bottom:0.5px solid var(--b1);}
 .profile-av-row{margin-top:-40px;margin-bottom:14px;display:flex;align-items:flex-end;justify-content:space-between;}
-.profile-av-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#a78bfa,#ec4899);}
+.profile-av-ring{width:80px;height:80px;border-radius:var(--av-radius);border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#a78bfa,#ec4899);}
 .profile-name{font-size:18px;font-weight:600;color:var(--t1);letter-spacing:-.3px;}
 .profile-handle{font-size:13px;color:var(--t5);margin-bottom:10px;}
 .profile-bio{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:14px;}
@@ -425,18 +578,44 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body code{font-family:'SF Mono','Fira Code',monospace;font-size:12px;background:rgba(255,255,255,0.07);color:var(--ac-text);padding:2px 6px;border-radius:5px;}
 .md-body pre{background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);border-radius:10px;padding:14px;overflow-x:auto;margin-bottom:12px;}
 .md-body pre code{background:none;padding:0;color:var(--t2);}
-.md-body blockquote{border-left:2px solid var(--ac-border);padding-left:14px;color:var(--t4);margin:10px 0;}
+.md-body blockquote{border-left:3px solid var(--ac);padding:8px 14px;color:var(--t3);margin:10px 0;background:rgba(167,139,250,0.06);border-radius:0 8px 8px 0;}
+.md-body blockquote p{margin-bottom:0;}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
+.mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
-.md-body a:has(img){display:inline-block;pointer-events:none;}
+.yt-lite img,.yt-thumb{cursor:pointer!important;border:none!important;background:none!important;margin:0!important;border-radius:0!important;max-height:none!important;}
+.md-body a:has(img){display:inline-block;}
+.md-embed{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;margin:12px 0;background:var(--bg2);border:0.5px solid var(--b1);}
+.md-embed iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:12px;}
+.md-embed-video{margin:12px 0;}
+/* YouTube lite embed */
+.yt-lite{position:relative;padding-bottom:56.25%;border-radius:12px;overflow:hidden;margin:12px 0;cursor:pointer;background:#000;border:0.5px solid var(--b1);}
+.yt-thumb{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transition:opacity .2s;display:block;}
+.yt-lite:hover .yt-thumb{opacity:.85;}
+.yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:transform .15s;}
+.yt-lite:hover .yt-play{transform:translate(-50%,-50%) scale(1.1);}
+.yt-lite.active .yt-thumb,.yt-lite.active .yt-play{display:none;}
+.yt-lite.active iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
 /* Lightbox */
 .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
 .lb-overlay img{max-width:calc(100vw - 48px);max-height:calc(100vh - 80px);border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
 .lb-close{position:fixed;top:16px;right:20px;font-size:24px;color:rgba(255,255,255,.7);cursor:pointer;line-height:1;z-index:10000;}
 .lb-close:hover{color:#fff;}
 .lb-orig{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;}
+/* User card popover */
+.ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
+.ucard-wrap.visible{pointer-events:auto;}
+.ucard{background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;width:320px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);animation:rxPop .15s ease;}
+.ucard-cover{height:80px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
+.ucard-body{padding:16px 18px 18px;}
+.ucard-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 8px;text-align:center;flex:1;}
+.ucard-stat-n{font-size:18px;font-weight:500;color:var(--t1);}
+.ucard-stat-l{font-size:12px;color:var(--t5);margin-top:3px;}
+/* Quote tooltip */
+.quote-tooltip{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--t2);cursor:pointer;z-index:9000;display:flex;align-items:center;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.6);user-select:none;}
+.quote-tooltip:hover{background:var(--s3);color:var(--t1);}
 .lb-orig:hover{color:rgba(255,255,255,.85);}
 /* Composer image upload button */
 .comp-img-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t4);cursor:pointer;padding:4px 8px;border-radius:6px;border:0.5px solid var(--b2);background:var(--bg2);transition:color .15s,border-color .15s;}
@@ -479,11 +658,112 @@ const SPACE_COLORS = ["#a78bfa","#f472b6","#34d399","#60a5fa","#fbbf24","#f87171
 function spaceColor(space) { return space?.color || SPACE_COLORS[(space?.id||0) % SPACE_COLORS.length]; }
 
 // Rounded-square avatar
-function RsAv({user, size=34, color}) {
+// ── User card popover ─────────────────────────────────────────────────────────
+let _ucardSetState = null;
+function useUserCard() {
+  const [card, setCard] = useState(null); // {user, x, y}
+  useEffect(()=>{ _ucardSetState = setCard; return ()=>{ _ucardSetState=null; }; },[]);
+  return [card, setCard];
+}
+function openUserCard(username, anchorEl) {
+  if (!_ucardSetState) return;
+  const rect = anchorEl.getBoundingClientRect();
+  _ucardSetState({username, x: rect.left, y: rect.bottom + 8, loading: true, user: null});
+  api.get(`/users/${username}`).then(d=>{
+    if (d.user) _ucardSetState(p=>p?.username===username ? {...p, user:d.user, loading:false} : p);
+  }).catch(()=>_ucardSetState(null));
+}
+
+function UserCardPopover({card, setCard, currentUser, navigate}) {
+  const ref = useRef();
+  useEffect(()=>{
+    if (!card) return;
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setCard(null); };
+    setTimeout(()=>document.addEventListener("mousedown", fn), 0);
+    return ()=>document.removeEventListener("mousedown", fn);
+  },[card]);
+
+  if (!card) return null;
+
+  const u = card.user;
+  const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
+  const ROLE_BG = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
+
+  const startDM = async () => {
+    setCard(null);
+    const d = await api.post("/threads/direct", {username: card.username});
+    if (d.thread) navigate("dm", {threadId: d.thread.id, threadName: card.username});
+    else toast(d.error||"Could not start conversation","err");
+  };
+
+  // Flip horizontally if card would go off right edge
+  const cardW = 320;
+  const x = Math.min(card.x, window.innerWidth - cardW - 12);
+  // Flip vertically if card would go off bottom
+  const cardH = 360;
+  const y = card.y + cardH > window.innerHeight ? card.y - cardH - 60 : card.y;
+
+  return (
+    <div ref={ref} className={`ucard-wrap ${card?"visible":""}`} style={{left:x, top:y}}>
+      <div className="ucard">
+        {/* Cover */}
+        <div className="ucard-cover" style={{background: u?.cover_url ? `url(${u.cover_url}) center/cover` : "linear-gradient(135deg,#1e1c2e,#312e55)"}}>
+          {/* Avatar overlapping cover */}
+          <div style={{position:"absolute",bottom:-20,left:14}}>
+            {u?.avatar_url
+              ?<img src={u.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
+              :<div style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
+          </div>
+        </div>
+        {/* Body */}
+        <div className="ucard-body">
+          {card.loading&&!u
+            ?<div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
+            :<>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10,paddingTop:26}}>
+                <div>
+                  <div style={{fontSize:17,fontWeight:500,color:"var(--t1)",cursor:"pointer"}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>{u.username}</div>
+                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>Joined {new Date(u.inserted_at).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
+                </div>
+                {u.role&&u.role!=="member"&&<div style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:ROLE_BG[u.role],color:ROLE_COLOR[u.role],border:`0.5px solid ${ROLE_COLOR[u.role]}44`,flexShrink:0}}>{u.role}</div>}
+              </div>
+              {u.bio&&<p style={{fontSize:13,color:"var(--t3)",margin:"0 0 12px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{u.bio}</p>}
+              {/* Stats */}
+              <div style={{display:"flex",gap:6,marginBottom:10}}>
+                <div className="ucard-stat"><div className="ucard-stat-n">{u.post_count||0}</div><div className="ucard-stat-l">posts</div></div>
+                <div className="ucard-stat"><div className="ucard-stat-n">{u.reply_count||0}</div><div className="ucard-stat-l">replies</div></div>
+                <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{u.reactions_received||0}</div><div className="ucard-stat-l">reactions</div></div>
+              </div>
+              {/* Last seen */}
+              {u.last_seen_at&&<div style={{fontSize:12,color:"var(--t5)",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+                <i className="fa-solid fa-clock" style={{fontSize:10}}></i>
+                Active {ago(u.last_seen_at)}
+              </div>}
+              {/* Actions */}
+              <div style={{display:"flex",gap:7}}>
+                {currentUser&&currentUser.username!==u.username&&<button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={startDM}>
+                  <i className="fa-solid fa-message" style={{fontSize:11,marginRight:5}}></i>Message
+                </button>}
+                <button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>
+                  <i className="fa-solid fa-user" style={{fontSize:11,marginRight:5}}></i>Profile
+                </button>
+              </div>
+            </>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RsAv({user, size=34, color, noCard=false}) {
   const bg = color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
+  const handleClick = noCard ? undefined : (e)=>{ e.stopPropagation(); if(user?.username) openUserCard(user.username, e.currentTarget); };
+  if (user?.avatar_url) return (
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`,cursor:noCard?"default":"pointer"}} alt={user.username} onClick={handleClick}/>
+  );
   return (
-    <div style={{width:size,height:size,borderRadius:Math.round(size*0.28),background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0}}>
+    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0,cursor:noCard?"default":"pointer"}} onClick={handleClick}>
       {initials}
     </div>
   );
@@ -492,6 +772,9 @@ function RsAv({user, size=34, color}) {
 // Round avatar
 function Av({user, size=28}) {
   const bg = SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
+  if (user?.avatar_url) return (
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:`0.5px solid ${bg}55`}} alt={user?.username}/>
+  );
   return (
     <div style={{width:size,height:size,borderRadius:"50%",background:`${bg}33`,border:`0.5px solid ${bg}55`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.36),fontWeight:500,color:bg}}>
       {(user?.username||"?").slice(0,1).toUpperCase()}
@@ -499,50 +782,213 @@ function Av({user, size=28}) {
   );
 }
 
-// ── Branding ─────────────────────────────────────────────────────────────────
+// ── URL Routing ───────────────────────────────────────────────────────────────
+function urlToPage(pathname) {
+  const p = pathname.replace(/\/$/, "") || "/";
+  if (p === "/" || p === "")           return {page:"feed", props:{}};
+  if (p === "/compose")                return {page:"compose", props:{}};
+  if (p === "/search")                 return {page:"search", props:{}};
+  if (p === "/notifications")          return {page:"notifications", props:{}};
+  if (p === "/messages")               return {page:"dm", props:{}};
+  if (p === "/admin")                  return {page:"admin", props:{}};
+  if (p === "/settings")               return {page:"settings", props:{}};
+  if (p === "/members")                return {page:"members", props:{}};
+  if (p === "/saved")                  return {page:"saved", props:{}};
+  const postM    = p.match(/^\/post\/(.+)$/);
+  if (postM)  return {page:"post",    props:{id: postM[1]}};
+  const profileM = p.match(/^\/profile\/(.+)$/);
+  if (profileM) return {page:"profile", props:{username: profileM[1]}};
+  const spaceM   = p.match(/^\/space\/(.+)$/);
+  if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
+  const dmM      = p.match(/^\/messages\/(.+)$/);
+  if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
+  return {page:"feed", props:{}};
+}
+
+function pageToUrl(page, props={}) {
+  switch(page) {
+    case "feed":          return props.space ? `/space/${props.space}` : "/";
+    case "post":          return props.id ? `/post/${props.id}` : "/";
+    case "profile":       return props.username ? `/profile/${props.username}` : "/";
+    case "compose":       return "/compose";
+    case "search":        return "/search";
+    case "notifications": return "/notifications";
+    case "dm":            return props.threadId ? `/messages/${props.threadId}` : "/messages";
+    case "admin":         return "/admin";
+    case "settings":      return "/settings";
+    case "members":       return "/members";
+    case "saved":         return "/saved";
+    default:              return "/";
+  }
+}
 let _cssEl = null;
+// Initialize branding from cache immediately to avoid flash on load
+let _brandingState = (() => {
+  try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : {logo_url:null,site_name:null,favicon_url:null}; }
+  catch { return {logo_url:null,site_name:null,favicon_url:null}; }
+})();
+let _brandingListeners = [];
+function onBrandingChange(fn) { _brandingListeners.push(fn); }
+function setBrandingState(state) {
+  _brandingState = {..._brandingState, ...state};
+  _brandingListeners.forEach(fn => fn(_brandingState));
+}
+
+// ── Contrast-aware color utilities ───────────────────────────────────────────
+function hexToRgb(hex) {
+  const h = hex.replace("#","");
+  const full = h.length===3 ? h.split("").map(c=>c+c).join("") : h;
+  const n = parseInt(full,16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function luminance([r,g,b]) {
+  const ch = v => { v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); };
+  return 0.2126*ch(r)+0.7152*ch(g)+0.0722*ch(b);
+}
+// Given a hex accent color, derive all CSS variable variants
+function deriveAccentVars(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const rgb = hexToRgb(hex);
+  const lum = luminance(rgb);
+  // Text on solid accent background: white for dark colors, near-black for light
+  const onAccent = lum > 0.35 ? "#0d0d14" : "#ffffff";
+  // Tinted bg: accent at low opacity
+  const [r,g,b] = rgb;
+  const acBg = `rgba(${r},${g},${b},0.12)`;
+  const acBorder = `rgba(${r},${g},${b},0.30)`;
+  // ac-text: for text ON dark bg WITH accent color — if accent is very light, darken it slightly
+  const acText = lum > 0.6
+    ? `rgb(${Math.round(r*0.7)},${Math.round(g*0.7)},${Math.round(b*0.7)})`
+    : lum > 0.35
+    ? hex
+    : `rgb(${Math.min(255,Math.round(r*1.3))},${Math.min(255,Math.round(g*1.3))},${Math.min(255,Math.round(b*1.3))})`;
+  return {onAccent, acBg, acBorder, acText};
+}
+
 function applyBranding(app={}, gen={}) {
   const r = document.documentElement;
-  if (app.accent_color) r.style.setProperty("--ac", app.accent_color);
-  if (gen.site_name) document.title = gen.site_name;
+  if (app.accent_color) {
+    r.style.setProperty("--ac", app.accent_color);
+    const vars = deriveAccentVars(app.accent_color);
+    if (vars) {
+      r.style.setProperty("--ac-on", vars.onAccent);   // text ON solid accent bg
+      r.style.setProperty("--ac-bg", vars.acBg);        // tinted accent bg
+      r.style.setProperty("--ac-border", vars.acBorder); // accent border
+      r.style.setProperty("--ac-text", vars.acText);    // accent-colored text on dark bg
+    }
+  }
+  // Avatar radius: 0=square, 50=circle. Default 22%
+  r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
+  if (gen.site_name) document.title = gen.site_name + " · Nexus";
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
     _cssEl.textContent = app.custom_css;
   }
+  // Apply favicon
+  if (gen.favicon_url) {
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    link.href = gen.favicon_url;
+  }
+  const newBranding = {logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null};
+  try { localStorage.setItem("nexus_branding", JSON.stringify(newBranding)); } catch {}
+  setBrandingState(newBranding);
 }
 
-// ── Rich Text Area ────────────────────────────────────────────────────────────
+// ── Reactions ─────────────────────────────────────────────────────────────────
+const REACTIONS = [
+  {emoji:"❤️", label:"Love"},
+  {emoji:"👍", label:"Like"},
+  {emoji:"😂", label:"Haha"},
+  {emoji:"😲", label:"Wow"},
+  {emoji:"😭", label:"Sad"},
+  {emoji:"🔥", label:"Fire"},
+  {emoji:"🎉", label:"Celebrate"},
+  {emoji:"👀", label:"Eyes"},
+];
+
+function ReactionButton({postId, replyId, initialReactions=[], initialUserReaction=null, currentUser, onAuthRequired}) {
+  const [open, setOpen] = useState(false);
+  const [reactions, setReactions] = useState(initialReactions);
+  const [userReaction, setUserReaction] = useState(initialUserReaction);
+  const ref = useRef();
+
+  useEffect(()=>{ setReactions(initialReactions); },[JSON.stringify(initialReactions)]);
+  useEffect(()=>{ setUserReaction(initialUserReaction); },[initialUserReaction]);
+
+  useEffect(()=>{
+    if(!open) return;
+    const fn=e=>{ if(ref.current&&!ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown",fn);
+    return ()=>document.removeEventListener("mousedown",fn);
+  },[open]);
+
+  const react = async(emoji) => {
+    if(!currentUser){ onAuthRequired?.("login"); setOpen(false); return; }
+    setOpen(false);
+    const body = {emoji, ...(postId?{post_id:postId}:{reply_id:replyId})};
+    if(userReaction===emoji){
+      // Toggle off
+      const d = await api.delete("/reactions", body);
+      if(d.ok){ setReactions(d.reactions||[]); setUserReaction(null); }
+    } else {
+      const d = await api.post("/reactions", body);
+      if(d.ok){ setReactions(d.reactions||[]); setUserReaction(d.user_reaction); }
+    }
+  };
+
+  const totalCount = reactions.reduce((s,r)=>s+(r.count||0),0);
+
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      {/* React trigger button */}
+      <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
+        <span style={{fontSize:16,lineHeight:1}}>{userReaction||"❤️"}</span>
+        {totalCount>0&&<span>{totalCount}</span>}
+        {open&&(
+          <div className="rx-picker" onClick={e=>e.stopPropagation()}>
+            {REACTIONS.map(({emoji,label})=>(
+              <div key={emoji} className={`rx-pick-btn ${userReaction===emoji?"selected":""}`}
+                title={label} onClick={e=>{e.stopPropagation();react(emoji);}}>
+                {emoji}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Count pills for each reaction type */}
+      {reactions.filter(r=>r.count>0).map(r=>(
+        <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
+          onClick={()=>react(r.emoji)} title={REACTIONS.find(x=>x.emoji===r.emoji)?.label||r.emoji}>
+          <span style={{fontSize:14}}>{r.emoji}</span>
+          <span>{r.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 const SLASH_ITEMS = [
   {type:"image", icon:"🖼", label:"Image",      desc:"Upload or embed"},
   {type:"code",  icon:"</>",label:"Code block", desc:"Syntax highlighted"},
   {type:"quote", icon:'"',  label:"Blockquote", desc:"Highlight a quote"},
   {type:"divider",icon:"—", label:"Divider",    desc:"Horizontal rule"},
 ];
+// Toolbar button definitions — used by the static toolbar in RichTextArea
 const TB_BTNS = [
-  {type:"bold",   label:"B",   style:{fontWeight:700},                wrap:["**","**"]},
-  {type:"italic", label:"I",   style:{fontStyle:"italic"},            wrap:["*","*"]},
-  {type:"strike", label:"S",   style:{textDecoration:"line-through"}, wrap:["~~","~~"]},
+  {type:"bold",    label:"B",    tip:"Bold",        style:{fontWeight:700},                    wrap:["**","**"]},
+  {type:"italic",  label:"I",    tip:"Italic",      style:{fontStyle:"italic"},                wrap:["*","*"]},
+  {type:"strike",  label:"S",    tip:"Strikethrough",style:{textDecoration:"line-through"},   wrap:["~~","~~"]},
   {sep:true},
-  {type:"h1",     label:"H1",  style:{fontSize:11},                   wrap:["# ",""]},
-  {type:"h2",     label:"H2",  style:{fontSize:11},                   wrap:["## ",""]},
+  {type:"h1",      label:"H1",   tip:"Heading 1",   style:{fontSize:12,fontWeight:700},        wrap:["# ",""]},
+  {type:"h2",      label:"H2",   tip:"Heading 2",   style:{fontSize:12,fontWeight:700},        wrap:["## ",""]},
   {sep:true},
-  {type:"incode", label:"</>", style:{fontFamily:"monospace",fontSize:10}, wrap:["`","`"]},
-  {type:"link",   label:"🔗",  style:{},                              wrap:["[","](url)"]},
+  {type:"incode",  label:"</>",  tip:"Inline code", style:{fontFamily:"monospace",fontSize:11},wrap:["`","`"]},
+  {type:"code",    label:"≡",    tip:"Code block",  style:{fontFamily:"monospace"},             wrap:["```\n","\n```"]},
+  {type:"link",    label:"🔗",   tip:"Link",        style:{},                                  wrap:["[","](url)"]},
+  {type:"quote",   label:"❝",    tip:"Blockquote",  style:{},                                  wrap:["> ",""]},
+  {type:"divider", label:"—",    tip:"Divider",     style:{},                                  wrap:["\n---\n",""]},
 ];
-let _floatTb=null, _slashMenu=null, _activeTA=null, _slashIdx=0;
-function getTb() {
-  if (!_floatTb) {
-    _floatTb = document.createElement("div");
-    _floatTb.className = "float-tb";
-    _floatTb.style.display = "none";
-    _floatTb.innerHTML = TB_BTNS.map(b => b.sep
-      ? `<div class="float-tb-sep"></div>`
-      : `<button class="float-tb-btn" data-type="${b.type}" style="${Object.entries(b.style).map(([k,v])=>`${k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())}:${v}`).join(';')}" onmousedown="event.preventDefault();_tbApply('${b.type}')">${b.label}</button>`
-    ).join("");
-    document.body.appendChild(_floatTb);
-  }
-  return _floatTb;
-}
+let _slashMenu=null, _activeTA=null, _slashIdx=0;
 function getSm() {
   if (!_slashMenu) {
     _slashMenu = document.createElement("div");
@@ -552,22 +998,10 @@ function getSm() {
   }
   return _slashMenu;
 }
-window._tbApply = function(type) {
-  const ta = _activeTA; if (!ta) return;
-  const b = TB_BTNS.find(x=>x.type===type); if (!b) return;
-  const [before,after] = b.wrap;
-  const s=ta.selectionStart, e=ta.selectionEnd;
-  const sel=ta.value.slice(s,e)||"text";
-  ta.value=ta.value.slice(0,s)+before+sel+after+ta.value.slice(e);
-  ta.focus(); ta.setSelectionRange(s+before.length,s+before.length+sel.length);
-  getTb().style.display="none";
-  ta.dispatchEvent(new Event("input",{bubbles:true}));
-};
 window._smPick = function(type) {
   const ta = _activeTA; if (!ta) return;
   getSm().style.display="none";
   if (type === "image") {
-    // Trigger the hidden file input attached to the active textarea's composer
     const input = document.getElementById("comp-img-input");
     if (input) input.click();
     return;
@@ -588,6 +1022,44 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   const taRef = useRef(); const wrapRef = useRef();
   const imgInputRef = useRef();
   const [uploading, setUploading] = useState(false);
+
+  // Apply a format wrap to current selection or insert at cursor
+  const applyFormat = (wrap) => {
+    const ta = taRef.current; if (!ta) return;
+    const [before, after] = wrap;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.slice(s, e) || "text";
+    const newVal = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
+    onChange(newVal);
+    setTimeout(()=>{
+      ta.focus();
+      ta.setSelectionRange(s + before.length, s + before.length + sel.length);
+    }, 0);
+  };
+  // Mention state
+  const [mentionDrop, setMentionDrop] = useState(null); // {users, query, pos, x, y, selIdx}
+  const mentionDebounce = useRef();
+  const mentionSearch = async (q, caretPos, x, y) => {
+    if (q.length === 0) { setMentionDrop(null); return; }
+    const d = await api.get(`/users?q=${encodeURIComponent(q)}`).catch(()=>null);
+    const users = (d?.members||[]).slice(0,6);
+    if (users.length === 0) { setMentionDrop(null); return; }
+    setMentionDrop({users, query:q, pos:caretPos, x, y, selIdx:0});
+  };
+  const insertMention = (username) => {
+    const ta = taRef.current; if (!ta) return;
+    const val = ta.value;
+    // Find the @ that triggered the dropdown
+    const before = val.slice(0, mentionDrop.pos);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx === -1) return;
+    const after = val.slice(mentionDrop.pos);
+    const newVal = val.slice(0, atIdx) + `@${username} ` + after;
+    onChange(newVal);
+    setMentionDrop(null);
+    const newPos = atIdx + username.length + 2;
+    setTimeout(()=>{ ta.focus(); ta.setSelectionRange(newPos, newPos); }, 0);
+  };
   const buildSm = () => {
     const sm = getSm();
     sm.innerHTML = SLASH_ITEMS.map((item,i)=>
@@ -598,28 +1070,42 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     ).join("");
     _slashIdx=0;
   };
-  const handleSel = () => {
-    const ta = taRef.current; if (!ta) return;
-    _activeTA = ta;
-    if (ta.selectionStart===ta.selectionEnd) { getTb().style.display="none"; return; }
-    const rect = ta.getBoundingClientRect();
-    const tb = getTb();
-    const tbW = 260;
-    const left = Math.max(rect.left, Math.min(rect.left+rect.width/2-tbW/2, rect.right-tbW));
-    tb.style.cssText=`display:flex;position:fixed;top:${rect.top-48}px;left:${left}px;`;
-  };
+
   const handleChange = e => {
     onChange(e.target.value);
-    const last = e.target.value.split("\n").pop();
+    const ta = e.target;
+    const val = ta.value;
+    const caret = ta.selectionStart;
+    // Check for @mention trigger
+    const textBefore = val.slice(0, caret);
+    const mentionMatch = textBefore.match(/@([a-zA-Z0-9_]*)$/);
+    if (mentionMatch) {
+      const q = mentionMatch[1];
+      clearTimeout(mentionDebounce.current);
+      // Get caret position for dropdown placement
+      const rect = ta.getBoundingClientRect();
+      mentionDebounce.current = setTimeout(()=>mentionSearch(q, caret, rect.left+16, rect.top-8), 200);
+    } else {
+      setMentionDrop(null);
+    }
+    // Slash command detection
+    const last = val.split("\n").pop();
     const sm = getSm();
-    if (/^\/(i|c|b|d|e)?$/.test(last)||last==="/") {
+    if (/^\/([icbde])?$/.test(last)||last==="/") {
       _activeTA = taRef.current;
       buildSm();
-      const rect = taRef.current.getBoundingClientRect();
+      const rect = ta.getBoundingClientRect();
       sm.style.cssText=`display:block;position:fixed;left:${rect.left}px;top:${rect.top-200}px;`;
     } else { sm.style.display="none"; }
   };
   const handleKeyDown = e => {
+    // Mention dropdown keyboard navigation
+    if (mentionDrop) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionDrop(p=>({...p,selIdx:(p.selIdx+1)%p.users.length})); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMentionDrop(p=>({...p,selIdx:(p.selIdx-1+p.users.length)%p.users.length})); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionDrop.users[mentionDrop.selIdx].username); return; }
+      if (e.key === "Escape") { setMentionDrop(null); return; }
+    }
     const sm = getSm();
     if (sm.style.display==="none") return;
     const items = SLASH_ITEMS.length;
@@ -629,7 +1115,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     else if (e.key==="Escape"){sm.style.display="none";}
   };
   const handleBlur = () => {
-    setTimeout(()=>{ getTb().style.display="none"; getSm().style.display="none"; }, 200);
+    setTimeout(()=>{ getSm().style.display="none"; setMentionDrop(null); }, 200);
   };
 
   const insertImageMarkdown = (webpUrl, originalUrl, filename) => {
@@ -674,12 +1160,27 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
 
   return (
     <div ref={wrapRef} style={{position:"relative"}}>
-      {!value && <div style={{position:"absolute",top:0,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75}}>{placeholder}</div>}
+      {/* Static toolbar */}
+      <div className="comp-toolbar">
+        {TB_BTNS.map((b,i)=> b.sep
+          ? <div key={i} className="comp-tb-sep"/>
+          : <button key={b.type} className="comp-tb-btn" title={b.tip}
+              style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
+              {b.label}
+            </button>
+        )}
+        <div className="comp-tb-sep"/>
+        <label className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
+          {uploading
+            ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
+            : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
+        </label>
+      </div>
+      {!value && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
-        onMouseUp={handleSel} onKeyUp={handleSel} onBlur={handleBlur} autoFocus={autoFocus}
-        className="comp-ta" style={{minHeight}}
+        onBlur={handleBlur} autoFocus={autoFocus}
+        className="comp-ta" style={{minHeight,paddingTop:8}}
         onPaste={e=>{
-          // Handle paste of image files directly into textarea
           const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
           if (file) { e.preventDefault(); handleImageFile(file); }
         }}
@@ -689,6 +1190,20 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         }}
         onDragOver={e=>e.preventDefault()}
       />
+      {/* Mention dropdown */}
+      {mentionDrop&&(
+        <div className="mention-drop" style={{left:mentionDrop.x, top:mentionDrop.y, transform:"translateY(-100%)"}}>
+          {mentionDrop.users.map((u,i)=>(
+            <div key={u.id} className={`mention-item ${i===mentionDrop.selIdx?"sel":""}`}
+              onMouseDown={e=>{e.preventDefault();insertMention(u.username);}}>
+              {u.avatar_url
+                ?<img className="mention-av" src={u.avatar_url} alt={u.username}/>
+                :<div className="mention-av" style={{background:spaceColor({id:u.id})}}>{u.username.slice(0,2).toUpperCase()}</div>}
+              <span className="mention-name">@{u.username}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Hidden file input — triggered by slash menu Image pick and the button below */}
       <input
         id="comp-img-input"
@@ -698,14 +1213,6 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         style={{display:"none"}}
         onChange={e=>handleImageFile(e.target.files[0])}
       />
-      <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:"0.5px solid var(--b1)",marginTop:4}}>
-        <label className={`comp-img-btn ${uploading?"uploading":""}`} htmlFor="comp-img-input" title="Upload image (or paste/drop)">
-          {uploading
-            ? <><i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}></i> Uploading…</>
-            : <><i className="fa-solid fa-image" style={{fontSize:11}}></i> Add image</>}
-        </label>
-        <span style={{fontSize:11,color:"var(--t5)",marginLeft:2}}>or paste / drag &amp; drop</span>
-      </div>
     </div>
   );
 }
@@ -720,7 +1227,11 @@ function AvatarMenu({user, navigate, onLogout}) {
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
   return (
     <div className="av-wrap" ref={ref}>
-      <div className={`av-circle ${open?"open":""}`} onClick={()=>setOpen(p=>!p)}>{initials}</div>
+      <div className={`av-circle ${open?"open":""}`} onClick={()=>setOpen(p=>!p)}>
+        {user?.avatar_url
+          ?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"inherit"}} alt={user.username}/>
+          :initials}
+      </div>
       <div className={`av-dd ${open?"open":""}`}>
         <div className="av-dd-hdr">
           <div className="av-dd-name">{user?.username}</div>
@@ -748,6 +1259,7 @@ function AvatarMenu({user, navigate, onLogout}) {
 function AuthPage({onLogin}) {
   const [mode,setMode]=useState("login");
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
+  const [showPw,setShowPw]=useState(false);
   const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
   const submit=async e=>{
     e.preventDefault(); setLoading(true); setErr(null);
@@ -775,7 +1287,13 @@ function AuthPage({onLogin}) {
               <div className="fg"><label className="fl">Email</label><input className="fi" type="email" placeholder="you@example.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} required autoFocus/></div>
               <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
             </>}
-          <div className="fg"><label className="fl">Password</label><input className="fi" type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required/></div>
+          <div className="fg"><label className="fl">Password</label>
+          <div style={{position:"relative"}}>
+            <input className="fi" type={showPw?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required style={{paddingRight:40}}/>
+            <span onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:"var(--t4)",fontSize:15,userSelect:"none"}}>
+              <i className={`fa-solid ${showPw?"fa-eye-slash":"fa-eye"}`}/>
+            </span>
+          </div></div>
           {err&&<div className="ferr" style={{marginBottom:10}}>{err}</div>}
           <button className="btn-primary" style={{width:"100%",borderRadius:10,padding:"10px"}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
         </form>
@@ -787,6 +1305,11 @@ function AuthPage({onLogin}) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, onAuthRequired}) {
+  const [branding, setBranding] = useState({logo_url:null, site_name:null});
+  useEffect(()=>{
+    setBranding({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name});
+    onBrandingChange(b=>setBranding({logo_url:b.logo_url, site_name:b.site_name}));
+  },[]);
   const SbItem = ({icon, label, count, badge, targetPage, targetProps={}}) => {
     const active = page===targetPage && JSON.stringify(pageProps)===JSON.stringify(targetProps);
     return (
@@ -800,8 +1323,10 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
   };
   return (
     <div className="sidebar">
-      <div className="sb-logo">
-        <span className="logo-text">nexus<em>.</em></span>
+      <div className="sb-logo" style={{cursor:"pointer"}} onClick={()=>navigate("feed",{})}>
+        {branding.logo_url
+          ?<img src={branding.logo_url} style={{height:32,maxWidth:140,objectFit:"contain"}} alt={branding.site_name||"nexus"}/>
+          :<span className="logo-text">{branding.site_name||<>nexus<em>.</em></>}</span>}
       </div>
       <div className="sb-scroll">
         <div className="sb-label">Explore</div>
@@ -809,7 +1334,6 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
         <SbItem icon="fa-fire" label="Trending" targetPage="feed" targetProps={{sort:"top"}}/>
         {currentUser&&<SbItem icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>}
         {currentUser&&<SbItem icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>}
-        <SbItem icon="fa-magnifying-glass" label="Search" targetPage="search"/>
         <SbItem icon="fa-users" label="Members" targetPage="members"/>
         <div className="sb-divider"/>
         <div className="sb-label">Spaces</div>
@@ -818,7 +1342,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           const active = page==="feed" && pageProps?.space===s.slug;
           return (
             <div key={s.id} className={`sb-item ${active?"active":""}`} onClick={()=>navigate("feed",{space:s.slug})}>
-              <i className="fa-solid fa-layer-group" style={{color:active?col:undefined}}></i>
+              <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{color:active?col:undefined}}></i>
               <span className="sb-item-name">{s.name}</span>
               {s.post_count>0&&<span className="sb-item-count">{s.post_count}</span>}
             </div>
@@ -835,45 +1359,108 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           <div className="sb-divider"/>
           <SbItem icon="fa-shield-halved" label="Admin Panel" targetPage="admin"/>
         </>}
-        {!currentUser&&<>
-          <div className="sb-divider"/>
-          <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
-            <button onClick={()=>onAuthRequired?.("login")} style={{width:"100%",padding:"8px",borderRadius:8,background:"transparent",border:"0.5px solid var(--b2)",color:"var(--t3)",cursor:"pointer",fontFamily:"inherit",fontSize:12}}>Log in</button>
-            <button onClick={()=>onAuthRequired?.("register")} style={{width:"100%",padding:"8px",borderRadius:8,background:"var(--ac)",border:"none",color:"#0d0d14",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500}}>Sign up</button>
-          </div>
-        </>}
       </div>
     </div>
   );
 }
 
 // ── Shared topbar ─────────────────────────────────────────────────────────────
-function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired}) {
+function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true}) {
   const [q,setQ]=useState("");
+  const [drop,setDrop]=useState(null); // {posts, replies} | null
+  const [searching,setSearching]=useState(false);
+  const searchRef=useRef();
+  const debounceRef=useRef();
+
+  const runSearch=useCallback(async(val)=>{
+    if(!val.trim()){setDrop(null);return;}
+    setSearching(true);
+    try{
+      const d=await api.get(`/search?q=${encodeURIComponent(val)}`);
+      setDrop(d);
+    }catch{setDrop(null);}
+    finally{setSearching(false);}
+  },[]);
+
+  const onChange=e=>{
+    const val=e.target.value; setQ(val);
+    clearTimeout(debounceRef.current);
+    if(!val.trim()){setDrop(null);return;}
+    debounceRef.current=setTimeout(()=>runSearch(val),300);
+  };
+
+  const goAll=()=>{ setDrop(null); onSearch?.(q); };
+
+  // Close dropdown on outside click
+  useEffect(()=>{
+    const fn=e=>{ if(searchRef.current&&!searchRef.current.contains(e.target)) setDrop(null); };
+    document.addEventListener("mousedown",fn);
+    return ()=>document.removeEventListener("mousedown",fn);
+  },[]);
+
+  const posts = (drop?.posts||[]).slice(0,5);
+  const replies = (drop?.replies||[]).slice(0,3);
+  const hasResults = posts.length>0||replies.length>0;
+
   return (
     <div className="topbar">
-      <div className="tb-search">
-        <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"rgba(255,255,255,0.25)"}}></i>
-        <input placeholder="search threads…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onSearch?.(q)}/>
+      <div className="tb-search" ref={searchRef} style={{position:"relative"}}>
+        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:searching?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s"}}></i>
+        <input placeholder="search threads…" value={q}
+          onChange={onChange}
+          onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(debounceRef.current);goAll();}if(e.key==="Escape"){setDrop(null);setQ("");}}}
+          onFocus={()=>q.trim()&&!drop&&runSearch(q)}
+        />
+        {drop&&(
+          <div className="tb-search-drop">
+            {!hasResults&&<div style={{padding:"20px 14px",color:"var(--t5)",fontSize:13,textAlign:"center"}}>No results for "{q}"</div>}
+            {posts.length>0&&<>
+              <div className="tb-search-section">Threads</div>
+              {posts.map(p=>{
+                const col=spaceColor(p.space||{id:p.id});
+                return (
+                  <div key={p.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:p.id});}}>
+                    <RsAv user={p.user} size={28} color={col}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div className="tb-search-title">{p.title}</div>
+                      {p.space&&<div style={{fontSize:10,color:col,marginTop:1}}>{p.space.name}</div>}
+                    </div>
+                    <span style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>{ago(p.inserted_at)}</span>
+                  </div>
+                );
+              })}
+            </>}
+            {replies.length>0&&<>
+              <div className="tb-search-section">Replies</div>
+              {replies.map(r=>(
+                <div key={r.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:r.post_id});}}>
+                  <RsAv user={r.user} size={28} color={spaceColor({id:r.post_id})}/>
+                  <div className="tb-search-sub">{r.body?.replace(/!?\[.*?\]\(.*?\)/g,"").replace(/[#*`>]/g,"").slice(0,80)}</div>
+                </div>
+              ))}
+            </>}
+            {hasResults&&<div className="tb-search-all" onClick={goAll}>See all results for "{q}" →</div>}
+          </div>
+        )}
       </div>
-      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
         {currentUser ? <>
           <div className="icon-btn" onClick={()=>navigate("notifications")} title="Notifications">
-            <i className="fa-solid fa-bell" style={{fontSize:13}}></i>
+            <i className="fa-solid fa-bell" style={{fontSize:16}}></i>
             {notifCount>0&&<div className="icon-badge"/>}
           </div>
           <div className="icon-btn" onClick={()=>navigate("messages")} title="Messages">
-            <i className="fa-solid fa-message" style={{fontSize:13}}></i>
+            <i className="fa-solid fa-message" style={{fontSize:16}}></i>
             {msgCount>0&&<div className="icon-badge green"/>}
           </div>
           <div className="icon-btn" title="Docs">
-            <i className="fa-solid fa-file-lines" style={{fontSize:13}}></i>
+            <i className="fa-solid fa-file-lines" style={{fontSize:16}}></i>
           </div>
           <button className="write-btn" onClick={()=>navigate("compose")}>+ write</button>
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
         </> : <>
-          <button onClick={()=>onAuthRequired?.("login")} style={{fontSize:12,padding:"6px 16px",borderRadius:20,background:"transparent",border:"0.5px solid var(--b2)",color:"var(--t3)",cursor:"pointer",fontFamily:"inherit"}}>Log in</button>
-          <button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>
+          <button onClick={()=>onAuthRequired?.("login")} className="write-btn" style={{background:"transparent",border:"1.5px solid var(--b2)",color:"var(--t2)"}}>Log in</button>
+          {registrationOpen&&<button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>}
         </>}
       </div>
     </div>
@@ -909,7 +1496,7 @@ function RightPanel({spaces, liveEvents=[]}) {
           const w=Math.max(8, Math.round((s.post_count||0)/max*100));
           return (
             <div key={s.id} className="pulse-row">
-              <div className="p-name"><i className="fa-solid fa-layer-group" style={{fontSize:10,color:col,width:14,textAlign:"center"}}></i>{s.name.slice(0,7)}</div>
+              <div className="p-name"><i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center"}}></i>{s.name.slice(0,7)}</div>
               <div className="p-bar-wrap"><div className="p-bar" style={{width:`${w}%`,background:col}}></div></div>
               <div className="p-count" style={{color:col}}>{s.post_count||0}</div>
             </div>
@@ -944,7 +1531,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
       if(spaceFilter) url+=`&space=${spaceFilter}`;
       if(followingOnly) url+=`&following=true`;
       if(!reset&&cur) url+=`&cursor=${cur}`;
-      const d=await api.get(url); const np=d.posts||[];
+      const d=await api.get(url);
+      if(d.error==="Please log in to view this forum"){onAuthRequired?.("login");return;}
+      const np=d.posts||[];
       if(reset) setPosts(np); else setPosts(p=>[...p,...np]);
       setCursor(d.next_cursor); setHasMore(!!d.next_cursor);
     } finally { setLoading(false); }
@@ -975,9 +1564,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   return (
     <div className="feed-wrap">
-      <TopBar currentUser={currentUser} navigate={navigate} onLogout={onLogout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={onAuthRequired}/>
-      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <div className="feed-header">
             <div className="feed-title">{feedTitle}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1013,17 +1600,19 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                   <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
+                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
                           {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
-                        {p.body&&<div className="thread-preview">{p.body.replace(/[#*`]/g,"").slice(0,120)}</div>}
+                        {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
-                            <div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>
+                            {p.user?.avatar_url
+                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:6,objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
+                              :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
@@ -1036,7 +1625,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         </div>
                         <div className="meta-div"/>
                         <div className="thread-last">
-                          <div className="last-av" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>
+                          {p.user?.avatar_url
+                              ?<img src={p.user.avatar_url} style={{width:24,height:24,borderRadius:6,objectFit:"cover",border:`1px solid ${col}33`}} alt={p.user.username}/>
+                              :<div className="last-av" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
                       </div>
@@ -1046,39 +1637,60 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               })}
             {hasMore&&<div style={{textAlign:"center",padding:16}}><button className="btn-ghost" onClick={()=>load(false,cursor)} disabled={loading}>Load more</button></div>}
           </div>
-        </div>
-        <RightPanel spaces={spaces} liveEvents={liveEvents}/>
       </div>
     </div>
   );
 }
 
 // ── Post view ─────────────────────────────────────────────────────────────────
-function PostPage({postId, currentUser, navigate, spaces}) {
+function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
-  const [edMode,setEdMode]=useState("markdown"); const [submitting,setSubmitting]=useState(false);
-  const [myRx,setMyRx]=useState(new Set());
-  const [rxCounts,setRxCounts]=useState({});
-  const [replyRxCounts,setReplyRxCounts]=useState({}); // {replyId: {emoji: count}}
+  const [submitting,setSubmitting]=useState(false);
+  const [userReaction,setUserReaction]=useState(null);
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
   const [reporting,setReporting]=useState(false);
+  const [quoteTooltip,setQuoteTooltip]=useState(null);
+  const [typingUsers,setTypingUsers]=useState([]); // usernames currently typing
+  const composerRef = useRef();
+  const replyBodyRef = useRef(replyBody);
+  const typingTimers = useRef({});
+  useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
+
+  // Join post channel for realtime replies + typing
+  useEffect(()=>{
+    if(!postId) return;
+    joinTopic?.(`post:${postId}`);
+    return ()=>{ leaveTopic?.(`post:${postId}`); };
+  },[postId]);
+
+  // Listen for realtime events
+  useEffect(()=>{
+    const replyFn = e => {
+      if(String(e.detail.postId)===String(postId) && e.detail.reply) {
+        setReplies(p=>p.some(r=>r.id===e.detail.reply.id)?p:[...p,e.detail.reply]);
+        setPost(p=>p?{...p,reply_count:(p.reply_count||0)+1}:p);
+      }
+    };
+    const typingFn = e => {
+      if(e.detail.channel===`post:${postId}` && e.detail.userId!==currentUser?.id) {
+        const uid = String(e.detail.userId);
+        setTypingUsers(p=>p.includes(uid)?p:[...p,uid]);
+        clearTimeout(typingTimers.current[uid]);
+        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 3000);
+      }
+    };
+    window.addEventListener("nexus:new_reply", replyFn);
+    window.addEventListener("nexus:typing", typingFn);
+    return ()=>{ window.removeEventListener("nexus:new_reply", replyFn); window.removeEventListener("nexus:typing", typingFn); };
+  },[postId,currentUser]);
 
   useEffect(()=>{
     (async()=>{ setLoading(true);
       try { const [pd,rd]=await Promise.all([api.get(`/posts/${postId}`),api.get(`/posts/${postId}/replies`)]);
         setPost(pd.post); setReplies(rd.replies||[]);
-        const counts={};
-        (pd.post?.reactions||[]).forEach(r=>{ counts[r.emoji]=r.count||0; });
-        setRxCounts(counts);
-        // Build per-reply emoji counts
-        const rCounts={};
-        (rd.replies||[]).forEach(reply=>{
-          rCounts[reply.id]={};
-          (reply.reactions||[]).forEach(rx=>{ rCounts[reply.id][rx.emoji]=rx.count||0; });
-        });
-        setReplyRxCounts(rCounts);
+        setUserReaction(pd.post?.user_reaction||null);
       }
       finally { setLoading(false); }
     })();
@@ -1087,7 +1699,8 @@ function PostPage({postId, currentUser, navigate, spaces}) {
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
     try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
-      if(d.reply){setReplies(p=>[...p,d.reply]);setReplyBody("");setPost(p=>({...p,reply_count:p.reply_count+1}));}
+      if(d.reply&&d.pending){setReplyBody("");toast("Your reply is pending moderator approval");}
+      else if(d.reply){setReplies(p=>[...p,d.reply]);setReplyBody("");setPost(p=>({...p,reply_count:p.reply_count+1}));}
       else toast(d.error||"Failed","err"); }
     finally { setSubmitting(false); }
   };
@@ -1102,26 +1715,63 @@ function PostPage({postId, currentUser, navigate, spaces}) {
     } finally { setReporting(false); }
   };
 
-  const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
+  // ── Quote on selection ────────────────────────────────────────────────────
+  useEffect(()=>{
+    const onMouseUp = ()=>{
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setQuoteTooltip(null); return;
+      }
+      // Only show tooltip if selection is inside .md-body
+      const range = sel.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      const mdBody = container.nodeType===1
+        ? container.closest?.(".md-body")
+        : container.parentElement?.closest?.(".md-body");
+      if (!mdBody) { setQuoteTooltip(null); return; }
+
+      const rect = range.getBoundingClientRect();
+      // If selection is near the top of the viewport, show tooltip below instead
+      const above = rect.top > 60;
+      setQuoteTooltip({
+        x: rect.left + rect.width/2,
+        y: above ? rect.top : rect.bottom,
+        below: !above,
+        text: sel.toString().trim()
+      });
+    };
+    const onMouseDown = e=>{
+      // Hide tooltip unless clicking it
+      if (!e.target.closest(".quote-tooltip")) setQuoteTooltip(null);
+    };
+    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("mousedown", onMouseDown);
+    return ()=>{
+      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  },[]);
+
+  const insertQuote = (text)=>{
+    const lines = text.split("\n").map(l=>"> "+l).join("\n");
+    const quote = lines + "\n\n";
+    setReplyBody(prev => prev ? prev + "\n" + quote : quote);
+    setQuoteTooltip(null);
+    window.getSelection()?.removeAllRanges();
+    // Scroll to and focus composer
+    setTimeout(()=>{
+      composerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
+      composerRef.current?.querySelector("textarea")?.focus();
+    }, 50);
+  };
   const modAction=async(action)=>{
     await api.post(`/posts/${post.id}/${action}`,{});
     setPost(p=>({...p, [action]:!p[action]}));
     toast(action.charAt(0).toUpperCase()+action.slice(1)+"d");
   };
-  const react=async(emoji, replyId=null)=>{
-    const k=`${emoji}-${replyId||"post"}`; if(myRx.has(k))return;
-    const payload = replyId ? {emoji, reply_id:replyId} : {emoji, post_id:post.id};
-    await api.post("/reactions", payload);
-    setMyRx(p=>new Set([...p,k]));
-    if(!replyId) {
-      setRxCounts(p=>({...p, [emoji]:(p[emoji]||0)+1}));
-      setPost(p=>({...p,reaction_count:p.reaction_count+1}));
-    } else {
-      setReplyRxCounts(p=>({...p, [replyId]:{...(p[replyId]||{}), [emoji]:((p[replyId]||{})[emoji]||0)+1}}));
-      setReplies(p=>p.map(r=>r.id===replyId?{...r,reaction_count:(r.reaction_count||0)+1}:r));
-    }
-  };
 
+
+  const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const col = spaceColor(post?.space||{id:postId});
 
   if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
@@ -1143,9 +1793,10 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         </div>
       )}
       <div className="post-content-wrap">
-        <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i> back to feed</div>
+        <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
+          <RsAv user={post.user} size={56} color={col}/>
           <div style={{flex:1}}>
             <div className="post-title">{post.title}</div>
             <div className="post-meta">
@@ -1172,8 +1823,8 @@ function PostPage({postId, currentUser, navigate, spaces}) {
               </span>
             </div>
             <div className="post-body"><Md text={post.body}/></div>
-            <div className="reaction-row">
-              {["+1","❤","🔥","🎉","💡"].map(e=><div key={e} className={`rx-btn ${myRx.has(`${e}-post`)?"lit":""}`} onClick={()=>react(e)}>{e} · {rxCounts[e]||0}</div>)}
+            <div className="reaction-row" style={{justifyContent:"flex-end"}}>
+              <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
             </div>
           </div>
         </div>
@@ -1183,13 +1834,14 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         </div>
         {replies.map(r=>(
           <div key={r.id} className="reply-item">
-            <div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>
-              {(r.user?.username||"?").slice(0,2).toUpperCase()}
-            </div>
+            {r.user?.avatar_url
+              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
+              :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
             <div className="reply-body-wrap">
               <div className="reply-meta">
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
+                {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
                 <span style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
                   {currentUser&&currentUser?.id!==r.user?.id&&(
                     <span style={{fontSize:11,color:"var(--t4)",cursor:"pointer"}} onClick={()=>{setReportTarget({type:"reply",id:r.id});setReportReason("");}}>report</span>
@@ -1200,26 +1852,37 @@ function PostPage({postId, currentUser, navigate, spaces}) {
                 </span>
               </div>
               <div className="reply-text"><Md text={r.body}/></div>
-              <div className="reaction-row" style={{marginTop:8}}>
-                {["+1","❤","🔥"].map(e=><div key={e} className={`rx-btn ${myRx.has(`${e}-${r.id}`)?"lit":""}`} onClick={()=>react(e,r.id)} style={{fontSize:11,padding:"3px 9px"}}>{e} · {(replyRxCounts[r.id]||{})[e]||0}</div>)}
+              <div className="reaction-row" style={{marginTop:6,justifyContent:"flex-end"}}>
+                <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
               </div>
             </div>
           </div>
         ))}
-        {currentUser&&!post.locked&&(
-          <div style={{marginTop:20,paddingBottom:32}}>
+        {quoteTooltip&&(
+          <div className="quote-tooltip"
+            style={{
+              left: quoteTooltip.x,
+              top: quoteTooltip.below ? quoteTooltip.y+8 : quoteTooltip.y-8,
+              transform: quoteTooltip.below ? "translate(-50%,0)" : "translate(-50%,-100%)"
+            }}
+            onMouseDown={e=>{e.preventDefault();insertQuote(quoteTooltip.text);}}>
+            <i className="fa-solid fa-quote-left" style={{fontSize:10}}></i> Quote
+          </div>
+        )}
+        {currentUser&&!post.locked&&(<>
+          {typingUsers.length>0&&<div style={{padding:"4px 0 6px",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
+            <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
+            {typingUsers.length===1?"Someone is":"Multiple people are"} typing…
+          </div>}
+          <div style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={setReplyBody} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
+              <RichTextArea value={replyBody} onChange={v=>{setReplyBody(v);sendEvent?.(`post:${postId}`,"typing",{});}} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
               <div className="reply-box-foot">
-                <div className="ed-toggle">
-                  <div className={`ed-opt ${edMode==="markdown"?"active":""}`} onClick={()=>setEdMode("markdown")}>Markdown</div>
-                  <div className={`ed-opt ${edMode==="rich"?"active":""}`} onClick={()=>setEdMode("rich")}>Rich text</div>
-                </div>
-                <button className="btn-primary" style={{marginLeft:"auto",fontSize:12,padding:"6px 16px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
+                <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
             </div>
           </div>
-        )}
+        </>)}
       </div>
     </div>
   );
@@ -1246,7 +1909,8 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     if(!spaceId){toast("Select a space","err");return;}
     setLoading(true);
     try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
-      if(d.post){toast("Post published!");navigate("post",{id:d.post.id});}
+      if(d.post&&d.pending){toast("Your post is pending moderator approval","ok");navigate("feed");}
+      else if(d.post){toast("Post published!");navigate("post",{id:d.post.id});}
       else toast(d.error||"Failed","err"); }
     finally { setLoading(false); }
   };
@@ -1254,7 +1918,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     <div className="composer-shell">
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 28px",flexShrink:0}}>
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer",display:"flex",alignItems:"center",gap:6}} onClick={()=>navigate("feed")}>
-          <i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i> back to feed
+          <i className="fa-solid fa-arrow-left"></i> back to feed
         </span>
       </div>
       <div className="composer-inner">
@@ -1295,8 +1959,20 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
 // ── Search ────────────────────────────────────────────────────────────────────
 function SearchPage({navigate, tags, initialQ=""}) {
   const [q,setQ]=useState(initialQ); const [results,setResults]=useState(null); const [loading,setLoading]=useState(false);
-  const search=async()=>{if(!q.trim())return;setLoading(true);setResults(null);try{const d=await api.get(`/search?q=${encodeURIComponent(q)}`);setResults(d);}finally{setLoading(false);}};
-  useEffect(()=>{if(initialQ)search();},[]);
+  const debounceRef=useRef();
+  const search=useCallback(async(val)=>{
+    if(!val.trim()){setResults(null);return;}
+    setLoading(true);
+    try{const d=await api.get(`/search?q=${encodeURIComponent(val)}`);setResults(d);}
+    finally{setLoading(false);}
+  },[]);
+  const onChange=e=>{
+    const val=e.target.value; setQ(val);
+    clearTimeout(debounceRef.current);
+    if(!val.trim()){setResults(null);return;}
+    debounceRef.current=setTimeout(()=>search(val),300);
+  };
+  useEffect(()=>{if(initialQ)search(initialQ);},[]);
   const hasResults = results && ((results.posts?.length||0) + (results.replies?.length||0)) > 0;
   return (
     <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
@@ -1305,8 +1981,9 @@ function SearchPage({navigate, tags, initialQ=""}) {
       </div>
       <div className="search-wrap">
         <div className="search-bar">
-          <input className="fi" style={{flex:1}} placeholder="Search threads and replies…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&search()} autoFocus/>
-          <button className="btn-primary" onClick={search} disabled={loading}>Search</button>
+          <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:loading?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s",flexShrink:0}}></i>
+          <input className="fi" style={{flex:1,border:"none",background:"transparent",paddingLeft:0}} placeholder="Search threads and replies…" value={q} onChange={onChange} autoFocus/>
+          {loading&&<span style={{fontSize:12,color:"var(--t5)",flexShrink:0}}>searching…</span>}
         </div>
         {loading&&<div style={{textAlign:"center",color:"var(--t5)",padding:"40px 0"}}>Searching…</div>}
         {results&&!hasResults&&<div style={{textAlign:"center",color:"var(--t5)",padding:"40px 0"}}>No results for "{q}"</div>}
@@ -1343,7 +2020,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                     <RsAv user={r.user} size={34} color={col}/>
                     <div className="thread-body">
                       <div className="thread-top">
-                        <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/[#*`]/g,"").slice(0,120)}</div>
+                        <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>
                         {r.post&&<div className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>in: {r.post.title?.slice(0,30)}</div>}
                       </div>
                       <div className="participants-row"><span className="part-label">{r.user?.username} · {ago(r.inserted_at)}</span></div>
@@ -1364,6 +2041,8 @@ function NotificationsPage({navigate}) {
   const [notifs,setNotifs]=useState([]); const [loading,setLoading]=useState(true);
   useEffect(()=>{api.get("/notifications").then(d=>{setNotifs(d.notifications||[]);setLoading(false);});},[]);
   const markAll=async()=>{await api.post("/notifications/read-all",{});setNotifs(p=>p.map(n=>({...n,read:true})));toast("All marked as read");};
+  const deleteAll=async()=>{if(!confirm("Delete all notifications?"))return;await api.delete("/notifications");setNotifs([]);toast("Notifications cleared");};
+  const deleteOne=async(e,id)=>{e.stopPropagation();await api.delete(`/notifications/${id}`);setNotifs(p=>p.filter(n=>n.id!==id));};
   const markRead=async n=>{
     if(!n.read){await api.patch(`/notifications/${n.id}/read`,{});setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x));}
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
@@ -1377,20 +2056,29 @@ function NotificationsPage({navigate}) {
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0,borderBottom:"0.5px solid var(--b1)"}}>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Notifications</span>
-        {notifs.some(n=>!n.read)&&<button className="btn-ghost" style={{marginLeft:"auto",fontSize:11}} onClick={markAll}>Mark all read</button>}
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          {notifs.some(n=>!n.read)&&<button className="btn-ghost" style={{fontSize:11}} onClick={markAll}>Mark all read</button>}
+          {notifs.length>0&&<button className="btn-ghost" style={{fontSize:11,color:"var(--red)"}} onClick={deleteAll}>Clear all</button>}
+        </div>
       </div>
       <div style={{flex:1,overflowY:"auto",maxWidth:640,width:"100%"}}>
         {loading?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
           :notifs.length===0?<div style={{padding:"60px",textAlign:"center",color:"var(--t5)"}}>No notifications yet</div>
           :notifs.map(n=>(
-            <div key={n.id} className={`notif-item ${n.read?"":"unread"}`} onClick={()=>markRead(n)}>
+            <div key={n.id} className={`notif-item ${n.read?"":"unread"}`} onClick={()=>markRead(n)} style={{position:"relative"}}>
               <div className="notif-pip" style={{background:n.read?"transparent":"var(--ac)"}}/>
               <div style={{width:32,height:32,borderRadius:"50%",background:`${ICON_COLOR[n.type]||"var(--ac)"}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <i className={`fa-solid ${ICON[n.type]||"fa-bell"}`} style={{fontSize:12,color:ICON_COLOR[n.type]||"var(--ac)"}}></i>
               </div>
               <div style={{flex:1}}>
                 <div style={{fontSize:13}}><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></div>
-                <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{ago(n.inserted_at)}</div>
+                <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{ago(n.inserted_at)}</div>
+              </div>
+              <div onClick={e=>deleteOne(e,n.id)} title="Delete"
+                style={{opacity:0,transition:"opacity .15s",fontSize:12,color:"var(--t5)",cursor:"pointer",padding:"4px 8px",borderRadius:6,flexShrink:0}}
+                onMouseEnter={e=>{e.currentTarget.style.opacity=1;e.currentTarget.style.color="var(--red)";}}
+                onMouseLeave={e=>{e.currentTarget.style.opacity=0;}}>
+                <i className="fa-solid fa-xmark"/>
               </div>
             </div>
           ))}
@@ -1406,6 +2094,9 @@ function ProfilePage({username, currentUser, navigate}) {
   const [user,setUser]=useState(null);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState("posts");
+  const [uploadingAvatar,setUploadingAvatar]=useState(false);
+  const [uploadingCover,setUploadingCover]=useState(false);
+  const [coverExpanded,setCoverExpanded]=useState(false);
   const isOwn = currentUser?.username === username;
 
   useEffect(()=>{
@@ -1424,6 +2115,33 @@ function ProfilePage({username, currentUser, navigate}) {
   },[username]);
 
   const col = spaceColor({id:user?.id||0});
+
+  const handleAvatarUpload = async (file) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "avatar");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
+      const d = await r.json();
+      if (d.upload) { setUser(p=>({...p, avatar_url: d.url})); toast("Avatar updated"); }
+      else toast(d.error||"Upload failed", "err");
+    } finally { setUploadingAvatar(false); }
+  };
+
+  const handleCoverUpload = async (file) => {
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "cover_image");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
+      const d = await r.json();
+      if (d.upload) { setUser(p=>({...p, cover_url: d.url})); toast("Cover updated"); }
+      else toast(d.error||"Upload failed", "err");
+    } finally { setUploadingCover(false); }
+  };
+
   const startDM = async () => {
     const d = await api.post("/threads/direct", {username});
     if(d.thread) navigate("dm", {threadId:d.thread.id, threadName:username});
@@ -1433,19 +2151,46 @@ function ProfilePage({username, currentUser, navigate}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{flex:1,overflowY:"auto"}}>
-        <div className="profile-cover">
-          <svg viewBox="0 0 680 160" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
-            <rect width="680" height="160" fill="#13121e"/>
-            {[0,40,80,120,160].map(y=><line key={y} x1="0" y1={y} x2="680" y2={y+160} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
-            {[0,80,160,240,320,400,480,560].map(x=><line key={x} x1={x} y1="0" x2={x+160} y2="160" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
-            <circle cx="120" cy="60" r="60" fill="none" stroke={`${col}30`} strokeWidth="0.5"/>
-            <circle cx="480" cy="100" r="80" fill="none" stroke={`${col}20`} strokeWidth="0.5"/>
-          </svg>
+        {/* Cover */}
+        <div className={`profile-cover${coverExpanded?" expanded":""}`}>
+          {user?.cover_url
+            ?<img src={user.cover_url} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} alt="cover"/>
+            :<svg viewBox="0 0 680 160" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
+              <rect width="680" height="160" fill="#13121e"/>
+              {[0,40,80,120,160].map(y=><line key={y} x1="0" y1={y} x2="680" y2={y+160} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
+              {[0,80,160,240,320,400,480,560].map(x=><line key={x} x1={x} y1="0" x2={x+160} y2="160" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
+              <circle cx="120" cy="60" r="60" fill="none" stroke={`${col}30`} strokeWidth="0.5"/>
+              <circle cx="480" cy="100" r="80" fill="none" stroke={`${col}20`} strokeWidth="0.5"/>
+            </svg>}
           <div className="profile-cover-gradient"/>
+          {isOwn&&<label className="profile-cover-edit" style={{opacity:uploadingCover?.5:1}}>
+            <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleCoverUpload(e.target.files[0])}/>
+            {uploadingCover
+              ?<><i className="fa-solid fa-spinner fa-spin" style={{marginRight:5}}></i>Uploading…</>
+              :<><i className="fa-solid fa-camera" style={{marginRight:5}}></i>Edit cover</>}
+          </label>}
+          {user?.cover_url&&<div className="profile-cover-expand" onClick={()=>setCoverExpanded(p=>!p)}>
+            <i className={`fa-solid fa-${coverExpanded?"compress":"expand"}`} style={{fontSize:10}}></i>
+            {coverExpanded?"Collapse":"Expand"}
+          </div>}
         </div>
+
         <div className="profile-info-wrap">
           <div className="profile-av-row">
-            <div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>
+            {/* Avatar */}
+            <div style={{position:"relative",display:"inline-block"}}>
+              {user?.avatar_url
+                ?<img src={user.avatar_url} style={{width:64,height:64,borderRadius:12,objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
+                :<div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>}
+              {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:12,background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
+                <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleAvatarUpload(e.target.files[0])}/>
+                {uploadingAvatar
+                  ?<i className="fa-solid fa-spinner fa-spin" style={{color:"#fff",fontSize:16}}></i>
+                  :<i className="fa-solid fa-camera" style={{color:"#fff",fontSize:16,opacity:0,transition:"opacity .15s"}} ref={el=>{if(el){el.closest("label").onmouseenter=()=>el.style.opacity=1;el.closest("label").onmouseleave=()=>el.style.opacity=0;}}}></i>}
+              </label>}
+            </div>
             {!isOwn&&<div style={{display:"flex",gap:8,marginBottom:4}}>
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} onClick={startDM}>Message</button>
             </div>}
@@ -1476,7 +2221,7 @@ function ProfilePage({username, currentUser, navigate}) {
                     <RsAv user={p.user} size={34} color={pc}/>
                     <div className="thread-body">
                       <div className="thread-top"><div className="thread-title">{p.title}</div>{p.space&&<div className="thread-tag" style={{background:`${pc}20`,color:pc}}>{p.space.name}</div>}</div>
-                      {p.body&&<div className="thread-preview">{p.body.replace(/[#*`]/g,"").slice(0,120)}</div>}
+                      {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                       <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
                     </div>
                     <div className="thread-meta">
@@ -1552,13 +2297,60 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   );
 }
 
-function DMPage({threadId, threadName, currentUser, navigate}) {
-  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const endRef=useRef();
+function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
+  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
+    joinTopic?.(`dm:${threadId}`);
+    return ()=>{ leaveTopic?.(`dm:${threadId}`); };
   },[threadId]);
-  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);try{const d=await api.post(`/threads/${threadId}/messages`,{body:text});if(d.message){setMessages(p=>[...p,d.message]);setText("");setTimeout(()=>endRef.current?.scrollIntoView(),50);}}finally{setSending(false);}};
+
+  useEffect(()=>{
+    const fn = e => {
+      if(String(e.detail.threadId)===String(threadId) && e.detail.message) {
+        const msg = e.detail.message;
+        setMessages(p=>{
+          // Deduplicate by id (compare as strings to handle int/string mismatch)
+          if(p.some(m=>String(m.id)===String(msg.id))) return p;
+          return [...p, msg];
+        });
+        setTimeout(()=>endRef.current?.scrollIntoView(),50);
+      }
+    };
+    const typingFn = e => {
+      if(e.detail.channel===`dm:${threadId}` && e.detail.userId!==currentUser?.id) {
+        setTyping(true);
+        clearTimeout(typingRef.current);
+        typingRef.current = setTimeout(()=>setTyping(false), 3000);
+      }
+    };
+    window.addEventListener("nexus:dm_message", fn);
+    window.addEventListener("nexus:typing", typingFn);
+    return ()=>{ window.removeEventListener("nexus:dm_message", fn); window.removeEventListener("nexus:typing", typingFn); };
+  },[threadId,currentUser]);
+
+  const onTextChange = e => {
+    setText(e.target.value);
+    sendEvent?.(`dm:${threadId}`, "typing", {});
+  };
+  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");try{await api.post(`/threads/${threadId}/messages`,{body});setTimeout(()=>endRef.current?.scrollIntoView(),50);}catch{setText(body);}finally{setSending(false);}};
+  const sendImage=async file=>{
+    if(!file)return;
+    setUploading(true);
+    try{
+      const fd=new FormData(); fd.append("file",file); fd.append("type","post_image");
+      const token=localStorage.getItem("nexus_token");
+      const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+      const up=await r.json();
+      if(up.url){
+        const body=`[![image](${up.url})](${up.original_url||up.url})`;
+        await api.post(`/threads/${threadId}/messages`,{body});
+        setTimeout(()=>endRef.current?.scrollIntoView(),50);
+      } else toast(up.error||"Upload failed","err");
+    }catch{toast("Upload failed","err");}
+    finally{setUploading(false);if(imgRef.current)imgRef.current.value="";}
+  };
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0}}>
@@ -1567,23 +2359,34 @@ function DMPage({threadId, threadName, currentUser, navigate}) {
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
         {messages.map(m=>{
-          const mine=m.user_id===currentUser?.id;
+          const mine=m.user?.id===currentUser?.id;
           return (
             <div key={m.id} className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:8,alignItems:mine?"flex-end":"flex-start"}}>
               <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row"}}>
-                <div className="bubble">{m.body}</div>
+                <div className="bubble"><Md text={m.body}/></div>
               </div>
             </div>
           );
         })}
         <div ref={endRef}/>
       </div>
+      {typing&&<div style={{padding:"4px 20px 0",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
+        <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
+        {threadName} is typing…
+      </div>}
       <form onSubmit={send} style={{borderTop:"0.5px solid var(--b1)",padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:8,flexShrink:0}}>
+        <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}} onChange={e=>sendImage(e.target.files[0])}/>
+        <button type="button" title="Attach image" onClick={()=>imgRef.current?.click()}
+          style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"var(--t4)"}}>
+          {uploading
+            ?<i className="fa-solid fa-spinner fa-spin" style={{fontSize:12}}/>
+            :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
+        </button>
         <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
-          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName}…`} value={text} onChange={e=>setText(e.target.value)}/>
+          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName||"…"}`} value={text} onChange={onTextChange}/>
         </div>
         <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
-          <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"#0d0d14"}}></i>
+          <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
         </button>
       </form>
     </div>
@@ -1618,9 +2421,9 @@ function F({label, hint, children}) {
 function Tgl({on, onChange, label, desc}) {
   return (
     <div className="toggle-row">
-      <div><div style={{fontSize:13,color:"var(--t2)"}}>{label}</div>{desc&&<div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{desc}</div>}</div>
+      <div><div style={{fontSize:15,color:"var(--t2)"}}>{label}</div>{desc&&<div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>{desc}</div>}</div>
       <div className="tgl" style={{background:on?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>onChange(!on)}>
-        <div className="tgl-knob" style={{left:on?18:3,background:on?"#fff":"rgba(255,255,255,0.4)"}}/>
+        <div className="tgl-knob" style={{left:on?23:3,background:on?"#fff":"rgba(255,255,255,0.4)"}}/>
       </div>
     </div>
   );
@@ -1705,11 +2508,11 @@ function TagsAdmin({tags, onRefresh}) {
 // ── Admin Spaces CRUD ─────────────────────────────────────────────────────────
 function SpacesAdmin({spaces, onRefresh}) {
   const [editing,setEditing]=useState(null); // null | "new" | space object
-  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",visibility:"public"});
+  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"});
   const [saving,setSaving]=useState(false);
 
-  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",visibility:"public"}); setEditing("new"); };
-  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",visibility:s.visibility}); setEditing(s); };
+  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"}); setEditing("new"); };
+  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",icon:s.icon||"fa-layer-group",visibility:s.visibility}); setEditing(s); };
   const close=()=>setEditing(null);
 
   const autoSlug=name=>name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
@@ -1718,20 +2521,22 @@ function SpacesAdmin({spaces, onRefresh}) {
     setSaving(true);
     try {
       if(editing==="new") {
-        const d=await api.post("/spaces",form);
+        const d=await api.post("/admin/spaces",form);
         if(d.space){toast("Space created");onRefresh();close();}
-        else toast(d.error||"Failed","err");
+        else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
       } else {
-        const d=await api.patch(`/spaces/${editing.slug}`,form);
+        // Explicitly build payload to avoid any stale closure issues with form state
+        const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility};
+        const d=await api.patch(`/admin/spaces/${editing.slug}`,payload);
         if(d.space){toast("Space updated");onRefresh();close();}
-        else toast(d.error||"Failed","err");
+        else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
       }
     } finally { setSaving(false); }
   };
 
   const del=async(s)=>{
     if(!confirm(`Delete space "${s.name}"? This cannot be undone.`))return;
-    await api.delete(`/spaces/${s.slug}`);
+    await api.delete(`/admin/spaces/${s.slug}`);
     toast("Space deleted"); onRefresh();
   };
 
@@ -1766,17 +2571,40 @@ function SpacesAdmin({spaces, onRefresh}) {
         <div><label className="f-label">Slug</label><input className="fi" value={form.slug} onChange={e=>setForm(p=>({...p,slug:e.target.value}))} style={{fontFamily:"monospace"}}/></div>
       </div>
       <div style={{marginBottom:12}}><label className="f-label">Description</label><input className="fi" value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Optional description"/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
         <div><label className="f-label">Visibility</label>
           <select className="fi" value={form.visibility} onChange={e=>setForm(p=>({...p,visibility:e.target.value}))}>
             <option value="public">Public</option>
             <option value="private">Private</option>
           </select>
         </div>
-        <div><label className="f-label">Color</label>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-            {COLORS.map(c=><div key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:22,height:22,borderRadius:"50%",background:c,cursor:"pointer",border:`2px solid ${form.color===c?"#fff":"transparent"}`,transition:"border-color .1s"}}/>)}
+        <div><label className="f-label">Icon <span style={{fontSize:10,color:"var(--t5)"}}>(Font Awesome class)</span></label>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{width:36,height:36,borderRadius:8,background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <i className={`fa-solid ${form.icon||"fa-layer-group"}`} style={{fontSize:15,color:form.color||"#a78bfa"}}></i>
+            </div>
+            <input className="fi" value={form.icon||""} onChange={e=>setForm(p=>({...p,icon:e.target.value}))} placeholder="fa-layer-group" style={{fontFamily:"monospace",fontSize:12}}/>
           </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
+            {["fa-layer-group","fa-code","fa-gamepad","fa-music","fa-film","fa-book","fa-globe","fa-flask","fa-paint-brush","fa-bolt","fa-heart","fa-star","fa-comments","fa-trophy","fa-wrench","fa-rocket","fa-leaf","fa-camera","fa-graduation-cap","fa-briefcase"].map(ic=>(
+              <div key={ic} onClick={()=>setForm(p=>({...p,icon:ic}))} title={ic}
+                style={{width:28,height:28,borderRadius:6,background:form.icon===ic?"var(--ac-bg)":"rgba(255,255,255,0.04)",border:`1px solid ${form.icon===ic?"var(--ac-border)":"transparent"}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .1s"}}>
+                <i className={`fa-solid ${ic}`} style={{fontSize:12,color:form.icon===ic?form.color||"#a78bfa":"var(--t4)"}}></i>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <label className="f-label">Color</label>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <input type="color" value={form.color||"#a78bfa"} onChange={e=>setForm(p=>({...p,color:e.target.value}))}
+            style={{width:40,height:36,borderRadius:8,border:"0.5px solid var(--b2)",background:"none",cursor:"pointer",padding:2}}/>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {COLORS.map(c=><div key={c} onClick={()=>setForm(p=>({...p,color:c}))} style={{width:24,height:24,borderRadius:"50%",background:c,cursor:"pointer",border:`2px solid ${form.color===c?"#fff":"transparent"}`,transition:"border-color .1s"}}/>)}
+          </div>
+          <input className="fi" value={form.color||""} onChange={e=>setForm(p=>({...p,color:e.target.value}))}
+            style={{fontFamily:"monospace",fontSize:12,width:100}} placeholder="#a78bfa"/>
         </div>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
@@ -1795,6 +2623,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
   const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false);
   const [uploadCfg,setUploadCfg]=useState({});
+  const [regCfg,setRegCfg]=useState({});
+  const [postCfg,setPostCfg]=useState({});
+  const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
   const [uploadFilter,setUploadFilter]=useState("");
@@ -1812,12 +2643,13 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
     api.get("/tags").then(d=>setTags(d.tags||[]));
     api.get("/reports").then(d=>setReports(d.reports||[]));
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});});
   },[currentUser]);
 
   useEffect(()=>{
     if(currentUser?.role!=="admin")return;
     if(sec==="storage") fetchUploadData();
+    if(sec==="moderation") api.get("/admin/pending").then(d=>setPendingItems(d.pending||[]));
   },[sec, uploadFilter]);
 
   if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
@@ -1852,9 +2684,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   return (
     <div className="admin-shell">
       <div className="admin-sidenav">
-        <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)",height:48}}>
+        <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)"}}>
           <span className="logo-text">nexus<em>.</em></span>
-          <div className="admin-badge"><i className="fa-solid fa-shield-halved" style={{fontSize:9}}></i>administration</div>
+          <div className="admin-badge"><i className="fa-solid fa-shield-halved" style={{fontSize:13}}></i>administration</div>
         </div>
         <div className="admin-sidenav-scroll">
           {NAV_SECTIONS.map(ns=>(
@@ -1872,7 +2704,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
         </div>
         <div style={{padding:"10px 12px",borderTop:"0.5px solid var(--b1)"}}>
           <div className="admin-sn-item" onClick={()=>navigate("feed")}>
-            <i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i>
+            <i className="fa-solid fa-arrow-left"></i>
             <span className="admin-sn-item-name">view forum</span>
           </div>
         </div>
@@ -1880,12 +2712,12 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
       <div className="admin-content-wrap">
         <div className="admin-topbar">
           <div style={{flex:1}}/>
-          <button className="btn-ghost" style={{fontSize:11}} onClick={()=>{ api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});}); toast("Discarded"); }}>Discard</button>
-          <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={()=>{
+          <button className="btn-ghost" onClick={()=>{ api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});}); toast("Discarded"); }}>Discard</button>
+          <button className="btn-primary" onClick={()=>{
             if(sec==="branding"||sec==="appearance") saveSection("appearance",branding);
             else if(sec==="email") saveSection("email",emailCfg);
             else if(sec==="forum-info") saveSection("general",general);
-            else if(sec==="permissions") saveSection("permissions",general);
+            else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
             else if(sec==="moderation") saveSection("moderation",general);
             else toast("No changes to save for this section");
           }} disabled={saving}>{saving?"…":"Save changes"}</button>
@@ -1902,7 +2734,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                 {icon:"fa-heart",color:"#fbbf24",n:0,label:"hearts given",delta:"+0 this week"},
               ].map((c,i)=>(
                 <div key={i} className="admin-stat-card">
-                  <div className="asc-icon" style={{background:`${c.color}18`}}><i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:13}}></i></div>
+                  <div className="asc-icon" style={{background:`${c.color}18`}}><i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:15}}></i></div>
                   <div className="asc-n" style={{color:c.color}}>{c.n.toLocaleString()}</div>
                   <div className="asc-l">{c.label}</div>
                   <div className="asc-delta delta-up">{c.delta}</div>
@@ -1924,7 +2756,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                 :<div style={{width:48,height:48,borderRadius:8,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:11}}>none</div>}
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 <label style={{cursor:"pointer"}}>
-                  <input type="file" accept="image/png,image/svg+xml,image/jpeg" style={{display:"none"}} onChange={async e=>{
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" style={{display:"none"}} onChange={async e=>{
                     const f=e.target.files[0]; if(!f)return;
                     const fd=new FormData(); fd.append("file",f); fd.append("type","logo");
                     const token=localStorage.getItem("nexus_token");
@@ -1948,7 +2780,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                 ?<img src={general.favicon_url} style={{width:32,height:32,borderRadius:4,border:"0.5px solid var(--b2)",background:"var(--bg2)",padding:2}} alt="favicon"/>
                 :<div style={{width:32,height:32,borderRadius:4,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:10}}>none</div>}
               <label style={{cursor:"pointer"}}>
-                <input type="file" accept="image/x-icon,image/png,image/svg+xml" style={{display:"none"}} onChange={async e=>{
+                <input type="file" accept="image/x-icon,image/png,image/svg+xml,image/webp" style={{display:"none"}} onChange={async e=>{
                   const f=e.target.files[0]; if(!f)return;
                   const fd=new FormData(); fd.append("file",f); fd.append("type","favicon");
                   const token=localStorage.getItem("nexus_token");
@@ -1965,12 +2797,29 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             </div>
           </>}
 
-          {(sec==="branding"||sec==="appearance")&&<>\
+          {(sec==="branding"||sec==="appearance")&&<>
             <div className="fgt">Colors</div>
             <F label="Accent color" hint="Used for buttons, active states, and highlights">
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:36,height:36,borderRadius:8,background:branding.accent_color||"#a78bfa",border:"0.5px solid var(--b2)",cursor:"pointer",flexShrink:0}}/>
-                <input className="fi" value={branding.accent_color||""} onChange={e=>setBranding(p=>({...p,accent_color:e.target.value}))} placeholder="#a78bfa" style={{fontFamily:"monospace"}}/>
+                <input className="fi" value={branding.accent_color||""} onChange={e=>{const v=e.target.value;setBranding(p=>({...p,accent_color:v}));if(/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}}} placeholder="#a78bfa" style={{fontFamily:"monospace"}}/>
+              </div>
+            </F>
+            <div className="fgt" style={{marginTop:16}}>Avatars</div>
+            <F label="Avatar shape" hint="Controls roundness of all avatars across the forum">
+              <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:6}}>
+                <input type="range" min="0" max="50" value={branding.avatar_radius??22}
+                  onChange={e=>{const v=parseInt(e.target.value);setBranding(p=>({...p,avatar_radius:v}));document.documentElement.style.setProperty("--av-radius",`${v}%`);}}
+                  style={{flex:1,accentColor:"var(--ac)"}}/>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                  {["#a78bfa","#60a5fa","#34d399"].map((c,i)=>(
+                    <div key={i} style={{width:32,height:32,borderRadius:`${branding.avatar_radius??22}%`,background:c,flexShrink:0,transition:"border-radius .15s"}}/>
+                  ))}
+                </div>
+                <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.avatar_radius??22}%</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--t5)",paddingRight:148}}>
+                <span>■ Square</span><span>Rounded</span><span>● Circle</span>
               </div>
             </F>
             <div className="fgt" style={{marginTop:16}}>Custom CSS</div>
@@ -2083,14 +2932,75 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
 
           {sec==="permissions"&&<>
             <div className="fgt">Registration</div>
-            <Tgl label="Allow public registration" desc="Anyone can sign up for an account" on={general.allow_registration!==false} onChange={v=>setGeneral(p=>({...p,allow_registration:v}))}/>
-            <Tgl label="Require email verification" desc="Users must verify their email before posting" on={!!general.require_email_verification} onChange={v=>setGeneral(p=>({...p,require_email_verification:v}))}/>
-            <div className="fgt" style={{marginTop:16}}>Posting</div>
-            <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum" on={general.guest_browsing!==false} onChange={v=>setGeneral(p=>({...p,guest_browsing:v}))}/>
-            <Tgl label="New users can post immediately" desc="No approval period for new accounts" on={general.instant_post!==false} onChange={v=>setGeneral(p=>({...p,instant_post:v}))}/>
+            <Tgl label="Allow public registration" desc="Anyone can sign up for an account" on={regCfg.open!==false} onChange={v=>setRegCfg(p=>({...p,open:v}))}/>
+            <Tgl label="Require email verification" desc="Users must verify their email before posting" on={!!regCfg.require_email_verification} onChange={v=>setRegCfg(p=>({...p,require_email_verification:v}))}/>
+            <F label="Minimum account age to post" hint="Hours a new account must exist before posting. 0 = no minimum.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="0" max="8760" style={{width:80}} value={regCfg.min_account_age_hours||0} onChange={e=>setRegCfg(p=>({...p,min_account_age_hours:parseInt(e.target.value)||0}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>hours</span>
+              </div>
+            </F>
+
+            <div className="fgt" style={{marginTop:20}}>Posting</div>
+            <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum. Disabling redirects guests to login." on={postCfg.guest_browsing!==false} onChange={v=>setPostCfg(p=>({...p,guest_browsing:v}))}/>
+            <Tgl label="New users can post immediately" desc="If off, new user posts are queued for moderator approval." on={postCfg.instant_post!==false} onChange={v=>setPostCfg(p=>({...p,instant_post:v}))}/>
+            <F label="Max posts per hour" hint="Per-user rate limit. 0 = unlimited.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="0" max="100" style={{width:80}} value={postCfg.max_posts_per_hour||0} onChange={e=>setPostCfg(p=>({...p,max_posts_per_hour:parseInt(e.target.value)||0}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>per hour</span>
+              </div>
+            </F>
+            <F label="Who can create spaces">
+              <select className="fi" value={postCfg.who_can_create_spaces||"admin"} onChange={e=>setPostCfg(p=>({...p,who_can_create_spaces:e.target.value}))}>
+                <option value="admin">Admins only</option>
+                <option value="moderator">Moderators and admins</option>
+                <option value="member">All members</option>
+              </select>
+            </F>
+            <F label="Who can upload images">
+              <select className="fi" value={postCfg.who_can_upload||"member"} onChange={e=>setPostCfg(p=>({...p,who_can_upload:e.target.value}))}>
+                <option value="admin">Admins only</option>
+                <option value="moderator">Moderators and admins</option>
+                <option value="member">All members</option>
+              </select>
+            </F>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={async()=>{setSaving(true);try{await api.patch("/admin/settings/registration",{value:regCfg});await api.patch("/admin/settings/posting",{value:postCfg});toast("Permissions saved");}finally{setSaving(false);}}} disabled={saving}>{saving?"…":"Save permissions"}</button>
+            </div>
           </>}
 
           {sec==="moderation"&&<>
+            <div className="fgt">Pending approval</div>
+            {pendingItems.length===0
+              ?<div style={{fontSize:13,color:"var(--t5)",padding:"12px 0",marginBottom:16}}>No content pending approval</div>
+              :<div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
+                {pendingItems.map(item=>(
+                  <div key={`${item.type}-${item.id}`} style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"flex-start",gap:12}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                        <span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{item.type}</span>
+                        <span style={{fontSize:12,color:"var(--t4)"}}>{item.user?.username}</span>
+                        <span style={{fontSize:11,color:"var(--t5)"}}>{ago(item.inserted_at)}</span>
+                      </div>
+                      {item.title&&<div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:4}}>{item.title}</div>}
+                      <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.body?.slice(0,200)}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,flexShrink:0}}>
+                      <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--green)"}} onClick={async()=>{
+                        await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                        setPendingItems(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
+                        toast("Approved");
+                      }}>Approve</button>
+                      <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--red)"}} onClick={async()=>{
+                        if(!confirm("Reject and delete this content?"))return;
+                        await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                        setPendingItems(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
+                        toast("Rejected");
+                      }}>Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>}
             <div className="fgt">Content rules</div>
             <Tgl label="Auto-hide reported content" desc="Content with 3+ reports is automatically hidden pending review" on={!!general.auto_hide_reported} onChange={v=>setGeneral(p=>({...p,auto_hide_reported:v}))}/>
             <Tgl label="Notify mods of new reports" desc="Send email to moderators when content is reported" on={!!general.notify_mods_reports} onChange={v=>setGeneral(p=>({...p,notify_mods_reports:v}))}/>
@@ -2156,7 +3066,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                       <i className={`fa-solid ${icon}`} style={{fontSize:14,color:"var(--ac)",marginBottom:6,display:"block"}}></i>
                       <div style={{fontSize:18,fontWeight:600,color:"var(--t1)"}}>{s.count}</div>
                       <div style={{fontSize:11,color:"var(--t5)"}}>{label}</div>
-                      <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{fmtBytes(s.bytes)}</div>
+                      <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{fmtBytes(s.bytes)}</div>
                     </div>;
                   })}
                 </div>
@@ -2362,7 +3272,7 @@ function MembersPage({navigate, currentUser}) {
                     <span style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{m.username}</span>
                     {roleColor&&<span style={{fontSize:9,fontWeight:500,padding:"2px 7px",borderRadius:20,background:`${roleColor}18`,color:roleColor,border:`0.5px solid ${roleColor}40`,textTransform:"uppercase",letterSpacing:".4px"}}>{m.role}</span>}
                   </div>
-                  <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>joined {fmtDate(m.inserted_at)}</div>
+                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>joined {fmtDate(m.inserted_at)}</div>
                 </div>
                 <div style={{width:7,height:7,borderRadius:"50%",background:m.status==="active"?"var(--green)":"rgba(255,255,255,0.15)",flexShrink:0}}></div>
               </div>
@@ -2377,70 +3287,167 @@ function MembersPage({navigate, currentUser}) {
 function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount) {
   const wsRef = useRef(null);
   const heartbeatRef = useRef(null);
+  const reconnectRef = useRef(null);
   const refSeq = useRef(1);
+  // Topics the application wants to be joined. Persists across reconnects.
+  const desiredTopics = useRef(new Set());
+  // Topics actually joined on the current live socket.
+  const joinedTopics = useRef(new Set());
+  const mountedRef = useRef(true);
+
+  const onNewPostRef = useRef(onNewPost);
+  const onNewNotifRef = useRef(onNewNotif);
+  const onNewMsgRef = useRef(onNewMsg);
+  const onUnreadCountRef = useRef(onUnreadCount);
+  useEffect(() => { onNewPostRef.current = onNewPost; }, [onNewPost]);
+  useEffect(() => { onNewNotifRef.current = onNewNotif; }, [onNewNotif]);
+  useEffect(() => { onNewMsgRef.current = onNewMsg; }, [onNewMsg]);
+  useEffect(() => { onUnreadCountRef.current = onUnreadCount; }, [onUnreadCount]);
+
+  const connectRef = useRef(null);
+
+  const joinTopic = useCallback((topic) => {
+    desiredTopics.current.add(topic);
+    if (joinedTopics.current.has(topic)) return;
+    joinedTopics.current.add(topic);
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_join", {}]));
+    }
+  }, []);
+
+  const leaveTopic = useCallback((topic) => {
+    desiredTopics.current.delete(topic);
+    joinedTopics.current.delete(topic);
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_leave", {}]));
+    }
+  }, []);
+
+  const sendEvent = useCallback((topic, event, payload={}) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify([null, String(refSeq.current++), topic, event, payload]));
+    }
+  }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!token || !userId) return;
-    const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/socket/websocket?token=${token}&vsn=2.0.0`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
 
-    const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
+    const connect = () => {
+      if (!mountedRef.current) return;
+      clearTimeout(reconnectRef.current);
 
-    ws.onopen = () => {
-      // Join feed:global for new posts
-      send([null, String(refSeq.current++), "feed:global", "phx_join", {}]);
-      // Join personal notification channel
-      send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
-      // Heartbeat every 30s
-      heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
-    };
+      const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/socket/websocket?token=${token}&vsn=2.0.0`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      // Reset joined set for this new connection
+      joinedTopics.current.clear();
 
-    ws.onmessage = (e) => {
-      try {
-        const [, , topic, event, payload] = JSON.parse(e.data);
-        if (event === "new_post" && topic === "feed:global") onNewPost?.(payload);
-        if (event === "new_notification" && topic === `notifications:${userId}`) {
-          if (payload?.type === "dm") onNewMsg?.();
-          else onNewNotif?.();
+      const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
+
+      ws.onopen = () => {
+        // Always join the core topics
+        send([null, String(refSeq.current++), "feed:global", "phx_join", {}]);
+        joinedTopics.current.add("feed:global");
+        send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
+        joinedTopics.current.add(`notifications:${userId}`);
+        // Re-join any topics components are currently subscribed to (e.g. open DM or post)
+        desiredTopics.current.forEach(topic => {
+          if (!joinedTopics.current.has(topic)) {
+            send([null, String(refSeq.current++), topic, "phx_join", {}]);
+            joinedTopics.current.add(topic);
+          }
+        });
+        heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const [, , topic, event, payload] = JSON.parse(e.data);
+          if (event === "new_post" && topic === "feed:global") onNewPostRef.current?.(payload);
+          if (event === "new_notification" && topic === `notifications:${userId}`) {
+            if (payload?.type === "dm") onNewMsgRef.current?.();
+            else onNewNotifRef.current?.();
+          }
+          if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCountRef.current?.(payload?.count||0);
+          // Retry failed channel joins
+          if (event === "phx_reply" && payload?.status === "error") {
+            joinedTopics.current.delete(topic);
+            if (desiredTopics.current.has(topic)) {
+              setTimeout(() => joinTopic(topic), 1000);
+            }
+          }
+          // DM messages
+          if (event === "new_message" && topic.startsWith("dm:")) {
+            window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
+          }
+          // DM typing
+          if (event === "typing" && topic.startsWith("dm:")) {
+            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+          }
+          // Post channel events
+          if (event === "new_reply" && topic.startsWith("post:")) {
+            window.dispatchEvent(new CustomEvent("nexus:new_reply", {detail: {postId: topic.split(":")[1], reply: payload}}));
+          }
+          if (event === "typing" && topic.startsWith("post:")) {
+            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+          }
+        } catch {}
+      };
+
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        clearInterval(heartbeatRef.current);
+        joinedTopics.current.clear();
+        // Reconnect after 3 seconds if still mounted and authenticated
+        if (mountedRef.current && token && userId) {
+          reconnectRef.current = setTimeout(connect, 3000);
         }
-        if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCount?.(payload?.count||0);
-      } catch {}
+      };
     };
 
-    ws.onerror = () => {};
-    ws.onclose = () => { clearInterval(heartbeatRef.current); };
+    connectRef.current = connect;
+    connect();
 
     return () => {
+      mountedRef.current = false;
+      clearTimeout(reconnectRef.current);
       clearInterval(heartbeatRef.current);
-      ws.close();
+      if (wsRef.current) wsRef.current.close();
     };
   }, [token, userId]);
+
+  return {joinTopic, leaveTopic, sendEvent};
 }
 
 // ── Guest Prompt ──────────────────────────────────────────────────────────────
-function GuestPrompt({onAuthRequired}) {
+function GuestPrompt({onAuthRequired, registrationOpen=true}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,color:"var(--t5)"}}>
       <i className="fa-solid fa-lock" style={{fontSize:28,opacity:.3}}></i>
       <div style={{fontSize:14,color:"var(--t2)",fontWeight:500}}>Sign in to continue</div>
       <div style={{display:"flex",gap:10}}>
         <button className="btn-ghost" onClick={()=>onAuthRequired("login")}>Log in</button>
-        <button className="btn-primary" onClick={()=>onAuthRequired("register")}>Sign up</button>
+        {registrationOpen&&<button className="btn-primary" onClick={()=>onAuthRequired("register")}>Sign up</button>}
       </div>
     </div>
   );
 }
 
 // ── Auth Modal Form ───────────────────────────────────────────────────────────
-function AuthModalForm({mode, onLogin, onSwitch}) {
+function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
+  const [showPw,setShowPw]=useState(false);
+  const [remember,setRemember]=useState(true);
   const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
   const submit=async e=>{
     e.preventDefault(); setLoading(true); setErr(null);
     try {
       const body = mode==="login"
-        ? {email: form.login, password: form.password}
+        ? {email: form.login, password: form.password, remember_me: remember}
         : {email: form.email, username: form.username, password: form.password};
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
@@ -2455,12 +3462,22 @@ function AuthModalForm({mode, onLogin, onSwitch}) {
           <div className="fg"><label className="fl">Email</label><input className="fi" type="email" placeholder="you@example.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} required autoFocus/></div>
           <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
         </>}
-      <div className="fg"><label className="fl">Password</label><input className="fi" type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required/></div>
+      <div className="fg"><label className="fl">Password</label>
+          <div style={{position:"relative"}}>
+            <input className="fi" type={showPw?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required style={{paddingRight:40}}/>
+            <span onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:"var(--t4)",fontSize:15,userSelect:"none"}}>
+              <i className={`fa-solid ${showPw?"fa-eye-slash":"fa-eye"}`}/>
+            </span>
+          </div></div>
+      {mode==="login"&&<label className="remember-row">
+        <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>
+        <span>Remember me</span>
+      </label>}
       {err&&<div className="ferr" style={{marginBottom:10}}>{err}</div>}
-      <button className="btn-primary" style={{width:"100%",borderRadius:10,padding:"10px",marginBottom:16}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
-      <div style={{textAlign:"center",fontSize:12,color:"var(--t4)"}}>
+      <button className="btn-primary" style={{width:"100%",borderRadius:12,padding:"12px",marginBottom:18,fontSize:15}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
+      <div style={{textAlign:"center",fontSize:13,color:"var(--t4)"}}>
         {mode==="login"
-          ?<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>
+          ?<>{registrationOpen&&<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>}</>
           :<>Have an account? <span className="link" onClick={()=>{onSwitch("login");setErr(null);}}>Sign in</span></>}
       </div>
     </form>
@@ -2469,22 +3486,54 @@ function AuthModalForm({mode, onLogin, onSwitch}) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
-  const [currentUser,setCurrentUser]=useState(null);
+  const [currentUser,setCurrentUser]=useState(()=>{
+    // Load cached user immediately to prevent flash of default avatar
+    try { const u=localStorage.getItem("nexus_user"); return u?JSON.parse(u):null; } catch { return null; }
+  });
+  const updateCurrentUser = (user) => {
+    setCurrentUser(user);
+    if (user) localStorage.setItem("nexus_user", JSON.stringify(user));
+    else localStorage.removeItem("nexus_user");
+  };
   const [authChecked,setAuthChecked]=useState(false);
   const [spaces,setSpaces]=useState([]);
   const [tags,setTags]=useState([]);
-  const [page,setPage]=useState("feed");
-  const [pageProps,setPageProps]=useState({});
+  const initial = urlToPage(window.location.pathname);
+  const [page,setPage]=useState(initial.page);
+  const [pageProps,setPageProps]=useState(initial.props);
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
   const [authModal,setAuthModal]=useState(null); // null | "login" | "register"
+  const [registrationOpen,setRegistrationOpen]=useState(true);
 
-  const navigate=useCallback((p,props={})=>{setPage(p);setPageProps(props);window.scrollTo(0,0);},[]);
+  const navigate=useCallback((p,props={})=>{
+    const url = pageToUrl(p, props);
+    window.history.pushState({page:p, props}, "", url);
+    setPage(p);setPageProps(props);window.scrollTo(0,0);
+    window._nexusNavigate = navigate;
+  },[]);
+  useEffect(()=>{ window._nexusNavigate = navigate; },[navigate]);
+
+  // Handle browser back/forward
+  useEffect(()=>{
+    const fn = (e) => {
+      if (e.state?.page) {
+        setPage(e.state.page);
+        setPageProps(e.state.props||{});
+      } else {
+        const {page:pg, props:pr} = urlToPage(window.location.pathname);
+        setPage(pg); setPageProps(pr);
+      }
+      window.scrollTo(0,0);
+    };
+    window.addEventListener("popstate", fn);
+    return () => window.removeEventListener("popstate", fn);
+  }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
-  useSocket(
+  const {joinTopic, leaveTopic, sendEvent} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
@@ -2497,15 +3546,22 @@ function App() {
   );
 
   useEffect(()=>{
-    if(api.token) api.get("/auth/me").then(d=>{if(d.user)setCurrentUser(d.user);setAuthChecked(true);}).catch(()=>setAuthChecked(true));
+    if(api.token) api.request("GET", "/auth/me", null, true, true).then(d=>{
+      if(d.user) updateCurrentUser(d.user);
+      else if(d.error) { api.setToken(null); updateCurrentUser(null); }
+      // If d is empty (network hiccup), keep existing cached user
+      setAuthChecked(true);
+    }).catch(()=>setAuthChecked(true));
     else setAuthChecked(true);
   },[]);
 
-  useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));},[]);
+  useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
+    // Load registration setting publicly to show/hide signup buttons
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);}).catch(()=>{});
+  },[]);
 
   useEffect(()=>{
     if(!currentUser) return;
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});}).catch(()=>{});
   },[currentUser]);
 
   useEffect(()=>{
@@ -2517,20 +3573,21 @@ function App() {
     return () => clearInterval(interval);
   },[currentUser]);
 
-  useEffect(()=>{const fn=()=>{setCurrentUser(null);setPage("feed");};window.addEventListener("nexus:logout",fn);return ()=>window.removeEventListener("nexus:logout",fn);},[]);
+  useEffect(()=>{const fn=()=>{updateCurrentUser(null);setPage("feed");};window.addEventListener("nexus:logout",fn);return ()=>window.removeEventListener("nexus:logout",fn);},[]);
 
-  const logout=()=>{api.post("/auth/logout",{});api.setToken(null);setCurrentUser(null);navigate("feed");};
+  const logout=()=>{api.post("/auth/logout",{});api.setToken(null);updateCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};
+
+  const [lb, setLb] = useLightbox();
+  const [userCard, setUserCard] = useUserCard();
 
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
 
-  const [lb, setLb] = useLightbox();
-
   // Admin gets its own full shell
-  if(page==="admin"&&currentUser) return <><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/><Toasts/></>;
+  if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/></div><Toasts/></>;
 
   const renderPage=()=>{
     const requireAuth = (el) => {
-      if(!currentUser) return <GuestPrompt onAuthRequired={m=>setAuthModal(m)}/>;
+      if(!currentUser) return <GuestPrompt onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>;
       return el;
     };
     switch(page) {
@@ -2538,14 +3595,14 @@ function App() {
         return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} onAuthRequired={m=>setAuthModal(m)}/>;
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
       case "saved":       return requireAuth(<SavedPage navigate={navigate}/>);
-      case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>setCurrentUser(u)} navigate={navigate}/>);
+      case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
-      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate}/>);
+      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
-      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces}/>;
+      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
       default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;
@@ -2554,23 +3611,30 @@ function App() {
 
   return (
     <>
+      <div className="app-root">
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onAuthRequired={m=>setAuthModal(m)}/>
         <div className="main-area">
-          {renderPage()}
+          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {renderPage()}
+          </div>
         </div>
+        <RightPanel spaces={spaces} liveEvents={liveEvents}/>
+      </div>
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
+      {userCard&&<UserCardPopover card={userCard} setCard={setUserCard} currentUser={currentUser} navigate={navigate}/>}
       {authModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAuthModal(null)}>
-          <div style={{width:"100%",maxWidth:380,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:32,position:"relative"}}>
-            <button onClick={()=>setAuthModal(null)} style={{position:"absolute",top:14,right:16,background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
-            <div style={{textAlign:"center",marginBottom:24}}>
-              <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#ec4899)",margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
-              <div style={{fontSize:18,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
-              <div style={{fontSize:13,color:"var(--t4)",marginTop:4}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
+          <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:20,padding:40,position:"relative"}}>
+            <button onClick={()=>setAuthModal(null)} style={{position:"absolute",top:16,right:18,background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#ec4899)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>N</div>
+              <div style={{fontSize:22,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
+              <div style={{fontSize:14,color:"var(--t4)",marginTop:6}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
             </div>
-            <AuthModalForm mode={authModal} onLogin={u=>{setCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)}/>
+            <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           </div>
         </div>
       )}
