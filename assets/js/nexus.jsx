@@ -1171,7 +1171,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
-                            <div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>
+                            {p.user?.avatar_url
+                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:6,objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
+                              :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
@@ -1184,7 +1186,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         </div>
                         <div className="meta-div"/>
                         <div className="thread-last">
-                          <div className="last-av" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>
+                          {p.user?.avatar_url
+                              ?<img src={p.user.avatar_url} style={{width:24,height:24,borderRadius:6,objectFit:"cover",border:`1px solid ${col}33`}} alt={p.user.username}/>
+                              :<div className="last-av" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
                       </div>
@@ -1294,6 +1298,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
+          <RsAv user={post.user} size={40} color={col}/>
           <div style={{flex:1}}>
             <div className="post-title">{post.title}</div>
             <div className="post-meta">
@@ -1331,9 +1336,9 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         </div>
         {replies.map(r=>(
           <div key={r.id} className="reply-item">
-            <div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>
-              {(r.user?.username||"?").slice(0,2).toUpperCase()}
-            </div>
+            {r.user?.avatar_url
+              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover"}} alt={r.user.username}/>
+              :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
             <div className="reply-body-wrap">
               <div className="reply-meta">
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
