@@ -41,10 +41,13 @@ defmodule NexusWeb.API.V1.ReplyController do
                 Nexus.Activity.increment_stat(user.id, :replies_count)
                 Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
 
-                # Broadcast to PostChannel so all connected viewers receive the reply in real-time
+                # Broadcast to every subscriber of this post's notification channel.
+                # Using "post_viewers:{post_id}" as a lightweight PubSub topic that
+                # PostChannel processes subscribe to on join — more reliable than
+                # depending on the post: channel PubSub subscription being active.
                 Phoenix.PubSub.broadcast(
                   Nexus.PubSub,
-                  "post:#{post.id}",
+                  "post_viewers:#{post.id}",
                   {:new_reply, reply_json(reply)}
                 )
 

@@ -35,12 +35,16 @@ defmodule NexusWeb.API.V1.MessageController do
           {:ok, message} ->
             payload = message_json(message)
 
-            # Broadcast to DM channel for real-time delivery
-            Phoenix.PubSub.broadcast(
-              Nexus.PubSub,
-              "dm:#{thread.id}",
-              {:new_message, payload}
-            )
+            # Deliver to every thread member's always-on notification channel.
+            # This is more reliable than the dm: channel which may not be subscribed.
+            thread_with_members = Nexus.Repo.preload(thread, :members)
+            Enum.each(thread_with_members.members, fn member ->
+              Phoenix.PubSub.broadcast(
+                Nexus.PubSub,
+                "notifications:#{member.user_id}",
+                {:new_dm_message, payload}
+              )
+            end)
 
             conn |> put_status(:created) |> json(%{message: payload})
 

@@ -1678,7 +1678,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         const uid = String(e.detail.userId);
         setTypingUsers(p=>p.includes(uid)?p:[...p,uid]);
         clearTimeout(typingTimers.current[uid]);
-        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 3000);
+        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 4000);
       }
     };
     window.addEventListener("nexus:new_reply", replyFn);
@@ -3385,15 +3385,16 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
               setTimeout(() => joinTopic(topic), 1000);
             }
           }
-          // DM messages
-          if (event === "new_message" && topic.startsWith("dm:")) {
-            window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
+          // DM messages — arrive on the stable notifications channel
+          if (event === "new_message" && (topic.startsWith("dm:") || topic === `notifications:${userId}`)) {
+            const threadId = payload?.thread_id ?? topic.split(":")[1];
+            window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: String(threadId), message: payload}}));
           }
           // DM typing
           if (event === "typing" && topic.startsWith("dm:")) {
             window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
           }
-          // Post channel events
+          // Post replies — arrive on the post: channel (for viewers already on the page)
           if (event === "new_reply" && topic.startsWith("post:")) {
             window.dispatchEvent(new CustomEvent("nexus:new_reply", {detail: {postId: topic.split(":")[1], reply: payload}}));
           }

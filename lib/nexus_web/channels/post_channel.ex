@@ -21,7 +21,7 @@ defmodule NexusWeb.PostChannel do
   @impl true
   def handle_info(:after_join, socket) do
     # Subscribe to PubSub so HTTP-submitted replies reach this channel process
-    Phoenix.PubSub.subscribe(Nexus.PubSub, "post:#{socket.assigns.post_id}")
+    Phoenix.PubSub.subscribe(Nexus.PubSub, "post_viewers:#{socket.assigns.post_id}")
 
     user_id = socket.assigns[:current_user_id]
 
