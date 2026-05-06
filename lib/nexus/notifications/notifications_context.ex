@@ -185,6 +185,19 @@ defmodule Nexus.Notifications do
     {:ok, :marked}
   end
 
+  def delete_notification(id, user_id) do
+    case Repo.get_by(Notification, id: id, user_id: user_id) do
+      nil -> {:error, :not_found}
+      n   -> Repo.delete(n)
+    end
+  end
+
+  def delete_all_notifications(user_id) do
+    from(n in Notification, where: n.user_id == ^user_id)
+    |> Repo.delete_all()
+    {:ok, :deleted}
+  end
+
   defp decode_cursor(cursor) do
     with {:ok, json} <- Base.url_decode64(cursor, padding: false),
          {:ok, data} <- Jason.decode(json) do

@@ -38,6 +38,20 @@ defmodule NexusWeb.API.V1.NotificationController do
     json(conn, %{ok: true})
   end
 
+  # DELETE /api/v1/notifications/:id
+  def delete(conn, %{"id" => id}) do
+    case Notifications.delete_notification(id, conn.assigns.current_user.id) do
+      {:ok, _}             -> json(conn, %{ok: true})
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "Not found"})
+    end
+  end
+
+  # DELETE /api/v1/notifications
+  def delete_all(conn, _params) do
+    Notifications.delete_all_notifications(conn.assigns.current_user.id)
+    json(conn, %{ok: true})
+  end
+
   defp notification_json(n) do
     %{
       id: n.id,

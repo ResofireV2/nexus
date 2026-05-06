@@ -134,6 +134,8 @@ defmodule NexusWeb.Router do
     get  "/notifications/unread",   NotificationController, :unread
     post "/notifications/read-all", NotificationController, :mark_all_read
     patch "/notifications/:id/read", NotificationController, :mark_read
+    delete "/notifications/:id",    NotificationController, :delete
+    delete "/notifications",        NotificationController, :delete_all
   end
 
   # API v1 — moderator actions

@@ -1959,6 +1959,8 @@ function NotificationsPage({navigate}) {
   const [notifs,setNotifs]=useState([]); const [loading,setLoading]=useState(true);
   useEffect(()=>{api.get("/notifications").then(d=>{setNotifs(d.notifications||[]);setLoading(false);});},[]);
   const markAll=async()=>{await api.post("/notifications/read-all",{});setNotifs(p=>p.map(n=>({...n,read:true})));toast("All marked as read");};
+  const deleteAll=async()=>{if(!confirm("Delete all notifications?"))return;await api.delete("/notifications");setNotifs([]);toast("Notifications cleared");};
+  const deleteOne=async(e,id)=>{e.stopPropagation();await api.delete(`/notifications/${id}`);setNotifs(p=>p.filter(n=>n.id!==id));};
   const markRead=async n=>{
     if(!n.read){await api.patch(`/notifications/${n.id}/read`,{});setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x));}
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
@@ -1972,13 +1974,16 @@ function NotificationsPage({navigate}) {
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0,borderBottom:"0.5px solid var(--b1)"}}>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Notifications</span>
-        {notifs.some(n=>!n.read)&&<button className="btn-ghost" style={{marginLeft:"auto",fontSize:11}} onClick={markAll}>Mark all read</button>}
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          {notifs.some(n=>!n.read)&&<button className="btn-ghost" style={{fontSize:11}} onClick={markAll}>Mark all read</button>}
+          {notifs.length>0&&<button className="btn-ghost" style={{fontSize:11,color:"var(--red)"}} onClick={deleteAll}>Clear all</button>}
+        </div>
       </div>
       <div style={{flex:1,overflowY:"auto",maxWidth:640,width:"100%"}}>
         {loading?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
           :notifs.length===0?<div style={{padding:"60px",textAlign:"center",color:"var(--t5)"}}>No notifications yet</div>
           :notifs.map(n=>(
-            <div key={n.id} className={`notif-item ${n.read?"":"unread"}`} onClick={()=>markRead(n)}>
+            <div key={n.id} className={`notif-item ${n.read?"":"unread"}`} onClick={()=>markRead(n)} style={{position:"relative"}}>
               <div className="notif-pip" style={{background:n.read?"transparent":"var(--ac)"}}/>
               <div style={{width:32,height:32,borderRadius:"50%",background:`${ICON_COLOR[n.type]||"var(--ac)"}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <i className={`fa-solid ${ICON[n.type]||"fa-bell"}`} style={{fontSize:12,color:ICON_COLOR[n.type]||"var(--ac)"}}></i>
@@ -1986,6 +1991,12 @@ function NotificationsPage({navigate}) {
               <div style={{flex:1}}>
                 <div style={{fontSize:13}}><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></div>
                 <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{ago(n.inserted_at)}</div>
+              </div>
+              <div onClick={e=>deleteOne(e,n.id)} title="Delete"
+                style={{opacity:0,transition:"opacity .15s",fontSize:12,color:"var(--t5)",cursor:"pointer",padding:"4px 8px",borderRadius:6,flexShrink:0}}
+                onMouseEnter={e=>{e.currentTarget.style.opacity=1;e.currentTarget.style.color="var(--red)";}}
+                onMouseLeave={e=>{e.currentTarget.style.opacity=0;}}>
+                <i className="fa-solid fa-xmark"/>
               </div>
             </div>
           ))}
