@@ -41,7 +41,7 @@ function Lightbox({src, originalSrc, onClose}) {
     return ()=>document.removeEventListener("keydown",fn);
   },[]);
   return (
-    <div className="lb-overlay" onMouseDown={onClose}>
+    <div className="lb-overlay" onMouseDown={e=>{if(e.button===0)onClose();}}>
       <span className="lb-close" onMouseDown={e=>{e.stopPropagation();onClose();}}>×</span>
       <img src={originalSrc||src} alt=""/>
       {originalSrc&&originalSrc!==src&&
