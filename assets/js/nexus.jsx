@@ -520,7 +520,45 @@ function Av({user, size=28}) {
   );
 }
 
-// ── Branding ─────────────────────────────────────────────────────────────────
+// ── URL Routing ───────────────────────────────────────────────────────────────
+function urlToPage(pathname) {
+  const p = pathname.replace(/\/$/, "") || "/";
+  if (p === "/" || p === "")           return {page:"feed", props:{}};
+  if (p === "/compose")                return {page:"compose", props:{}};
+  if (p === "/search")                 return {page:"search", props:{}};
+  if (p === "/notifications")          return {page:"notifications", props:{}};
+  if (p === "/messages")               return {page:"dm", props:{}};
+  if (p === "/admin")                  return {page:"admin", props:{}};
+  if (p === "/settings")               return {page:"settings", props:{}};
+  if (p === "/members")                return {page:"members", props:{}};
+  if (p === "/saved")                  return {page:"saved", props:{}};
+  const postM    = p.match(/^\/post\/(.+)$/);
+  if (postM)  return {page:"post",    props:{id: postM[1]}};
+  const profileM = p.match(/^\/profile\/(.+)$/);
+  if (profileM) return {page:"profile", props:{username: profileM[1]}};
+  const spaceM   = p.match(/^\/space\/(.+)$/);
+  if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
+  const dmM      = p.match(/^\/messages\/(.+)$/);
+  if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
+  return {page:"feed", props:{}};
+}
+
+function pageToUrl(page, props={}) {
+  switch(page) {
+    case "feed":          return props.space ? `/space/${props.space}` : "/";
+    case "post":          return props.id ? `/post/${props.id}` : "/";
+    case "profile":       return props.username ? `/profile/${props.username}` : "/";
+    case "compose":       return "/compose";
+    case "search":        return "/search";
+    case "notifications": return "/notifications";
+    case "dm":            return props.threadId ? `/messages/${props.threadId}` : "/messages";
+    case "admin":         return "/admin";
+    case "settings":      return "/settings";
+    case "members":       return "/members";
+    case "saved":         return "/saved";
+    default:              return "/";
+  }
+}
 let _cssEl = null;
 function applyBranding(app={}, gen={}) {
   const r = document.documentElement;
@@ -2546,15 +2584,36 @@ function App() {
   const [authChecked,setAuthChecked]=useState(false);
   const [spaces,setSpaces]=useState([]);
   const [tags,setTags]=useState([]);
-  const [page,setPage]=useState("feed");
-  const [pageProps,setPageProps]=useState({});
+  const initial = urlToPage(window.location.pathname);
+  const [page,setPage]=useState(initial.page);
+  const [pageProps,setPageProps]=useState(initial.props);
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
   const [authModal,setAuthModal]=useState(null); // null | "login" | "register"
 
-  const navigate=useCallback((p,props={})=>{setPage(p);setPageProps(props);window.scrollTo(0,0);},[]);
+  const navigate=useCallback((p,props={})=>{
+    const url = pageToUrl(p, props);
+    window.history.pushState({page:p, props}, "", url);
+    setPage(p);setPageProps(props);window.scrollTo(0,0);
+  },[]);
+
+  // Handle browser back/forward
+  useEffect(()=>{
+    const fn = (e) => {
+      if (e.state?.page) {
+        setPage(e.state.page);
+        setPageProps(e.state.props||{});
+      } else {
+        const {page:pg, props:pr} = urlToPage(window.location.pathname);
+        setPage(pg); setPageProps(pr);
+      }
+      window.scrollTo(0,0);
+    };
+    window.addEventListener("popstate", fn);
+    return () => window.removeEventListener("popstate", fn);
+  }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
   useSocket(
@@ -2592,7 +2651,7 @@ function App() {
 
   useEffect(()=>{const fn=()=>{setCurrentUser(null);setPage("feed");};window.addEventListener("nexus:logout",fn);return ()=>window.removeEventListener("nexus:logout",fn);},[]);
 
-  const logout=()=>{api.post("/auth/logout",{});api.setToken(null);setCurrentUser(null);navigate("feed");};
+  const logout=()=>{api.post("/auth/logout",{});api.setToken(null);setCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};
 
   const [lb, setLb] = useLightbox();
 
