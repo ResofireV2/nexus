@@ -2235,7 +2235,7 @@ function DMPage({threadId, threadName, currentUser, navigate}) {
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
         {messages.map(m=>{
-          const mine=m.user_id===currentUser?.id;
+          const mine=m.user?.id===currentUser?.id;
           return (
             <div key={m.id} className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:8,alignItems:mine?"flex-end":"flex-start"}}>
               <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row"}}>
