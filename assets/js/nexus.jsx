@@ -536,7 +536,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body code{font-family:'SF Mono','Fira Code',monospace;font-size:12px;background:rgba(255,255,255,0.07);color:var(--ac-text);padding:2px 6px;border-radius:5px;}
 .md-body pre{background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);border-radius:10px;padding:14px;overflow-x:auto;margin-bottom:12px;}
 .md-body pre code{background:none;padding:0;color:var(--t2);}
-.md-body blockquote{border-left:2px solid var(--ac-border);padding-left:14px;color:var(--t4);margin:10px 0;}
+.md-body blockquote{border-left:3px solid var(--ac);padding:8px 14px;color:var(--t3);margin:10px 0;background:rgba(167,139,250,0.06);border-radius:0 8px 8px 0;}
+.md-body blockquote p{margin-bottom:0;}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
@@ -560,6 +561,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .lb-close{position:fixed;top:16px;right:20px;font-size:24px;color:rgba(255,255,255,.7);cursor:pointer;line-height:1;z-index:10000;}
 .lb-close:hover{color:#fff;}
 .lb-orig{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;}
+/* Quote tooltip */
+.quote-tooltip{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--t2);cursor:pointer;z-index:9000;display:flex;align-items:center;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.4);transition:opacity .1s;user-select:none;}
+.quote-tooltip:hover{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 .lb-orig:hover{color:rgba(255,255,255,.85);}
 /* Composer image upload button */
 .comp-img-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t4);cursor:pointer;padding:4px 8px;border-radius:6px;border:0.5px solid var(--b2);background:var(--bg2);transition:color .15s,border-color .15s;}
@@ -1327,6 +1331,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
   const [reporting,setReporting]=useState(false);
+  const [quoteTooltip,setQuoteTooltip]=useState(null); // {x, y, text}
+  const composerRef = useRef();
+  const replyBodyRef = useRef(replyBody);
+  useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
 
   useEffect(()=>{
     (async()=>{ setLoading(true);
@@ -1357,7 +1365,52 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
     } finally { setReporting(false); }
   };
 
-  const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
+  // ── Quote on selection ────────────────────────────────────────────────────
+  useEffect(()=>{
+    const onMouseUp = ()=>{
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setQuoteTooltip(null); return;
+      }
+      // Only show tooltip if selection is inside .md-body
+      const range = sel.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      const mdBody = container.nodeType===1
+        ? container.closest?.(".md-body")
+        : container.parentElement?.closest?.(".md-body");
+      if (!mdBody) { setQuoteTooltip(null); return; }
+
+      const rect = range.getBoundingClientRect();
+      setQuoteTooltip({
+        x: rect.left + rect.width/2,
+        y: rect.top - 8,
+        text: sel.toString().trim()
+      });
+    };
+    const onMouseDown = e=>{
+      // Hide tooltip unless clicking it
+      if (!e.target.closest(".quote-tooltip")) setQuoteTooltip(null);
+    };
+    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("mousedown", onMouseDown);
+    return ()=>{
+      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  },[]);
+
+  const insertQuote = (text)=>{
+    const lines = text.split("\n").map(l=>"> "+l).join("\n");
+    const quote = lines + "\n\n";
+    setReplyBody(prev => prev ? prev + "\n" + quote : quote);
+    setQuoteTooltip(null);
+    window.getSelection()?.removeAllRanges();
+    // Scroll to and focus composer
+    setTimeout(()=>{
+      composerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
+      composerRef.current?.querySelector("textarea")?.focus();
+    }, 50);
+  };
   const modAction=async(action)=>{
     await api.post(`/posts/${post.id}/${action}`,{});
     setPost(p=>({...p, [action]:!p[action]}));
@@ -1434,6 +1487,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
               <div className="reply-meta">
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
+                {currentUser&&!post.locked&&<span style={{fontSize:11,color:"var(--t5)",cursor:"pointer",marginLeft:2}} onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9,marginRight:3}}></i>quote</span>}
                 <span style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
                   {currentUser&&currentUser?.id!==r.user?.id&&(
                     <span style={{fontSize:11,color:"var(--t4)",cursor:"pointer"}} onClick={()=>{setReportTarget({type:"reply",id:r.id});setReportReason("");}}>report</span>
@@ -1450,8 +1504,14 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
             </div>
           </div>
         ))}
+        {quoteTooltip&&(
+          <div className="quote-tooltip" style={{left:quoteTooltip.x,top:quoteTooltip.y,transform:"translate(-50%,-100%)"}}
+            onMouseDown={e=>{e.preventDefault();insertQuote(quoteTooltip.text);}}>
+            <i className="fa-solid fa-quote-left" style={{fontSize:10}}></i> Quote
+          </div>
+        )}
         {currentUser&&!post.locked&&(
-          <div style={{marginTop:20,paddingBottom:32}}>
+          <div style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
               <RichTextArea value={replyBody} onChange={setReplyBody} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
               <div className="reply-box-foot">
