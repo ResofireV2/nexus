@@ -652,6 +652,22 @@ function fmtDate(d) {
   if (!d) return "recently";
   return new Date(d).toLocaleDateString("en-US", {month:"long",year:"numeric"});
 }
+function fmtMsgTime(d) {
+  if (!d) return "";
+  return new Date(d).toLocaleTimeString("en-US", {hour:"numeric",minute:"2-digit",hour12:true});
+}
+function fmtDaySep(d) {
+  if (!d) return "";
+  const date = new Date(d);
+  const now = new Date();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
+  const sameDay = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  if (sameDay(date, now)) return "Today";
+  if (sameDay(date, yesterday)) return "Yesterday";
+  if (now - date < 7*86400*1000) return date.toLocaleDateString("en-US",{weekday:"long"});
+  if (date.getFullYear()===now.getFullYear()) return date.toLocaleDateString("en-US",{month:"long",day:"numeric"});
+  return date.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+}
 
 // Space colors mapped to accent
 const SPACE_COLORS = ["#a78bfa","#f472b6","#34d399","#60a5fa","#fbbf24","#f87171","#ec4899","#10b981"];
@@ -2373,14 +2389,26 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{threadName}</span>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
-        {messages.map(m=>{
+        {messages.map((m,i)=>{
           const mine=m.user?.id===currentUser?.id;
+          const prev=messages[i-1];
+          const prevDay=prev?new Date(prev.inserted_at):null;
+          const thisDay=m.inserted_at?new Date(m.inserted_at):null;
+          const showDaySep=!prev||(thisDay&&prevDay&&(thisDay.getFullYear()!==prevDay.getFullYear()||thisDay.getMonth()!==prevDay.getMonth()||thisDay.getDate()!==prevDay.getDate()));
           return (
-            <div key={m.id} className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:8,alignItems:mine?"flex-end":"flex-start"}}>
-              <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row",maxWidth:"72vw"}}>
-                <div className="bubble"><Md text={m.body}/></div>
+            <React.Fragment key={m.id}>
+              {showDaySep&&<div style={{display:"flex",alignItems:"center",gap:10,margin:"12px 0 8px"}}>
+                <div style={{flex:1,height:"0.5px",background:"var(--b1)"}}></div>
+                <div style={{fontSize:11,color:"var(--t5)",fontWeight:500,whiteSpace:"nowrap"}}>{fmtDaySep(m.inserted_at)}</div>
+                <div style={{flex:1,height:"0.5px",background:"var(--b1)"}}></div>
+              </div>}
+              <div className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:4,alignItems:mine?"flex-end":"flex-start"}}>
+                <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row",maxWidth:"72vw"}}>
+                  <div className="bubble"><Md text={m.body}/></div>
+                </div>
+                <div style={{fontSize:10,color:"var(--t5)",paddingLeft:mine?0:4,paddingRight:mine?4:0}}>{fmtMsgTime(m.inserted_at)}</div>
               </div>
-            </div>
+            </React.Fragment>
           );
         })}
         <div ref={endRef}/>
