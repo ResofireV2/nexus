@@ -805,7 +805,7 @@ function urlToPage(pathname) {
   if (p === "/compose")                return {page:"compose", props:{}};
   if (p === "/search")                 return {page:"search", props:{}};
   if (p === "/notifications")          return {page:"notifications", props:{}};
-  if (p === "/messages")               return {page:"dm", props:{}};
+  if (p === "/messages")               return {page:"messages", props:{}};
   if (p === "/admin")                  return {page:"admin", props:{}};
   if (p === "/settings")               return {page:"settings", props:{}};
   if (p === "/members")                return {page:"members", props:{}};
@@ -829,6 +829,7 @@ function pageToUrl(page, props={}) {
     case "compose":       return "/compose";
     case "search":        return "/search";
     case "notifications": return "/notifications";
+    case "messages":      return "/messages";
     case "dm":            return props.threadId ? `/messages/${props.threadId}` : "/messages";
     case "admin":         return "/admin";
     case "settings":      return "/settings";
@@ -2482,15 +2483,18 @@ function DMNewPage({navigate, currentUser}) {
       const d=await api.post("/threads/group",{name:groupName,members:selected.map(u=>u.username)});
       if(!d.thread){toast(d.error||"Failed","err");return;}
       // Upload the group image if one was selected
+      let serverImageUrl = null;
       if(groupImage?.file && d.thread?.id){
         const fd=new FormData();
         fd.append("file",groupImage.file);
         fd.append("type","group_image");
         fd.append("thread_id",String(d.thread.id));
         const token=localStorage.getItem("nexus_token");
-        await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+        const upRes=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+        const upData=await upRes.json();
+        serverImageUrl = upData.url || null;
       }
-      navigate("dm",{threadId:d.thread.id,threadName:groupName,threadImage:groupImage?.url||null});
+      navigate("dm",{threadId:d.thread.id,threadName:groupName,threadImage:serverImageUrl||groupImage?.url||null});
     }finally{setLoading(false);}
   };
 
