@@ -327,7 +327,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
 .replies-count{font-size:12px;color:var(--t3);}
 .reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);display:flex;gap:12px;}
-.reply-av{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
+.reply-av{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .reply-body-wrap{flex:1;}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .reply-author{font-size:13px;font-weight:500;color:var(--t2);}
@@ -1161,7 +1161,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                   <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
+                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
@@ -1298,7 +1298,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
-          <RsAv user={post.user} size={40} color={col}/>
+          <RsAv user={post.user} size={56} color={col}/>
           <div style={{flex:1}}>
             <div className="post-title">{post.title}</div>
             <div className="post-meta">
