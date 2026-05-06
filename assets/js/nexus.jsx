@@ -2303,10 +2303,16 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
 function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
   const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   useEffect(()=>{
+    wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
     joinTopic?.(`dm:${threadId}`);
-    return ()=>{ leaveTopic?.(`dm:${threadId}`); };
+    return ()=>{
+      // Send typing_stop when leaving a thread so the indicator clears for the other user
+      if (wasTypingRef.current) sendEvent?.(`dm:${threadId}`, "typing_stop", {});
+      wasTypingRef.current = false;
+      leaveTopic?.(`dm:${threadId}`);
+    };
   },[threadId]);
 
   useEffect(()=>{
@@ -3385,8 +3391,15 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
             else onNewNotifRef.current?.();
           }
           if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCountRef.current?.(payload?.count||0);
-          // Retry failed channel joins
+          // Retry failed channel joins (rejected at join time)
           if (event === "phx_reply" && payload?.status === "error") {
+            joinedTopics.current.delete(topic);
+            if (desiredTopics.current.has(topic)) {
+              setTimeout(() => joinTopic(topic), 1000);
+            }
+          }
+          // phx_error = channel process crashed after joining -> must rejoin
+          if (event === "phx_error") {
             joinedTopics.current.delete(topic);
             if (desiredTopics.current.has(topic)) {
               setTimeout(() => joinTopic(topic), 1000);
