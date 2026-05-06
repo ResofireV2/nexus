@@ -194,7 +194,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
 
 /* Layout */
-.app-shell{display:flex;height:100vh;overflow:hidden;}
+.app-root{display:flex;justify-content:center;height:100vh;overflow:hidden;background:var(--bg);}
+.app-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
 .sidebar{width:220px;min-width:220px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:48px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
@@ -1124,8 +1125,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   return (
     <div className="feed-wrap">
-      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <div className="feed-header">
             <div className="feed-title">{feedTitle}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1198,8 +1198,6 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               })}
             {hasMore&&<div style={{textAlign:"center",padding:16}}><button className="btn-ghost" onClick={()=>load(false,cursor)} disabled={loading}>Load more</button></div>}
           </div>
-        </div>
-        <RightPanel spaces={spaces} liveEvents={liveEvents}/>
       </div>
     </div>
   );
@@ -2798,6 +2796,7 @@ function App() {
 
   return (
     <>
+      <div className="app-root">
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onAuthRequired={m=>setAuthModal(m)}/>
         <div className="main-area">
@@ -2806,6 +2805,8 @@ function App() {
             {renderPage()}
           </div>
         </div>
+        <RightPanel spaces={spaces} liveEvents={liveEvents}/>
+      </div>
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
       {authModal&&(
