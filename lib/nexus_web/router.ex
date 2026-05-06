@@ -33,7 +33,6 @@ defmodule NexusWeb.Router do
   scope "/", NexusWeb do
     pipe_through :browser
     get "/", PageController, :home
-    get "/*path", PageController, :home
   end
 
   # Setup wizard (public - runs before any auth exists)
@@ -211,5 +210,11 @@ defmodule NexusWeb.Router do
       pipe_through :browser
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  # SPA catch-all — must be last so API routes take priority
+  scope "/", NexusWeb do
+    pipe_through :browser
+    get "/*path", PageController, :home
   end
 end
