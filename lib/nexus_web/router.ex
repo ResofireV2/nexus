@@ -117,12 +117,12 @@ defmodule NexusWeb.Router do
 
     # Direct messaging
     get  "/threads",               ThreadController, :index
-    get  "/threads/:id",            ThreadController, :show
+    get  "/threads/unread",        ThreadController, :unread
+    get  "/threads/:id",           ThreadController, :show
     post "/threads/direct",        ThreadController, :create_direct
     post "/threads/group",         ThreadController, :create_group
     post "/threads/:id/mute",      ThreadController, :mute
     post "/threads/:id/read",      ThreadController, :mark_read
-    get  "/threads/unread",        ThreadController, :unread
 
     get  "/threads/:thread_id/messages", MessageController, :index
     post "/threads/:thread_id/messages", MessageController, :create
