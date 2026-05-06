@@ -4,8 +4,9 @@ defmodule NexusWeb.DMChannel do
   alias Nexus.Messaging
 
   @impl true
-  def join("dm:" <> thread_id, _payload, socket) do
+  def join("dm:" <> thread_id_str, _payload, socket) do
     user_id = socket.assigns[:current_user_id]
+    thread_id = String.to_integer(thread_id_str)
 
     if is_nil(user_id) do
       {:error, %{reason: "Authentication required"}}

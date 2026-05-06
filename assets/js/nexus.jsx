@@ -2302,8 +2302,9 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
-    joinTopic?.(`dm:${threadId}`);
-    return ()=>{ leaveTopic?.(`dm:${threadId}`); };
+    // Small delay to ensure WS is ready, then join
+    const t = setTimeout(()=>joinTopic?.(`dm:${threadId}`), 100);
+    return ()=>{ clearTimeout(t); leaveTopic?.(`dm:${threadId}`); };
   },[threadId]);
 
   useEffect(()=>{
@@ -3348,6 +3349,11 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           else onNewNotif?.();
         }
         if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCount?.(payload?.count||0);
+        // Retry failed channel joins
+        if (event === "phx_reply" && payload?.status === "error" && topic.startsWith("dm:")) {
+          joinedTopics.current.delete(topic);
+          setTimeout(()=>joinTopic(topic), 1000);
+        }
         // DM messages
         if (event === "new_message" && topic.startsWith("dm:")) {
           window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
