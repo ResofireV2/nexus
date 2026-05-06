@@ -882,6 +882,16 @@ function deriveAccentVars(hex) {
   return {onAccent, acBg, acBorder, acText};
 }
 
+function deriveTintVars(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const [r,g,b] = hexToRgb(hex);
+  const mix = (base, amt) => {
+    const br=(base>>16)&255, bg=(base>>8)&255, bb=base&255;
+    return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
+  };
+  return { bg:mix(0x0d0d14,0.10), s1:mix(0x13121e,0.10), s2:mix(0x18182a,0.10), s3:mix(0x1e1c2e,0.10) };
+}
+
 function applyBranding(app={}, gen={}) {
   const r = document.documentElement;
   if (app.accent_color) {
@@ -893,6 +903,13 @@ function applyBranding(app={}, gen={}) {
       r.style.setProperty("--ac-border", vars.acBorder); // accent border
       r.style.setProperty("--ac-text", vars.acText);    // accent-colored text on dark bg
     }
+  }
+  // Background tint
+  if (app.tint_color) {
+    const tint = deriveTintVars(app.tint_color);
+    if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
+  } else {
+    r.style.setProperty("--bg","#0d0d14"); r.style.setProperty("--s1","#13121e"); r.style.setProperty("--s2","#18182a"); r.style.setProperty("--s3","#1e1c2e");
   }
   // Avatar radius: 0=square, 50=circle. Default 22%
   r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
@@ -2980,6 +2997,24 @@ function SpacesAdmin({spaces, onRefresh}) {
   </>;
 }
 
+function ColorPicker({value, onChange}) {
+  const inputRef = useRef();
+  const isValid = /^#[0-9a-fA-F]{6}$/.test(value);
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10}}>
+      <div style={{position:"relative",width:36,height:36,flexShrink:0}}>
+        <div style={{width:36,height:36,borderRadius:8,background:isValid?value:"rgba(255,255,255,0.1)",border:"0.5px solid var(--b2)",cursor:"pointer"}}
+          onClick={()=>inputRef.current?.click()}/>
+        <input ref={inputRef} type="color" value={isValid?value:"#a78bfa"}
+          onChange={e=>onChange(e.target.value)}
+          style={{position:"absolute",opacity:0,width:0,height:0,pointerEvents:"none"}}/>
+      </div>
+      <input className="fi" value={value||""} onChange={e=>onChange(e.target.value)}
+        placeholder="#a78bfa" style={{fontFamily:"monospace",maxWidth:160}}/>
+    </div>
+  );
+}
+
 function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
@@ -3024,7 +3059,6 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
     {label:"forum settings", items:[
       {k:"overview",   icon:"fa-chart-line",     label:"overview"},
       {k:"forum-info", icon:"fa-circle-info",     label:"forum info"},
-      {k:"branding",   icon:"fa-palette",         label:"branding"},
       {k:"appearance", icon:"fa-swatchbook",      label:"appearance"},
       {k:"email",      icon:"fa-envelope",        label:"email"},
       {k:"permissions",icon:"fa-shield",          label:"permissions"},
@@ -3079,7 +3113,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
           <div style={{flex:1}}/>
           <button className="btn-ghost" onClick={()=>{ api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});}); toast("Discarded"); }}>Discard</button>
           <button className="btn-primary" onClick={()=>{
-            if(sec==="branding"||sec==="appearance") saveSection("appearance",branding);
+            if(sec==="appearance") saveSection("appearance",branding);
             else if(sec==="email") saveSection("email",emailCfg);
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
@@ -3162,13 +3196,25 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             </div>
           </>}
 
-          {(sec==="branding"||sec==="appearance")&&<>
+          {sec==="appearance"&&<>
             <div className="fgt">Colors</div>
             <F label="Accent color" hint="Used for buttons, active states, and highlights">
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:36,height:36,borderRadius:8,background:branding.accent_color||"#a78bfa",border:"0.5px solid var(--b2)",cursor:"pointer",flexShrink:0}}/>
-                <input className="fi" value={branding.accent_color||""} onChange={e=>{const v=e.target.value;setBranding(p=>({...p,accent_color:v}));if(/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}}} placeholder="#a78bfa" style={{fontFamily:"monospace"}}/>
-              </div>
+              <ColorPicker
+                value={branding.accent_color||"#a78bfa"}
+                onChange={v=>{
+                  setBranding(p=>({...p,accent_color:v}));
+                  if(/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
+                }}
+              />
+            </F>
+            <F label="Background tint" hint="Adds a subtle color tint to dark surfaces. Use near-black for no tint.">
+              <ColorPicker
+                value={branding.tint_color||"#0d0d14"}
+                onChange={v=>{
+                  setBranding(p=>({...p,tint_color:v}));
+                  if(/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                }}
+              />
             </F>
             <div className="fgt" style={{marginTop:16}}>Avatars</div>
             <F label="Avatar shape" hint="Controls roundness of all avatars across the forum">
