@@ -779,7 +779,11 @@ function AvatarMenu({user, navigate, onLogout}) {
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
   return (
     <div className="av-wrap" ref={ref}>
-      <div className={`av-circle ${open?"open":""}`} onClick={()=>setOpen(p=>!p)}>{initials}</div>
+      <div className={`av-circle ${open?"open":""}`} onClick={()=>setOpen(p=>!p)}>
+        {user?.avatar_url
+          ?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"inherit"}} alt={user.username}/>
+          :initials}
+      </div>
       <div className={`av-dd ${open?"open":""}`}>
         <div className="av-dd-hdr">
           <div className="av-dd-name">{user?.username}</div>
