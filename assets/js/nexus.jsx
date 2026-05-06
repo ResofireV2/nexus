@@ -180,7 +180,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .main-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
 
 /* Topbar */
-.topbar{height:48px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:8px;flex-shrink:0;position:relative;z-index:50;}
+.topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:8px;flex-shrink:0;position:relative;z-index:50;}
 .logo-text{font-size:15px;font-weight:500;color:#fff;letter-spacing:-.5px;}
 .logo-text em{font-style:normal;color:var(--ac);}
 .tb-search{flex:1;max-width:280px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:20px;padding:7px 14px;font-size:12px;color:var(--t4);display:flex;align-items:center;gap:8px;cursor:text;}
@@ -1052,7 +1052,6 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   return (
     <div className="feed-wrap">
-      <TopBar currentUser={currentUser} navigate={navigate} onLogout={onLogout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={onAuthRequired}/>
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <div className="feed-header">
@@ -1097,7 +1096,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
-                        {p.body&&<div className="thread-preview">{p.body.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>}
+                        {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
                             <div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>
@@ -1610,7 +1609,7 @@ function ProfilePage({username, currentUser, navigate}) {
                     <RsAv user={p.user} size={34} color={pc}/>
                     <div className="thread-body">
                       <div className="thread-top"><div className="thread-title">{p.title}</div>{p.space&&<div className="thread-tag" style={{background:`${pc}20`,color:pc}}>{p.space.name}</div>}</div>
-                      {p.body&&<div className="thread-preview">{p.body.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>}
+                      {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                       <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
                     </div>
                     <div className="thread-meta">
@@ -2720,7 +2719,10 @@ function App() {
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onAuthRequired={m=>setAuthModal(m)}/>
         <div className="main-area">
-          {renderPage()}
+          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)}/>
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {renderPage()}
+          </div>
         </div>
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
