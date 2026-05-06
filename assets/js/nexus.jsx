@@ -2263,6 +2263,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   const [dmSearch,setDmSearch]=useState("");
   useEffect(()=>{
     onOpen?.();
+    setLoading(true);
     api.get("/threads").then(d=>{setThreads(d.threads||[]);setLoading(false);});
   },[]);
   const tname=t=>{ if(t.kind==="group") return t.name||"Group"; const o=t.members?.find(m=>m.user_id!==currentUser?.id); return o?.user?.username||"Unknown"; };
@@ -3688,6 +3689,7 @@ function App() {
   const [pageProps,setPageProps]=useState(initial.props);
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
+  const [msgPageKey,setMsgPageKey]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
   const [authModal,setAuthModal]=useState(null); // null | "login" | "register"
@@ -3809,7 +3811,7 @@ function App() {
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
-      case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
+      case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate} onOpen={()=>{setMsgCount(0);setMsgPageKey(k=>k+1);}}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
