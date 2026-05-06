@@ -114,7 +114,8 @@ defmodule Nexus.Admin do
     },
     "appearance" => %{
       "accent_color"      => "#a78bfa",
-      "dark_mode_default" => true
+      "dark_mode_default" => true,
+      "avatar_radius"     => 22
     },
     "uploads" => %{
       "max_size_mb"      => 5,

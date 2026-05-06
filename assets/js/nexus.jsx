@@ -206,6 +206,7 @@ S.textContent = `
 :root{
   --bg:#0d0d14;
   --s1:#13121e;
+  --av-radius:22%;
   --s2:#18182a;
   --s3:#1e1c2e;
   --b1:rgba(255,255,255,0.07);
@@ -294,7 +295,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Avatar menu */
 .av-wrap{position:relative;margin-left:2px;}
-.av-circle{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
+.av-circle{width:38px;height:38px;border-radius:var(--av-radius);background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
 .av-circle:hover{border-color:rgba(167,139,250,.5);}
 .av-circle.open{border-color:var(--ac);}
 .av-dd{position:absolute;top:calc(100% + 10px);right:0;width:200px;background:var(--s2);border:0.5px solid var(--b3);border-radius:14px;padding:6px;z-index:200;opacity:0;pointer-events:none;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}
@@ -353,7 +354,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .rw{border-radius:12px;border:0.5px solid rgba(255,255,255,0.08);padding:15px 16px;}
 .rw-label{font-size:11px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;}
 .live-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;}
-.l-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
+.l-av{width:22px;height:22px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .l-txt{font-size:13px;color:var(--t3);line-height:1.5;flex:1;}
 .l-txt strong{color:var(--t2);font-weight:500;}
 .l-ago{font-size:11px;color:var(--t5);flex-shrink:0;margin-top:2px;}
@@ -394,7 +395,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
 .replies-count{font-size:12px;color:var(--t3);}
 .reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);display:flex;gap:12px;}
-.reply-av{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
+.reply-av{width:40px;height:40px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .reply-body-wrap{flex:1;}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
 .reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
@@ -449,7 +450,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mention-drop{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:4px;z-index:9000;min-width:200px;max-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.5);overflow:hidden;}
 .mention-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .1s;}
 .mention-item:hover,.mention-item.sel{background:rgba(255,255,255,0.07);}
-.mention-av{width:28px;height:28px;border-radius:7px;object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;}
+.mention-av{width:28px;height:28px;border-radius:var(--av-radius);object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;}
 .mention-name{font-size:13px;color:var(--t1);font-weight:500;}
 .slash-icon{width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
 .slash-desc{font-size:11px;color:var(--t5);margin-top:1px;}
@@ -535,7 +536,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .dm-search-inner input::placeholder{color:var(--t5);}
 .thread-row{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;border-bottom:0.5px solid rgba(255,255,255,0.04);transition:background .1s;}
 .thread-row:hover,.thread-row.active{background:rgba(255,255,255,0.03);}
-.thr-av{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;}
+.thr-av{width:38px;height:38px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;}
 .thr-name{font-size:13px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-preview{font-size:12px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
@@ -552,7 +553,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .profile-cover-gradient{position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,var(--bg),transparent);}
 .profile-info-wrap{padding:0 28px 20px;border-bottom:0.5px solid var(--b1);}
 .profile-av-row{margin-top:-40px;margin-bottom:14px;display:flex;align-items:flex-end;justify-content:space-between;}
-.profile-av-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#a78bfa,#ec4899);}
+.profile-av-ring{width:80px;height:80px;border-radius:var(--av-radius);border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#a78bfa,#ec4899);}
 .profile-name{font-size:18px;font-weight:600;color:var(--t1);letter-spacing:-.3px;}
 .profile-handle{font-size:13px;color:var(--t5);margin-bottom:10px;}
 .profile-bio{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:14px;}
@@ -650,10 +651,10 @@ function RsAv({user, size=34, color}) {
   const bg = color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
   if (user?.avatar_url) return (
-    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:Math.round(size*0.28),objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`}} alt={user.username}/>
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`}} alt={user.username}/>
   );
   return (
-    <div style={{width:size,height:size,borderRadius:Math.round(size*0.28),background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0}}>
+    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0}}>
       {initials}
     </div>
   );
@@ -727,6 +728,8 @@ function setBrandingState(state) {
 function applyBranding(app={}, gen={}) {
   const r = document.documentElement;
   if (app.accent_color) r.style.setProperty("--ac", app.accent_color);
+  // Avatar radius: 0=square, 50=circle. Default 22%
+  r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
   if (gen.site_name) document.title = gen.site_name + " · Nexus";
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
@@ -1647,7 +1650,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
         {replies.map(r=>(
           <div key={r.id} className="reply-item">
             {r.user?.avatar_url
-              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover"}} alt={r.user.username}/>
+              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)"}} alt={r.user.username}/>
               :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
             <div className="reply-body-wrap">
               <div className="reply-meta">
@@ -2536,12 +2539,29 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             </div>
           </>}
 
-          {(sec==="branding"||sec==="appearance")&&<>\
+          {(sec==="branding"||sec==="appearance")&&<>
             <div className="fgt">Colors</div>
             <F label="Accent color" hint="Used for buttons, active states, and highlights">
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:36,height:36,borderRadius:8,background:branding.accent_color||"#a78bfa",border:"0.5px solid var(--b2)",cursor:"pointer",flexShrink:0}}/>
                 <input className="fi" value={branding.accent_color||""} onChange={e=>setBranding(p=>({...p,accent_color:e.target.value}))} placeholder="#a78bfa" style={{fontFamily:"monospace"}}/>
+              </div>
+            </F>
+            <div className="fgt" style={{marginTop:16}}>Avatars</div>
+            <F label="Avatar shape" hint="Controls roundness of all avatars across the forum">
+              <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:6}}>
+                <input type="range" min="0" max="50" value={branding.avatar_radius??22}
+                  onChange={e=>{const v=parseInt(e.target.value);setBranding(p=>({...p,avatar_radius:v}));document.documentElement.style.setProperty("--av-radius",`${v}%`);}}
+                  style={{flex:1,accentColor:"var(--ac)"}}/>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                  {["#a78bfa","#60a5fa","#34d399"].map((c,i)=>(
+                    <div key={i} style={{width:32,height:32,borderRadius:`${branding.avatar_radius??22}%`,background:c,flexShrink:0,transition:"border-radius .15s"}}/>
+                  ))}
+                </div>
+                <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.avatar_radius??22}%</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--t5)",paddingRight:148}}>
+                <span>■ Square</span><span>Rounded</span><span>● Circle</span>
               </div>
             </F>
             <div className="fgt" style={{marginTop:16}}>Custom CSS</div>
