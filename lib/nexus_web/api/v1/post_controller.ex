@@ -6,27 +6,43 @@ defmodule NexusWeb.API.V1.PostController do
 
   # GET /api/v1/posts/:id
   def show(conn, %{"id" => id}) do
+    if !conn.assigns[:current_user] && !Nexus.Permissions.guest_browsing?() do
+      conn |> put_status(:unauthorized) |> json(%{error: "Please log in to view this forum"})
+    else
     case Forum.get_post(id) do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       post ->
         reactions = Forum.list_reactions(post_id: post.id)
         json(conn, %{post: Map.put(post_json(post), :reactions, reactions)})
     end
+    end
   end
 
   # POST /api/v1/posts
   def create(conn, params) do
-    user     = conn.assigns.current_user
-    tag_ids  = Map.get(params, "tag_ids", [])
+    user    = conn.assigns.current_user
+    tag_ids = Map.get(params, "tag_ids", [])
 
-    case Forum.create_post(params, user, tag_ids) do
-      {:ok, post} ->
-        NexusWeb.FeedChannel.broadcast_new_post(post)
-        Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
-        conn |> put_status(:created) |> json(%{post: post_json(post)})
+    # Check email verification requirement
+    if Nexus.Permissions.require_email_verification?() && !user.email_verified do
+      conn |> put_status(:forbidden) |> json(%{error: "Please verify your email address before posting"})
+    else
+      # Determine if post needs approval
+      pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
-      {:error, changeset} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+      case Forum.create_post(Map.put(params, "pending_approval", pending), user, tag_ids) do
+        {:ok, post} ->
+          if pending do
+            conn |> put_status(:created) |> json(%{post: post_json(post), pending: true, message: "Your post is pending approval"})
+          else
+            NexusWeb.FeedChannel.broadcast_new_post(post)
+            Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
+            conn |> put_status(:created) |> json(%{post: post_json(post)})
+          end
+
+        {:error, changeset} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+      end
     end
   end
 

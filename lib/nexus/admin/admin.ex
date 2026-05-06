@@ -97,14 +97,20 @@ defmodule Nexus.Admin do
       "favicon_url"      => nil
     },
     "registration" => %{
-      "open"             => true,
+      "open"                       => true,
       "require_email_verification" => false,
-      "allowed_email_domains"      => []
+      "allowed_email_domains"      => [],
+      "min_account_age_hours"      => 0
     },
     "posting" => %{
-      "allow_anonymous"  => false,
-      "max_post_length"  => 100_000,
-      "max_reply_length" => 50_000
+      "allow_anonymous"            => false,
+      "max_post_length"            => 100_000,
+      "max_reply_length"           => 50_000,
+      "instant_post"               => true,
+      "guest_browsing"             => true,
+      "max_posts_per_hour"         => 0,
+      "who_can_create_spaces"      => "admin",
+      "who_can_upload"             => "member"
     },
     "appearance" => %{
       "accent_color"      => "#a78bfa",

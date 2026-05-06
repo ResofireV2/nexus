@@ -6,8 +6,9 @@ defmodule Nexus.Forum.Reply do
     field :body,          :string
     field :body_format,   :string, default: "markdown"
     field :reaction_count, :integer, default: 0
-    field :hidden,        :boolean, default: false
-    field :hidden_at,     :utc_datetime
+    field :hidden,           :boolean, default: false
+    field :hidden_at,        :utc_datetime
+    field :pending_approval, :boolean, default: false
     field :search_vector, :string, load_in_query: false  # tsvector — managed by DB trigger
 
     belongs_to :user,      Nexus.Accounts.User
@@ -21,7 +22,7 @@ defmodule Nexus.Forum.Reply do
 
   def changeset(reply, attrs) do
     reply
-    |> cast(attrs, [:body, :body_format, :post_id, :user_id])
+    |> cast(attrs, [:body, :body_format, :post_id, :user_id, :pending_approval])
     |> validate_required([:body, :post_id])
     |> validate_length(:body, min: 1, max: 50_000)
     |> validate_inclusion(:body_format, ~w(markdown rich))

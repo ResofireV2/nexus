@@ -94,6 +94,81 @@ defmodule NexusWeb.API.V1.AdminController do
     end
   end
 
+  # GET /api/v1/admin/pending — list posts and replies pending approval
+  def pending(conn, _params) do
+    import Ecto.Query
+    alias Nexus.Repo
+    alias Nexus.Forum.{Post, Reply}
+
+    posts = Repo.all(
+      from p in Post,
+      where: p.pending_approval == true,
+      left_join: u in assoc(p, :user),
+      preload: [user: u, space: :space_subscriptions],
+      order_by: [asc: p.inserted_at]
+    ) |> Enum.map(fn p ->
+      %{id: p.id, type: "post", title: p.title, body: p.body,
+        user: p.user && %{id: p.user.id, username: p.user.username},
+        inserted_at: p.inserted_at}
+    end)
+
+    replies = Repo.all(
+      from r in Reply,
+      where: r.pending_approval == true,
+      left_join: u in assoc(r, :user),
+      preload: [user: u],
+      order_by: [asc: r.inserted_at]
+    ) |> Enum.map(fn r ->
+      %{id: r.id, type: "reply", body: r.body, post_id: r.post_id,
+        user: r.user && %{id: r.user.id, username: r.user.username},
+        inserted_at: r.inserted_at}
+    end)
+
+    json(conn, %{pending: posts ++ replies |> Enum.sort_by(& &1.inserted_at)})
+  end
+
+  # POST /api/v1/admin/pending/:type/:id/approve
+  def approve_pending(conn, %{"type" => type, "id" => id}) do
+    import Ecto.Query
+    alias Nexus.Repo
+
+    case type do
+      "post" ->
+        post = Repo.get(Nexus.Forum.Post, id)
+        if post do
+          {:ok, updated} = post |> Ecto.Changeset.change(pending_approval: false) |> Repo.update()
+          NexusWeb.FeedChannel.broadcast_new_post(updated)
+          json(conn, %{ok: true})
+        else
+          conn |> put_status(:not_found) |> json(%{error: "Not found"})
+        end
+      "reply" ->
+        reply = Repo.get(Nexus.Forum.Reply, id)
+        if reply do
+          {:ok, _} = reply |> Ecto.Changeset.change(pending_approval: false) |> Repo.update()
+          json(conn, %{ok: true})
+        else
+          conn |> put_status(:not_found) |> json(%{error: "Not found"})
+        end
+      _ -> conn |> put_status(:bad_request) |> json(%{error: "Invalid type"})
+    end
+  end
+
+  # DELETE /api/v1/admin/pending/:type/:id
+  def reject_pending(conn, %{"type" => type, "id" => id}) do
+    alias Nexus.Repo
+    case type do
+      "post"  ->
+        post = Repo.get(Nexus.Forum.Post, id)
+        if post, do: Repo.delete(post)
+      "reply" ->
+        reply = Repo.get(Nexus.Forum.Reply, id)
+        if reply, do: Repo.delete(reply)
+      _ -> nil
+    end
+    json(conn, %{ok: true})
+  end
+
   # POST /api/v1/admin/test-email
   def test_email(conn, _params) do
     user = conn.assigns.current_user

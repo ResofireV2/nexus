@@ -23,17 +23,28 @@ defmodule NexusWeb.API.V1.ReplyController do
   def create(conn, %{"post_id" => post_id} = params) do
     user = conn.assigns.current_user
 
-    case Forum.get_post(post_id) do
-      nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
-      %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
-      post ->
-        case Forum.create_reply(post, params, user) do
-          {:ok, reply} ->
-            conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
+    # Check email verification requirement
+    if Nexus.Permissions.require_email_verification?() && !user.email_verified do
+      conn |> put_status(:forbidden) |> json(%{error: "Please verify your email address before posting"})
+    else
+      case Forum.get_post(post_id) do
+        nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
+        %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
+        post ->
+          pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
-          {:error, changeset} ->
-            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
-        end
+          case Forum.create_reply(post, Map.put(params, "pending_approval", pending), user) do
+            {:ok, reply} ->
+              if pending do
+                conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
+              else
+                conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
+              end
+
+            {:error, changeset} ->
+              conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+          end
+      end
     end
   end
 

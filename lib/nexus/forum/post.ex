@@ -9,10 +9,11 @@ defmodule Nexus.Forum.Post do
     field :type,          :string, default: "discussion"
     field :reply_count,   :integer, default: 0
     field :reaction_count, :integer, default: 0
-    field :pinned,        :boolean, default: false
-    field :locked,        :boolean, default: false
-    field :hidden,        :boolean, default: false
-    field :hidden_at,     :utc_datetime
+    field :pinned,           :boolean, default: false
+    field :locked,           :boolean, default: false
+    field :hidden,           :boolean, default: false
+    field :hidden_at,        :utc_datetime
+    field :pending_approval, :boolean, default: false
     field :last_reply_at, :utc_datetime
     field :search_vector, :string, load_in_query: false  # tsvector — managed by DB trigger
 
@@ -29,7 +30,7 @@ defmodule Nexus.Forum.Post do
 
   def changeset(post, attrs) do
     post
-    |> cast(attrs, [:title, :body, :body_format, :type, :space_id, :user_id])
+    |> cast(attrs, [:title, :body, :body_format, :type, :space_id, :user_id, :pending_approval])
     |> validate_required([:title, :body, :space_id])
     |> validate_length(:title, min: 3, max: 255)
     |> validate_length(:body, min: 1, max: 100_000)

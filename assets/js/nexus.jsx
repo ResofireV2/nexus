@@ -1118,7 +1118,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
       if(spaceFilter) url+=`&space=${spaceFilter}`;
       if(followingOnly) url+=`&following=true`;
       if(!reset&&cur) url+=`&cursor=${cur}`;
-      const d=await api.get(url); const np=d.posts||[];
+      const d=await api.get(url);
+      if(d.error==="Please log in to view this forum"){onAuthRequired?.("login");return;}
+      const np=d.posts||[];
       if(reset) setPosts(np); else setPosts(p=>[...p,...np]);
       setCursor(d.next_cursor); setHasMore(!!d.next_cursor);
     } finally { setLoading(false); }
@@ -1261,7 +1263,8 @@ function PostPage({postId, currentUser, navigate, spaces}) {
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
     try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
-      if(d.reply){setReplies(p=>[...p,d.reply]);setReplyBody("");setPost(p=>({...p,reply_count:p.reply_count+1}));}
+      if(d.reply&&d.pending){setReplyBody("");toast("Your reply is pending moderator approval");}
+      else if(d.reply){setReplies(p=>[...p,d.reply]);setReplyBody("");setPost(p=>({...p,reply_count:p.reply_count+1}));}
       else toast(d.error||"Failed","err"); }
     finally { setSubmitting(false); }
   };
@@ -1421,7 +1424,8 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     if(!spaceId){toast("Select a space","err");return;}
     setLoading(true);
     try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
-      if(d.post){toast("Post published!");navigate("post",{id:d.post.id});}
+      if(d.post&&d.pending){toast("Your post is pending moderator approval","ok");navigate("feed");}
+      else if(d.post){toast("Post published!");navigate("post",{id:d.post.id});}
       else toast(d.error||"Failed","err"); }
     finally { setLoading(false); }
   };
@@ -2052,6 +2056,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
   const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false);
   const [uploadCfg,setUploadCfg]=useState({});
+  const [regCfg,setRegCfg]=useState({});
+  const [postCfg,setPostCfg]=useState({});
+  const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
   const [uploadFilter,setUploadFilter]=useState("");
@@ -2069,12 +2076,13 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
     api.get("/tags").then(d=>setTags(d.tags||[]));
     api.get("/reports").then(d=>setReports(d.reports||[]));
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});});
   },[currentUser]);
 
   useEffect(()=>{
     if(currentUser?.role!=="admin")return;
     if(sec==="storage") fetchUploadData();
+    if(sec==="moderation") api.get("/admin/pending").then(d=>setPendingItems(d.pending||[]));
   },[sec, uploadFilter]);
 
   if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
@@ -2142,7 +2150,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             if(sec==="branding"||sec==="appearance") saveSection("appearance",branding);
             else if(sec==="email") saveSection("email",emailCfg);
             else if(sec==="forum-info") saveSection("general",general);
-            else if(sec==="permissions") saveSection("permissions",general);
+            else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
             else if(sec==="moderation") saveSection("moderation",general);
             else toast("No changes to save for this section");
           }} disabled={saving}>{saving?"…":"Save changes"}</button>
@@ -2340,14 +2348,75 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
 
           {sec==="permissions"&&<>
             <div className="fgt">Registration</div>
-            <Tgl label="Allow public registration" desc="Anyone can sign up for an account" on={general.allow_registration!==false} onChange={v=>setGeneral(p=>({...p,allow_registration:v}))}/>
-            <Tgl label="Require email verification" desc="Users must verify their email before posting" on={!!general.require_email_verification} onChange={v=>setGeneral(p=>({...p,require_email_verification:v}))}/>
-            <div className="fgt" style={{marginTop:16}}>Posting</div>
-            <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum" on={general.guest_browsing!==false} onChange={v=>setGeneral(p=>({...p,guest_browsing:v}))}/>
-            <Tgl label="New users can post immediately" desc="No approval period for new accounts" on={general.instant_post!==false} onChange={v=>setGeneral(p=>({...p,instant_post:v}))}/>
+            <Tgl label="Allow public registration" desc="Anyone can sign up for an account" on={regCfg.open!==false} onChange={v=>setRegCfg(p=>({...p,open:v}))}/>
+            <Tgl label="Require email verification" desc="Users must verify their email before posting" on={!!regCfg.require_email_verification} onChange={v=>setRegCfg(p=>({...p,require_email_verification:v}))}/>
+            <F label="Minimum account age to post" hint="Hours a new account must exist before posting. 0 = no minimum.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="0" max="8760" style={{width:80}} value={regCfg.min_account_age_hours||0} onChange={e=>setRegCfg(p=>({...p,min_account_age_hours:parseInt(e.target.value)||0}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>hours</span>
+              </div>
+            </F>
+
+            <div className="fgt" style={{marginTop:20}}>Posting</div>
+            <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum. Disabling redirects guests to login." on={postCfg.guest_browsing!==false} onChange={v=>setPostCfg(p=>({...p,guest_browsing:v}))}/>
+            <Tgl label="New users can post immediately" desc="If off, new user posts are queued for moderator approval." on={postCfg.instant_post!==false} onChange={v=>setPostCfg(p=>({...p,instant_post:v}))}/>
+            <F label="Max posts per hour" hint="Per-user rate limit. 0 = unlimited.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="0" max="100" style={{width:80}} value={postCfg.max_posts_per_hour||0} onChange={e=>setPostCfg(p=>({...p,max_posts_per_hour:parseInt(e.target.value)||0}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>per hour</span>
+              </div>
+            </F>
+            <F label="Who can create spaces">
+              <select className="fi" value={postCfg.who_can_create_spaces||"admin"} onChange={e=>setPostCfg(p=>({...p,who_can_create_spaces:e.target.value}))}>
+                <option value="admin">Admins only</option>
+                <option value="moderator">Moderators and admins</option>
+                <option value="member">All members</option>
+              </select>
+            </F>
+            <F label="Who can upload images">
+              <select className="fi" value={postCfg.who_can_upload||"member"} onChange={e=>setPostCfg(p=>({...p,who_can_upload:e.target.value}))}>
+                <option value="admin">Admins only</option>
+                <option value="moderator">Moderators and admins</option>
+                <option value="member">All members</option>
+              </select>
+            </F>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={async()=>{setSaving(true);try{await api.patch("/admin/settings/registration",{value:regCfg});await api.patch("/admin/settings/posting",{value:postCfg});toast("Permissions saved");}finally{setSaving(false);}}} disabled={saving}>{saving?"…":"Save permissions"}</button>
+            </div>
           </>}
 
           {sec==="moderation"&&<>
+            <div className="fgt">Pending approval</div>
+            {pendingItems.length===0
+              ?<div style={{fontSize:13,color:"var(--t5)",padding:"12px 0",marginBottom:16}}>No content pending approval</div>
+              :<div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
+                {pendingItems.map(item=>(
+                  <div key={`${item.type}-${item.id}`} style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"flex-start",gap:12}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                        <span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{item.type}</span>
+                        <span style={{fontSize:12,color:"var(--t4)"}}>{item.user?.username}</span>
+                        <span style={{fontSize:11,color:"var(--t5)"}}>{ago(item.inserted_at)}</span>
+                      </div>
+                      {item.title&&<div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:4}}>{item.title}</div>}
+                      <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.body?.slice(0,200)}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,flexShrink:0}}>
+                      <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--green)"}} onClick={async()=>{
+                        await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                        setPendingItems(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
+                        toast("Approved");
+                      }}>Approve</button>
+                      <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--red)"}} onClick={async()=>{
+                        if(!confirm("Reject and delete this content?"))return;
+                        await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                        setPendingItems(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
+                        toast("Rejected");
+                      }}>Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>}
             <div className="fgt">Content rules</div>
             <Tgl label="Auto-hide reported content" desc="Content with 3+ reports is automatically hidden pending review" on={!!general.auto_hide_reported} onChange={v=>setGeneral(p=>({...p,auto_hide_reported:v}))}/>
             <Tgl label="Notify mods of new reports" desc="Send email to moderators when content is reported" on={!!general.notify_mods_reports} onChange={v=>setGeneral(p=>({...p,notify_mods_reports:v}))}/>

@@ -6,6 +6,9 @@ defmodule NexusWeb.API.V1.FeedController do
   # GET /api/v1/feed
   # Query params: sort (latest|top|activity), space, tag, cursor
   def index(conn, params) do
+    if !conn.assigns[:current_user] && !Nexus.Permissions.guest_browsing?() do
+      conn |> put_status(:unauthorized) |> json(%{error: "Please log in to view this forum"}) |> halt()
+    else
     opts = [
       user: conn.assigns[:current_user],
       space: params["space"],
@@ -22,6 +25,7 @@ defmodule NexusWeb.API.V1.FeedController do
       posts: Enum.map(posts, &post_json/1),
       next_cursor: next_cursor
     })
+    end
   end
 
   # GET /api/v1/stats — public community stats for the right panel

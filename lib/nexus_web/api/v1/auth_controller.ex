@@ -8,6 +8,9 @@ defmodule NexusWeb.API.V1.AuthController do
   # ---------------------------------------------------------------------------
 
   def register(conn, params) do
+    unless Nexus.Permissions.registration_open?() do
+      conn |> put_status(:forbidden) |> json(%{error: "Registration is currently closed"}) |> halt()
+    else
     case Accounts.register_user(params) do
       {:ok, user} ->
         # Send verification email (non-blocking — failure doesn't stop registration)
@@ -38,6 +41,7 @@ defmodule NexusWeb.API.V1.AuthController do
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{errors: format_errors(changeset)})
+    end
     end
   end
 

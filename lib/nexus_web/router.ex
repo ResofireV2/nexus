@@ -181,6 +181,11 @@ defmodule NexusWeb.Router do
     patch  "/settings/:key",      AdminController,  :update_settings
     post   "/test-email",         AdminController,  :test_email
 
+    # Pending approval queue
+    get    "/pending",                        AdminController, :pending
+    post   "/pending/:type/:id/approve",      AdminController, :approve_pending
+    delete "/pending/:type/:id",              AdminController, :reject_pending
+
     # Uploads management
     get    "/uploads",            UploadController, :index
     get    "/uploads/stats",      UploadController, :stats
