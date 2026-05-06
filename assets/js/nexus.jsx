@@ -2402,6 +2402,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
     finally{setUploading(false);if(imgRef.current)imgRef.current.value="";}
   };
   return (
+    <>
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0}}>
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
@@ -2471,6 +2472,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
         setThread(t=>({...t,...updates}));
       }}
     />}
+    </>
   );
 }
 
