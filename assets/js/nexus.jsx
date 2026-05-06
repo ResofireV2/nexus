@@ -52,7 +52,10 @@ mdRenderer.paragraph = function(text) {
   const url = extractBareUrl(text);
   if (url) {
     const ytId = getYouTubeId(url);
-    if (ytId) return `<div class="md-embed"><iframe src="https://www.youtube-nocookie.com/embed/${ytId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
+    if (ytId) return `<div class="yt-lite" data-id="${ytId}">
+      <img class="yt-thumb" src="https://i.ytimg.com/vi/${ytId}/hqdefault.jpg" alt="YouTube video" loading="lazy"/>
+      <div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
+    </div>`;
     const vmId = getVimeoId(url);
     if (vmId) return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
     if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
@@ -72,8 +75,8 @@ mdRenderer.link = function(href, title, text) {
 marked.use({ renderer: mdRenderer });
 
 function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
-  ADD_TAGS: ["iframe", "video", "source", "audio"],
-  ADD_ATTR: ["data-original", "data-lightbox-link", "allowfullscreen", "loading", "frameborder", "src", "controls", "preload"]
+  ADD_TAGS: ["iframe", "video", "source", "audio", "svg", "path"],
+  ADD_ATTR: ["data-original", "data-lightbox-link", "data-id", "allowfullscreen", "loading", "frameborder", "src", "controls", "preload", "viewBox", "d", "fill", "width", "height"]
 }) : ""; }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
@@ -96,7 +99,19 @@ function Lightbox({src, originalSrc, onClose}) {
   );
 }
 
-// Global lightbox state — lifted outside React so md-body img clicks can trigger it
+// YouTube lite embed — click thumbnail to load and play video
+document.addEventListener("click", e => {
+  const yt = e.target.closest(".yt-lite:not(.active)");
+  if (!yt) return;
+  const id = yt.getAttribute("data-id");
+  if (!id) return;
+  yt.classList.add("active");
+  const iframe = document.createElement("iframe");
+  iframe.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`;
+  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+  iframe.allowFullscreen = true;
+  yt.appendChild(iframe);
+});
 let _lbSetState = null;
 function useLightbox() {
   const [lb, setLb] = useState(null);
@@ -517,6 +532,14 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-embed{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;margin:12px 0;background:var(--bg2);border:0.5px solid var(--b1);}
 .md-embed iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:12px;}
 .md-embed-video{margin:12px 0;}
+/* YouTube lite embed */
+.yt-lite{position:relative;padding-bottom:56.25%;border-radius:12px;overflow:hidden;margin:12px 0;cursor:pointer;background:#000;border:0.5px solid var(--b1);}
+.yt-thumb{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transition:opacity .2s;}
+.yt-lite:hover .yt-thumb{opacity:.85;}
+.yt-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:transform .15s;}
+.yt-lite:hover .yt-play{transform:translate(-50%,-50%) scale(1.1);}
+.yt-lite.active .yt-thumb,.yt-lite.active .yt-play{display:none;}
+.yt-lite.active iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
 /* Lightbox */
 .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
 .lb-overlay img{max-width:calc(100vw - 48px);max-height:calc(100vh - 80px);border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
