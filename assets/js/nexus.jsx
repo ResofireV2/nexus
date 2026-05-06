@@ -2057,7 +2057,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                 :<div style={{width:48,height:48,borderRadius:8,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:11}}>none</div>}
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 <label style={{cursor:"pointer"}}>
-                  <input type="file" accept="image/png,image/svg+xml,image/jpeg" style={{display:"none"}} onChange={async e=>{
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" style={{display:"none"}} onChange={async e=>{
                     const f=e.target.files[0]; if(!f)return;
                     const fd=new FormData(); fd.append("file",f); fd.append("type","logo");
                     const token=localStorage.getItem("nexus_token");
