@@ -2322,7 +2322,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
       if(e.detail.channel===`dm:${threadId}` && e.detail.userId!==currentUser?.id) {
         setTyping(true);
         clearTimeout(typingRef.current);
-        typingRef.current = setTimeout(()=>setTyping(false), 3000);
+        typingRef.current = setTimeout(()=>setTyping(false), 4000);
       }
     };
     window.addEventListener("nexus:dm_message", fn);
@@ -2330,9 +2330,14 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
     return ()=>{ window.removeEventListener("nexus:dm_message", fn); window.removeEventListener("nexus:typing", typingFn); };
   },[threadId,currentUser]);
 
+  const typingThrottleRef = useRef(null);
   const onTextChange = e => {
     setText(e.target.value);
-    sendEvent?.(`dm:${threadId}`, "typing", {});
+    // Throttle typing events to once per 2s so the indicator stays visible while typing
+    if (!typingThrottleRef.current) {
+      sendEvent?.(`dm:${threadId}`, "typing", {});
+      typingThrottleRef.current = setTimeout(() => { typingThrottleRef.current = null; }, 2000);
+    }
   };
   const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");try{await api.post(`/threads/${threadId}/messages`,{body});setTimeout(()=>endRef.current?.scrollIntoView(),50);}catch{setText(body);}finally{setSending(false);}};
   const sendImage=async file=>{
@@ -3309,11 +3314,12 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const joinTopic = useCallback((topic) => {
     desiredTopics.current.add(topic);
     if (joinedTopics.current.has(topic)) return;
-    joinedTopics.current.add(topic);
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
+      joinedTopics.current.add(topic);
       ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_join", {}]));
     }
+    // If WS not open yet, desiredTopics ensures phx_join is sent in onopen
   }, []);
 
   const leaveTopic = useCallback((topic) => {
@@ -3355,11 +3361,10 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
         send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
         joinedTopics.current.add(`notifications:${userId}`);
         // Re-join any topics components are currently subscribed to (e.g. open DM or post)
+        // Always send phx_join for all desired topics on (re)connect - joinedTopics was cleared
         desiredTopics.current.forEach(topic => {
-          if (!joinedTopics.current.has(topic)) {
-            send([null, String(refSeq.current++), topic, "phx_join", {}]);
-            joinedTopics.current.add(topic);
-          }
+          send([null, String(refSeq.current++), topic, "phx_join", {}]);
+          joinedTopics.current.add(topic);
         });
         heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
       };
