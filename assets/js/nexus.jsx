@@ -41,11 +41,11 @@ function Lightbox({src, originalSrc, onClose}) {
     return ()=>document.removeEventListener("keydown",fn);
   },[]);
   return (
-    <div className="lb-overlay" onClick={onClose}>
-      <span className="lb-close" onClick={onClose}>×</span>
-      <img src={originalSrc||src} alt="" onClick={e=>e.stopPropagation()}/>
+    <div className="lb-overlay" onMouseDown={onClose}>
+      <span className="lb-close" onMouseDown={e=>{e.stopPropagation();onClose();}}>×</span>
+      <img src={originalSrc||src} alt="" onMouseDown={e=>e.stopPropagation()}/>
       {originalSrc&&originalSrc!==src&&
-        <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onClick={e=>e.stopPropagation()}>
+        <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onMouseDown={e=>e.stopPropagation()}>
           <i className="fa-solid fa-arrow-up-right-from-square" style={{marginRight:4}}></i>open original
         </a>}
     </div>
