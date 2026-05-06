@@ -2269,14 +2269,17 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   const openThread=t=>{
     setReadIds(p=>new Set([...p,t.id]));
     api.post(`/threads/${t.id}/read`,{}).catch(()=>{});
-    navigate("dm",{threadId:t.id,threadName:tname(t)});
+    navigate("dm",{threadId:t.id,threadName:tname(t),threadImage:t.kind==="group"?t.image_url:null});
   };
   const filtered = dmSearch ? threads.filter(t=>tname(t).toLowerCase().includes(dmSearch.toLowerCase())) : threads;
   const unread=filtered.filter(t=>t.unread_count>0&&!readIds.has(t.id));
   const read=filtered.filter(t=>!t.unread_count||t.unread_count===0||readIds.has(t.id));
   const ThreadRow=({t})=>(
     <div className="thread-row" onClick={()=>openThread(t)}>
-      <div className="thr-av" style={{background:spaceColor({id:t.id})+"33",color:spaceColor({id:t.id})}}>{tname(t).slice(0,2).toUpperCase()}</div>
+      {t.kind==="group"&&t.image_url
+        ?<div className="thr-av" style={{backgroundImage:`url(${t.image_url})`,backgroundSize:"cover",backgroundPosition:"center"}}></div>
+        :<div className="thr-av" style={{background:spaceColor({id:t.id})+"33",color:spaceColor({id:t.id})}}>{tname(t).slice(0,2).toUpperCase()}</div>
+      }
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:2}}>
           <div className="thr-name" style={{fontWeight:t.unread_count&&!readIds.has(t.id)?500:400}}>{tname(t)}</div>
@@ -2316,7 +2319,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   );
 }
 
-function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
+function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
   const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   useEffect(()=>{
     wasTypingRef.current = false;
@@ -2386,6 +2389,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0}}>
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
+        {threadImage&&<div style={{width:28,height:28,borderRadius:"50%",backgroundImage:`url(${threadImage})`,backgroundSize:"cover",backgroundPosition:"center",flexShrink:0}}/>}
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{threadName}</span>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
@@ -2446,7 +2450,9 @@ function DMNewPage({navigate, currentUser}) {
   const [searching,setSearching]=useState(false);
   const [selected,setSelected]=useState([]);
   const [groupName,setGroupName]=useState("");
+  const [groupImage,setGroupImage]=useState(null); // {url, file} preview before thread exists
   const [loading,setLoading]=useState(false);
+  const groupImgRef=useRef();
   const debounceRef=useRef();
 
   const search=val=>{
@@ -2471,8 +2477,20 @@ function DMNewPage({navigate, currentUser}) {
   const startGroup=async()=>{
     if(!groupName.trim()||selected.length===0)return;
     setLoading(true);
-    try{const d=await api.post("/threads/group",{name:groupName,members:selected.map(u=>u.username)});if(d.thread)navigate("dm",{threadId:d.thread.id,threadName:groupName});else toast(d.error||"Failed","err");}
-    finally{setLoading(false);}
+    try{
+      const d=await api.post("/threads/group",{name:groupName,members:selected.map(u=>u.username)});
+      if(!d.thread){toast(d.error||"Failed","err");return;}
+      // Upload the group image if one was selected
+      if(groupImage?.file && d.thread?.id){
+        const fd=new FormData();
+        fd.append("file",groupImage.file);
+        fd.append("type","group_image");
+        fd.append("thread_id",String(d.thread.id));
+        const token=localStorage.getItem("nexus_token");
+        await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+      }
+      navigate("dm",{threadId:d.thread.id,threadName:groupName,threadImage:groupImage?.url||null});
+    }finally{setLoading(false);}
   };
 
   return (
@@ -2494,6 +2512,23 @@ function DMNewPage({navigate, currentUser}) {
         </div>
 
         {mode==="group"&&<input className="fi" placeholder="Group name…" value={groupName} onChange={e=>setGroupName(e.target.value)} autoFocus/>}
+
+        {mode==="group"&&(
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <input ref={groupImgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}}
+              onChange={e=>{const f=e.target.files[0];if(f)setGroupImage({file:f,url:URL.createObjectURL(f)});}}/>
+            <div onClick={()=>groupImgRef.current?.click()} style={{width:56,height:56,borderRadius:"50%",flexShrink:0,cursor:"pointer",
+              background:groupImage?.url?`url(${groupImage.url}) center/cover`:"rgba(255,255,255,0.06)",
+              border:"1.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+              {!groupImage?.url&&<i className="fa-solid fa-camera" style={{fontSize:16,color:"var(--t5)"}}/>}
+            </div>
+            <div>
+              <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>Group photo</div>
+              <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{groupImage?.url?"Click to change":"Optional"}</div>
+            </div>
+            {groupImage?.url&&<span style={{fontSize:11,color:"var(--t4)",cursor:"pointer",marginLeft:"auto"}} onClick={()=>setGroupImage(null)}>Remove</span>}
+          </div>
+        )}
 
         <div style={{position:"relative"}}>
           <input className="fi" placeholder={mode==="direct"?"Search by username…":"Add people…"}
@@ -3775,7 +3810,7 @@ function App() {
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
-      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
+      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>;

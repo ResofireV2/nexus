@@ -37,6 +37,17 @@ defmodule NexusWeb.API.V1.UploadController do
               Accounts.update_cover(user, served_url)
             end
 
+            # If group_image, update the thread's image_url
+            if type == "group_image" do
+              thread_id = params["thread_id"]
+              if thread_id do
+                served_url = served_url(upload.webp_path || upload.original_path)
+                Nexus.Repo.get(Nexus.Messaging.Thread, thread_id)
+                |> Ecto.Changeset.change(image_url: served_url)
+                |> Nexus.Repo.update()
+              end
+            end
+
             # If logo/favicon, update site_settings
             if type in ["logo", "favicon"] do
               served_url = served_url(upload.original_path)

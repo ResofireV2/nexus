@@ -44,7 +44,7 @@ defmodule NexusWeb.API.V1.ThreadController do
       |> Enum.reject(&is_nil/1)
       |> Enum.map(& &1.id)
 
-    case Messaging.create_group_thread(me.id, %{"name" => name, "emoji" => params["emoji"]}, member_ids) do
+    case Messaging.create_group_thread(me.id, %{"name" => name, "emoji" => params["emoji"], "image_url" => params["image_url"]}, member_ids) do
       {:ok, thread} ->
         conn |> put_status(:created) |> json(%{thread: thread_json(thread)})
 
@@ -101,6 +101,7 @@ defmodule NexusWeb.API.V1.ThreadController do
       kind: thread.kind,
       name: thread.name,
       emoji: thread.emoji,
+      image_url: thread.image_url,
       last_message_at: thread.last_message_at,
       unread_count: unread_count,
       members: Enum.map(thread.members, &member_json/1)
