@@ -243,7 +243,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Layout */
 .app-root{display:flex;justify-content:center;height:100vh;overflow:hidden;background:var(--bg);}
 .app-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
-.sidebar{width:260px;min-width:260px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
+.sidebar{width:320px;min-width:320px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
 .sb-label{font-size:11px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
@@ -350,7 +350,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .last-ago{font-size:10px;color:var(--t5);}
 
 /* Right panel */
-.right-panel{width:260px;min-width:260px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
+.right-panel{width:320px;min-width:320px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
 .rw{border-radius:12px;border:0.5px solid rgba(255,255,255,0.08);padding:15px 16px;}
 .rw-label{font-size:11px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;}
 .live-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;}
@@ -477,7 +477,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .admin-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
 .admin-topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 24px;gap:14px;flex-shrink:0;}
 .admin-badge{font-size:12px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:6px;}
-.admin-sidenav{width:260px;min-width:260px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
+.admin-sidenav{width:320px;min-width:320px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
 .admin-sidenav-scroll{flex:1;overflow-y:auto;padding:12px 0;}
 .admin-sn-label{font-size:12px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 18px;margin-bottom:4px;margin-top:16px;}
 .admin-sn-label:first-child{margin-top:2px;}
@@ -529,7 +529,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* DM */
 .dm-shell{flex:1;display:flex;overflow:hidden;}
-.dm-sidebar{width:260px;min-width:260px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
+.dm-sidebar{width:320px;min-width:320px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
 .dm-search{padding:10px 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .dm-search-inner{background:rgba(255,255,255,0.04);border:0.5px solid rgba(255,255,255,0.09);border-radius:20px;display:flex;align-items:center;padding:7px 13px;gap:8px;}
 .dm-search-inner input{background:transparent;border:none;outline:none;font-size:12px;color:var(--t2);font-family:inherit;flex:1;}
@@ -605,12 +605,12 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* User card popover */
 .ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
 .ucard-wrap.visible{pointer-events:auto;}
-.ucard{background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;width:260px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);animation:rxPop .15s ease;}
-.ucard-cover{height:56px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
-.ucard-body{padding:12px 14px 14px;}
-.ucard-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 6px;text-align:center;flex:1;}
-.ucard-stat-n{font-size:15px;font-weight:500;color:var(--t1);}
-.ucard-stat-l{font-size:10px;color:var(--t5);margin-top:2px;}
+.ucard{background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;width:320px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);animation:rxPop .15s ease;}
+.ucard-cover{height:80px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
+.ucard-body{padding:16px 18px 18px;}
+.ucard-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 8px;text-align:center;flex:1;}
+.ucard-stat-n{font-size:18px;font-weight:500;color:var(--t1);}
+.ucard-stat-l{font-size:12px;color:var(--t5);margin-top:3px;}
 /* Quote tooltip */
 .quote-tooltip{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--t2);cursor:pointer;z-index:9000;display:flex;align-items:center;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.6);user-select:none;}
 .quote-tooltip:hover{background:var(--s3);color:var(--t1);}
@@ -695,10 +695,10 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
   };
 
   // Flip horizontally if card would go off right edge
-  const cardW = 260;
+  const cardW = 320;
   const x = Math.min(card.x, window.innerWidth - cardW - 12);
   // Flip vertically if card would go off bottom
-  const cardH = 300;
+  const cardH = 360;
   const y = card.y + cardH > window.innerHeight ? card.y - cardH - 60 : card.y;
 
   return (
@@ -709,8 +709,8 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
           {/* Avatar overlapping cover */}
           <div style={{position:"absolute",bottom:-20,left:14}}>
             {u?.avatar_url
-              ?<img src={u.avatar_url} style={{width:44,height:44,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
-              :<div style={{width:44,height:44,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
+              ?<img src={u.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
+              :<div style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
           </div>
         </div>
         {/* Body */}
@@ -718,14 +718,14 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
           {card.loading&&!u
             ?<div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
             :<>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8,paddingTop:18}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10,paddingTop:26}}>
                 <div>
-                  <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",cursor:"pointer"}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>{u.username}</div>
-                  <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>Joined {new Date(u.inserted_at).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
+                  <div style={{fontSize:17,fontWeight:500,color:"var(--t1)",cursor:"pointer"}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>{u.username}</div>
+                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>Joined {new Date(u.inserted_at).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
                 </div>
                 {u.role&&u.role!=="member"&&<div style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:ROLE_BG[u.role],color:ROLE_COLOR[u.role],border:`0.5px solid ${ROLE_COLOR[u.role]}44`,flexShrink:0}}>{u.role}</div>}
               </div>
-              {u.bio&&<p style={{fontSize:12,color:"var(--t3)",margin:"0 0 10px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{u.bio}</p>}
+              {u.bio&&<p style={{fontSize:13,color:"var(--t3)",margin:"0 0 12px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{u.bio}</p>}
               {/* Stats */}
               <div style={{display:"flex",gap:6,marginBottom:10}}>
                 <div className="ucard-stat"><div className="ucard-stat-n">{u.post_count||0}</div><div className="ucard-stat-l">posts</div></div>
@@ -733,16 +733,16 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
                 <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{u.reactions_received||0}</div><div className="ucard-stat-l">reactions</div></div>
               </div>
               {/* Last seen */}
-              {u.last_seen_at&&<div style={{fontSize:11,color:"var(--t5)",marginBottom:10,display:"flex",alignItems:"center",gap:5}}>
+              {u.last_seen_at&&<div style={{fontSize:12,color:"var(--t5)",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
                 <i className="fa-solid fa-clock" style={{fontSize:10}}></i>
                 Active {ago(u.last_seen_at)}
               </div>}
               {/* Actions */}
               <div style={{display:"flex",gap:7}}>
-                {currentUser&&currentUser.username!==u.username&&<button className="btn-ghost" style={{flex:1,fontSize:12,padding:"6px 0",borderRadius:8}} onClick={startDM}>
+                {currentUser&&currentUser.username!==u.username&&<button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={startDM}>
                   <i className="fa-solid fa-message" style={{fontSize:11,marginRight:5}}></i>Message
                 </button>}
-                <button className="btn-ghost" style={{flex:1,fontSize:12,padding:"6px 0",borderRadius:8}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>
+                <button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>
                   <i className="fa-solid fa-user" style={{fontSize:11,marginRight:5}}></i>Profile
                 </button>
               </div>
@@ -1985,7 +1985,7 @@ function NotificationsPage({navigate}) {
               </div>
               <div style={{flex:1}}>
                 <div style={{fontSize:13}}><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></div>
-                <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{ago(n.inserted_at)}</div>
+                <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{ago(n.inserted_at)}</div>
               </div>
             </div>
           ))}
@@ -2915,7 +2915,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                       <i className={`fa-solid ${icon}`} style={{fontSize:14,color:"var(--ac)",marginBottom:6,display:"block"}}></i>
                       <div style={{fontSize:18,fontWeight:600,color:"var(--t1)"}}>{s.count}</div>
                       <div style={{fontSize:11,color:"var(--t5)"}}>{label}</div>
-                      <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{fmtBytes(s.bytes)}</div>
+                      <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{fmtBytes(s.bytes)}</div>
                     </div>;
                   })}
                 </div>
@@ -3121,7 +3121,7 @@ function MembersPage({navigate, currentUser}) {
                     <span style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{m.username}</span>
                     {roleColor&&<span style={{fontSize:9,fontWeight:500,padding:"2px 7px",borderRadius:20,background:`${roleColor}18`,color:roleColor,border:`0.5px solid ${roleColor}40`,textTransform:"uppercase",letterSpacing:".4px"}}>{m.role}</span>}
                   </div>
-                  <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>joined {fmtDate(m.inserted_at)}</div>
+                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>joined {fmtDate(m.inserted_at)}</div>
                 </div>
                 <div style={{width:7,height:7,borderRadius:"50%",background:m.status==="active"?"var(--green)":"rgba(255,255,255,0.15)",flexShrink:0}}></div>
               </div>
