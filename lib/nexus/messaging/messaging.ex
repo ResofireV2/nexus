@@ -7,6 +7,7 @@ defmodule Nexus.Messaging.Thread do
     field :name,           :string
     field :emoji,          :string
     field :image_url,      :string
+    field :creator_id,     :integer
     field :last_message_at, :utc_datetime
 
     has_many :members,  Nexus.Messaging.ThreadMember
@@ -17,7 +18,7 @@ defmodule Nexus.Messaging.Thread do
 
   def changeset(thread, attrs) do
     thread
-    |> cast(attrs, [:kind, :name, :emoji, :image_url])
+    |> cast(attrs, [:kind, :name, :emoji, :image_url, :creator_id])
     |> validate_inclusion(:kind, ~w(direct group))
     |> validate_group_fields()
   end

@@ -2325,6 +2325,8 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
   const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   const [resolvedName,setResolvedName]=useState(threadName||"");
   const [resolvedImage,setResolvedImage]=useState(threadImage||null);
+  const [thread,setThread]=useState(null);
+  const [showSettings,setShowSettings]=useState(false);
   useEffect(()=>{
     wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
@@ -2336,6 +2338,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
         const name = t.kind==="group" ? (t.name||"Group") : (t.members?.find(m=>m.user_id!==currentUser?.id)?.user?.username||threadName||"");
         setResolvedName(name);
         if(t.image_url) setResolvedImage(t.image_url);
+        setThread(t);
       }
     }).catch(()=>{});
     joinTopic?.(`dm:${threadId}`);
@@ -2404,6 +2407,11 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
         {resolvedImage&&<div style={{width:28,height:28,borderRadius:"50%",backgroundImage:`url(${resolvedImage})`,backgroundSize:"cover",backgroundPosition:"center",flexShrink:0}}/>}
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{resolvedName}</span>
+        {thread?.kind==="group"&&thread?.creator_id===currentUser?.id&&(
+          <button onClick={()=>setShowSettings(true)} style={{marginLeft:"auto",width:30,height:30,borderRadius:"50%",background:"transparent",border:"none",cursor:"pointer",color:"var(--t4)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} title="Group settings">
+            <i className="fa-solid fa-gear" style={{fontSize:14}}/>
+          </button>
+        )}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
         {messages.map((m,i)=>{
@@ -2452,6 +2460,168 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
           <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
         </button>
       </form>
+    </div>
+    {showSettings&&thread&&<GroupSettingsModal
+      thread={thread}
+      currentUser={currentUser}
+      onClose={()=>setShowSettings(false)}
+      onUpdate={(updates)=>{
+        if(updates.name) setResolvedName(updates.name);
+        if(updates.image_url) setResolvedImage(updates.image_url);
+        setThread(t=>({...t,...updates}));
+      }}
+    />}
+  );
+}
+
+function GroupSettingsModal({thread, currentUser, onClose, onUpdate}) {
+  const [name,setName]=useState(thread.name||"");
+  const [members,setMembers]=useState(thread.members||[]);
+  const [addUsername,setAddUsername]=useState("");
+  const [addResults,setAddResults]=useState([]);
+  const [searching,setSearching]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [previewImage,setPreviewImage]=useState(thread.image_url||null);
+  const [imageFile,setImageFile]=useState(null);
+  const imgRef=useRef();
+  const debounceRef=useRef();
+
+  const searchUsers=val=>{
+    setAddUsername(val);
+    clearTimeout(debounceRef.current);
+    if(!val.trim()){setAddResults([]);return;}
+    setSearching(true);
+    debounceRef.current=setTimeout(async()=>{
+      try{
+        const d=await api.get(`/users?q=${encodeURIComponent(val)}`);
+        const existing=new Set(members.map(m=>m.user_id));
+        setAddResults((d.members||[]).filter(u=>!existing.has(u.id)&&u.id!==currentUser?.id));
+      }finally{setSearching(false);}
+    },200);
+  };
+
+  const addMember=async user=>{
+    const d=await api.post(`/threads/${thread.id}/members`,{username:user.username});
+    if(d.ok){
+      setMembers(p=>[...p,{user_id:user.id,user:{id:user.id,username:user.username,avatar_url:user.avatar_url}}]);
+      setAddUsername("");setAddResults([]);
+    } else toast(d.error||"Failed","err");
+  };
+
+  const removeMember=async userId=>{
+    const d=await api.delete(`/threads/${thread.id}/members/${userId}`);
+    if(d.ok) setMembers(p=>p.filter(m=>m.user_id!==userId));
+    else toast(d.error||"Failed","err");
+  };
+
+  const save=async()=>{
+    setSaving(true);
+    try{
+      // Update name if changed
+      if(name.trim()&&name!==thread.name){
+        const d=await api.patch(`/threads/${thread.id}`,{name:name.trim()});
+        if(d.thread) onUpdate({name:name.trim()});
+        else{toast(d.error||"Failed","err");return;}
+      }
+      // Upload new image if selected
+      if(imageFile){
+        setUploading(true);
+        const fd=new FormData();
+        fd.append("file",imageFile);
+        fd.append("type","group_image");
+        fd.append("thread_id",String(thread.id));
+        const token=localStorage.getItem("nexus_token");
+        const upRes=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+        const upData=await upRes.json();
+        setUploading(false);
+        if(upData.url) onUpdate({image_url:upData.url});
+        else{toast("Image upload failed","err");return;}
+      }
+      toast("Group updated");
+      onClose();
+    }finally{setSaving(false);setUploading(false);}
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,width:"100%",maxWidth:440,display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Group settings</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+
+        {/* Avatar */}
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}}
+            onChange={e=>{const f=e.target.files[0];if(f){setImageFile(f);setPreviewImage(URL.createObjectURL(f));}}}/>
+          <div onClick={()=>imgRef.current?.click()} style={{width:64,height:64,borderRadius:"50%",flexShrink:0,cursor:"pointer",
+            backgroundImage:previewImage?`url(${previewImage})`:"none",backgroundSize:"cover",backgroundPosition:"center",
+            background:previewImage?"none":"rgba(255,255,255,0.06)",border:"1.5px dashed var(--b2)",
+            display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+            {!previewImage&&<i className="fa-solid fa-camera" style={{fontSize:18,color:"var(--t5)"}}/>}
+          </div>
+          <div>
+            <div style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>Group photo</div>
+            <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>Click to change</div>
+          </div>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Group name</label>
+          <input className="fi" value={name} onChange={e=>setName(e.target.value)} placeholder="Group name…"/>
+        </div>
+
+        {/* Members */}
+        <div>
+          <label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Members</label>
+          <div style={{border:"0.5px solid var(--b1)",borderRadius:10,overflow:"hidden",marginBottom:8}}>
+            {members.map((m,i)=>(
+              <div key={m.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderBottom:i<members.length-1?"0.5px solid var(--b1)":"none"}}>
+                <div style={{width:28,height:28,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--ac-on)",fontWeight:600,flexShrink:0}}>
+                  {(m.user?.username||"?").slice(0,2).toUpperCase()}
+                </div>
+                <span style={{flex:1,fontSize:13,color:"var(--t2)"}}>{m.user?.username}</span>
+                {m.user_id===thread.creator_id
+                  ?<span style={{fontSize:10,color:"var(--ac-text)",background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:20,padding:"2px 8px"}}>owner</span>
+                  :<span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={()=>removeMember(m.user_id)}>Remove</span>
+                }
+              </div>
+            ))}
+          </div>
+          {/* Add member search */}
+          <div style={{position:"relative"}}>
+            <input className="fi" placeholder="Add by username…" value={addUsername} onChange={e=>searchUsers(e.target.value)}
+              style={{fontSize:12,padding:"7px 12px"}}/>
+            {searching&&<i className="fa-solid fa-spinner fa-spin" style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",color:"var(--t5)",fontSize:11}}/>}
+          </div>
+          {addResults.length>0&&(
+            <div style={{border:"0.5px solid var(--b1)",borderRadius:8,overflow:"hidden",marginTop:4}}>
+              {addResults.map((u,i)=>(
+                <div key={u.id} onClick={()=>addMember(u)}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"7px 12px",cursor:"pointer",
+                    borderBottom:i<addResults.length-1?"0.5px solid var(--b1)":"none",
+                    background:"transparent"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div style={{width:24,height:24,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"var(--ac-on)",fontWeight:600}}>
+                    {u.username.slice(0,2).toUpperCase()}
+                  </div>
+                  <span style={{fontSize:12,color:"var(--t1)"}}>{u.username}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={save} disabled={saving||uploading||!name.trim()}>
+            {saving||uploading?"Saving…":"Save changes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -82,7 +82,7 @@ defmodule Nexus.Messaging do
     Repo.transaction(fn ->
       thread =
         %Thread{}
-        |> Thread.changeset(Map.put(attrs, "kind", "group"))
+        |> Thread.changeset(Map.merge(attrs, %{"kind" => "group", "creator_id" => creator_id}))
         |> Repo.insert!()
 
       now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -97,6 +97,12 @@ defmodule Nexus.Messaging do
 
       Repo.preload(thread, members: :user)
     end)
+  end
+
+  def update_thread(thread, attrs) do
+    thread
+    |> Thread.changeset(attrs)
+    |> Repo.update()
   end
 
   def add_member(thread_id, user_id) do

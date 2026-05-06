@@ -12,6 +12,61 @@ defmodule NexusWeb.API.V1.ThreadController do
     end
   end
 
+  # PATCH /api/v1/threads/:id — rename group or update image_url
+  def update(conn, %{"id" => id} = params) do
+    user_id = conn.assigns.current_user.id
+    case Nexus.Messaging.get_thread_for_user(id, user_id) do
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
+      {:ok, thread} ->
+        if thread.creator_id != user_id do
+          conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can edit this group"})
+        else
+          attrs = params |> Map.take(["name", "image_url"]) |> Map.reject(fn {_, v} -> is_nil(v) end)
+          case Nexus.Messaging.update_thread(thread, attrs) do
+            {:ok, updated} -> json(conn, %{thread: thread_json(updated, user_id)})
+            {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
+          end
+        end
+    end
+  end
+
+  # DELETE /api/v1/threads/:id/members/:user_id — remove a member (owner only)
+  def remove_member(conn, %{"id" => id, "user_id" => target_user_id}) do
+    user_id = conn.assigns.current_user.id
+    case Nexus.Messaging.get_thread_for_user(id, user_id) do
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
+      {:ok, thread} ->
+        if thread.creator_id != user_id do
+          conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can remove members"})
+        else
+          Nexus.Messaging.remove_member(thread.id, String.to_integer("#{target_user_id}"))
+          json(conn, %{ok: true})
+        end
+    end
+  end
+
+  # POST /api/v1/threads/:id/members — add a member (owner only)
+  def add_member(conn, %{"id" => id, "username" => username}) do
+    user_id = conn.assigns.current_user.id
+    case Nexus.Messaging.get_thread_for_user(id, user_id) do
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
+      {:ok, thread} ->
+        if thread.creator_id != user_id do
+          conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can add members"})
+        else
+          case Nexus.Accounts.get_user_by_username(username) do
+            nil  -> conn |> put_status(:not_found) |> json(%{error: "User not found"})
+            user ->
+              Nexus.Messaging.add_member(thread.id, user.id)
+              json(conn, %{ok: true})
+          end
+        end
+    end
+  end
+
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id
     threads = Messaging.list_threads(user_id)
@@ -110,6 +165,7 @@ defmodule NexusWeb.API.V1.ThreadController do
       name: thread.name,
       emoji: thread.emoji,
       image_url: thread.image_url,
+      creator_id: thread.creator_id,
       last_message_at: thread.last_message_at,
       unread_count: unread_count,
       members: Enum.map(thread.members, &member_json/1)
@@ -127,4 +183,9 @@ defmodule NexusWeb.API.V1.ThreadController do
 
   defp user_json(nil), do: nil
   defp user_json(u), do: %{id: u.id, username: u.username, avatar_url: u.avatar_url}
+  defp format_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{\#{k}}", to_string(v)) end)
+    end)
+  end
 end
