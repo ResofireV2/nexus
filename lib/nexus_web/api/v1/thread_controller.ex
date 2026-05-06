@@ -4,6 +4,14 @@ defmodule NexusWeb.API.V1.ThreadController do
   alias Nexus.{Messaging, Accounts}
 
   # GET /api/v1/threads
+  def show(conn, %{"id" => id}) do
+    user_id = conn.assigns.current_user.id
+    case Nexus.Messaging.get_thread_for_user(id, user_id) do
+      {:ok, thread} -> json(conn, %{thread: thread_json(thread, user_id)})
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
+    end
+  end
+
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id
     threads = Messaging.list_threads(user_id)

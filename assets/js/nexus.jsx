@@ -2323,10 +2323,21 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
 
 function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
   const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
+  const [resolvedName,setResolvedName]=useState(threadName||"");
+  const [resolvedImage,setResolvedImage]=useState(threadImage||null);
   useEffect(()=>{
     wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
+    // Fetch thread metadata to get name and image_url (covers refresh case where props are missing)
+    api.get(`/threads/${threadId}`).then(d=>{
+      if(d.thread){
+        const t=d.thread;
+        const name = t.kind==="group" ? (t.name||"Group") : (t.members?.find(m=>m.user_id!==currentUser?.id)?.user?.username||threadName||"");
+        setResolvedName(name);
+        if(t.image_url) setResolvedImage(t.image_url);
+      }
+    }).catch(()=>{});
     joinTopic?.(`dm:${threadId}`);
     return ()=>{
       // Send typing_stop when leaving a thread so the indicator clears for the other user
@@ -2391,8 +2402,8 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0}}>
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
-        {threadImage&&<div style={{width:28,height:28,borderRadius:"50%",backgroundImage:`url(${threadImage})`,backgroundSize:"cover",backgroundPosition:"center",flexShrink:0}}/>}
-        <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{threadName}</span>
+        {resolvedImage&&<div style={{width:28,height:28,borderRadius:"50%",backgroundImage:`url(${resolvedImage})`,backgroundSize:"cover",backgroundPosition:"center",flexShrink:0}}/>}
+        <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{resolvedName}</span>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
         {messages.map((m,i)=>{
@@ -2435,7 +2446,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
             :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
         </button>
         <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
-          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName||"…"}`} value={text} onChange={onTextChange}/>
+          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${resolvedName||"…"}`} value={text} onChange={onTextChange}/>
         </div>
         <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
           <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
