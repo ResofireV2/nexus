@@ -12,6 +12,7 @@ defmodule NexusWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_cookies
     plug NexusWeb.Plugs.LoadUser
   end
 
