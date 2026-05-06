@@ -2302,17 +2302,23 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
-    // Small delay to ensure WS is ready, then join
-    const t = setTimeout(()=>joinTopic?.(`dm:${threadId}`), 100);
+    // Join immediately and also after a short delay as fallback
+    joinTopic?.(`dm:${threadId}`);
+    const t = setTimeout(()=>{
+      leaveTopic?.(`dm:${threadId}`);
+      joinTopic?.(`dm:${threadId}`);
+    }, 500);
     return ()=>{ clearTimeout(t); leaveTopic?.(`dm:${threadId}`); };
   },[threadId]);
 
   useEffect(()=>{
     const fn = e => {
       if(String(e.detail.threadId)===String(threadId) && e.detail.message) {
+        const msg = e.detail.message;
         setMessages(p=>{
-          if(p.some(m=>m.id===e.detail.message.id)) return p;
-          return [...p, e.detail.message];
+          // Deduplicate by id (compare as strings to handle int/string mismatch)
+          if(p.some(m=>String(m.id)===String(msg.id))) return p;
+          return [...p, msg];
         });
         setTimeout(()=>endRef.current?.scrollIntoView(),50);
       }
@@ -2333,7 +2339,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
     setText(e.target.value);
     sendEvent?.(`dm:${threadId}`, "typing", {});
   };
-  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);try{const d=await api.post(`/threads/${threadId}/messages`,{body:text});if(d.message){setMessages(p=>[...p,d.message]);setText("");setTimeout(()=>endRef.current?.scrollIntoView(),50);}}finally{setSending(false);}};
+  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");try{await api.post(`/threads/${threadId}/messages`,{body});setTimeout(()=>endRef.current?.scrollIntoView(),50);}catch{setText(body);}finally{setSending(false);}};
   const sendImage=async file=>{
     if(!file)return;
     setUploading(true);
@@ -2344,8 +2350,8 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
       const up=await r.json();
       if(up.url){
         const body=`[![image](${up.url})](${up.original_url||up.url})`;
-        const d=await api.post(`/threads/${threadId}/messages`,{body});
-        if(d.message){setMessages(p=>[...p,d.message]);setTimeout(()=>endRef.current?.scrollIntoView(),50);}
+        await api.post(`/threads/${threadId}/messages`,{body});
+        setTimeout(()=>endRef.current?.scrollIntoView(),50);
       } else toast(up.error||"Upload failed","err");
     }catch{toast("Upload failed","err");}
     finally{setUploading(false);if(imgRef.current)imgRef.current.value="";}
@@ -2382,7 +2388,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
             :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
         </button>
         <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
-          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName}…`} value={text} onChange={onTextChange}/>
+          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName||"…"}`} value={text} onChange={onTextChange}/>
         </div>
         <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
           <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
