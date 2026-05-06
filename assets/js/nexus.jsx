@@ -373,10 +373,10 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-char{font-size:11px;color:var(--t5);}
 
 /* Buttons */
-.btn-primary{font-size:13px;padding:7px 20px;border-radius:20px;background:var(--ac);color:#0d0d14;border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
+.btn-primary{font-size:14px;padding:9px 22px;border-radius:22px;background:var(--ac);color:#0d0d14;border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
 .btn-primary:hover{opacity:.9;}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed;}
-.btn-ghost{font-size:12px;padding:6px 16px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
+.btn-ghost{font-size:13px;padding:7px 18px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
 .btn-ghost:hover{color:var(--t1);border-color:var(--b2);}
 
 /* Tags / space pills */
@@ -423,49 +423,49 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Admin */
 .admin-shell{display:flex;height:100vh;overflow:hidden;}
-.admin-topbar{height:48px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;}
-.admin-badge{font-size:10px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:3px 9px;display:flex;align-items:center;gap:5px;}
-.admin-sidenav{width:220px;min-width:220px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
+.admin-topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 24px;gap:14px;flex-shrink:0;}
+.admin-badge{font-size:12px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:6px;}
+.admin-sidenav{width:260px;min-width:260px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
 .admin-sidenav-scroll{flex:1;overflow-y:auto;padding:12px 0;}
-.admin-sn-label{font-size:10px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
+.admin-sn-label{font-size:12px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 18px;margin-bottom:4px;margin-top:16px;}
 .admin-sn-label:first-child{margin-top:2px;}
-.admin-sn-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;position:relative;transition:background .1s;}
+.admin-sn-item{display:flex;align-items:center;gap:14px;padding:12px 20px;cursor:pointer;position:relative;transition:background .1s;}
 .admin-sn-item:hover{background:rgba(255,255,255,0.04);}
 .admin-sn-item.active{background:var(--ac-bg);}
 .admin-sn-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
-.admin-sn-item i{width:16px;text-align:center;font-size:12px;flex-shrink:0;color:var(--t4);}
+.admin-sn-item i{width:20px;text-align:center;font-size:17px;flex-shrink:0;color:var(--t4);}
 .admin-sn-item.active i{color:var(--ac);}
-.admin-sn-item-name{font-size:13px;color:var(--t3);flex:1;}
+.admin-sn-item-name{font-size:16px;color:var(--t3);flex:1;}
 .admin-sn-item.active .admin-sn-item-name{color:var(--ac-text);font-weight:500;}
-.admin-sn-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}
+.admin-sn-badge{font-size:12px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:3px 9px;font-weight:500;}
 .admin-content-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-.admin-content-header{padding:0 28px;height:52px;border-bottom:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.admin-content-title{font-size:15px;font-weight:600;color:var(--t1);letter-spacing:-.2px;}
-.admin-content-body{flex:1;overflow-y:auto;padding:24px 28px;}
+.admin-content-header{padding:0 36px;height:64px;border-bottom:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.admin-content-title{font-size:20px;font-weight:600;color:var(--t1);letter-spacing:-.2px;}
+.admin-content-body{flex:1;overflow-y:auto;padding:32px 36px;}
 
 /* Admin content bits */
-.page-sub{font-size:13px;color:var(--t4);margin-bottom:20px;}
-.admin-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
-.admin-stat-card{background:rgba(255,255,255,0.03);border:0.5px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 18px;transition:border-color .1s;}
+.page-sub{font-size:14px;color:var(--t4);margin-bottom:20px;}
+.admin-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.admin-stat-card{background:rgba(255,255,255,0.03);border:0.5px solid rgba(255,255,255,0.08);border-radius:14px;padding:18px 20px;transition:border-color .1s;}
 .admin-stat-card:hover{border-color:rgba(255,255,255,0.14);}
-.asc-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
-.asc-n{font-size:22px;font-weight:600;color:var(--t1);letter-spacing:-.5px;line-height:1;margin-bottom:4px;}
-.asc-l{font-size:12px;color:var(--t4);}
-.asc-delta{font-size:11px;margin-top:4px;display:flex;align-items:center;gap:4px;}
+.asc-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
+.asc-n{font-size:30px;font-weight:600;color:var(--t1);letter-spacing:-.5px;line-height:1;margin-bottom:6px;}
+.asc-l{font-size:14px;color:var(--t4);}
+.asc-delta{font-size:13px;margin-top:4px;display:flex;align-items:center;gap:4px;}
 .delta-up{color:var(--green);}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
-.panel{background:rgba(255,255,255,0.02);border:0.5px solid var(--b1);border-radius:14px;padding:18px 20px;}
-.panel-title{font-size:13px;font-weight:500;color:var(--t3);margin-bottom:14px;display:flex;align-items:justify-content:space-between;}
-.fgt{font-size:11px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--b1);}
-.f-label{font-size:12px;color:var(--t3);margin-bottom:5px;display:block;}
-.f-hint{font-size:11px;color:var(--t5);margin-top:3px;}
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px;}
+.panel{background:rgba(255,255,255,0.02);border:0.5px solid var(--b1);border-radius:14px;padding:20px 22px;}
+.panel-title{font-size:14px;font-weight:500;color:var(--t3);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.fgt{font-size:13px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:0.5px solid var(--b1);}
+.f-label{font-size:14px;color:var(--t3);margin-bottom:7px;display:block;}
+.f-hint{font-size:12px;color:var(--t5);margin-top:4px;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .toggle-row:last-child{border-bottom:none;}
-.tgl{width:36px;height:20px;border-radius:20px;position:relative;cursor:pointer;transition:background .2s;}
-.tgl-knob{position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s;}
+.tgl{width:46px;height:26px;border-radius:20px;position:relative;cursor:pointer;transition:background .2s;}
+.tgl-knob{position:absolute;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;}
 .atbl{width:100%;border-collapse:collapse;}
-.atbl th{text-align:left;font-size:10px;color:var(--t5);padding:6px 10px;letter-spacing:.05em;text-transform:uppercase;border-bottom:0.5px solid var(--b1);}
-.atbl td{padding:9px 10px;font-size:12px;color:var(--t3);border-bottom:0.5px solid rgba(255,255,255,0.04);}
+.atbl th{text-align:left;font-size:12px;color:var(--t5);padding:10px 14px;letter-spacing:.05em;text-transform:uppercase;border-bottom:0.5px solid var(--b1);}
+.atbl td{padding:13px 14px;font-size:14px;color:var(--t3);border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .atbl tr:last-child td{border-bottom:none;}
 .atbl tr:hover td{background:rgba(255,255,255,0.02);}
 
@@ -1320,7 +1320,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
         </div>
       )}
       <div className="post-content-wrap">
-        <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i> back to feed</div>
+        <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
           <RsAv user={post.user} size={56} color={col}/>
@@ -1433,7 +1433,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     <div className="composer-shell">
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 28px",flexShrink:0}}>
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer",display:"flex",alignItems:"center",gap:6}} onClick={()=>navigate("feed")}>
-          <i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i> back to feed
+          <i className="fa-solid fa-arrow-left"></i> back to feed
         </span>
       </div>
       <div className="composer-inner">
@@ -1854,9 +1854,9 @@ function F({label, hint, children}) {
 function Tgl({on, onChange, label, desc}) {
   return (
     <div className="toggle-row">
-      <div><div style={{fontSize:13,color:"var(--t2)"}}>{label}</div>{desc&&<div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{desc}</div>}</div>
+      <div><div style={{fontSize:15,color:"var(--t2)"}}>{label}</div>{desc&&<div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>{desc}</div>}</div>
       <div className="tgl" style={{background:on?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>onChange(!on)}>
-        <div className="tgl-knob" style={{left:on?18:3,background:on?"#fff":"rgba(255,255,255,0.4)"}}/>
+        <div className="tgl-knob" style={{left:on?23:3,background:on?"#fff":"rgba(255,255,255,0.4)"}}/>
       </div>
     </div>
   );
@@ -2117,9 +2117,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   return (
     <div className="admin-shell">
       <div className="admin-sidenav">
-        <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)",height:48}}>
+        <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)"}}>
           <span className="logo-text">nexus<em>.</em></span>
-          <div className="admin-badge"><i className="fa-solid fa-shield-halved" style={{fontSize:9}}></i>administration</div>
+          <div className="admin-badge"><i className="fa-solid fa-shield-halved" style={{fontSize:13}}></i>administration</div>
         </div>
         <div className="admin-sidenav-scroll">
           {NAV_SECTIONS.map(ns=>(
@@ -2137,7 +2137,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
         </div>
         <div style={{padding:"10px 12px",borderTop:"0.5px solid var(--b1)"}}>
           <div className="admin-sn-item" onClick={()=>navigate("feed")}>
-            <i className="fa-solid fa-arrow-left" style={{fontSize:11}}></i>
+            <i className="fa-solid fa-arrow-left"></i>
             <span className="admin-sn-item-name">view forum</span>
           </div>
         </div>
@@ -2145,8 +2145,8 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
       <div className="admin-content-wrap">
         <div className="admin-topbar">
           <div style={{flex:1}}/>
-          <button className="btn-ghost" style={{fontSize:11}} onClick={()=>{ api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});}); toast("Discarded"); }}>Discard</button>
-          <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={()=>{
+          <button className="btn-ghost" onClick={()=>{ api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});}); toast("Discarded"); }}>Discard</button>
+          <button className="btn-primary" onClick={()=>{
             if(sec==="branding"||sec==="appearance") saveSection("appearance",branding);
             else if(sec==="email") saveSection("email",emailCfg);
             else if(sec==="forum-info") saveSection("general",general);
@@ -2167,7 +2167,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                 {icon:"fa-heart",color:"#fbbf24",n:0,label:"hearts given",delta:"+0 this week"},
               ].map((c,i)=>(
                 <div key={i} className="admin-stat-card">
-                  <div className="asc-icon" style={{background:`${c.color}18`}}><i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:13}}></i></div>
+                  <div className="asc-icon" style={{background:`${c.color}18`}}><i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:15}}></i></div>
                   <div className="asc-n" style={{color:c.color}}>{c.n.toLocaleString()}</div>
                   <div className="asc-l">{c.label}</div>
                   <div className="asc-delta delta-up">{c.delta}</div>
