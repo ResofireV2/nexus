@@ -2302,13 +2302,8 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
-    // Join immediately and also after a short delay as fallback
     joinTopic?.(`dm:${threadId}`);
-    const t = setTimeout(()=>{
-      leaveTopic?.(`dm:${threadId}`);
-      joinTopic?.(`dm:${threadId}`);
-    }, 500);
-    return ()=>{ clearTimeout(t); leaveTopic?.(`dm:${threadId}`); };
+    return ()=>{ leaveTopic?.(`dm:${threadId}`); };
   },[threadId]);
 
   useEffect(()=>{
@@ -3292,29 +3287,38 @@ function MembersPage({navigate, currentUser}) {
 function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount) {
   const wsRef = useRef(null);
   const heartbeatRef = useRef(null);
+  const reconnectRef = useRef(null);
   const refSeq = useRef(1);
+  // Topics the application wants to be joined. Persists across reconnects.
+  const desiredTopics = useRef(new Set());
+  // Topics actually joined on the current live socket.
   const joinedTopics = useRef(new Set());
-  const pendingJoins = useRef(new Set()); // topics to join once WS opens
+  const mountedRef = useRef(true);
 
-  const sendRaw = useCallback((msg) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
-  }, []);
+  const onNewPostRef = useRef(onNewPost);
+  const onNewNotifRef = useRef(onNewNotif);
+  const onNewMsgRef = useRef(onNewMsg);
+  const onUnreadCountRef = useRef(onUnreadCount);
+  useEffect(() => { onNewPostRef.current = onNewPost; }, [onNewPost]);
+  useEffect(() => { onNewNotifRef.current = onNewNotif; }, [onNewNotif]);
+  useEffect(() => { onNewMsgRef.current = onNewMsg; }, [onNewMsg]);
+  useEffect(() => { onUnreadCountRef.current = onUnreadCount; }, [onUnreadCount]);
+
+  const connectRef = useRef(null);
 
   const joinTopic = useCallback((topic) => {
+    desiredTopics.current.add(topic);
     if (joinedTopics.current.has(topic)) return;
     joinedTopics.current.add(topic);
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_join", {}]));
-    } else {
-      pendingJoins.current.add(topic); // queue for when socket opens
     }
   }, []);
 
   const leaveTopic = useCallback((topic) => {
+    desiredTopics.current.delete(topic);
     joinedTopics.current.delete(topic);
-    pendingJoins.current.delete(topic);
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_leave", {}]));
@@ -3322,68 +3326,97 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   }, []);
 
   const sendEvent = useCallback((topic, event, payload={}) => {
-    sendRaw([null, String(refSeq.current++), topic, event, payload]);
-  }, [sendRaw]);
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify([null, String(refSeq.current++), topic, event, payload]));
+    }
+  }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     if (!token || !userId) return;
-    const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/socket/websocket?token=${token}&vsn=2.0.0`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
 
-    const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
+    const connect = () => {
+      if (!mountedRef.current) return;
+      clearTimeout(reconnectRef.current);
 
-    ws.onopen = () => {
-      send([null, String(refSeq.current++), "feed:global", "phx_join", {}]);
-      joinedTopics.current.add("feed:global");
-      send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
-      joinedTopics.current.add(`notifications:${userId}`);
-      // Flush pending joins
-      pendingJoins.current.forEach(topic => {
-        send([null, String(refSeq.current++), topic, "phx_join", {}]);
-      });
-      pendingJoins.current.clear();
-      heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
+      const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/socket/websocket?token=${token}&vsn=2.0.0`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      // Reset joined set for this new connection
+      joinedTopics.current.clear();
+
+      const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
+
+      ws.onopen = () => {
+        // Always join the core topics
+        send([null, String(refSeq.current++), "feed:global", "phx_join", {}]);
+        joinedTopics.current.add("feed:global");
+        send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
+        joinedTopics.current.add(`notifications:${userId}`);
+        // Re-join any topics components are currently subscribed to (e.g. open DM or post)
+        desiredTopics.current.forEach(topic => {
+          if (!joinedTopics.current.has(topic)) {
+            send([null, String(refSeq.current++), topic, "phx_join", {}]);
+            joinedTopics.current.add(topic);
+          }
+        });
+        heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const [, , topic, event, payload] = JSON.parse(e.data);
+          if (event === "new_post" && topic === "feed:global") onNewPostRef.current?.(payload);
+          if (event === "new_notification" && topic === `notifications:${userId}`) {
+            if (payload?.type === "dm") onNewMsgRef.current?.();
+            else onNewNotifRef.current?.();
+          }
+          if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCountRef.current?.(payload?.count||0);
+          // Retry failed channel joins
+          if (event === "phx_reply" && payload?.status === "error") {
+            joinedTopics.current.delete(topic);
+            if (desiredTopics.current.has(topic)) {
+              setTimeout(() => joinTopic(topic), 1000);
+            }
+          }
+          // DM messages
+          if (event === "new_message" && topic.startsWith("dm:")) {
+            window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
+          }
+          // DM typing
+          if (event === "typing" && topic.startsWith("dm:")) {
+            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+          }
+          // Post channel events
+          if (event === "new_reply" && topic.startsWith("post:")) {
+            window.dispatchEvent(new CustomEvent("nexus:new_reply", {detail: {postId: topic.split(":")[1], reply: payload}}));
+          }
+          if (event === "typing" && topic.startsWith("post:")) {
+            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+          }
+        } catch {}
+      };
+
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        clearInterval(heartbeatRef.current);
+        joinedTopics.current.clear();
+        // Reconnect after 3 seconds if still mounted and authenticated
+        if (mountedRef.current && token && userId) {
+          reconnectRef.current = setTimeout(connect, 3000);
+        }
+      };
     };
 
-    ws.onmessage = (e) => {
-      try {
-        const [, , topic, event, payload] = JSON.parse(e.data);
-        if (event === "new_post" && topic === "feed:global") onNewPost?.(payload);
-        if (event === "new_notification" && topic === `notifications:${userId}`) {
-          if (payload?.type === "dm") onNewMsg?.();
-          else onNewNotif?.();
-        }
-        if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCount?.(payload?.count||0);
-        // Retry failed channel joins
-        if (event === "phx_reply" && payload?.status === "error" && topic.startsWith("dm:")) {
-          joinedTopics.current.delete(topic);
-          setTimeout(()=>joinTopic(topic), 1000);
-        }
-        // DM messages
-        if (event === "new_message" && topic.startsWith("dm:")) {
-          window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
-        }
-        // DM typing
-        if (event === "typing" && topic.startsWith("dm:")) {
-          window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
-        }
-        // Post channel events
-        if (event === "new_reply" && topic.startsWith("post:")) {
-          window.dispatchEvent(new CustomEvent("nexus:new_reply", {detail: {postId: topic.split(":")[1], reply: payload}}));
-        }
-        if (event === "typing" && topic.startsWith("post:")) {
-          window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
-        }
-      } catch {}
-    };
-
-    ws.onerror = () => {};
-    ws.onclose = () => { clearInterval(heartbeatRef.current); joinedTopics.current.clear(); };
+    connectRef.current = connect;
+    connect();
 
     return () => {
+      mountedRef.current = false;
+      clearTimeout(reconnectRef.current);
       clearInterval(heartbeatRef.current);
-      ws.close();
+      if (wsRef.current) wsRef.current.close();
     };
   }, [token, userId]);
 
