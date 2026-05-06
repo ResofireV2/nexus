@@ -365,6 +365,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-av{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .reply-body-wrap{flex:1;}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
+.reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.reply-item:hover .reply-quote-btn{opacity:1;}
+.reply-quote-btn:hover{color:var(--ac-text);}
 .reply-author{font-size:13px;font-weight:500;color:var(--t2);}
 .reply-time{font-size:11px;color:var(--t5);}
 .reply-text{font-size:13px;color:var(--t3);line-height:1.65;}
@@ -1381,9 +1384,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
       if (!mdBody) { setQuoteTooltip(null); return; }
 
       const rect = range.getBoundingClientRect();
+      // If selection is near the top of the viewport, show tooltip below instead
+      const above = rect.top > 60;
       setQuoteTooltip({
         x: rect.left + rect.width/2,
-        y: rect.top - 8,
+        y: above ? rect.top : rect.bottom,
+        below: !above,
         text: sel.toString().trim()
       });
     };
@@ -1488,7 +1494,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
               <div className="reply-meta">
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
-                {currentUser&&!post.locked&&<span style={{fontSize:11,color:"var(--t5)",cursor:"pointer",marginLeft:"auto",opacity:0.6,display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,border:"0.5px solid transparent"}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.6} onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
+                {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
                 <span style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
                   {currentUser&&currentUser?.id!==r.user?.id&&(
                     <span style={{fontSize:11,color:"var(--t4)",cursor:"pointer"}} onClick={()=>{setReportTarget({type:"reply",id:r.id});setReportReason("");}}>report</span>
@@ -1506,7 +1512,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
           </div>
         ))}
         {quoteTooltip&&(
-          <div className="quote-tooltip" style={{left:quoteTooltip.x,top:quoteTooltip.y-6,transform:"translate(-50%,-100%)"}}
+          <div className="quote-tooltip"
+            style={{
+              left: quoteTooltip.x,
+              top: quoteTooltip.below ? quoteTooltip.y+8 : quoteTooltip.y-8,
+              transform: quoteTooltip.below ? "translate(-50%,0)" : "translate(-50%,-100%)"
+            }}
             onMouseDown={e=>{e.preventDefault();insertQuote(quoteTooltip.text);}}>
             <i className="fa-solid fa-quote-left" style={{fontSize:10}}></i> Quote
           </div>
