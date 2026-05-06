@@ -2558,8 +2558,8 @@ function GroupSettingsModal({thread, currentUser, onClose, onUpdate}) {
           <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}}
             onChange={e=>{const f=e.target.files[0];if(f){setImageFile(f);setPreviewImage(URL.createObjectURL(f));}}}/>
           <div onClick={()=>imgRef.current?.click()} style={{width:64,height:64,borderRadius:"50%",flexShrink:0,cursor:"pointer",
-            backgroundImage:previewImage?`url(${previewImage})`:"none",backgroundSize:"cover",backgroundPosition:"center",
-            background:previewImage?"none":"rgba(255,255,255,0.06)",border:"1.5px dashed var(--b2)",
+            background:previewImage?`url(${previewImage}) center/cover`:"rgba(255,255,255,0.06)",
+            border:"1.5px dashed var(--b2)",
             display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
             {!previewImage&&<i className="fa-solid fa-camera" style={{fontSize:18,color:"var(--t5)"}}/>}
           </div>
