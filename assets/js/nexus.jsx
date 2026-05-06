@@ -541,9 +541,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thr-name{font-size:13px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-preview{font-size:12px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
-.bubble{max-width:72%;min-width:60px;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
+.bubble{display:inline-block;max-width:72%;min-width:0;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
 .mine .bubble{background:var(--ac);color:var(--ac-on);font-weight:500;border-bottom-right-radius:4px;}
-.mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}
+.mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}.bubble .md-body{display:inline;}.bubble .md-body p{display:inline;margin:0;}
 .theirs .bubble{background:rgba(255,255,255,0.07);color:var(--t2);border:0.5px solid var(--b1);border-bottom-left-radius:4px;}
 
 /* Profile */
@@ -2411,20 +2411,116 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
   );
 }
 
-function DMNewPage({navigate}) {
-  const [username,setUsername]=useState(""); const [loading,setLoading]=useState(false);
-  const start=async e=>{e.preventDefault();if(!username.trim())return;setLoading(true);try{const d=await api.post("/threads/direct",{username});if(d.thread)navigate("dm",{threadId:d.thread.id,threadName:username});else toast(d.error||"User not found","err");}finally{setLoading(false);}};
+function DMNewPage({navigate, currentUser}) {
+  const [mode,setMode]=useState("direct");
+  const [query,setQuery]=useState("");
+  const [results,setResults]=useState([]);
+  const [searching,setSearching]=useState(false);
+  const [selected,setSelected]=useState([]);
+  const [groupName,setGroupName]=useState("");
+  const [loading,setLoading]=useState(false);
+  const debounceRef=useRef();
+
+  const search=val=>{
+    setQuery(val);
+    clearTimeout(debounceRef.current);
+    if(!val.trim()){setResults([]);return;}
+    setSearching(true);
+    debounceRef.current=setTimeout(async()=>{
+      try{const d=await api.get(`/users?q=${encodeURIComponent(val)}`);setResults((d.members||[]).filter(u=>u.id!==currentUser?.id));}
+      finally{setSearching(false);}
+    },200);
+  };
+
+  const startDirect=async user=>{
+    setLoading(true);
+    try{const d=await api.post("/threads/direct",{username:user.username});if(d.thread)navigate("dm",{threadId:d.thread.id,threadName:user.username});else toast(d.error||"Failed","err");}
+    finally{setLoading(false);}
+  };
+
+  const toggleSelect=user=>setSelected(p=>p.find(u=>u.id===user.id)?p.filter(u=>u.id!==user.id):[...p,user]);
+
+  const startGroup=async()=>{
+    if(!groupName.trim()||selected.length===0)return;
+    setLoading(true);
+    try{const d=await api.post("/threads/group",{name:groupName,members:selected.map(u=>u.username)});if(d.thread)navigate("dm",{threadId:d.thread.id,threadName:groupName});else toast(d.error||"Failed","err");}
+    finally{setLoading(false);}
+  };
+
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column"}}>
-      <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
+      <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:12,flexShrink:0}}>
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
+        <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>New message</span>
       </div>
-      <div style={{maxWidth:400,margin:"40px auto",padding:"0 20px"}}>
-        <div style={{fontSize:16,fontWeight:600,marginBottom:20,color:"var(--t1)"}}>New message</div>
-        <form onSubmit={start}>
-          <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="Search by username…" value={username} onChange={e=>setUsername(e.target.value)} autoFocus/></div>
-          <button className="btn-primary" disabled={loading||!username.trim()}>{loading?"…":"Start conversation"}</button>
-        </form>
+      <div style={{maxWidth:480,width:"100%",margin:"0 auto",padding:"24px 20px",display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{display:"flex",background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,padding:3,gap:3}}>
+          {["direct","group"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setQuery("");setResults([]);setSelected([]);}}
+              style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:500,
+                background:mode===m?"var(--s2)":"transparent",color:mode===m?"var(--t1)":"var(--t4)",
+                boxShadow:mode===m?"0 1px 3px rgba(0,0,0,.3)":"none",transition:"all .15s"}}>
+              {m==="direct"?"Direct message":"Group chat"}
+            </button>
+          ))}
+        </div>
+
+        {mode==="group"&&<input className="fi" placeholder="Group name…" value={groupName} onChange={e=>setGroupName(e.target.value)} autoFocus/>}
+
+        <div style={{position:"relative"}}>
+          <input className="fi" placeholder={mode==="direct"?"Search by username…":"Add people…"}
+            value={query} onChange={e=>search(e.target.value)} autoFocus={mode==="direct"}/>
+          {searching&&<i className="fa-solid fa-spinner fa-spin" style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",color:"var(--t5)",fontSize:12}}/>}
+        </div>
+
+        {mode==="group"&&selected.length>0&&(
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {selected.map(u=>(
+              <div key={u.id} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(167,139,250,0.15)",border:"0.5px solid rgba(167,139,250,0.3)",borderRadius:20,padding:"4px 10px 4px 6px"}}>
+                <span style={{fontSize:12,color:"var(--t2)"}}>{u.username}</span>
+                <span style={{fontSize:11,color:"var(--t5)",cursor:"pointer"}} onClick={()=>toggleSelect(u)}>✕</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {results.length>0&&(
+          <div style={{border:"0.5px solid var(--b1)",borderRadius:10,overflow:"hidden"}}>
+            {results.map((u,i)=>{
+              const isSel=!!selected.find(s=>s.id===u.id);
+              return (
+                <div key={u.id} onClick={()=>mode==="direct"?startDirect(u):toggleSelect(u)}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",
+                    background:isSel?"rgba(167,139,250,0.08)":"transparent",
+                    borderBottom:i<results.length-1?"0.5px solid var(--b1)":"none"}}>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"var(--ac-on)",fontWeight:600,flexShrink:0}}>
+                    {u.username.slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{u.username}</div>
+                    {u.role&&u.role!=="member"&&<div style={{fontSize:11,color:"var(--t4)"}}>{u.role}</div>}
+                  </div>
+                  {mode==="group"&&(
+                    <div style={{width:18,height:18,borderRadius:"50%",border:`1.5px solid ${isSel?"var(--ac)":"var(--b2)"}`,background:isSel?"var(--ac)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      {isSel&&<i className="fa-solid fa-check" style={{fontSize:9,color:"var(--ac-on)"}}/>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {results.length===0&&query.length>0&&!searching&&(
+          <div style={{textAlign:"center",padding:"24px 0",color:"var(--t5)",fontSize:13}}>No users found</div>
+        )}
+
+        {mode==="group"&&(
+          <button className="btn-primary" style={{width:"100%",borderRadius:10,padding:10}}
+            disabled={loading||selected.length===0||!groupName.trim()} onClick={startGroup}>
+            {loading?"…":`Create group with ${selected.length} member${selected.length!==1?"s":""}`}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -3626,7 +3722,7 @@ function App() {
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
-      case "dm-new":      return requireAuth(<DMNewPage navigate={navigate}/>);
+      case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
