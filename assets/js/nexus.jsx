@@ -529,8 +529,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 .notif-pip{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px;}
 
 /* DM */
-.dm-shell{flex:1;display:flex;overflow:hidden;}
-.dm-sidebar{width:320px;min-width:320px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
+.dm-shell{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.dm-sidebar{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .dm-search{padding:10px 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .dm-search-inner{background:rgba(255,255,255,0.04);border:0.5px solid rgba(255,255,255,0.09);border-radius:20px;display:flex;align-items:center;padding:7px 13px;gap:8px;}
 .dm-search-inner input{background:transparent;border:none;outline:none;font-size:12px;color:var(--t2);font-family:inherit;flex:1;}
@@ -2249,7 +2249,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
     onOpen?.();
     api.get("/threads").then(d=>{setThreads(d.threads||[]);setLoading(false);});
   },[]);
-  const tname=t=>{const o=t.members?.find(m=>m.user_id!==currentUser?.id);return o?.user?.username||"Unknown";};
+  const tname=t=>{ if(t.kind==="group") return t.name||"Group"; const o=t.members?.find(m=>m.user_id!==currentUser?.id); return o?.user?.username||"Unknown"; };
   const openThread=t=>{
     setReadIds(p=>new Set([...p,t.id]));
     api.post(`/threads/${t.id}/read`,{}).catch(()=>{});
@@ -2294,7 +2294,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
               </>}
           </div>
         </div>
-        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:13}}>Select a conversation</div>
+
       </div>
     </div>
   );
