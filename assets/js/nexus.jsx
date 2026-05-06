@@ -1643,7 +1643,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 }
 
 // ── Post view ─────────────────────────────────────────────────────────────────
-function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
+function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
   const [submitting,setSubmitting]=useState(false);
@@ -1651,10 +1651,40 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
   const [reporting,setReporting]=useState(false);
-  const [quoteTooltip,setQuoteTooltip]=useState(null); // {x, y, text}
+  const [quoteTooltip,setQuoteTooltip]=useState(null);
+  const [typingUsers,setTypingUsers]=useState([]); // usernames currently typing
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
+  const typingTimers = useRef({});
   useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
+
+  // Join post channel for realtime replies + typing
+  useEffect(()=>{
+    if(!postId) return;
+    joinTopic?.(`post:${postId}`);
+    return ()=>{ leaveTopic?.(`post:${postId}`); };
+  },[postId]);
+
+  // Listen for realtime events
+  useEffect(()=>{
+    const replyFn = e => {
+      if(String(e.detail.postId)===String(postId) && e.detail.reply) {
+        setReplies(p=>p.some(r=>r.id===e.detail.reply.id)?p:[...p,e.detail.reply]);
+        setPost(p=>p?{...p,reply_count:(p.reply_count||0)+1}:p);
+      }
+    };
+    const typingFn = e => {
+      if(e.detail.channel===`post:${postId}` && e.detail.userId!==currentUser?.id) {
+        const uid = String(e.detail.userId);
+        setTypingUsers(p=>p.includes(uid)?p:[...p,uid]);
+        clearTimeout(typingTimers.current[uid]);
+        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 3000);
+      }
+    };
+    window.addEventListener("nexus:new_reply", replyFn);
+    window.addEventListener("nexus:typing", typingFn);
+    return ()=>{ window.removeEventListener("nexus:new_reply", replyFn); window.removeEventListener("nexus:typing", typingFn); };
+  },[postId,currentUser]);
 
   useEffect(()=>{
     (async()=>{ setLoading(true);
@@ -1840,9 +1870,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
           </div>
         )}
         {currentUser&&!post.locked&&(
+          {typingUsers.length>0&&<div style={{padding:"4px 0 6px",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
+            <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
+            {typingUsers.length===1?"Someone is":"Multiple people are"} typing…
+          </div>}
           <div style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={setReplyBody} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
+              <RichTextArea value={replyBody} onChange={v=>{setReplyBody(v);sendEvent?.(`post:${postId}`,"typing",{});}} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
               <div className="reply-box-foot">
                 <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
@@ -2263,31 +2297,41 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   );
 }
 
-function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTopic}) {
-  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const endRef=useRef(); const imgRef=useRef();
+function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
+  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
-    // Join DM channel for real-time messages
     joinTopic?.(`dm:${threadId}`);
     return ()=>{ leaveTopic?.(`dm:${threadId}`); };
   },[threadId]);
 
-  // Listen for real-time messages on this thread
   useEffect(()=>{
     const fn = e => {
       if(String(e.detail.threadId)===String(threadId) && e.detail.message) {
         setMessages(p=>{
-          // Deduplicate by id
           if(p.some(m=>m.id===e.detail.message.id)) return p;
           return [...p, e.detail.message];
         });
         setTimeout(()=>endRef.current?.scrollIntoView(),50);
       }
     };
+    const typingFn = e => {
+      if(e.detail.channel===`dm:${threadId}` && e.detail.userId!==currentUser?.id) {
+        setTyping(true);
+        clearTimeout(typingRef.current);
+        typingRef.current = setTimeout(()=>setTyping(false), 3000);
+      }
+    };
     window.addEventListener("nexus:dm_message", fn);
-    return ()=>window.removeEventListener("nexus:dm_message", fn);
-  },[threadId]);
+    window.addEventListener("nexus:typing", typingFn);
+    return ()=>{ window.removeEventListener("nexus:dm_message", fn); window.removeEventListener("nexus:typing", typingFn); };
+  },[threadId,currentUser]);
+
+  const onTextChange = e => {
+    setText(e.target.value);
+    sendEvent?.(`dm:${threadId}`, "typing", {});
+  };
   const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);try{const d=await api.post(`/threads/${threadId}/messages`,{body:text});if(d.message){setMessages(p=>[...p,d.message]);setText("");setTimeout(()=>endRef.current?.scrollIntoView(),50);}}finally{setSending(false);}};
   const sendImage=async file=>{
     if(!file)return;
@@ -2324,6 +2368,10 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
         })}
         <div ref={endRef}/>
       </div>
+      {typing&&<div style={{padding:"4px 20px 0",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
+        <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
+        {threadName} is typing…
+      </div>}
       <form onSubmit={send} style={{borderTop:"0.5px solid var(--b1)",padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:8,flexShrink:0}}>
         <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}} onChange={e=>sendImage(e.target.files[0])}/>
         <button type="button" title="Attach image" onClick={()=>imgRef.current?.click()}
@@ -2333,7 +2381,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
             :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
         </button>
         <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
-          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName}…`} value={text} onChange={e=>setText(e.target.value)}/>
+          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName}…`} value={text} onChange={onTextChange}/>
         </div>
         <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
           <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
@@ -3239,22 +3287,36 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const heartbeatRef = useRef(null);
   const refSeq = useRef(1);
   const joinedTopics = useRef(new Set());
+  const pendingJoins = useRef(new Set()); // topics to join once WS opens
 
-  // Expose a way to join additional channels after connect (e.g. DM threads)
-  const joinTopic = useCallback((topic) => {
+  const sendRaw = useCallback((msg) => {
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }, []);
+
+  const joinTopic = useCallback((topic) => {
     if (joinedTopics.current.has(topic)) return;
     joinedTopics.current.add(topic);
-    ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_join", {}]));
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_join", {}]));
+    } else {
+      pendingJoins.current.add(topic); // queue for when socket opens
+    }
   }, []);
 
   const leaveTopic = useCallback((topic) => {
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     joinedTopics.current.delete(topic);
-    ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_leave", {}]));
+    pendingJoins.current.delete(topic);
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_leave", {}]));
+    }
   }, []);
+
+  const sendEvent = useCallback((topic, event, payload={}) => {
+    sendRaw([null, String(refSeq.current++), topic, event, payload]);
+  }, [sendRaw]);
 
   useEffect(() => {
     if (!token || !userId) return;
@@ -3269,6 +3331,11 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
       joinedTopics.current.add("feed:global");
       send([null, String(refSeq.current++), `notifications:${userId}`, "phx_join", {}]);
       joinedTopics.current.add(`notifications:${userId}`);
+      // Flush pending joins
+      pendingJoins.current.forEach(topic => {
+        send([null, String(refSeq.current++), topic, "phx_join", {}]);
+      });
+      pendingJoins.current.clear();
       heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
     };
 
@@ -3281,9 +3348,20 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           else onNewNotif?.();
         }
         if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCount?.(payload?.count||0);
-        // DM real-time: dispatch custom event so DMPage can listen
+        // DM messages
         if (event === "new_message" && topic.startsWith("dm:")) {
           window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: topic.split(":")[1], message: payload}}));
+        }
+        // DM typing
+        if (event === "typing" && topic.startsWith("dm:")) {
+          window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+        }
+        // Post channel events
+        if (event === "new_reply" && topic.startsWith("post:")) {
+          window.dispatchEvent(new CustomEvent("nexus:new_reply", {detail: {postId: topic.split(":")[1], reply: payload}}));
+        }
+        if (event === "typing" && topic.startsWith("post:")) {
+          window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
         }
       } catch {}
     };
@@ -3297,7 +3375,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     };
   }, [token, userId]);
 
-  return {joinTopic, leaveTopic};
+  return {joinTopic, leaveTopic, sendEvent};
 }
 
 // ── Guest Prompt ──────────────────────────────────────────────────────────────
@@ -3410,7 +3488,7 @@ function App() {
   }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
-  const {joinTopic, leaveTopic} = useSocket(
+  const {joinTopic, leaveTopic, sendEvent} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
@@ -3476,10 +3554,10 @@ function App() {
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
       case "messages":    return requireAuth(<DMInboxPage currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
-      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic}/>);
+      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
-      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)}/>;
+      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
       default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;
