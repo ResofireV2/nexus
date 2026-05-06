@@ -74,6 +74,22 @@ mdRenderer.link = function(href, title, text) {
 
 marked.use({ renderer: mdRenderer });
 
+// @mention tokenizer — turns @username into a styled link
+marked.use({
+  extensions: [{
+    name: "mention",
+    level: "inline",
+    start(src) { return src.indexOf("@"); },
+    tokenizer(src) {
+      const m = src.match(/^@([a-zA-Z0-9_]+)/);
+      if (m) return { type: "mention", raw: m[0], username: m[1] };
+    },
+    renderer(token) {
+      return `<a class="mention-link" href="/profile/${token.username}" data-mention="${token.username}">@${token.username}</a>`;
+    }
+  }]
+});
+
 function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
   ADD_TAGS: ["iframe", "video", "source", "audio", "svg", "path"],
   ADD_ATTR: ["data-original", "data-lightbox-link", "data-id", "allowfullscreen", "loading", "frameborder", "src", "controls", "preload", "viewBox", "d", "fill", "width", "height"]
@@ -120,6 +136,14 @@ function useLightbox() {
 }
 // Attach delegated click handler to .md-body images once at module load
 document.addEventListener("click", e => {
+  // Handle mention link clicks — SPA navigation
+  const mention = e.target.closest(".mention-link");
+  if (mention) {
+    e.preventDefault();
+    const username = mention.getAttribute("data-mention");
+    if (username && window._nexusNavigate) window._nexusNavigate("profile", {username});
+    return;
+  }
   const img = e.target.closest(".md-body img");
   if (!img) return;
   // Don't intercept YouTube lite embed thumbnails — let the yt handler take it
@@ -423,6 +447,12 @@ select option{background:#1a1a2e;color:var(--t1);}
 .slash-item{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;color:var(--t3);cursor:pointer;border-bottom:0.5px solid var(--b1);transition:background .1s;}
 .slash-item:last-child{border-bottom:none;}
 .slash-item:hover,.slash-item.sel{background:rgba(255,255,255,0.05);color:var(--t1);}
+/* Mention dropdown */
+.mention-drop{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:4px;z-index:9000;min-width:200px;max-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.5);overflow:hidden;}
+.mention-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .1s;}
+.mention-item:hover,.mention-item.sel{background:rgba(255,255,255,0.07);}
+.mention-av{width:28px;height:28px;border-radius:7px;object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;}
+.mention-name{font-size:13px;color:var(--t1);font-weight:500;}
 .slash-icon{width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
 .slash-desc{font-size:11px;color:var(--t5);margin-top:1px;}
 
@@ -551,6 +581,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body blockquote p{margin-bottom:0;}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
+.mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
 .yt-lite img,.yt-thumb{cursor:pointer!important;border:none!important;background:none!important;margin:0!important;border-radius:0!important;max-height:none!important;}
@@ -862,6 +893,30 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   const taRef = useRef(); const wrapRef = useRef();
   const imgInputRef = useRef();
   const [uploading, setUploading] = useState(false);
+  // Mention state
+  const [mentionDrop, setMentionDrop] = useState(null); // {users, query, pos, x, y, selIdx}
+  const mentionDebounce = useRef();
+  const mentionSearch = async (q, caretPos, x, y) => {
+    if (q.length === 0) { setMentionDrop(null); return; }
+    const d = await api.get(`/users?q=${encodeURIComponent(q)}`).catch(()=>null);
+    const users = (d?.members||[]).slice(0,6);
+    if (users.length === 0) { setMentionDrop(null); return; }
+    setMentionDrop({users, query:q, pos:caretPos, x, y, selIdx:0});
+  };
+  const insertMention = (username) => {
+    const ta = taRef.current; if (!ta) return;
+    const val = ta.value;
+    // Find the @ that triggered the dropdown
+    const before = val.slice(0, mentionDrop.pos);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx === -1) return;
+    const after = val.slice(mentionDrop.pos);
+    const newVal = val.slice(0, atIdx) + `@${username} ` + after;
+    onChange(newVal);
+    setMentionDrop(null);
+    const newPos = atIdx + username.length + 2;
+    setTimeout(()=>{ ta.focus(); ta.setSelectionRange(newPos, newPos); }, 0);
+  };
   const buildSm = () => {
     const sm = getSm();
     sm.innerHTML = SLASH_ITEMS.map((item,i)=>
@@ -884,16 +939,39 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   };
   const handleChange = e => {
     onChange(e.target.value);
-    const last = e.target.value.split("\n").pop();
+    const ta = e.target;
+    const val = ta.value;
+    const caret = ta.selectionStart;
+    // Check for @mention trigger
+    const textBefore = val.slice(0, caret);
+    const mentionMatch = textBefore.match(/@([a-zA-Z0-9_]*)$/);
+    if (mentionMatch) {
+      const q = mentionMatch[1];
+      clearTimeout(mentionDebounce.current);
+      // Get caret position for dropdown placement
+      const rect = ta.getBoundingClientRect();
+      mentionDebounce.current = setTimeout(()=>mentionSearch(q, caret, rect.left+16, rect.top-8), 200);
+    } else {
+      setMentionDrop(null);
+    }
+    // Slash command detection
+    const last = val.split("\n").pop();
     const sm = getSm();
-    if (/^\/(i|c|b|d|e)?$/.test(last)||last==="/") {
-      _activeTA = taRef.current;
+    if (/^\/([icbde])?$/.test(last)||last==="/") {
+      _activeTA = ta;
       buildSm();
-      const rect = taRef.current.getBoundingClientRect();
+      const rect = ta.getBoundingClientRect();
       sm.style.cssText=`display:block;position:fixed;left:${rect.left}px;top:${rect.top-200}px;`;
     } else { sm.style.display="none"; }
   };
   const handleKeyDown = e => {
+    // Mention dropdown keyboard navigation
+    if (mentionDrop) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionDrop(p=>({...p,selIdx:(p.selIdx+1)%p.users.length})); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMentionDrop(p=>({...p,selIdx:(p.selIdx-1+p.users.length)%p.users.length})); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); insertMention(mentionDrop.users[mentionDrop.selIdx].username); return; }
+      if (e.key === "Escape") { setMentionDrop(null); return; }
+    }
     const sm = getSm();
     if (sm.style.display==="none") return;
     const items = SLASH_ITEMS.length;
@@ -903,7 +981,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     else if (e.key==="Escape"){sm.style.display="none";}
   };
   const handleBlur = () => {
-    setTimeout(()=>{ getTb().style.display="none"; getSm().style.display="none"; }, 200);
+    setTimeout(()=>{ getTb().style.display="none"; getSm().style.display="none"; setMentionDrop(null); }, 200);
   };
 
   const insertImageMarkdown = (webpUrl, originalUrl, filename) => {
@@ -953,7 +1031,6 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         onMouseUp={handleSel} onKeyUp={handleSel} onBlur={handleBlur} autoFocus={autoFocus}
         className="comp-ta" style={{minHeight}}
         onPaste={e=>{
-          // Handle paste of image files directly into textarea
           const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
           if (file) { e.preventDefault(); handleImageFile(file); }
         }}
@@ -963,6 +1040,20 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         }}
         onDragOver={e=>e.preventDefault()}
       />
+      {/* Mention dropdown */}
+      {mentionDrop&&(
+        <div className="mention-drop" style={{left:mentionDrop.x, top:mentionDrop.y, transform:"translateY(-100%)"}}>
+          {mentionDrop.users.map((u,i)=>(
+            <div key={u.id} className={`mention-item ${i===mentionDrop.selIdx?"sel":""}`}
+              onMouseDown={e=>{e.preventDefault();insertMention(u.username);}}>
+              {u.avatar_url
+                ?<img className="mention-av" src={u.avatar_url} alt={u.username}/>
+                :<div className="mention-av" style={{background:spaceColor({id:u.id})}}>{u.username.slice(0,2).toUpperCase()}</div>}
+              <span className="mention-name">@{u.username}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Hidden file input — triggered by slash menu Image pick and the button below */}
       <input
         id="comp-img-input"
@@ -3055,7 +3146,9 @@ function App() {
     const url = pageToUrl(p, props);
     window.history.pushState({page:p, props}, "", url);
     setPage(p);setPageProps(props);window.scrollTo(0,0);
+    window._nexusNavigate = navigate;
   },[]);
+  useEffect(()=>{ window._nexusNavigate = navigate; },[navigate]);
 
   // Handle browser back/forward
   useEffect(()=>{
