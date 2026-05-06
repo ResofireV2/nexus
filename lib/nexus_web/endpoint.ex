@@ -22,10 +22,10 @@ defmodule NexusWeb.Endpoint do
     gzip: false,
     only: NexusWeb.static_paths()
 
-  # Serve user-uploaded files
+  # Serve user-uploaded files from the bind-mounted uploads directory
   plug Plug.Static,
     at: "/uploads",
-    from: {:nexus, "priv/static/uploads"},
+    from: "/app/uploads",
     gzip: false
 
   if code_reloading? do

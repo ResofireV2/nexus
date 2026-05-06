@@ -111,9 +111,7 @@ defmodule NexusWeb.API.V1.UploadController do
 
   defp served_url(nil), do: nil
   defp served_url(rel_path) do
-    # rel_path is like "uploads/posts/abc.jpg"
-    # We serve it at /uploads/posts/abc.jpg
-    "/" <> rel_path
+    "/uploads/" <> rel_path
   end
 
   defp upload_json(%Upload{} = u) do

@@ -3,10 +3,16 @@ defmodule Nexus.Application do
 
   @impl true
   def start(_type, _args) do
-    # Ensure upload directories exist
-    static = Application.app_dir(:nexus, "priv/static")
-    for dir <- ~w(uploads/posts uploads/avatars uploads/covers uploads/logos uploads/webp/posts uploads/webp/avatars uploads/webp/covers uploads/webp/logos) do
-      File.mkdir_p!(Path.join(static, dir))
+    # Ensure upload directories exist on the bind-mounted path
+    uploads_dir =
+      if Application.get_env(:nexus, :env) == :prod do
+        "/app/uploads"
+      else
+        Path.join([:code.priv_dir(:nexus), "static", "uploads"])
+      end
+
+    for dir <- ~w(posts avatars covers logos webp/posts webp/avatars webp/covers webp/logos) do
+      File.mkdir_p!(Path.join(uploads_dir, dir))
     end
 
     children = [

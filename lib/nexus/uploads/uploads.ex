@@ -140,7 +140,7 @@ defmodule Nexus.Uploads do
     dir      = upload_dir(upload_type)
     ext      = ext_for(ct, filename)
     name     = "#{uuid()}#{ext}"
-    rel_path = "uploads/#{dir}/#{name}"
+    rel_path = "#{dir}/#{name}"
     abs_path = full_path(rel_path)
 
     File.mkdir_p!(Path.dirname(abs_path))
@@ -187,8 +187,8 @@ defmodule Nexus.Uploads do
 
       if convert? do
         webp_rel = String.replace(original_path, ~r/\.[^.]+$/, ".webp")
-        # Ensure it lands in the webp subdir to keep originals separate
-        webp_rel = String.replace(webp_rel, "/uploads/", "/uploads/webp/")
+        # Put webp in a webp/ subdir parallel to the original
+        webp_rel = "webp/" <> webp_rel
         abs_webp = full_path(webp_rel)
 
         File.mkdir_p!(Path.dirname(abs_webp))
@@ -237,10 +237,31 @@ defmodule Nexus.Uploads do
   defp max_width_for("cover_image", _settings),  do: 1920
   defp max_width_for(_, settings),               do: settings["max_width"] || 1200
 
-  defp full_path(rel), do: Path.join(static_dir(), rel)
-
   defp static_dir do
-    Application.app_dir(:nexus, "priv/static")
+    # In a Mix release, Application.app_dir resolves to the versioned lib dir
+    # (e.g. /app/lib/nexus-0.1.0/priv/static) which is inside the container image.
+    # Instead we use /app/uploads which is bind-mounted from the host, so files
+    # survive container rebuilds. In dev we fall back to priv/static/uploads.
+    case Application.get_env(:nexus, :uploads_dir) do
+      nil ->
+        if Application.get_env(:nexus, :env) == :prod do
+          "/app/uploads"
+        else
+          Path.join([:code.priv_dir(:nexus), "static", "uploads"])
+        end
+      dir -> dir
+    end
+  end
+
+  defp full_path(rel) do
+    Path.join(static_dir(), rel)
+  end
+
+  defp served_path(abs_path) do
+    # Convert absolute path back to a URL path served by the static plug
+    abs_path
+    |> String.replace(static_dir(), "")
+    |> then(&("/uploads" <> &1))
   end
 
   defp ext_for(content_type, filename) do

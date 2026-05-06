@@ -27,7 +27,7 @@ services:
       PORT: "4000"
       MIX_ENV: prod
     volumes:
-      - /opt/nexus-data/uploads:/app/priv/static/uploads
+      - /opt/nexus-data/uploads:/app/uploads
     ports:
       - "4000:4000"
     depends_on:
