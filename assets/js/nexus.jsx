@@ -423,8 +423,11 @@ select option{background:#1a1a2e;color:var(--t1);}
 .theirs .bubble{background:rgba(255,255,255,0.07);color:var(--t2);border:0.5px solid var(--b1);border-bottom-left-radius:4px;}
 
 /* Profile */
-.profile-cover{height:160px;background:var(--s2);position:relative;flex-shrink:0;overflow:hidden;}
+.profile-cover{height:160px;background:var(--s2);position:relative;flex-shrink:0;overflow:hidden;transition:height .3s ease;}
+.profile-cover.expanded{height:420px;}
 .profile-cover-edit{position:absolute;top:12px;right:14px;font-size:11px;padding:4px 12px;border-radius:20px;background:rgba(0,0,0,.4);color:var(--t3);border:0.5px solid var(--b2);cursor:pointer;}
+.profile-cover-expand{position:absolute;bottom:12px;right:14px;font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(0,0,0,.4);color:var(--t3);border:0.5px solid var(--b2);cursor:pointer;display:flex;align-items:center;gap:5px;}
+.profile-cover-expand:hover{color:var(--t1);}
 .profile-cover-gradient{position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,var(--bg),transparent);}
 .profile-info-wrap{padding:0 28px 20px;border-bottom:0.5px solid var(--b1);}
 .profile-av-row{margin-top:-40px;margin-bottom:14px;display:flex;align-items:flex-end;justify-content:space-between;}
@@ -1482,6 +1485,7 @@ function ProfilePage({username, currentUser, navigate}) {
   const [tab,setTab]=useState("posts");
   const [uploadingAvatar,setUploadingAvatar]=useState(false);
   const [uploadingCover,setUploadingCover]=useState(false);
+  const [coverExpanded,setCoverExpanded]=useState(false);
   const isOwn = currentUser?.username === username;
 
   useEffect(()=>{
@@ -1537,7 +1541,7 @@ function ProfilePage({username, currentUser, navigate}) {
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{flex:1,overflowY:"auto"}}>
         {/* Cover */}
-        <div className="profile-cover">
+        <div className={`profile-cover${coverExpanded?" expanded":""}`}>
           {user?.cover_url
             ?<img src={user.cover_url} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} alt="cover"/>
             :<svg viewBox="0 0 680 160" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
@@ -1554,6 +1558,10 @@ function ProfilePage({username, currentUser, navigate}) {
               ?<><i className="fa-solid fa-spinner fa-spin" style={{marginRight:5}}></i>Uploading…</>
               :<><i className="fa-solid fa-camera" style={{marginRight:5}}></i>Edit cover</>}
           </label>}
+          {user?.cover_url&&<div className="profile-cover-expand" onClick={()=>setCoverExpanded(p=>!p)}>
+            <i className={`fa-solid fa-${coverExpanded?"compress":"expand"}`} style={{fontSize:10}}></i>
+            {coverExpanded?"Collapse":"Expand"}
+          </div>}
         </div>
 
         <div className="profile-info-wrap">
