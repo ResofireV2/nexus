@@ -668,7 +668,11 @@ function pageToUrl(page, props={}) {
   }
 }
 let _cssEl = null;
-let _brandingState = {logo_url: null, site_name: null, favicon_url: null};
+// Initialize branding from cache immediately to avoid flash on load
+let _brandingState = (() => {
+  try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : {logo_url:null,site_name:null,favicon_url:null}; }
+  catch { return {logo_url:null,site_name:null,favicon_url:null}; }
+})();
 let _brandingListeners = [];
 function onBrandingChange(fn) { _brandingListeners.push(fn); }
 function setBrandingState(state) {
@@ -690,7 +694,9 @@ function applyBranding(app={}, gen={}) {
     if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
     link.href = gen.favicon_url;
   }
-  setBrandingState({logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null});
+  const newBranding = {logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null};
+  try { localStorage.setItem("nexus_branding", JSON.stringify(newBranding)); } catch {}
+  setBrandingState(newBranding);
 }
 
 // ── Reactions ─────────────────────────────────────────────────────────────────
