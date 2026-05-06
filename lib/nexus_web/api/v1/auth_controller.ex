@@ -45,7 +45,9 @@ defmodule NexusWeb.API.V1.AuthController do
   # POST /api/v1/auth/login
   # ---------------------------------------------------------------------------
 
-  def login(conn, %{"email" => email, "password" => password}) do
+  def login(conn, %{"email" => email, "password" => password} = params) do
+    remember_me = Map.get(params, "remember_me", true)
+
     case Accounts.authenticate_user(email, password) do
       {:ok, user} ->
         opts = [
@@ -56,7 +58,7 @@ defmodule NexusWeb.API.V1.AuthController do
         {:ok, tokens} = Accounts.issue_tokens(user, opts)
 
         conn
-        |> put_refresh_cookie(tokens.refresh_token)
+        |> put_refresh_cookie(tokens.refresh_token, remember_me)
         |> json(%{
           access_token: tokens.access_token,
           user: user_json(user)
@@ -284,13 +286,16 @@ defmodule NexusWeb.API.V1.AuthController do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  defp put_refresh_cookie(conn, token) do
-    put_resp_cookie(conn, "_nexus_refresh", token,
+  defp put_refresh_cookie(conn, token, remember_me \\ true) do
+    opts = [
       http_only: true,
       same_site: "Lax",
-      max_age: 30 * 24 * 60 * 60,
       secure: Application.get_env(:nexus, :env) == :prod
-    )
+    ]
+    # Only set max_age (persistent) if remember_me is true
+    # Without max_age the cookie is session-only and clears when browser closes
+    opts = if remember_me, do: Keyword.put(opts, :max_age, 30 * 24 * 60 * 60), else: opts
+    put_resp_cookie(conn, "_nexus_refresh", token, opts)
   end
 
   defp user_json(user) do
@@ -299,7 +304,9 @@ defmodule NexusWeb.API.V1.AuthController do
       username: user.username,
       email: user.email,
       role: user.role,
+      bio: user.bio,
       avatar_url: user.avatar_url,
+      cover_url: user.cover_url,
       email_verified: user.email_verified,
       inserted_at: user.inserted_at
     }

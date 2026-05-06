@@ -382,18 +382,21 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Auth */
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);}
-.auth-card{width:100%;max-width:360px;padding:32px;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;}
-.auth-logo{text-align:center;margin-bottom:24px;}
-.auth-title{font-size:18px;font-weight:600;color:var(--t1);margin-top:8px;}
-.auth-sub{font-size:13px;color:var(--t4);margin-top:4px;}
-.fg{margin-bottom:14px;}
-.fl{font-size:12px;color:var(--t3);margin-bottom:5px;display:block;}
-.fi{width:100%;padding:9px 13px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--t1);font-size:13px;outline:none;transition:border-color .15s;}
+.auth-card{width:100%;max-width:440px;padding:40px;background:var(--s2);border:0.5px solid var(--b2);border-radius:20px;}
+.auth-logo{text-align:center;margin-bottom:28px;}
+.auth-title{font-size:22px;font-weight:600;color:var(--t1);margin-top:10px;}
+.auth-sub{font-size:14px;color:var(--t4);margin-top:6px;}
+.fg{margin-bottom:18px;}
+.fl{font-size:13px;color:var(--t3);margin-bottom:6px;display:block;}
+.fi{width:100%;padding:11px 15px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;color:var(--t1);font-size:15px;outline:none;transition:border-color .15s;}
 .fi:focus{border-color:var(--ac);}
 .fi::placeholder{color:var(--t5);}
-.ferr{font-size:12px;color:var(--red);margin-top:4px;}
+.ferr{font-size:13px;color:var(--red);margin-top:4px;}
 .link{color:var(--ac);cursor:pointer;}
-.auth-switch{text-align:center;font-size:12px;color:var(--t4);margin-top:18px;}
+.auth-switch{text-align:center;font-size:13px;color:var(--t4);margin-top:20px;}
+.remember-row{display:flex;align-items:center;gap:8px;margin-bottom:18px;cursor:pointer;user-select:none;}
+.remember-row input{width:16px;height:16px;accent-color:var(--ac);cursor:pointer;}
+.remember-row span{font-size:13px;color:var(--t3);}
 
 /* Admin */
 .admin-shell{display:flex;height:100vh;overflow:hidden;}
@@ -2637,12 +2640,13 @@ function GuestPrompt({onAuthRequired}) {
 // ── Auth Modal Form ───────────────────────────────────────────────────────────
 function AuthModalForm({mode, onLogin, onSwitch}) {
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
+  const [remember,setRemember]=useState(true);
   const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
   const submit=async e=>{
     e.preventDefault(); setLoading(true); setErr(null);
     try {
       const body = mode==="login"
-        ? {email: form.login, password: form.password}
+        ? {email: form.login, password: form.password, remember_me: remember}
         : {email: form.email, username: form.username, password: form.password};
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
@@ -2658,9 +2662,13 @@ function AuthModalForm({mode, onLogin, onSwitch}) {
           <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
         </>}
       <div className="fg"><label className="fl">Password</label><input className="fi" type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required/></div>
+      {mode==="login"&&<label className="remember-row">
+        <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>
+        <span>Remember me</span>
+      </label>}
       {err&&<div className="ferr" style={{marginBottom:10}}>{err}</div>}
-      <button className="btn-primary" style={{width:"100%",borderRadius:10,padding:"10px",marginBottom:16}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
-      <div style={{textAlign:"center",fontSize:12,color:"var(--t4)"}}>
+      <button className="btn-primary" style={{width:"100%",borderRadius:12,padding:"12px",marginBottom:18,fontSize:15}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
+      <div style={{textAlign:"center",fontSize:13,color:"var(--t4)"}}>
         {mode==="login"
           ?<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>
           :<>Have an account? <span className="link" onClick={()=>{onSwitch("login");setErr(null);}}>Sign in</span></>}
@@ -2797,12 +2805,12 @@ function App() {
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
       {authModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAuthModal(null)}>
-          <div style={{width:"100%",maxWidth:380,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:32,position:"relative"}}>
-            <button onClick={()=>setAuthModal(null)} style={{position:"absolute",top:14,right:16,background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
-            <div style={{textAlign:"center",marginBottom:24}}>
-              <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#ec4899)",margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
-              <div style={{fontSize:18,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
-              <div style={{fontSize:13,color:"var(--t4)",marginTop:4}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
+          <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:20,padding:40,position:"relative"}}>
+            <button onClick={()=>setAuthModal(null)} style={{position:"absolute",top:16,right:18,background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#ec4899)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>N</div>
+              <div style={{fontSize:22,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
+              <div style={{fontSize:14,color:"var(--t4)",marginTop:6}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
             </div>
             <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)}/>
           </div>
