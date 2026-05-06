@@ -541,9 +541,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thr-name{font-size:13px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-preview{font-size:12px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
-.bubble{width:fit-content;max-width:72%;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
+.bubble{max-width:100%;padding:9px 13px;font-size:13px;line-height:1.5;border-radius:18px;word-break:break-word;}
 .mine .bubble{background:var(--ac);color:var(--ac-on);font-weight:500;border-bottom-right-radius:4px;}
-.mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}.bubble .md-body{width:fit-content;}.bubble .md-body p:last-child{margin-bottom:0;}
+.mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}.bubble .md-body p:last-child{margin-bottom:0;}
 .theirs .bubble{background:rgba(255,255,255,0.07);color:var(--t2);border:0.5px solid var(--b1);border-bottom-left-radius:4px;}
 
 /* Profile */
@@ -2377,7 +2377,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
           const mine=m.user?.id===currentUser?.id;
           return (
             <div key={m.id} className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:8,alignItems:mine?"flex-end":"flex-start"}}>
-              <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row"}}>
+              <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row",maxWidth:"72vw"}}>
                 <div className="bubble"><Md text={m.body}/></div>
               </div>
             </div>
