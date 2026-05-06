@@ -52,9 +52,13 @@ defmodule NexusWeb.DMChannel do
     end
   end
 
-  # Client sends "typing"
-  def handle_in("typing", _payload, socket) do
-    broadcast_from!(socket, "typing", %{user_id: socket.assigns[:current_user_id]})
+  def handle_in("typing_start", _payload, socket) do
+    broadcast_from!(socket, "typing_start", %{user_id: socket.assigns[:current_user_id]})
+    {:noreply, socket}
+  end
+
+  def handle_in("typing_stop", _payload, socket) do
+    broadcast_from!(socket, "typing_stop", %{user_id: socket.assigns[:current_user_id]})
     {:noreply, socket}
   end
 

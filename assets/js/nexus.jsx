@@ -1676,9 +1676,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     const typingFn = e => {
       if(e.detail.channel===`post:${postId}` && e.detail.userId!==currentUser?.id) {
         const uid = String(e.detail.userId);
-        setTypingUsers(p=>p.includes(uid)?p:[...p,uid]);
-        clearTimeout(typingTimers.current[uid]);
-        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 6000);
+        if(e.detail.started === true) {
+          setTypingUsers(p=>p.includes(uid)?p:[...p,uid]);
+        } else {
+          setTypingUsers(p=>p.filter(u=>u!==uid));
+        }
       }
     };
     window.addEventListener("nexus:new_reply", replyFn);
@@ -1698,6 +1700,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
+    sendEvent?.(`post:${postId}`,"typing_stop",{});
     try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
       if(d.reply&&d.pending){setReplyBody("");toast("Your reply is pending moderator approval");}
       else if(d.reply){setReplies(p=>[...p,d.reply]);setReplyBody("");setPost(p=>({...p,reply_count:p.reply_count+1}));}
@@ -1876,7 +1879,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>}
           <div style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={v=>{setReplyBody(v);sendEvent?.(`post:${postId}`,"typing",{});}} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
               <div className="reply-box-foot">
                 <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
@@ -2320,9 +2323,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
     };
     const typingFn = e => {
       if(e.detail.channel===`dm:${threadId}` && e.detail.userId!==currentUser?.id) {
-        setTyping(true);
-        clearTimeout(typingRef.current);
-        typingRef.current = setTimeout(()=>setTyping(false), 6000);
+        setTyping(e.detail.started === true);
       }
     };
     window.addEventListener("nexus:dm_message", fn);
@@ -2330,16 +2331,19 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
     return ()=>{ window.removeEventListener("nexus:dm_message", fn); window.removeEventListener("nexus:typing", typingFn); };
   },[threadId,currentUser]);
 
-  const typingThrottleRef = useRef(null);
+  const wasTypingRef = useRef(false);
   const onTextChange = e => {
-    setText(e.target.value);
-    // Throttle typing events to once per 2s so the indicator stays visible while typing
-    if (!typingThrottleRef.current) {
-      sendEvent?.(`dm:${threadId}`, "typing", {});
-      typingThrottleRef.current = setTimeout(() => { typingThrottleRef.current = null; }, 2000);
+    const val = e.target.value;
+    setText(val);
+    if (val.length > 0 && !wasTypingRef.current) {
+      wasTypingRef.current = true;
+      sendEvent?.(`dm:${threadId}`, "typing_start", {});
+    } else if (val.length === 0 && wasTypingRef.current) {
+      wasTypingRef.current = false;
+      sendEvent?.(`dm:${threadId}`, "typing_stop", {});
     }
   };
-  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");try{await api.post(`/threads/${threadId}/messages`,{body});setTimeout(()=>endRef.current?.scrollIntoView(),50);}catch{setText(body);}finally{setSending(false);}};
+  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");wasTypingRef.current=false;sendEvent?.(`dm:${threadId}`,"typing_stop",{});try{await api.post(`/threads/${threadId}/messages`,{body});setTimeout(()=>endRef.current?.scrollIntoView(),50);}catch{setText(body);}finally{setSending(false);}};
   const sendImage=async file=>{
     if(!file)return;
     setUploading(true);
@@ -3394,15 +3398,15 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
             window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: String(threadId), message: payload}}));
           }
           // DM typing
-          if (event === "typing" && topic.startsWith("dm:")) {
-            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+          if ((event === "typing_start" || event === "typing_stop") && topic.startsWith("dm:")) {
+            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id, started: event === "typing_start"}}));
           }
           // Post replies — arrive on the post: channel (for viewers already on the page)
           if (event === "new_reply" && topic.startsWith("post:")) {
             window.dispatchEvent(new CustomEvent("nexus:new_reply", {detail: {postId: topic.split(":")[1], reply: payload}}));
           }
-          if (event === "typing" && topic.startsWith("post:")) {
-            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id}}));
+          if ((event === "typing_start" || event === "typing_stop") && topic.startsWith("post:")) {
+            window.dispatchEvent(new CustomEvent("nexus:typing", {detail: {channel: topic, userId: payload?.user_id, started: event === "typing_start"}}));
           }
         } catch {}
       };

@@ -67,14 +67,15 @@ defmodule NexusWeb.PostChannel do
     end
   end
 
-  # Client sends "typing" to broadcast typing indicator
-  def handle_in("typing", _payload, socket) do
+  def handle_in("typing_start", _payload, socket) do
     user_id = socket.assigns[:current_user_id]
+    if user_id, do: broadcast_from!(socket, "typing_start", %{user_id: user_id})
+    {:noreply, socket}
+  end
 
-    if user_id do
-      broadcast_from!(socket, "typing", %{user_id: user_id})
-    end
-
+  def handle_in("typing_stop", _payload, socket) do
+    user_id = socket.assigns[:current_user_id]
+    if user_id, do: broadcast_from!(socket, "typing_stop", %{user_id: user_id})
     {:noreply, socket}
   end
 
