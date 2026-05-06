@@ -43,7 +43,7 @@ function Lightbox({src, originalSrc, onClose}) {
   return (
     <div className="lb-overlay" onMouseDown={onClose}>
       <span className="lb-close" onMouseDown={e=>{e.stopPropagation();onClose();}}>×</span>
-      <img src={originalSrc||src} alt="" onMouseDown={e=>e.stopPropagation()}/>
+      <img src={originalSrc||src} alt=""/>
       {originalSrc&&originalSrc!==src&&
         <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onMouseDown={e=>e.stopPropagation()}>
           <i className="fa-solid fa-arrow-up-right-from-square" style={{marginRight:4}}></i>open original
