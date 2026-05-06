@@ -316,4 +316,10 @@ defmodule Nexus.Accounts do
     |> Ecto.Changeset.cast(%{avatar_url: avatar_url}, [:avatar_url])
     |> Repo.update()
   end
+
+  def update_cover(user, cover_url) do
+    user
+    |> Ecto.Changeset.cast(%{cover_url: cover_url}, [:cover_url])
+    |> Repo.update()
+  end
 end

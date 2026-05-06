@@ -31,6 +31,12 @@ defmodule NexusWeb.API.V1.UploadController do
               Accounts.update_avatar(user, served_url)
             end
 
+            # If cover upload, update the user's cover_url
+            if type == "cover_image" do
+              served_url = served_url(upload.webp_path || upload.original_path)
+              Accounts.update_cover(user, served_url)
+            end
+
             # If logo/favicon, update site_settings
             if type in ["logo", "favicon"] do
               served_url = served_url(upload.original_path)

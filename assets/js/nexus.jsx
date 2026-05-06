@@ -497,6 +497,9 @@ function spaceColor(space) { return space?.color || SPACE_COLORS[(space?.id||0) 
 function RsAv({user, size=34, color}) {
   const bg = color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
+  if (user?.avatar_url) return (
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:Math.round(size*0.28),objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`}} alt={user.username}/>
+  );
   return (
     <div style={{width:size,height:size,borderRadius:Math.round(size*0.28),background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0}}>
       {initials}
@@ -507,6 +510,9 @@ function RsAv({user, size=34, color}) {
 // Round avatar
 function Av({user, size=28}) {
   const bg = SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
+  if (user?.avatar_url) return (
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:`0.5px solid ${bg}55`}} alt={user?.username}/>
+  );
   return (
     <div style={{width:size,height:size,borderRadius:"50%",background:`${bg}33`,border:`0.5px solid ${bg}55`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.36),fontWeight:500,color:bg}}>
       {(user?.username||"?").slice(0,1).toUpperCase()}
@@ -1421,6 +1427,8 @@ function ProfilePage({username, currentUser, navigate}) {
   const [user,setUser]=useState(null);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState("posts");
+  const [uploadingAvatar,setUploadingAvatar]=useState(false);
+  const [uploadingCover,setUploadingCover]=useState(false);
   const isOwn = currentUser?.username === username;
 
   useEffect(()=>{
@@ -1439,6 +1447,33 @@ function ProfilePage({username, currentUser, navigate}) {
   },[username]);
 
   const col = spaceColor({id:user?.id||0});
+
+  const handleAvatarUpload = async (file) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "avatar");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
+      const d = await r.json();
+      if (d.upload) { setUser(p=>({...p, avatar_url: d.url})); toast("Avatar updated"); }
+      else toast(d.error||"Upload failed", "err");
+    } finally { setUploadingAvatar(false); }
+  };
+
+  const handleCoverUpload = async (file) => {
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "cover_image");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
+      const d = await r.json();
+      if (d.upload) { setUser(p=>({...p, cover_url: d.url})); toast("Cover updated"); }
+      else toast(d.error||"Upload failed", "err");
+    } finally { setUploadingCover(false); }
+  };
+
   const startDM = async () => {
     const d = await api.post("/threads/direct", {username});
     if(d.thread) navigate("dm", {threadId:d.thread.id, threadName:username});
@@ -1448,19 +1483,42 @@ function ProfilePage({username, currentUser, navigate}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{flex:1,overflowY:"auto"}}>
+        {/* Cover */}
         <div className="profile-cover">
-          <svg viewBox="0 0 680 160" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
-            <rect width="680" height="160" fill="#13121e"/>
-            {[0,40,80,120,160].map(y=><line key={y} x1="0" y1={y} x2="680" y2={y+160} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
-            {[0,80,160,240,320,400,480,560].map(x=><line key={x} x1={x} y1="0" x2={x+160} y2="160" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
-            <circle cx="120" cy="60" r="60" fill="none" stroke={`${col}30`} strokeWidth="0.5"/>
-            <circle cx="480" cy="100" r="80" fill="none" stroke={`${col}20`} strokeWidth="0.5"/>
-          </svg>
+          {user?.cover_url
+            ?<img src={user.cover_url} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} alt="cover"/>
+            :<svg viewBox="0 0 680 160" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
+              <rect width="680" height="160" fill="#13121e"/>
+              {[0,40,80,120,160].map(y=><line key={y} x1="0" y1={y} x2="680" y2={y+160} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
+              {[0,80,160,240,320,400,480,560].map(x=><line key={x} x1={x} y1="0" x2={x+160} y2="160" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
+              <circle cx="120" cy="60" r="60" fill="none" stroke={`${col}30`} strokeWidth="0.5"/>
+              <circle cx="480" cy="100" r="80" fill="none" stroke={`${col}20`} strokeWidth="0.5"/>
+            </svg>}
           <div className="profile-cover-gradient"/>
+          {isOwn&&<label className="profile-cover-edit" style={{opacity:uploadingCover?.5:1}}>
+            <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleCoverUpload(e.target.files[0])}/>
+            {uploadingCover
+              ?<><i className="fa-solid fa-spinner fa-spin" style={{marginRight:5}}></i>Uploading…</>
+              :<><i className="fa-solid fa-camera" style={{marginRight:5}}></i>Edit cover</>}
+          </label>}
         </div>
+
         <div className="profile-info-wrap">
           <div className="profile-av-row">
-            <div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>
+            {/* Avatar */}
+            <div style={{position:"relative",display:"inline-block"}}>
+              {user?.avatar_url
+                ?<img src={user.avatar_url} style={{width:64,height:64,borderRadius:12,objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
+                :<div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>}
+              {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:12,background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
+                <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleAvatarUpload(e.target.files[0])}/>
+                {uploadingAvatar
+                  ?<i className="fa-solid fa-spinner fa-spin" style={{color:"#fff",fontSize:16}}></i>
+                  :<i className="fa-solid fa-camera" style={{color:"#fff",fontSize:16,opacity:0,transition:"opacity .15s"}} ref={el=>{if(el){el.closest("label").onmouseenter=()=>el.style.opacity=1;el.closest("label").onmouseleave=()=>el.style.opacity=0;}}}></i>}
+              </label>}
+            </div>
             {!isOwn&&<div style={{display:"flex",gap:8,marginBottom:4}}>
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} onClick={startDM}>Message</button>
             </div>}

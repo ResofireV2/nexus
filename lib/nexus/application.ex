@@ -5,7 +5,7 @@ defmodule Nexus.Application do
   def start(_type, _args) do
     # Ensure upload directories exist
     static = Application.app_dir(:nexus, "priv/static")
-    for dir <- ~w(uploads/posts uploads/avatars uploads/logos uploads/webp/posts uploads/webp/avatars uploads/webp/logos) do
+    for dir <- ~w(uploads/posts uploads/avatars uploads/covers uploads/logos uploads/webp/posts uploads/webp/avatars uploads/webp/covers uploads/webp/logos) do
       File.mkdir_p!(Path.join(static, dir))
     end
 

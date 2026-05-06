@@ -49,6 +49,10 @@ defmodule Nexus.Uploads do
       %Upload{}
       |> Upload.changeset(attrs)
       |> Repo.insert()
+      |> case do
+        {:ok, upload} -> {:ok, Repo.preload(upload, [:user, :post])}
+        err -> err
+      end
     end
   end
 
@@ -224,12 +228,14 @@ defmodule Nexus.Uploads do
 
   defp upload_dir("post_image"), do: "posts"
   defp upload_dir("avatar"),     do: "avatars"
+  defp upload_dir("cover_image"), do: "covers"
   defp upload_dir("logo"),       do: "logos"
   defp upload_dir("favicon"),    do: "logos"
 
-  defp max_width_for("avatar", _settings),  do: 400
-  defp max_width_for("logo",   _settings),  do: 400
-  defp max_width_for(_, settings),          do: settings["max_width"] || 1200
+  defp max_width_for("avatar", _settings),       do: 400
+  defp max_width_for("logo",   _settings),       do: 400
+  defp max_width_for("cover_image", _settings),  do: 1920
+  defp max_width_for(_, settings),               do: settings["max_width"] || 1200
 
   defp full_path(rel), do: Path.join(static_dir(), rel)
 
