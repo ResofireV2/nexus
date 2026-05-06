@@ -10,16 +10,26 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
     node.setAttribute("data-lightbox-link", "true");
   }
   if (node.tagName === "IMG") {
-    // Store the parent link href on the img itself before DOMPurify might strip the <a>
     const parent = node.parentElement;
     if (parent && parent.tagName === "A") {
       node.setAttribute("data-original", parent.getAttribute("href") || "");
     }
   }
 });
+
+// Custom marked renderer — sets data-original from link href for lightbox
+const mdRenderer = new marked.Renderer();
+mdRenderer.link = function(href, title, text) {
+  if (text && text.includes('<img ')) {
+    // Link wraps an image — set data-original to href (the original file URL)
+    return text.replace('<img ', `<img data-original="${href}" `);
+  }
+  return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+};
+marked.use({ renderer: mdRenderer });
+
 function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
-  ADD_TAGS: ["a"],
-  ADD_ATTR: ["href", "target", "rel", "data-original", "data-lightbox-link"]
+  ADD_ATTR: ["data-original", "data-lightbox-link"]
 }) : ""; }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
@@ -51,11 +61,12 @@ function useLightbox() {
 }
 // Attach delegated click handler to .md-body images once at module load
 document.addEventListener("click", e => {
+  // Handle click on image directly
   const img = e.target.closest(".md-body img");
   if (!img) return;
   e.preventDefault();
-  const link = img.closest("a");
-  const originalSrc = img.getAttribute("data-original") || link?.href || img.src;
+  e.stopPropagation();
+  const originalSrc = img.getAttribute("data-original") || img.src;
   if (_lbSetState) _lbSetState({ src: img.src, originalSrc });
 });
 
@@ -445,7 +456,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body a{color:var(--blue);}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
-.md-body a:has(img){display:inline-block;pointer-events:none;}
+.md-body a:has(img){display:inline-block;}
 /* Lightbox */
 .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
 .lb-overlay img{max-width:calc(100vw - 48px);max-height:calc(100vh - 80px);border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
