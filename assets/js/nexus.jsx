@@ -1259,6 +1259,7 @@ function AvatarMenu({user, navigate, onLogout}) {
 function AuthPage({onLogin}) {
   const [mode,setMode]=useState("login");
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
+  const [showPw,setShowPw]=useState(false);
   const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
   const submit=async e=>{
     e.preventDefault(); setLoading(true); setErr(null);
@@ -1286,7 +1287,13 @@ function AuthPage({onLogin}) {
               <div className="fg"><label className="fl">Email</label><input className="fi" type="email" placeholder="you@example.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} required autoFocus/></div>
               <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
             </>}
-          <div className="fg"><label className="fl">Password</label><input className="fi" type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required/></div>
+          <div className="fg"><label className="fl">Password</label>
+          <div style={{position:"relative"}}>
+            <input className="fi" type={showPw?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required style={{paddingRight:40}}/>
+            <span onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:"var(--t4)",fontSize:15,userSelect:"none"}}>
+              <i className={`fa-solid ${showPw?"fa-eye-slash":"fa-eye"}`}/>
+            </span>
+          </div></div>
           {err&&<div className="ferr" style={{marginBottom:10}}>{err}</div>}
           <button className="btn-primary" style={{width:"100%",borderRadius:10,padding:"10px"}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
         </form>
@@ -3270,6 +3277,7 @@ function GuestPrompt({onAuthRequired, registrationOpen=true}) {
 // ── Auth Modal Form ───────────────────────────────────────────────────────────
 function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
+  const [showPw,setShowPw]=useState(false);
   const [remember,setRemember]=useState(true);
   const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
   const submit=async e=>{
@@ -3291,7 +3299,13 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
           <div className="fg"><label className="fl">Email</label><input className="fi" type="email" placeholder="you@example.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} required autoFocus/></div>
           <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
         </>}
-      <div className="fg"><label className="fl">Password</label><input className="fi" type="password" placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required/></div>
+      <div className="fg"><label className="fl">Password</label>
+          <div style={{position:"relative"}}>
+            <input className="fi" type={showPw?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required style={{paddingRight:40}}/>
+            <span onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:"var(--t4)",fontSize:15,userSelect:"none"}}>
+              <i className={`fa-solid ${showPw?"fa-eye-slash":"fa-eye"}`}/>
+            </span>
+          </div></div>
       {mode==="login"&&<label className="remember-row">
         <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>
         <span>Remember me</span>
