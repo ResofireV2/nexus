@@ -170,7 +170,7 @@ const api = {
   get: p => api.request("GET", p),
   post: (p,b) => api.request("POST", p, b),
   patch: (p,b) => api.request("PATCH", p, b),
-  delete: p => api.request("DELETE", p),
+  delete: (p,b) => api.request("DELETE", p, b),
 };
 
 // ── Global CSS ───────────────────────────────────────────────────────────────
@@ -343,10 +343,22 @@ select option{background:#1a1a2e;color:var(--t1);}
 .post-title{font-size:20px;font-weight:600;color:var(--t1);letter-spacing:-.3px;line-height:1.35;margin-bottom:12px;}
 .post-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
 .post-body{font-size:14px;color:var(--t3);line-height:1.75;padding-bottom:18px;border-bottom:0.5px solid var(--b1);}
-.reaction-row{display:flex;gap:6px;padding:12px 0;flex-wrap:wrap;}
-.rx-btn{font-size:12px;color:var(--t4);padding:4px 11px;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);transition:all .1s;}
-.rx-btn:hover{border-color:var(--b2);color:var(--t2);}
-.rx-btn.lit{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
+.reaction-row{display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;}
+/* React button */
+.rx-trigger{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:5px 12px;border:0.5px solid rgba(255,255,255,0.12);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--t4);transition:all .15s;user-select:none;position:relative;}
+.rx-trigger:hover{border-color:var(--b2);color:var(--t2);background:rgba(255,255,255,0.06);}
+.rx-trigger.reacted{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
+/* Reaction picker */
+.rx-picker{position:absolute;bottom:calc(100% + 8px);left:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;}
+@keyframes rxPop{from{opacity:0;transform:scale(.92) translateY(4px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.rx-pick-btn{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:all .1s;border:1.5px solid transparent;}
+.rx-pick-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.15);}
+.rx-pick-btn.selected{border-color:var(--ac);background:var(--ac-bg);}
+/* Reaction count pills */
+.rx-pills{display:flex;gap:5px;flex-wrap:wrap;}
+.rx-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 10px;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--t4);transition:all .1s;}
+.rx-pill:hover{border-color:var(--b2);color:var(--t2);}
+.rx-pill.mine{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
 .replies-count{font-size:12px;color:var(--t3);}
 .reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);display:flex;gap:12px;}
@@ -681,7 +693,79 @@ function applyBranding(app={}, gen={}) {
   setBrandingState({logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null});
 }
 
-// ── Rich Text Area ────────────────────────────────────────────────────────────
+// ── Reactions ─────────────────────────────────────────────────────────────────
+const REACTIONS = [
+  {emoji:"❤️", label:"Love"},
+  {emoji:"👍", label:"Like"},
+  {emoji:"😂", label:"Haha"},
+  {emoji:"😲", label:"Wow"},
+  {emoji:"😭", label:"Sad"},
+  {emoji:"🔥", label:"Fire"},
+  {emoji:"🎉", label:"Celebrate"},
+  {emoji:"👀", label:"Eyes"},
+];
+
+function ReactionButton({postId, replyId, initialReactions=[], initialUserReaction=null, currentUser, onAuthRequired}) {
+  const [open, setOpen] = useState(false);
+  const [reactions, setReactions] = useState(initialReactions);
+  const [userReaction, setUserReaction] = useState(initialUserReaction);
+  const ref = useRef();
+
+  useEffect(()=>{ setReactions(initialReactions); },[JSON.stringify(initialReactions)]);
+  useEffect(()=>{ setUserReaction(initialUserReaction); },[initialUserReaction]);
+
+  useEffect(()=>{
+    if(!open) return;
+    const fn=e=>{ if(ref.current&&!ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown",fn);
+    return ()=>document.removeEventListener("mousedown",fn);
+  },[open]);
+
+  const react = async(emoji) => {
+    if(!currentUser){ onAuthRequired?.("login"); setOpen(false); return; }
+    setOpen(false);
+    const body = {emoji, ...(postId?{post_id:postId}:{reply_id:replyId})};
+    if(userReaction===emoji){
+      // Toggle off
+      const d = await api.delete("/reactions", body);
+      if(d.ok){ setReactions(d.reactions||[]); setUserReaction(null); }
+    } else {
+      const d = await api.post("/reactions", body);
+      if(d.ok){ setReactions(d.reactions||[]); setUserReaction(d.user_reaction); }
+    }
+  };
+
+  const totalCount = reactions.reduce((s,r)=>s+(r.count||0),0);
+
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      {/* React trigger button */}
+      <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
+        <span style={{fontSize:16,lineHeight:1}}>{userReaction||"❤️"}</span>
+        {totalCount>0&&<span>{totalCount}</span>}
+        {!totalCount&&<span>React</span>}
+        {open&&(
+          <div className="rx-picker" onClick={e=>e.stopPropagation()}>
+            {REACTIONS.map(({emoji,label})=>(
+              <div key={emoji} className={`rx-pick-btn ${userReaction===emoji?"selected":""}`}
+                title={label} onClick={e=>{e.stopPropagation();react(emoji);}}>
+                {emoji}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* Count pills for each reaction type */}
+      {reactions.filter(r=>r.count>0).map(r=>(
+        <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
+          onClick={()=>react(r.emoji)} title={REACTIONS.find(x=>x.emoji===r.emoji)?.label||r.emoji}>
+          <span style={{fontSize:14}}>{r.emoji}</span>
+          <span>{r.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 const SLASH_ITEMS = [
   {type:"image", icon:"🖼", label:"Image",      desc:"Upload or embed"},
   {type:"code",  icon:"</>",label:"Code block", desc:"Syntax highlighted"},
@@ -1230,13 +1314,11 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 }
 
 // ── Post view ─────────────────────────────────────────────────────────────────
-function PostPage({postId, currentUser, navigate, spaces}) {
+function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
   const [edMode,setEdMode]=useState("markdown"); const [submitting,setSubmitting]=useState(false);
-  const [myRx,setMyRx]=useState(new Set());
-  const [rxCounts,setRxCounts]=useState({});
-  const [replyRxCounts,setReplyRxCounts]=useState({}); // {replyId: {emoji: count}}
+  const [userReaction,setUserReaction]=useState(null);
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
   const [reporting,setReporting]=useState(false);
@@ -1245,16 +1327,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
     (async()=>{ setLoading(true);
       try { const [pd,rd]=await Promise.all([api.get(`/posts/${postId}`),api.get(`/posts/${postId}/replies`)]);
         setPost(pd.post); setReplies(rd.replies||[]);
-        const counts={};
-        (pd.post?.reactions||[]).forEach(r=>{ counts[r.emoji]=r.count||0; });
-        setRxCounts(counts);
-        // Build per-reply emoji counts
-        const rCounts={};
-        (rd.replies||[]).forEach(reply=>{
-          rCounts[reply.id]={};
-          (reply.reactions||[]).forEach(rx=>{ rCounts[reply.id][rx.emoji]=rx.count||0; });
-        });
-        setReplyRxCounts(rCounts);
+        setUserReaction(pd.post?.user_reaction||null);
       }
       finally { setLoading(false); }
     })();
@@ -1285,19 +1358,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
     setPost(p=>({...p, [action]:!p[action]}));
     toast(action.charAt(0).toUpperCase()+action.slice(1)+"d");
   };
-  const react=async(emoji, replyId=null)=>{
-    const k=`${emoji}-${replyId||"post"}`; if(myRx.has(k))return;
-    const payload = replyId ? {emoji, reply_id:replyId} : {emoji, post_id:post.id};
-    await api.post("/reactions", payload);
-    setMyRx(p=>new Set([...p,k]));
-    if(!replyId) {
-      setRxCounts(p=>({...p, [emoji]:(p[emoji]||0)+1}));
-      setPost(p=>({...p,reaction_count:p.reaction_count+1}));
-    } else {
-      setReplyRxCounts(p=>({...p, [replyId]:{...(p[replyId]||{}), [emoji]:((p[replyId]||{})[emoji]||0)+1}}));
-      setReplies(p=>p.map(r=>r.id===replyId?{...r,reaction_count:(r.reaction_count||0)+1}:r));
-    }
-  };
+
 
   const col = spaceColor(post?.space||{id:postId});
 
@@ -1351,7 +1412,7 @@ function PostPage({postId, currentUser, navigate, spaces}) {
             </div>
             <div className="post-body"><Md text={post.body}/></div>
             <div className="reaction-row">
-              {["+1","❤","🔥","🎉","💡"].map(e=><div key={e} className={`rx-btn ${myRx.has(`${e}-post`)?"lit":""}`} onClick={()=>react(e)}>{e} · {rxCounts[e]||0}</div>)}
+              <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
             </div>
           </div>
         </div>
@@ -1378,8 +1439,8 @@ function PostPage({postId, currentUser, navigate, spaces}) {
                 </span>
               </div>
               <div className="reply-text"><Md text={r.body}/></div>
-              <div className="reaction-row" style={{marginTop:8}}>
-                {["+1","❤","🔥"].map(e=><div key={e} className={`rx-btn ${myRx.has(`${e}-${r.id}`)?"lit":""}`} onClick={()=>react(e,r.id)} style={{fontSize:11,padding:"3px 9px"}}>{e} · {(replyRxCounts[r.id]||{})[e]||0}</div>)}
+              <div className="reaction-row" style={{marginTop:6}}>
+                <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
               </div>
             </div>
           </div>
@@ -2913,7 +2974,7 @@ function App() {
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} currentUser={currentUser} navigate={navigate}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
-      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces}/>;
+      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
       default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;

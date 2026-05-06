@@ -279,6 +279,28 @@ defmodule Nexus.Forum do
   # ---------------------------------------------------------------------------
 
   def add_reaction(user_id, attrs) do
+    post_id  = attrs["post_id"]
+    reply_id = attrs["reply_id"]
+    new_emoji = attrs["emoji"]
+
+    # Remove any existing reaction from this user on this post/reply first
+    existing_query =
+      from r in Reaction, where: r.user_id == ^user_id
+
+    existing_query =
+      cond do
+        post_id  -> where(existing_query, [r], r.post_id == ^post_id)
+        reply_id -> where(existing_query, [r], r.reply_id == ^reply_id)
+        true     -> existing_query
+      end
+
+    case Repo.one(existing_query) do
+      nil -> :ok
+      old_reaction ->
+        Repo.delete(old_reaction)
+        update_reaction_count(old_reaction, -1)
+    end
+
     result =
       %Reaction{}
       |> Reaction.changeset(Map.put(attrs, "user_id", user_id))
@@ -315,6 +337,15 @@ defmodule Nexus.Forum do
         update_reaction_count(reaction, -1)
         {:ok, :removed}
     end
+  end
+
+  @doc "Get the emoji a specific user reacted with on a post or reply. Returns nil if no reaction."
+  def get_user_reaction(user_id, post_id: post_id) do
+    Repo.one(from r in Reaction, where: r.user_id == ^user_id and r.post_id == ^post_id, select: r.emoji)
+  end
+
+  def get_user_reaction(user_id, reply_id: reply_id) do
+    Repo.one(from r in Reaction, where: r.user_id == ^user_id and r.reply_id == ^reply_id, select: r.emoji)
   end
 
   def list_reactions(post_id: post_id) do

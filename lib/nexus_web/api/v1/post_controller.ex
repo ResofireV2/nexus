@@ -13,7 +13,10 @@ defmodule NexusWeb.API.V1.PostController do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       post ->
         reactions = Forum.list_reactions(post_id: post.id)
-        json(conn, %{post: Map.put(post_json(post), :reactions, reactions)})
+        user_reaction = if conn.assigns[:current_user] do
+          Forum.get_user_reaction(conn.assigns.current_user.id, post_id: post.id)
+        end
+        json(conn, %{post: Map.merge(post_json(post), %{reactions: reactions, user_reaction: user_reaction})})
     end
     end
   end

@@ -5,7 +5,7 @@ defmodule NexusWeb.API.V1.ReactionController do
   alias Nexus.Notifications
 
   # POST /api/v1/reactions
-  # Body: { "emoji": "👍", "post_id": 1 }  or  { "emoji": "👍", "reply_id": 1 }
+  # Body: { "emoji": "❤️", "post_id": 1 }  or  { "emoji": "❤️", "reply_id": 1 }
   def create(conn, params) do
     user = conn.assigns.current_user
 
@@ -17,7 +17,6 @@ defmodule NexusWeb.API.V1.ReactionController do
 
     case Forum.add_reaction(user.id, attrs) do
       {:ok, reaction} ->
-        # Fire notification asynchronously
         Task.start(fn ->
           target = cond do
             reaction.post_id  -> Forum.get_post(reaction.post_id)
@@ -26,7 +25,15 @@ defmodule NexusWeb.API.V1.ReactionController do
           end
           if target, do: Nexus.Notifications.notify_reaction(target, user, params["emoji"])
         end)
-        conn |> put_status(:created) |> json(%{ok: true})
+
+        # Return updated counts and user's current reaction
+        reactions = if reaction.post_id do
+          Forum.list_reactions(post_id: reaction.post_id)
+        else
+          Forum.list_reactions(reply_id: reaction.reply_id)
+        end
+
+        conn |> put_status(:created) |> json(%{ok: true, reactions: reactions, user_reaction: reaction.emoji})
 
       {:error, changeset} ->
         conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
@@ -34,7 +41,6 @@ defmodule NexusWeb.API.V1.ReactionController do
   end
 
   # DELETE /api/v1/reactions
-  # Body: { "emoji": "👍", "post_id": 1 }
   def delete(conn, params) do
     user_id = conn.assigns.current_user.id
 
@@ -45,7 +51,13 @@ defmodule NexusWeb.API.V1.ReactionController do
     }
 
     case Forum.remove_reaction(user_id, attrs) do
-      {:ok, :removed} -> json(conn, %{ok: true})
+      {:ok, :removed} ->
+        reactions = if params["post_id"] do
+          Forum.list_reactions(post_id: params["post_id"])
+        else
+          Forum.list_reactions(reply_id: params["reply_id"])
+        end
+        json(conn, %{ok: true, reactions: reactions, user_reaction: nil})
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "Reaction not found"})
     end
