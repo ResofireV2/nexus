@@ -1678,7 +1678,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         const uid = String(e.detail.userId);
         setTypingUsers(p=>p.includes(uid)?p:[...p,uid]);
         clearTimeout(typingTimers.current[uid]);
-        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 4000);
+        typingTimers.current[uid] = setTimeout(()=>setTypingUsers(p=>p.filter(u=>u!==uid)), 6000);
       }
     };
     window.addEventListener("nexus:new_reply", replyFn);
@@ -2322,7 +2322,7 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
       if(e.detail.channel===`dm:${threadId}` && e.detail.userId!==currentUser?.id) {
         setTyping(true);
         clearTimeout(typingRef.current);
-        typingRef.current = setTimeout(()=>setTyping(false), 4000);
+        typingRef.current = setTimeout(()=>setTyping(false), 6000);
       }
     };
     window.addEventListener("nexus:dm_message", fn);
@@ -2375,9 +2375,12 @@ function DMPage({threadId, threadName, currentUser, navigate, joinTopic, leaveTo
         })}
         <div ref={endRef}/>
       </div>
-      {typing&&<div style={{padding:"4px 20px 0",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
-        <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
-        {threadName} is typing…
+      {typing&&<div className="theirs" style={{display:"flex",flexDirection:"column",gap:2,marginBottom:4,alignItems:"flex-start",padding:"0 20px"}}>
+        <div style={{display:"flex",alignItems:"flex-end",gap:6}}>
+          <div className="bubble" style={{display:"flex",alignItems:"center",gap:5,padding:"10px 16px",minWidth:56}}>
+            {[0,1,2].map(i=><span key={i} style={{width:7,height:7,borderRadius:"50%",background:"var(--t3)",display:"inline-block",animation:`bounce 1.2s ${i*0.2}s infinite`}}/>)}
+          </div>
+        </div>
       </div>}
       <form onSubmit={send} style={{borderTop:"0.5px solid var(--b1)",padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:8,flexShrink:0}}>
         <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}} onChange={e=>sendImage(e.target.files[0])}/>
