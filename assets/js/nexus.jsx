@@ -422,7 +422,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .remember-row span{font-size:13px;color:var(--t3);}
 
 /* Admin */
-.admin-shell{display:flex;height:100vh;overflow:hidden;}
+.admin-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
 .admin-topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 24px;gap:14px;flex-shrink:0;}
 .admin-badge{font-size:12px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:6px;}
 .admin-sidenav{width:260px;min-width:260px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
@@ -2894,7 +2894,7 @@ function App() {
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
 
   // Admin gets its own full shell
-  if(page==="admin"&&currentUser) return <><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/><Toasts/></>;
+  if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/></div><Toasts/></>;
 
   const renderPage=()=>{
     const requireAuth = (el) => {
