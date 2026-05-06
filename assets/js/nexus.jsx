@@ -2408,7 +2408,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
         {resolvedImage&&<div style={{width:28,height:28,borderRadius:"50%",backgroundImage:`url(${resolvedImage})`,backgroundSize:"cover",backgroundPosition:"center",flexShrink:0}}/>}
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{resolvedName}</span>
-        {thread?.kind==="group"&&thread?.creator_id===currentUser?.id&&(
+        {thread?.kind==="group"&&(thread?.creator_id===currentUser?.id||!thread?.creator_id)&&(
           <button onClick={()=>setShowSettings(true)} style={{marginLeft:"auto",width:30,height:30,borderRadius:"50%",background:"transparent",border:"none",cursor:"pointer",color:"var(--t4)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} title="Group settings">
             <i className="fa-solid fa-gear" style={{fontSize:14}}/>
           </button>
