@@ -1022,7 +1022,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 }
 
 // ── Shared topbar ─────────────────────────────────────────────────────────────
-function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired}) {
+function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true}) {
   const [q,setQ]=useState("");
   return (
     <div className="topbar">
@@ -1047,7 +1047,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
         </> : <>
           <button onClick={()=>onAuthRequired?.("login")} className="write-btn" style={{background:"transparent",border:"1.5px solid var(--b2)",color:"var(--t2)"}}>Log in</button>
-          <button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>
+          {registrationOpen&&<button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>}
         </>}
       </div>
     </div>
@@ -2745,21 +2745,21 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
 }
 
 // ── Guest Prompt ──────────────────────────────────────────────────────────────
-function GuestPrompt({onAuthRequired}) {
+function GuestPrompt({onAuthRequired, registrationOpen=true}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,color:"var(--t5)"}}>
       <i className="fa-solid fa-lock" style={{fontSize:28,opacity:.3}}></i>
       <div style={{fontSize:14,color:"var(--t2)",fontWeight:500}}>Sign in to continue</div>
       <div style={{display:"flex",gap:10}}>
         <button className="btn-ghost" onClick={()=>onAuthRequired("login")}>Log in</button>
-        <button className="btn-primary" onClick={()=>onAuthRequired("register")}>Sign up</button>
+        {registrationOpen&&<button className="btn-primary" onClick={()=>onAuthRequired("register")}>Sign up</button>}
       </div>
     </div>
   );
 }
 
 // ── Auth Modal Form ───────────────────────────────────────────────────────────
-function AuthModalForm({mode, onLogin, onSwitch}) {
+function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
   const [remember,setRemember]=useState(true);
   const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
@@ -2791,7 +2791,7 @@ function AuthModalForm({mode, onLogin, onSwitch}) {
       <button className="btn-primary" style={{width:"100%",borderRadius:12,padding:"12px",marginBottom:18,fontSize:15}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
       <div style={{textAlign:"center",fontSize:13,color:"var(--t4)"}}>
         {mode==="login"
-          ?<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>
+          ?<>{registrationOpen&&<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>}</>
           :<>Have an account? <span className="link" onClick={()=>{onSwitch("login");setErr(null);}}>Sign in</span></>}
       </div>
     </form>
@@ -2820,6 +2820,7 @@ function App() {
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
   const [authModal,setAuthModal]=useState(null); // null | "login" | "register"
+  const [registrationOpen,setRegistrationOpen]=useState(true);
 
   const navigate=useCallback((p,props={})=>{
     const url = pageToUrl(p, props);
@@ -2857,15 +2858,22 @@ function App() {
   );
 
   useEffect(()=>{
-    if(api.token) api.request("GET", "/auth/me", null, true, true).then(d=>{if(d.user)updateCurrentUser(d.user);setAuthChecked(true);}).catch(()=>setAuthChecked(true));
+    if(api.token) api.request("GET", "/auth/me", null, true, true).then(d=>{
+      if(d.user) updateCurrentUser(d.user);
+      else if(d.error) { api.setToken(null); updateCurrentUser(null); }
+      // If d is empty (network hiccup), keep existing cached user
+      setAuthChecked(true);
+    }).catch(()=>setAuthChecked(true));
     else setAuthChecked(true);
   },[]);
 
-  useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));},[]);
+  useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
+    // Load registration setting publicly to show/hide signup buttons
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);}).catch(()=>{});
+  },[]);
 
   useEffect(()=>{
     if(!currentUser) return;
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});}).catch(()=>{});
   },[currentUser]);
 
   useEffect(()=>{
@@ -2890,7 +2898,7 @@ function App() {
 
   const renderPage=()=>{
     const requireAuth = (el) => {
-      if(!currentUser) return <GuestPrompt onAuthRequired={m=>setAuthModal(m)}/>;
+      if(!currentUser) return <GuestPrompt onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>;
       return el;
     };
     switch(page) {
@@ -2918,7 +2926,7 @@ function App() {
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onAuthRequired={m=>setAuthModal(m)}/>
         <div className="main-area">
-          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)}/>
+          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
           </div>
@@ -2936,7 +2944,7 @@ function App() {
               <div style={{fontSize:22,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
               <div style={{fontSize:14,color:"var(--t4)",marginTop:6}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
             </div>
-            <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)}/>
+            <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           </div>
         </div>
       )}
