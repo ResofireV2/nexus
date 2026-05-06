@@ -67,7 +67,7 @@ const api = {
   async request(method, path, body, retry=true) {
     const h = {"Content-Type":"application/json"};
     if (this.token) h["Authorization"] = `Bearer ${this.token}`;
-    const res = await fetch(`/api/v1${path}`, {method, headers:h, body: body ? JSON.stringify(body) : undefined});
+    const res = await fetch(`/api/v1${path}`, {method, headers:h, body: body ? JSON.stringify(body) : undefined, credentials:"include"});
     if (res.status === 401 && retry && path !== "/auth/refresh" && path !== "/auth/login") {
       // Try refreshing the token once
       const refreshed = await this.tryRefresh();
@@ -81,7 +81,7 @@ const api = {
     if (this.refreshing) return false;
     this.refreshing = true;
     try {
-      const res = await fetch("/api/v1/auth/refresh", {method:"POST", headers:{"Content-Type":"application/json"}});
+      const res = await fetch("/api/v1/auth/refresh", {method:"POST", headers:{"Content-Type":"application/json"}, credentials:"include"});
       if (res.ok) {
         const d = await res.json();
         if (d.access_token) { this.setToken(d.access_token); return true; }
