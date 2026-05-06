@@ -1046,7 +1046,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
           <button className="write-btn" onClick={()=>navigate("compose")}>+ write</button>
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
         </> : <>
-          <button onClick={()=>onAuthRequired?.("login")} style={{fontSize:12,padding:"6px 16px",borderRadius:20,background:"transparent",border:"0.5px solid var(--b2)",color:"var(--t3)",cursor:"pointer",fontFamily:"inherit"}}>Log in</button>
+          <button onClick={()=>onAuthRequired?.("login")} className="write-btn" style={{background:"transparent",border:"1.5px solid var(--b2)",color:"var(--t2)"}}>Log in</button>
           <button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>
         </>}
       </div>
