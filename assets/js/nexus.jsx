@@ -253,6 +253,14 @@ select option{background:#1a1a2e;color:var(--t1);}
 .tb-search{flex:1;max-width:400px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:24px;padding:10px 18px;font-size:14px;color:var(--t4);display:flex;align-items:center;gap:10px;cursor:text;}
 .tb-search input{background:transparent;border:none;outline:none;font-size:14px;color:var(--t2);font-family:inherit;flex:1;}
 .tb-search input::placeholder{color:var(--t4);}
+.tb-search-drop{position:absolute;top:calc(100% + 8px);left:0;right:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:14px;overflow:hidden;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5);}
+.tb-search-item{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .1s;}
+.tb-search-item:hover{background:rgba(255,255,255,0.05);}
+.tb-search-section{font-size:10px;font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.07em;padding:8px 14px 4px;}
+.tb-search-title{font-size:13px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.tb-search-sub{font-size:11px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.tb-search-all{padding:10px 14px;font-size:12px;color:var(--ac-text);cursor:pointer;text-align:center;border-top:0.5px solid var(--b1);}
+.tb-search-all:hover{background:rgba(255,255,255,0.04);}
 .icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;transition:background .1s;color:rgba(255,255,255,0.55);}
 .icon-btn:hover{background:rgba(255,255,255,0.09);}
 .icon-badge{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
@@ -1120,11 +1128,81 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 // ── Shared topbar ─────────────────────────────────────────────────────────────
 function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true}) {
   const [q,setQ]=useState("");
+  const [drop,setDrop]=useState(null); // {posts, replies} | null
+  const [searching,setSearching]=useState(false);
+  const searchRef=useRef();
+  const debounceRef=useRef();
+
+  const runSearch=useCallback(async(val)=>{
+    if(!val.trim()){setDrop(null);return;}
+    setSearching(true);
+    try{
+      const d=await api.get(`/search?q=${encodeURIComponent(val)}`);
+      setDrop(d);
+    }catch{setDrop(null);}
+    finally{setSearching(false);}
+  },[]);
+
+  const onChange=e=>{
+    const val=e.target.value; setQ(val);
+    clearTimeout(debounceRef.current);
+    if(!val.trim()){setDrop(null);return;}
+    debounceRef.current=setTimeout(()=>runSearch(val),300);
+  };
+
+  const goAll=()=>{ setDrop(null); onSearch?.(q); };
+
+  // Close dropdown on outside click
+  useEffect(()=>{
+    const fn=e=>{ if(searchRef.current&&!searchRef.current.contains(e.target)) setDrop(null); };
+    document.addEventListener("mousedown",fn);
+    return ()=>document.removeEventListener("mousedown",fn);
+  },[]);
+
+  const posts = (drop?.posts||[]).slice(0,5);
+  const replies = (drop?.replies||[]).slice(0,3);
+  const hasResults = posts.length>0||replies.length>0;
+
   return (
     <div className="topbar">
-      <div className="tb-search">
-        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:"rgba(255,255,255,0.25)"}}></i>
-        <input placeholder="search threads…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&onSearch?.(q)}/>
+      <div className="tb-search" ref={searchRef} style={{position:"relative"}}>
+        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:searching?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s"}}></i>
+        <input placeholder="search threads…" value={q}
+          onChange={onChange}
+          onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(debounceRef.current);goAll();}if(e.key==="Escape"){setDrop(null);setQ("");}}}
+          onFocus={()=>q.trim()&&!drop&&runSearch(q)}
+        />
+        {drop&&(
+          <div className="tb-search-drop">
+            {!hasResults&&<div style={{padding:"20px 14px",color:"var(--t5)",fontSize:13,textAlign:"center"}}>No results for "{q}"</div>}
+            {posts.length>0&&<>
+              <div className="tb-search-section">Threads</div>
+              {posts.map(p=>{
+                const col=spaceColor(p.space||{id:p.id});
+                return (
+                  <div key={p.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:p.id});}}>
+                    <RsAv user={p.user} size={28} color={col}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div className="tb-search-title">{p.title}</div>
+                      {p.space&&<div style={{fontSize:10,color:col,marginTop:1}}>{p.space.name}</div>}
+                    </div>
+                    <span style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>{ago(p.inserted_at)}</span>
+                  </div>
+                );
+              })}
+            </>}
+            {replies.length>0&&<>
+              <div className="tb-search-section">Replies</div>
+              {replies.map(r=>(
+                <div key={r.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:r.post_id});}}>
+                  <RsAv user={r.user} size={28} color={spaceColor({id:r.post_id})}/>
+                  <div className="tb-search-sub">{r.body?.replace(/!?\[.*?\]\(.*?\)/g,"").replace(/[#*`>]/g,"").slice(0,80)}</div>
+                </div>
+              ))}
+            </>}
+            {hasResults&&<div className="tb-search-all" onClick={goAll}>See all results for "{q}" →</div>}
+          </div>
+        )}
       </div>
       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
         {currentUser ? <>
@@ -1612,8 +1690,20 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
 // ── Search ────────────────────────────────────────────────────────────────────
 function SearchPage({navigate, tags, initialQ=""}) {
   const [q,setQ]=useState(initialQ); const [results,setResults]=useState(null); const [loading,setLoading]=useState(false);
-  const search=async()=>{if(!q.trim())return;setLoading(true);setResults(null);try{const d=await api.get(`/search?q=${encodeURIComponent(q)}`);setResults(d);}finally{setLoading(false);}};
-  useEffect(()=>{if(initialQ)search();},[]);
+  const debounceRef=useRef();
+  const search=useCallback(async(val)=>{
+    if(!val.trim()){setResults(null);return;}
+    setLoading(true);
+    try{const d=await api.get(`/search?q=${encodeURIComponent(val)}`);setResults(d);}
+    finally{setLoading(false);}
+  },[]);
+  const onChange=e=>{
+    const val=e.target.value; setQ(val);
+    clearTimeout(debounceRef.current);
+    if(!val.trim()){setResults(null);return;}
+    debounceRef.current=setTimeout(()=>search(val),300);
+  };
+  useEffect(()=>{if(initialQ)search(initialQ);},[]);
   const hasResults = results && ((results.posts?.length||0) + (results.replies?.length||0)) > 0;
   return (
     <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
@@ -1622,8 +1712,9 @@ function SearchPage({navigate, tags, initialQ=""}) {
       </div>
       <div className="search-wrap">
         <div className="search-bar">
-          <input className="fi" style={{flex:1}} placeholder="Search threads and replies…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&search()} autoFocus/>
-          <button className="btn-primary" onClick={search} disabled={loading}>Search</button>
+          <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:loading?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s",flexShrink:0}}></i>
+          <input className="fi" style={{flex:1,border:"none",background:"transparent",paddingLeft:0}} placeholder="Search threads and replies…" value={q} onChange={onChange} autoFocus/>
+          {loading&&<span style={{fontSize:12,color:"var(--t5)",flexShrink:0}}>searching…</span>}
         </div>
         {loading&&<div style={{textAlign:"center",color:"var(--t5)",padding:"40px 0"}}>Searching…</div>}
         {results&&!hasResults&&<div style={{textAlign:"center",color:"var(--t5)",padding:"40px 0"}}>No results for "{q}"</div>}
