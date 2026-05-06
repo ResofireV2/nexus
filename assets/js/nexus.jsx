@@ -1418,6 +1418,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
   };
 
 
+  const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const col = spaceColor(post?.space||{id:postId});
 
   if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
