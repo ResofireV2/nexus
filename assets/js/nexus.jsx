@@ -17,19 +17,54 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-// Custom marked renderer — sets data-original from link href for lightbox
+// Custom marked renderer — media embeds + lightbox image links
 const mdRenderer = new marked.Renderer();
+
+// ── Media embed helpers ───────────────────────────────────────────────────────
+function getYouTubeId(url) {
+  const m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+function getVimeoId(url) {
+  const m = url.match(/vimeo\.com\/(?:video\/)?([0-9]+)/);
+  return m ? m[1] : null;
+}
+function isVideoUrl(url) {
+  return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url);
+}
+function isAudioUrl(url) {
+  return /\.(mp3|ogg|wav|flac|m4a)(\?.*)?$/i.test(url);
+}
+
+// Paragraph override — detect bare media URLs and render embeds
+mdRenderer.paragraph = function(text) {
+  const stripped = text.trim();
+  // Only process if paragraph is a single bare URL (no spaces, no markdown)
+  if (/^https?:\/\/\S+$/.test(stripped)) {
+    const url = stripped;
+    const ytId = getYouTubeId(url);
+    if (ytId) return `<div class="md-embed"><iframe src="https://www.youtube-nocookie.com/embed/${ytId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
+    const vmId = getVimeoId(url);
+    if (vmId) return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
+    if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
+    if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
+  }
+  return `<p>${text}</p>`;
+};
+
+// Link override — lightbox for image links, external for regular links
 mdRenderer.link = function(href, title, text) {
   if (text && text.includes('<img ')) {
-    // Link wraps an image — set data-original to href (the original file URL)
     return text.replace('<img ', `<img data-original="${href}" `);
   }
   return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 };
+
 marked.use({ renderer: mdRenderer });
 
 function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
-  ADD_ATTR: ["data-original", "data-lightbox-link"]
+  ADD_TAGS: ["iframe", "video", "source", "audio"],
+  ADD_ATTR: ["data-original", "data-lightbox-link", "allowfullscreen", "loading", "frameborder", "src", "controls", "preload"]
 }) : ""; }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
@@ -460,6 +495,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
 .md-body a:has(img){display:inline-block;}
+.md-embed{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:12px;margin:12px 0;background:var(--bg2);border:0.5px solid var(--b1);}
+.md-embed iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:12px;}
+.md-embed-video{margin:12px 0;}
 /* Lightbox */
 .lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
 .lb-overlay img{max-width:calc(100vw - 48px);max-height:calc(100vh - 80px);border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
