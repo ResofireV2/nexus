@@ -2205,12 +2205,28 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
 }
 
 function DMPage({threadId, threadName, currentUser, navigate}) {
-  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const endRef=useRef();
+  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const endRef=useRef(); const imgRef=useRef();
   useEffect(()=>{
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
   },[threadId]);
   const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);try{const d=await api.post(`/threads/${threadId}/messages`,{body:text});if(d.message){setMessages(p=>[...p,d.message]);setText("");setTimeout(()=>endRef.current?.scrollIntoView(),50);}}finally{setSending(false);}};
+  const sendImage=async file=>{
+    if(!file)return;
+    setUploading(true);
+    try{
+      const fd=new FormData(); fd.append("file",file); fd.append("type","post_image");
+      const token=localStorage.getItem("nexus_token");
+      const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+      const up=await r.json();
+      if(up.url){
+        const body=`[![image](${up.url})](${up.original_url||up.url})`;
+        const d=await api.post(`/threads/${threadId}/messages`,{body});
+        if(d.message){setMessages(p=>[...p,d.message]);setTimeout(()=>endRef.current?.scrollIntoView(),50);}
+      } else toast(up.error||"Upload failed","err");
+    }catch{toast("Upload failed","err");}
+    finally{setUploading(false);if(imgRef.current)imgRef.current.value="";}
+  };
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0}}>
@@ -2223,7 +2239,7 @@ function DMPage({threadId, threadName, currentUser, navigate}) {
           return (
             <div key={m.id} className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:8,alignItems:mine?"flex-end":"flex-start"}}>
               <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row"}}>
-                <div className="bubble">{m.body}</div>
+                <div className="bubble"><Md text={m.body}/></div>
               </div>
             </div>
           );
@@ -2231,6 +2247,13 @@ function DMPage({threadId, threadName, currentUser, navigate}) {
         <div ref={endRef}/>
       </div>
       <form onSubmit={send} style={{borderTop:"0.5px solid var(--b1)",padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:8,flexShrink:0}}>
+        <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}} onChange={e=>sendImage(e.target.files[0])}/>
+        <button type="button" title="Attach image" onClick={()=>imgRef.current?.click()}
+          style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"var(--t4)"}}>
+          {uploading
+            ?<i className="fa-solid fa-spinner fa-spin" style={{fontSize:12}}/>
+            :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
+        </button>
         <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
           <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${threadName}…`} value={text} onChange={e=>setText(e.target.value)}/>
         </div>
