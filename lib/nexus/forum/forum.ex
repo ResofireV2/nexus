@@ -79,12 +79,29 @@ defmodule Nexus.Forum do
     |> Repo.get!(id)
   end
 
+  # Converts bare image URLs in post/reply bodies to markdown image syntax.
+  # e.g. https://example.com/photo.jpg → ![](https://example.com/photo.jpg)
+  @image_url_regex ~r/(?<![(\[])(https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|svg))(?![)\]])/i
+  defp embed_image_urls(nil), do: nil
+  defp embed_image_urls(body) do
+    Regex.replace(@image_url_regex, body, fn url, _ -> "![](#{url})" end)
+  end
+
+  defp normalize_attrs(attrs) do
+    case Map.get(attrs, "body") || Map.get(attrs, :body) do
+      nil  -> attrs
+      body ->
+        normalized = embed_image_urls(body)
+        attrs |> Map.delete("body") |> Map.delete(:body) |> Map.put("body", normalized)
+    end
+  end
+
   def create_post(attrs, user, tag_ids \\ []) do
     tags = Repo.all(from t in Tag, where: t.id in ^tag_ids)
 
     result =
       %Post{}
-      |> Post.changeset(attrs)
+      |> Post.changeset(normalize_attrs(attrs))
       |> Ecto.Changeset.put_change(:user_id, user.id)
       |> Ecto.Changeset.put_assoc(:tags, tags)
       |> Repo.insert()
@@ -101,7 +118,7 @@ defmodule Nexus.Forum do
   end
 
   def update_post(%Post{} = post, attrs, tag_ids \\ nil) do
-    changeset = Post.changeset(post, attrs)
+    changeset = Post.changeset(post, normalize_attrs(attrs))
 
     changeset =
       if tag_ids do
@@ -207,7 +224,7 @@ defmodule Nexus.Forum do
   def create_reply(post, attrs, user) do
     result =
       %Reply{}
-      |> Reply.changeset(attrs)
+      |> Reply.changeset(normalize_attrs(attrs))
       |> Ecto.Changeset.put_change(:user_id, user.id)
       |> Ecto.Changeset.put_change(:post_id, post.id)
       |> Repo.insert()
@@ -231,7 +248,7 @@ defmodule Nexus.Forum do
   end
 
   def update_reply(%Reply{} = reply, attrs) do
-    reply |> Reply.changeset(attrs) |> Repo.update()
+    reply |> Reply.changeset(normalize_attrs(attrs)) |> Repo.update()
   end
 
   def delete_reply(%Reply{} = reply) do
