@@ -1952,11 +1952,13 @@ function SpacesAdmin({spaces, onRefresh}) {
       if(editing==="new") {
         const d=await api.post("/spaces",form);
         if(d.space){toast("Space created");onRefresh();close();}
-        else toast(d.error||"Failed","err");
+        else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
       } else {
-        const d=await api.patch(`/spaces/${editing.slug}`,form);
+        // Explicitly build payload to avoid any stale closure issues with form state
+        const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility};
+        const d=await api.patch(`/spaces/${editing.slug}`,payload);
         if(d.space){toast("Space updated");onRefresh();close();}
-        else toast(d.error||"Failed","err");
+        else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
       }
     } finally { setSaving(false); }
   };
