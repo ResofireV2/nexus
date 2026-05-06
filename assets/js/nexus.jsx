@@ -434,15 +434,13 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-box-ta{width:100%;background:transparent;border:none;outline:none;font-size:13px;color:var(--t2);font-family:inherit;resize:none;min-height:72px;line-height:1.6;padding:14px 16px;caret-color:var(--ac);}
 .reply-box-ta::placeholder{color:rgba(255,255,255,0.15);}
 .reply-box-foot{padding:8px 12px;border-top:0.5px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;}
-.ed-toggle{display:flex;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;overflow:hidden;}
-.ed-opt{font-size:11px;padding:3px 11px;color:var(--t4);cursor:pointer;}
-.ed-opt.active{background:rgba(255,255,255,0.08);color:var(--t2);}
 
-/* Floating rich text toolbar */
-.float-tb{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:999px;display:flex;align-items:center;gap:2px;padding:4px 8px;z-index:9999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.6);}
-.float-tb-btn{font-size:12px;color:var(--t3);padding:4px 9px;border-radius:999px;cursor:pointer;border:none;background:transparent;font-family:inherit;transition:all .1s;}
-.float-tb-btn:hover{background:rgba(255,255,255,0.08);color:var(--t1);}
-.float-tb-sep{width:0.5px;height:14px;background:var(--b2);margin:0 2px;}
+
+/* Composer toolbar */
+.comp-toolbar{display:flex;align-items:center;gap:2px;padding:6px 8px;border-bottom:0.5px solid var(--b1);}
+.comp-tb-btn{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--t4);font-family:inherit;font-size:13px;transition:all .1s;}
+.comp-tb-btn:hover{background:rgba(255,255,255,0.07);color:var(--t1);}
+.comp-tb-sep{width:0.5px;height:16px;background:var(--b1);margin:0 3px;}
 .slash-menu{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;width:214px;overflow:hidden;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.6);}
 .slash-item{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;color:var(--t3);cursor:pointer;border-bottom:0.5px solid var(--b1);transition:background .1s;}
 .slash-item:last-child{border-bottom:none;}
@@ -823,31 +821,22 @@ const SLASH_ITEMS = [
   {type:"quote", icon:'"',  label:"Blockquote", desc:"Highlight a quote"},
   {type:"divider",icon:"—", label:"Divider",    desc:"Horizontal rule"},
 ];
+// Toolbar button definitions — used by the static toolbar in RichTextArea
 const TB_BTNS = [
-  {type:"bold",   label:"B",   style:{fontWeight:700},                wrap:["**","**"]},
-  {type:"italic", label:"I",   style:{fontStyle:"italic"},            wrap:["*","*"]},
-  {type:"strike", label:"S",   style:{textDecoration:"line-through"}, wrap:["~~","~~"]},
+  {type:"bold",    label:"B",    tip:"Bold",        style:{fontWeight:700},                    wrap:["**","**"]},
+  {type:"italic",  label:"I",    tip:"Italic",      style:{fontStyle:"italic"},                wrap:["*","*"]},
+  {type:"strike",  label:"S",    tip:"Strikethrough",style:{textDecoration:"line-through"},   wrap:["~~","~~"]},
   {sep:true},
-  {type:"h1",     label:"H1",  style:{fontSize:11},                   wrap:["# ",""]},
-  {type:"h2",     label:"H2",  style:{fontSize:11},                   wrap:["## ",""]},
+  {type:"h1",      label:"H1",   tip:"Heading 1",   style:{fontSize:12,fontWeight:700},        wrap:["# ",""]},
+  {type:"h2",      label:"H2",   tip:"Heading 2",   style:{fontSize:12,fontWeight:700},        wrap:["## ",""]},
   {sep:true},
-  {type:"incode", label:"</>", style:{fontFamily:"monospace",fontSize:10}, wrap:["`","`"]},
-  {type:"link",   label:"🔗",  style:{},                              wrap:["[","](url)"]},
+  {type:"incode",  label:"</>",  tip:"Inline code", style:{fontFamily:"monospace",fontSize:11},wrap:["`","`"]},
+  {type:"code",    label:"≡",    tip:"Code block",  style:{fontFamily:"monospace"},             wrap:["```\n","\n```"]},
+  {type:"link",    label:"🔗",   tip:"Link",        style:{},                                  wrap:["[","](url)"]},
+  {type:"quote",   label:"❝",    tip:"Blockquote",  style:{},                                  wrap:["> ",""]},
+  {type:"divider", label:"—",    tip:"Divider",     style:{},                                  wrap:["\n---\n",""]},
 ];
-let _floatTb=null, _slashMenu=null, _activeTA=null, _slashIdx=0;
-function getTb() {
-  if (!_floatTb) {
-    _floatTb = document.createElement("div");
-    _floatTb.className = "float-tb";
-    _floatTb.style.display = "none";
-    _floatTb.innerHTML = TB_BTNS.map(b => b.sep
-      ? `<div class="float-tb-sep"></div>`
-      : `<button class="float-tb-btn" data-type="${b.type}" style="${Object.entries(b.style).map(([k,v])=>`${k.replace(/[A-Z]/g,m=>'-'+m.toLowerCase())}:${v}`).join(';')}" onmousedown="event.preventDefault();_tbApply('${b.type}')">${b.label}</button>`
-    ).join("");
-    document.body.appendChild(_floatTb);
-  }
-  return _floatTb;
-}
+let _slashMenu=null, _activeTA=null, _slashIdx=0;
 function getSm() {
   if (!_slashMenu) {
     _slashMenu = document.createElement("div");
@@ -857,22 +846,10 @@ function getSm() {
   }
   return _slashMenu;
 }
-window._tbApply = function(type) {
-  const ta = _activeTA; if (!ta) return;
-  const b = TB_BTNS.find(x=>x.type===type); if (!b) return;
-  const [before,after] = b.wrap;
-  const s=ta.selectionStart, e=ta.selectionEnd;
-  const sel=ta.value.slice(s,e)||"text";
-  ta.value=ta.value.slice(0,s)+before+sel+after+ta.value.slice(e);
-  ta.focus(); ta.setSelectionRange(s+before.length,s+before.length+sel.length);
-  getTb().style.display="none";
-  ta.dispatchEvent(new Event("input",{bubbles:true}));
-};
 window._smPick = function(type) {
   const ta = _activeTA; if (!ta) return;
   getSm().style.display="none";
   if (type === "image") {
-    // Trigger the hidden file input attached to the active textarea's composer
     const input = document.getElementById("comp-img-input");
     if (input) input.click();
     return;
@@ -893,6 +870,20 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   const taRef = useRef(); const wrapRef = useRef();
   const imgInputRef = useRef();
   const [uploading, setUploading] = useState(false);
+
+  // Apply a format wrap to current selection or insert at cursor
+  const applyFormat = (wrap) => {
+    const ta = taRef.current; if (!ta) return;
+    const [before, after] = wrap;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.slice(s, e) || "text";
+    const newVal = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
+    onChange(newVal);
+    setTimeout(()=>{
+      ta.focus();
+      ta.setSelectionRange(s + before.length, s + before.length + sel.length);
+    }, 0);
+  };
   // Mention state
   const [mentionDrop, setMentionDrop] = useState(null); // {users, query, pos, x, y, selIdx}
   const mentionDebounce = useRef();
@@ -927,16 +918,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     ).join("");
     _slashIdx=0;
   };
-  const handleSel = () => {
-    const ta = taRef.current; if (!ta) return;
-    _activeTA = ta;
-    if (ta.selectionStart===ta.selectionEnd) { getTb().style.display="none"; return; }
-    const rect = ta.getBoundingClientRect();
-    const tb = getTb();
-    const tbW = 260;
-    const left = Math.max(rect.left, Math.min(rect.left+rect.width/2-tbW/2, rect.right-tbW));
-    tb.style.cssText=`display:flex;position:fixed;top:${rect.top-48}px;left:${left}px;`;
-  };
+
   const handleChange = e => {
     onChange(e.target.value);
     const ta = e.target;
@@ -958,7 +940,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     const last = val.split("\n").pop();
     const sm = getSm();
     if (/^\/([icbde])?$/.test(last)||last==="/") {
-      _activeTA = ta;
+      _activeTA = taRef.current;
       buildSm();
       const rect = ta.getBoundingClientRect();
       sm.style.cssText=`display:block;position:fixed;left:${rect.left}px;top:${rect.top-200}px;`;
@@ -981,7 +963,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     else if (e.key==="Escape"){sm.style.display="none";}
   };
   const handleBlur = () => {
-    setTimeout(()=>{ getTb().style.display="none"; getSm().style.display="none"; setMentionDrop(null); }, 200);
+    setTimeout(()=>{ getSm().style.display="none"; setMentionDrop(null); }, 200);
   };
 
   const insertImageMarkdown = (webpUrl, originalUrl, filename) => {
@@ -1026,10 +1008,26 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
 
   return (
     <div ref={wrapRef} style={{position:"relative"}}>
-      {!value && <div style={{position:"absolute",top:0,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75}}>{placeholder}</div>}
+      {/* Static toolbar */}
+      <div className="comp-toolbar">
+        {TB_BTNS.map((b,i)=> b.sep
+          ? <div key={i} className="comp-tb-sep"/>
+          : <button key={b.type} className="comp-tb-btn" title={b.tip}
+              style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
+              {b.label}
+            </button>
+        )}
+        <div className="comp-tb-sep"/>
+        <label className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
+          {uploading
+            ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
+            : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
+        </label>
+      </div>
+      {!value && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
-        onMouseUp={handleSel} onKeyUp={handleSel} onBlur={handleBlur} autoFocus={autoFocus}
-        className="comp-ta" style={{minHeight}}
+        onBlur={handleBlur} autoFocus={autoFocus}
+        className="comp-ta" style={{minHeight,paddingTop:8}}
         onPaste={e=>{
           const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
           if (file) { e.preventDefault(); handleImageFile(file); }
@@ -1063,14 +1061,6 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         style={{display:"none"}}
         onChange={e=>handleImageFile(e.target.files[0])}
       />
-      <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:"0.5px solid var(--b1)",marginTop:4}}>
-        <label className={`comp-img-btn ${uploading?"uploading":""}`} htmlFor="comp-img-input" title="Upload image (or paste/drop)">
-          {uploading
-            ? <><i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}></i> Uploading…</>
-            : <><i className="fa-solid fa-image" style={{fontSize:11}}></i> Add image</>}
-        </label>
-        <span style={{fontSize:11,color:"var(--t5)",marginLeft:2}}>or paste / drag &amp; drop</span>
-      </div>
     </div>
   );
 }
@@ -1498,7 +1488,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
-  const [edMode,setEdMode]=useState("markdown"); const [submitting,setSubmitting]=useState(false);
+  const [submitting,setSubmitting]=useState(false);
   const [userReaction,setUserReaction]=useState(null);
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
@@ -1696,11 +1686,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired}) {
             <div className="reply-box">
               <RichTextArea value={replyBody} onChange={setReplyBody} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
               <div className="reply-box-foot">
-                <div className="ed-toggle">
-                  <div className={`ed-opt ${edMode==="markdown"?"active":""}`} onClick={()=>setEdMode("markdown")}>Markdown</div>
-                  <div className={`ed-opt ${edMode==="rich"?"active":""}`} onClick={()=>setEdMode("rich")}>Rich text</div>
-                </div>
-                <button className="btn-primary" style={{marginLeft:"auto",fontSize:12,padding:"6px 16px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
+                <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
             </div>
           </div>
