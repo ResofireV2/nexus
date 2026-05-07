@@ -739,7 +739,7 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
           {card.loading&&!u
             ?<div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
             :<>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10,paddingTop:66}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10,paddingTop:44}}>
                 <div>
                   <div style={{fontSize:17,fontWeight:500,color:"var(--t1)",cursor:"pointer"}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>{u.username}</div>
                   <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>Joined {new Date(u.inserted_at).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
