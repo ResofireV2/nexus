@@ -1836,6 +1836,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
   const [postMenuOpen, setPostMenuOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const col = spaceColor(post?.space||{id:postId});
 
   if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
@@ -1871,7 +1875,28 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               <span style={{fontSize:11,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
 
             </div>
-            <div className="post-body"><Md text={post.body}/></div>
+            {editingPost
+              ?<div style={{marginTop:12}}>
+                <input className="fi" value={editTitle} onChange={e=>setEditTitle(e.target.value)}
+                  style={{fontWeight:600,fontSize:17,marginBottom:10}} placeholder="Title"/>
+                <textarea className="fi" value={editBody} onChange={e=>setEditBody(e.target.value)}
+                  style={{minHeight:140,resize:"vertical",lineHeight:1.7,fontFamily:"inherit",fontSize:13}}
+                  placeholder="Post body…"/>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+                  <button className="btn-ghost" onClick={()=>setEditingPost(false)} style={{fontSize:12}}>Cancel</button>
+                  <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} disabled={editSaving||!editTitle.trim()||!editBody.trim()}
+                    onClick={async()=>{
+                      setEditSaving(true);
+                      const d = await api.patch(`/posts/${post.id}`,{title:editTitle.trim(),body:editBody.trim()});
+                      setEditSaving(false);
+                      if(d.post){setPost(p=>({...p,title:d.post.title,body:d.post.body}));setEditingPost(false);toast("Post updated");}
+                      else toast(d.error||"Failed","err");
+                    }}>
+                    {editSaving?"Saving…":"Save changes"}
+                  </button>
+                </div>
+              </div>
+              :<div className="post-body"><Md text={post.body}/></div>}
             <div className="reaction-row" style={{justifyContent:"flex-end",position:"relative"}} onMouseEnter={()=>setShowPostMenu(true)} onMouseLeave={()=>setShowPostMenu(false)}>
               <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
               {currentUser&&(currentUser.id===post.user?.id||isMod||currentUser.id!==post.user?.id)&&(
@@ -1907,6 +1932,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                         <i className={`fa-solid ${post.hidden?"fa-eye":"fa-eye-slash"}`} style={{fontSize:11,color:"var(--red)",width:14}}/>{post.hidden?"Unhide":"Hide"}
                       </button>
                     </>}
+                    {/* Edit — author only */}
+                    {currentUser.id===post.user?.id&&<button onClick={()=>{setPostMenuOpen(false);setEditTitle(post.title||"");setEditBody(post.body||"");setEditingPost(true);}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <i className="fa-solid fa-pen" style={{fontSize:11,color:"var(--t4)",width:14}}/>Edit post
+                    </button>}
                     {/* Delete */}
                     {(currentUser.id===post.user?.id||isMod)&&<>
                       <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
