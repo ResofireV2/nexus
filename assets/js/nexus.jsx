@@ -1344,7 +1344,7 @@ function AuthPage({onLogin}) {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, onAuthRequired}) {
+function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired}) {
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
   useEffect(()=>{
     setBranding({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name});
@@ -1397,7 +1397,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
         </>}
         {(currentUser?.role==="moderator"||currentUser?.role==="admin")&&<>
           <div className="sb-divider"/>
-          <SbItem icon="fa-shield-halved" label="Moderation" targetPage="moderation"/>
+          <SbItem icon="fa-shield-halved" label="Moderation" targetPage="moderation" badge={modReportCount}/>
         </>}
         {currentUser?.role==="admin"&&<>
           <SbItem icon="fa-gear" label="Admin Panel" targetPage="admin"/>
@@ -4736,6 +4736,7 @@ function App() {
   const [pageProps,setPageProps]=useState(initial.props);
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
+  const [modReportCount,setModReportCount]=useState(0);
   const [msgPageKey,setMsgPageKey]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
@@ -4829,8 +4830,12 @@ function App() {
     if(!currentUser) return;
     const pollNotif = () => api.get("/notifications/unread").then(d=>setNotifCount(d.count||0)).catch(()=>{});
     const pollMsg   = () => api.get("/threads/unread").then(d=>setMsgCount(d.unread||0)).catch(()=>{});
-    pollNotif(); pollMsg();
-    const interval = setInterval(()=>{ pollNotif(); pollMsg(); }, 60000);
+    const pollMod = () => {
+      if(currentUser?.role==="admin"||currentUser?.role==="moderator")
+        api.get("/reports?status=pending").then(d=>setModReportCount((d.reports||[]).length)).catch(()=>{});
+    };
+    pollNotif(); pollMsg(); pollMod();
+    const interval = setInterval(()=>{ pollNotif(); pollMsg(); pollMod(); }, 60000);
     return () => clearInterval(interval);
   },[currentUser]);
 
@@ -4879,7 +4884,7 @@ function App() {
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onAuthRequired={m=>setAuthModal(m)}/>
         <div className="main-area">
-          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
+          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
           </div>
