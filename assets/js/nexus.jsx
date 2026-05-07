@@ -1753,76 +1753,76 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
   var trackRef = useRef(null);
   var saveTimer = useRef(null);
   var isDragging = useRef(false);
-  var maxReachedIdx = useRef(-1); // furthest reply ever scrolled to
-
-  // activeIdx = what scrubber displays = furthest reply reached (never goes backward)
-  var initialIdx = lastReadReplyId
+  var maxReadIdx = useRef(lastReadReplyId
     ? replies.findIndex(function(r){return r.id===lastReadReplyId;})
-    : -1;
-  var [activeIdx, setActiveIdx] = useState(initialIdx);
+    : -1);
 
-  // Sync maxReachedIdx with initial read position
-  useEffect(function(){
-    if(initialIdx > maxReachedIdx.current) maxReachedIdx.current = initialIdx;
-  }, []);
+  // scrollPct: 0-100, reflects exact scroll position fluid and continuous
+  var [scrollPct, setScrollPct] = useState(0);
+  // readPct: high-water mark of how far the user has actually read
+  var [readPct, setReadPct] = useState(function(){
+    var idx = maxReadIdx.current;
+    return idx >= 0 && replies.length > 1 ? (idx/(replies.length-1))*100 : 0;
+  });
 
   function getContainer() {
     return document.querySelector('.post-content-wrap');
   }
 
-  // Find the reply closest to center of the visible container area
-  function getCenteredReplyIdx(container) {
-    var center = container.scrollTop + container.clientHeight * 0.5;
-    var best = -1;
-    var bestDist = Infinity;
-    for(var i = 0; i < replies.length; i++) {
-      var el = document.getElementById('reply-'+replies[i].id);
-      if(!el) continue;
-      var dist = Math.abs(el.offsetTop - center);
-      if(dist < bestDist) { bestDist = dist; best = i; }
-    }
-    return best;
+  function pctFromScroll(container) {
+    var max = container.scrollHeight - container.clientHeight;
+    if(max <= 0) return 100;
+    return Math.min(100, (container.scrollTop / max) * 100);
   }
 
-  function jumpToIndex(replyIndex) {
-    var ri = Math.max(0, Math.min(replyIndex, replies.length-1));
+  function replyIdxFromPct(pct) {
+    return Math.round((pct/100) * (replies.length-1));
+  }
+
+  function jumpToIndex(ri) {
+    ri = Math.max(0, Math.min(ri, replies.length-1));
     var reply = replies[ri];
     if(!reply) return;
     var container = getContainer();
     var el = document.getElementById('reply-'+reply.id);
     if(!el || !container) return;
     container.scrollTo({top: el.offsetTop - 20, behavior:'smooth'});
-    // Update max reached
-    if(ri > maxReachedIdx.current) {
-      maxReachedIdx.current = ri;
-      setActiveIdx(ri);
+    if(ri > maxReadIdx.current) {
+      maxReadIdx.current = ri;
+      var pct = replies.length > 1 ? (ri/(replies.length-1))*100 : 100;
+      setReadPct(pct);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(function(){
+        if(currentUser && reply){
+          api.post('/posts/'+postId+'/read-position',{last_reply_id:reply.id,reply_count:ri+1}).catch(function(){});
+          if(onSavePosition) onSavePosition(reply.id, ri+1);
+        }
+      }, 500);
     }
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(function(){
-      if(currentUser && reply){
-        api.post('/posts/'+postId+'/read-position',{last_reply_id:reply.id,reply_count:ri+1}).catch(function(){});
-        if(onSavePosition) onSavePosition(reply.id, ri+1);
-      }
-    }, 500);
   }
 
   useEffect(function(){
     var container = getContainer();
     if(!container || !replies.length) return;
+    // Set initial scroll position
+    setScrollPct(pctFromScroll(container));
+
     function onScroll() {
-      var centeredIdx = getCenteredReplyIdx(container);
-      if(centeredIdx < 0) return;
-      // Scrubber only advances forward, never goes backward while reading
-      if(centeredIdx > maxReachedIdx.current) {
-        maxReachedIdx.current = centeredIdx;
-        setActiveIdx(centeredIdx);
-        // Save position after scrolling stops
+      var pct = pctFromScroll(container);
+      setScrollPct(pct);
+
+      // Advance read high-water mark
+      var ri = replyIdxFromPct(pct);
+      if(ri > maxReadIdx.current) {
+        maxReadIdx.current = ri;
+        var rPct = replies.length > 1 ? (ri/(replies.length-1))*100 : 100;
+        setReadPct(rPct);
         clearTimeout(saveTimer.current);
         saveTimer.current = setTimeout(function(){
-          var r = replies[centeredIdx];
+          var r = replies[ri];
           if(currentUser && r){
-            api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:centeredIdx+1}).catch(function(){});
-            if(onSavePosition) onSavePosition(r.id, centeredIdx+1);
+            api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:ri+1}).catch(function(){});
+            if(onSavePosition) onSavePosition(r.id, ri+1);
           }
         }, 1500);
       }
@@ -1832,10 +1832,11 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
   }, [replies.length, postId]);
 
   function onTrackClick(e) {
-    if(isDragging.current || !trackRef.current || !replies.length) return;
+    if(isDragging.current || !trackRef.current) return;
     var rect = trackRef.current.getBoundingClientRect();
-    var pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-    jumpToIndex(Math.round(pct * (replies.length - 1)));
+    var pct = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    var ri = replyIdxFromPct(pct);
+    jumpToIndex(ri);
   }
 
   function onThumbMouseDown(e) {
@@ -1845,25 +1846,17 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     function onMove(me) {
       if(!trackRef.current) return;
       var rect = trackRef.current.getBoundingClientRect();
-      var pct = Math.max(0, Math.min(1, (me.clientY - rect.top) / rect.height));
-      var ri = Math.round(pct * (replies.length - 1));
+      var pct = Math.max(0, Math.min(100, ((me.clientY - rect.top) / rect.height) * 100));
+      setScrollPct(pct);
+      var ri = replyIdxFromPct(pct);
       var reply = replies[ri];
       if(!reply) return;
       var container = getContainer();
       var el = document.getElementById('reply-'+reply.id);
       if(el && container) container.scrollTop = el.offsetTop - 20;
-      if(ri > maxReachedIdx.current) {
-        maxReachedIdx.current = ri;
-        setActiveIdx(ri);
-      }
     }
     function onUp() {
       isDragging.current = false;
-      var r = replies[maxReachedIdx.current >= 0 ? maxReachedIdx.current : 0];
-      if(currentUser && r){
-        api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:maxReachedIdx.current+1}).catch(function(){});
-        if(onSavePosition) onSavePosition(r.id, maxReachedIdx.current+1);
-      }
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     }
@@ -1871,8 +1864,7 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     document.addEventListener('mouseup', onUp);
   }
 
-  var fillPct = replies.length > 1 ? (activeIdx / (replies.length - 1)) * 100 : 0;
-  fillPct = Math.max(0, Math.min(100, fillPct));
+  var displayIdx = replyIdxFromPct(scrollPct);
 
   return (
     <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
@@ -1880,28 +1872,29 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
       <div ref={trackRef} onClick={onTrackClick}
         style={{flex:1,width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,position:"relative",cursor:"pointer",margin:"4px 0"}}>
-        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:fillPct+"%",transition:"height .2s"}}/>
+        {/* Read high-water fill */}
+        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"rgba(167,139,250,0.25)",height:readPct+"%"}}/>
+        {/* Scroll position fill */}
+        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:scrollPct+"%"}}/>
+        {/* Pip per reply */}
         {replies.map(function(r,i){
           var topPct = replies.length > 1 ? (i/(replies.length-1))*100 : 50;
-          var isRead = i <= activeIdx;
-          var isCurrent = i === activeIdx;
           return React.createElement('div',{key:r.id,title:"Reply "+(i+1),style:{
             position:"absolute",left:"50%",transform:"translateX(-50%)",
-            top:topPct+"%",marginTop:-1.5,
-            width:isCurrent?8:5,height:isCurrent?8:3,
-            borderRadius:isCurrent?"50%":1.5,
-            background:isCurrent?"var(--ac)":isRead?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.15)",
-            border:isCurrent?"1.5px solid var(--s1)":"none",
+            top:topPct+"%",marginTop:-1,
+            width:6,height:2,borderRadius:1,
+            background:i <= displayIdx ? "rgba(167,139,250,0.6)" : "rgba(255,255,255,0.12)",
             pointerEvents:"none"
           }});
         })}
+        {/* Draggable thumb at exact scroll position */}
         <div onMouseDown={onThumbMouseDown}
           style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
-            top:fillPct+"%",width:14,height:14,borderRadius:"50%",
+            top:scrollPct+"%",width:14,height:14,borderRadius:"50%",
             background:"var(--ac)",border:"2px solid var(--s1)",
-            zIndex:3,cursor:"grab",transition:"top .2s"}}/>
+            zIndex:3,cursor:"grab"}}/>
       </div>
-      <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{Math.max(0,activeIdx+1)}/{replies.length}</div>
+      <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{displayIdx+1}/{replies.length}</div>
     </div>
   );
 }
