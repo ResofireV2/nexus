@@ -4620,6 +4620,7 @@ function AdminBadgesPanel() {
   const [awardUsername, setAwardUsername] = useState("");
   const [awarding, setAwarding] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
   const load = () => api.get("/admin/badges").then(d=>{ setBadges(d.badges||[]); setLoading(false); });
   useEffect(()=>{ load(); },[]);
@@ -4651,6 +4652,15 @@ function AdminBadgesPanel() {
     const res = await api.post("/admin/badges/install-presets",{});
     setInstalling(false);
     if(res.ok){ load(); toast(`${res.installed} preset${res.installed===1?"":"s"} installed`); }
+    else toast(res.error||"Failed","err");
+  };
+
+  const backfill = async()=>{
+    if(!confirm("This will check every member against all auto badges and award any they qualify for. For large communities this may take a while. Continue?"))return;
+    setBackfilling(true);
+    const res = await api.post("/admin/badges/backfill",{});
+    setBackfilling(false);
+    if(res.ok) toast(`Backfill started — ${res.enqueued} member${res.enqueued===1?"":"s"} queued`);
     else toast(res.error||"Failed","err");
   };
 
@@ -4695,6 +4705,9 @@ function AdminBadgesPanel() {
             <i className="fa-solid fa-download" style={{fontSize:11}}/>{installing?"Installing…":`Install presets (${totalPresets-presetCount} available)`}
           </button>
         )}
+        <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={backfill} disabled={backfilling}>
+          <i className="fa-solid fa-rotate" style={{fontSize:11}}/>{backfilling?"Backfilling…":"Backfill existing members"}
+        </button>
         <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",display:"flex",alignItems:"center",gap:6}} onClick={openNew}>
           <i className="fa-solid fa-plus" style={{fontSize:11}}/>New badge
         </button>

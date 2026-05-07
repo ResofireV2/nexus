@@ -219,6 +219,7 @@ defmodule NexusWeb.Router do
     get    "/badges",                  BadgeController, :admin_index
     post   "/badges",                  BadgeController, :create
     post   "/badges/install-presets",  BadgeController, :install_presets
+    post   "/badges/backfill",         BadgeController, :backfill
     patch  "/badges/:id",              BadgeController, :update
     delete "/badges/:id",              BadgeController, :delete
     post   "/badges/:id/award",        BadgeController, :award

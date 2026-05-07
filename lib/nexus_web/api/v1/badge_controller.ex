@@ -117,6 +117,27 @@ defmodule NexusWeb.API.V1.BadgeController do
     end
   end
 
+  # POST /api/v1/admin/badges/backfill
+  # Enqueues a CheckBadges job for every user in the system.
+  # Oban's unique constraint (60s per user) prevents duplicates,
+  # and jobs are staggered to avoid hammering the DB all at once.
+  def backfill(conn, _params) do
+    import Ecto.Query
+    user_ids = Nexus.Repo.all(from u in Nexus.Accounts.User, select: u.id)
+
+    user_ids
+    |> Enum.with_index()
+    |> Enum.each(fn {user_id, idx} ->
+      # Stagger by 2 seconds per user so the queue drains smoothly
+      delay = idx * 2
+      %{"user_id" => user_id}
+      |> Nexus.Workers.CheckBadges.new(schedule_in: delay)
+      |> Oban.insert()
+    end)
+
+    json(conn, %{ok: true, enqueued: length(user_ids)})
+  end
+
   # POST /api/v1/admin/badges/:id/award
   def award(conn, %{"id" => id, "username" => username}) do
     admin = conn.assigns.current_user
