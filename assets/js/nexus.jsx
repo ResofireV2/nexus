@@ -1750,18 +1750,46 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
 // ── Post view ─────────────────────────────────────────────────────────────────
 function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
-  const trackRef = useRef(null);
-  const saveTimer = useRef(null);
-  const lastReadIdx = lastReadReplyId ? replies.findIndex(function(r){return r.id===lastReadReplyId;}) : -1;
-  const readCount = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
-  const fillPct = replies.length > 0 ? Math.round((readCount / replies.length) * 100) : 0;
+  var trackRef = useRef(null);
+  var saveTimer = useRef(null);
+  var isDragging = useRef(false);
 
-  function jumpTo(replyIndex) {
+  // Track which reply is currently visible using scroll position
+  var [activeIdx, setActiveIdx] = useState(function(){
+    if(!lastReadReplyId) return -1;
+    var i = replies.findIndex(function(r){return r.id===lastReadReplyId;});
+    return i;
+  });
+
+  // Get scroll container
+  function getContainer() {
+    return document.querySelector('.post-content-wrap');
+  }
+
+  // Find which reply is most visible in the container
+  function getVisibleReplyIdx(container) {
+    var containerTop = container.scrollTop;
+    var containerBottom = containerTop + container.clientHeight;
+    var best = -1;
+    for(var i = 0; i < replies.length; i++) {
+      var el = document.getElementById('reply-'+replies[i].id);
+      if(!el) continue;
+      var top = el.offsetTop;
+      if(top <= containerBottom * 0.75) best = i;
+    }
+    return best;
+  }
+
+  // Jump to a reply by index
+  function jumpToIndex(replyIndex) {
     var ri = Math.max(0, Math.min(replyIndex, replies.length-1));
     var reply = replies[ri];
     if(!reply) return;
+    var container = getContainer();
     var el = document.getElementById('reply-'+reply.id);
-    if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
+    if(!el || !container) return;
+    container.scrollTo({top: el.offsetTop - 20, behavior:'smooth'});
+    setActiveIdx(ri);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(function(){
       if(currentUser){
@@ -1771,64 +1799,99 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     }, 800);
   }
 
-  function onTrackClick(e) {
-    if(!trackRef.current) return;
-    var rect = trackRef.current.getBoundingClientRect();
-    var pct = (e.clientY - rect.top) / rect.height;
-    jumpTo(Math.round(pct * (replies.length-1)));
-  }
-
-  // Track scroll progress via scroll event on post-content-wrap
+  // Scroll listener — update scrubber position as user scrolls
   useEffect(function(){
-    if(!currentUser || !replies.length) return;
-    var container = document.querySelector('.post-content-wrap');
-    if(!container) return;
-    var timer = null;
+    var container = getContainer();
+    if(!container || !replies.length) return;
     function onScroll() {
-      clearTimeout(timer);
-      timer = setTimeout(function(){
-        var furthestIdx = -1;
-        for(var j=0; j<replies.length; j++){
-          var el = document.getElementById('reply-'+replies[j].id);
-          if(!el) continue;
-          var rect = el.getBoundingClientRect();
-          if(rect.top < window.innerHeight * 0.75) furthestIdx = j;
-        }
-        if(furthestIdx >= 0){
-          var r = replies[furthestIdx];
-          if(onSavePosition) onSavePosition(r.id, furthestIdx+1);
-          api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:furthestIdx+1}).catch(function(){});
-        }
-      }, 1000);
+      var visIdx = getVisibleReplyIdx(container);
+      if(visIdx >= 0) {
+        setActiveIdx(visIdx);
+        clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(function(){
+          var r = replies[visIdx];
+          if(currentUser && r){
+            api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:visIdx+1}).catch(function(){});
+            if(onSavePosition) onSavePosition(r.id, visIdx+1);
+          }
+        }, 1500);
+      }
     }
-    container.addEventListener('scroll', onScroll);
-    return function(){ container.removeEventListener('scroll', onScroll); clearTimeout(timer); };
+    container.addEventListener('scroll', onScroll, {passive:true});
+    return function(){ container.removeEventListener('scroll', onScroll); clearTimeout(saveTimer.current); };
   }, [replies.length, postId]);
 
+  // Click on track to jump
+  function onTrackClick(e) {
+    if(isDragging.current || !trackRef.current || !replies.length) return;
+    var rect = trackRef.current.getBoundingClientRect();
+    var pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    jumpToIndex(Math.round(pct * (replies.length - 1)));
+  }
+
+  // Drag thumb
+  function onThumbMouseDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    isDragging.current = true;
+    function onMove(me) {
+      if(!trackRef.current) return;
+      var rect = trackRef.current.getBoundingClientRect();
+      var pct = Math.max(0, Math.min(1, (me.clientY - rect.top) / rect.height));
+      var ri = Math.round(pct * (replies.length - 1));
+      var reply = replies[ri];
+      if(!reply) return;
+      var container = getContainer();
+      var el = document.getElementById('reply-'+reply.id);
+      if(el && container) container.scrollTop = el.offsetTop - 20;
+      setActiveIdx(ri);
+    }
+    function onUp() {
+      isDragging.current = false;
+      var r = replies[activeIdx >= 0 ? activeIdx : 0];
+      if(currentUser && r){
+        api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:(activeIdx>=0?activeIdx:0)+1}).catch(function(){});
+        if(onSavePosition) onSavePosition(r.id, (activeIdx>=0?activeIdx:0)+1);
+      }
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  var fillPct = replies.length > 1 ? (activeIdx / (replies.length - 1)) * 100 : 0;
+  fillPct = Math.max(0, Math.min(100, fillPct));
+
   return (
-    <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)"}}>
+    <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
       <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
       <div ref={trackRef} onClick={onTrackClick}
         style={{flex:1,width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,position:"relative",cursor:"pointer",margin:"4px 0"}}>
-        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:fillPct+"%",transition:"height .3s"}}/>
+        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:fillPct+"%"}}/>
         {replies.map(function(r,i){
-          var topPct = replies.length>1 ? (i/(replies.length-1))*100 : 50;
-          var isRead = i < readCount;
-          var isCurrent = r.id === lastReadReplyId;
-          return React.createElement('div',{key:r.id,onClick:function(){jumpTo(i);},title:"Reply "+(i+1)+" by "+(r.user&&r.user.username||"?"),style:{
+          var topPct = replies.length > 1 ? (i/(replies.length-1))*100 : 50;
+          var isRead = i <= activeIdx;
+          var isCurrent = i === activeIdx;
+          return React.createElement('div',{key:r.id,title:"Reply "+(i+1),style:{
             position:"absolute",left:"50%",transform:"translateX(-50%)",
             top:topPct+"%",marginTop:-1.5,
-            width:isCurrent?10:6,height:isCurrent?10:3,
+            width:isCurrent?8:5,height:isCurrent?8:3,
             borderRadius:isCurrent?"50%":1.5,
             background:isCurrent?"var(--ac)":isRead?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.15)",
-            border:isCurrent?"2px solid var(--s1)":"none",
-            cursor:"pointer",zIndex:isCurrent?2:1
+            border:isCurrent?"1.5px solid var(--s1)":"none",
+            pointerEvents:"none"
           }});
         })}
-        <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:fillPct+"%",width:14,height:14,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--s1)",zIndex:3,pointerEvents:"none"}}/>
+        <div
+          onMouseDown={onThumbMouseDown}
+          style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
+            top:fillPct+"%",width:14,height:14,borderRadius:"50%",
+            background:"var(--ac)",border:"2px solid var(--s1)",
+            zIndex:3,cursor:"grab"}}/>
       </div>
-      <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{readCount}/{replies.length}</div>
+      <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{activeIdx+1}/{replies.length}</div>
     </div>
   );
 }
