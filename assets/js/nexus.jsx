@@ -667,6 +667,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 }
 @media(min-width:768px){
 .mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
+.mob-admin-topbar{display:none;}
 }
 @media(max-width:767.99px){.desk-composer{display:none!important;}}
 @media(max-width:767.99px){
