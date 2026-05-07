@@ -160,23 +160,27 @@ function stripMd(text) {
     .replace(/\s{2,}/g, " ")
     .trim();
 }
-let _refHideTimer = null;
-document.addEventListener("mouseover", e => {
-  const link = e.target.closest(".reply-ref-link");
-  if (!link) return;
-  clearTimeout(_refHideTimer);
+
+// Track whether the user's last interaction was touch so we can
+// switch between hover-popup (desktop) and tap-popup (mobile).
+let _lastWasTouch = false;
+document.addEventListener("touchstart", () => { _lastWasTouch = true; }, {passive: true});
+document.addEventListener("mousemove", () => { _lastWasTouch = false; }, {passive: true});
+
+function _showRefPopup(link) {
   const href = link.getAttribute("href") || "";
   const data = _refDataMap[href];
-  if (!data) return;
+  if (!data) return false;
   const targetEl = document.getElementById(href.slice(1));
   if (targetEl) {
     const rect = targetEl.getBoundingClientRect();
     const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
-    if (inView) {
+    if (inView && !_lastWasTouch) {
+      // On desktop, if visible: highlight in place instead of popup
       targetEl.classList.remove("reply-ref-highlight");
       void targetEl.offsetWidth;
       targetEl.classList.add("reply-ref-highlight");
-      return;
+      return false;
     }
   }
   const lr = link.getBoundingClientRect();
@@ -188,13 +192,56 @@ document.addEventListener("mouseover", e => {
     y: showBelow ? lr.bottom + 6 : lr.top - 6,
     above: !showBelow
   });
+  return true;
+}
+
+let _refHideTimer = null;
+
+// Desktop: hover to show popup
+document.addEventListener("mouseover", e => {
+  if (_lastWasTouch) return;
+  const link = e.target.closest(".reply-ref-link");
+  if (!link) return;
+  clearTimeout(_refHideTimer);
+  _showRefPopup(link);
 });
 document.addEventListener("mouseout", e => {
+  if (_lastWasTouch) return;
   const link = e.target.closest(".reply-ref-link");
   if (!link) return;
   _refHideTimer = setTimeout(() => {
     _refPopupSetState && _refPopupSetState(null);
   }, 120);
+});
+
+// All devices: intercept clicks on reply-ref-link
+// Desktop: close popup and scroll to target
+// Mobile: show popup (suppress navigation entirely)
+document.addEventListener("click", e => {
+  const link = e.target.closest(".reply-ref-link");
+  if (!link) {
+    // Click outside popup dismisses it
+    if (!e.target.closest(".ref-popup")) {
+      _refPopupSetState && _refPopupSetState(null);
+    }
+    return;
+  }
+  e.preventDefault();
+  if (_lastWasTouch) {
+    // Mobile: tap shows popup
+    _showRefPopup(link);
+  } else {
+    // Desktop: close popup and scroll to target
+    _refPopupSetState && _refPopupSetState(null);
+    const href = link.getAttribute("href") || "";
+    const targetEl = document.getElementById(href.slice(1));
+    if (targetEl) {
+      targetEl.scrollIntoView({behavior: "smooth", block: "center"});
+      targetEl.classList.remove("reply-ref-highlight");
+      void targetEl.offsetWidth;
+      targetEl.classList.add("reply-ref-highlight");
+    }
+  }
 });
 // Attach delegated click handler to .md-body images once at module load
 document.addEventListener("click", e => {
@@ -231,8 +278,12 @@ function RefPreviewPopup() {
     <div className="ref-popup" style={{
       left: x,
       top: Math.max(8, y),
-      transform: above ? "translateY(-100%)" : "translateY(0)"
-    }}>
+      transform: above ? "translateY(-100%)" : "translateY(0)",
+      pointerEvents: "auto"
+    }}
+      onMouseEnter={()=>clearTimeout(_refHideTimer)}
+      onMouseLeave={()=>{ _refHideTimer = setTimeout(()=>{ _refPopupSetState && _refPopupSetState(null); }, 120); }}
+    >
       <div className="ref-popup-meta">
         {data.avatar_url
           ? <img src={data.avatar_url} className="ref-popup-av" alt={data.username}/>
@@ -240,6 +291,8 @@ function RefPreviewPopup() {
         }
         <span className="ref-popup-username">{data.username}</span>
         <span className="ref-popup-time">{ago(data.inserted_at)}</span>
+        <button onClick={()=>_refPopupSetState&&_refPopupSetState(null)}
+          style={{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:14,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
       </div>
       <div className="ref-popup-body">{stripMd(data.body).slice(0, 600)}</div>
     </div>
