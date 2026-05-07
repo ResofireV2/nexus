@@ -151,7 +151,7 @@ defmodule NexusWeb.API.V1.AdminController do
       settings: %{
         general:    Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url"]),
         appearance: Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css"]),
-        registration: Map.take(s["registration"]||%{}, ["open"])
+        registration: Map.take(s["registration"]||%{}, ["open", "require_email_verification"])
       }
     })
   end

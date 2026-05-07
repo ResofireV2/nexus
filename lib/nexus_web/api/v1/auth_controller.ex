@@ -215,6 +215,14 @@ defmodule NexusWeb.API.V1.AuthController do
         {:error, changeset} ->
           conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
       end
+    # Handle preferences update separately
+    elsif params["preferences"] do
+      merged = Map.merge(user.preferences || %{}, params["preferences"])
+      case Accounts.update_preferences(user, %{preferences: merged}) do
+        {:ok, updated} -> json(conn, %{user: user_json(updated)})
+        {:error, changeset} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+      end
     else
       case Accounts.update_profile(user, params) do
         {:ok, updated} ->
@@ -315,7 +323,8 @@ defmodule NexusWeb.API.V1.AuthController do
       avatar_url: user.avatar_url,
       cover_url: user.cover_url,
       email_verified: user.email_verified,
-      inserted_at: user.inserted_at
+      inserted_at: user.inserted_at,
+      preferences: user.preferences || %{}
     }
   end
 

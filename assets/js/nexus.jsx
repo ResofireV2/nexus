@@ -6105,6 +6105,36 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   const [saving,setSaving]=useState(false);
   const [pwErr,setPwErr]=useState(null);
 
+  // Notification preferences — loaded from currentUser.preferences
+  const DEFAULT_NOTIF_PREFS = {
+    reply:        {web:true,  email:false},
+    mention:      {web:true,  email:false},
+    reaction:     {web:false, email:false},
+    dm:           {web:true,  email:true},
+    badge:        {web:true,  email:false},
+    announcement: {web:true,  email:true},
+  };
+  const savedPrefs = currentUser?.preferences?.notifications || {};
+  const [notifPrefs, setNotifPrefs] = useState(()=>{
+    const merged = {};
+    Object.keys(DEFAULT_NOTIF_PREFS).forEach(k=>{
+      merged[k] = {...DEFAULT_NOTIF_PREFS[k], ...(savedPrefs[k]||{})};
+    });
+    return merged;
+  });
+  const [notifSaving, setNotifSaving] = useState(false);
+
+  const emailLocked = window._requireEmailVerification===true && !currentUser?.email_verified;
+
+  const NOTIF_ROWS = [
+    {k:"reply",        label:"Replies to your posts",  desc:"Someone replied to a thread you started"},
+    {k:"mention",      label:"Mentions",               desc:"Someone @mentioned you in a post or reply"},
+    {k:"reaction",     label:"Reactions",              desc:"Someone reacted to your content"},
+    {k:"dm",           label:"Direct messages",        desc:"A new message in your conversations"},
+    {k:"badge",        label:"Badge awarded",          desc:"You earned a new badge"},
+    {k:"announcement", label:"Announcements",          desc:"Site-wide announcements from moderators"},
+  ];
+
   const saveProfile=async()=>{
     setSaving(true);
     try {
@@ -6126,6 +6156,27 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
     } finally { setSaving(false); }
   };
 
+  const saveNotifPrefs=async()=>{
+    setNotifSaving(true);
+    try {
+      const d=await api.patch("/auth/me",{preferences:{notifications:notifPrefs}});
+      if(d.user){onUpdate(d.user);toast("Notification preferences saved");}
+      else toast(d.error||"Failed","err");
+    } finally { setNotifSaving(false); }
+  };
+
+  const toggleNotif=(key,channel)=>{
+    if(channel==="email"&&emailLocked) return;
+    setNotifPrefs(p=>({...p,[key]:{...p[key],[channel]:!p[key][channel]}}));
+  };
+
+  const Toggle = ({on, onClick, disabled=false}) => (
+    <div onClick={disabled?undefined:onClick}
+      style={{width:36,height:20,borderRadius:10,background:on&&!disabled?"var(--ac)":"rgba(255,255,255,0.1)",cursor:disabled?"not-allowed":"pointer",position:"relative",transition:"background .15s",flexShrink:0,opacity:disabled?0.4:1}}>
+      <div style={{position:"absolute",top:2,left:on?18:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+    </div>
+  );
+
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
@@ -6142,7 +6193,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           ))}
         </div>
         {/* Settings content */}
-        <div style={{flex:1,overflow:"auto",padding:"24px 32px",maxWidth:560}}>
+        <div style={{flex:1,overflow:"auto",padding:"24px 32px",maxWidth:600}}>
           {tab==="profile"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Profile</div>
             <F label="Username" hint="Changing your username will affect your profile URL">
@@ -6170,8 +6221,47 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           </>}
 
           {tab==="notifications"&&<>
-            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Notification preferences</div>
-            <div style={{fontSize:13,color:"var(--t4)"}}>Notification preferences coming soon. You currently receive notifications for replies and reactions to your posts.</div>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
+            <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>
+
+            {emailLocked&&(
+              <div style={{background:"rgba(251,191,36,0.08)",border:"0.5px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:20,display:"flex",alignItems:"center",gap:10,fontSize:12,color:"var(--amber)"}}>
+                <i className="fa-solid fa-triangle-exclamation" style={{flexShrink:0}}/>
+                Email notifications require a verified address.{" "}
+                <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={()=>navigate("settings")}>Verify your email</span> to enable them.
+              </div>
+            )}
+
+            {/* Channel header */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 64px 64px 64px",gap:0,paddingBottom:10,borderBottom:"0.5px solid var(--b1)",marginBottom:4}}>
+              <div style={{fontSize:10,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.6px"}}>activity</div>
+              {["web","email","push"].map(ch=>(
+                <div key={ch} style={{fontSize:10,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.6px",textAlign:"center"}}>{ch}</div>
+              ))}
+            </div>
+
+            {NOTIF_ROWS.map(row=>(
+              <div key={row.k} style={{display:"grid",gridTemplateColumns:"1fr 64px 64px 64px",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}}>
+                <div>
+                  <div style={{fontSize:13,color:"var(--t2)",marginBottom:2}}>{row.label}</div>
+                  <div style={{fontSize:11,color:"var(--t5)"}}>{row.desc}</div>
+                </div>
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <Toggle on={notifPrefs[row.k]?.web} onClick={()=>toggleNotif(row.k,"web")}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <Toggle on={notifPrefs[row.k]?.email&&!emailLocked} onClick={()=>toggleNotif(row.k,"email")} disabled={emailLocked}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>soon</div>
+                </div>
+              </div>
+            ))}
+
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"0.5px solid var(--b1)"}}>
+              <div style={{fontSize:12,color:"var(--t5)"}}>Push notifications require the mobile app.</div>
+              <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={saveNotifPrefs} disabled={notifSaving}>{notifSaving?"Saving…":"Save preferences"}</button>
+            </div>
           </>}
         </div>
       </div>
@@ -6834,6 +6924,8 @@ function App() {
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
     api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});
+      const reg=s.registration||{};
+      window._requireEmailVerification = reg.require_email_verification===true;
       const lc=s.layout||{};
       if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();TB_BTNS.forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;_activeToolbar=merged;}
       setLayoutCfg(lc);
