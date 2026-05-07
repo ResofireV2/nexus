@@ -560,6 +560,28 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Tables scroll horizontally */
 .atbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
+/* Admin table rows — stack controls below content on mobile */
+.atbl td:last-child{display:block;padding-top:6px;}
+.atbl td:last-child>div{flex-wrap:wrap;}
+
+/* Logo / favicon upload — stack vertically on mobile */
+.logo-upload-row{flex-direction:column;align-items:flex-start!important;gap:10px!important;}
+.logo-upload-row .logo-upload-hint{margin-top:4px;}
+
+/* Badge pills in admin rows — wrap */
+.badge-row-pills{flex-wrap:wrap;gap:4px;}
+
+/* Toggle rows — keep on one line but allow label to wrap */
+.toggle-row{flex-wrap:nowrap;gap:12px;}
+.toggle-row>div:first-child{flex:1;min-width:0;}
+.tgl{flex-shrink:0;}
+
+/* Members admin table — collapse to card-like rows */
+.atbl.members-tbl thead{display:none;}
+.atbl.members-tbl tr{display:block;padding:12px 14px;border-bottom:0.5px solid rgba(255,255,255,0.06);}
+.atbl.members-tbl td{display:block;padding:2px 0;border:none;}
+.atbl.members-tbl td:last-child{padding-top:8px;}
+
 /* Reduce form padding */
 .fi{font-size:14px;}
 .fgt{font-size:11px;}
@@ -5568,7 +5590,7 @@ function AdminBadgesPanel() {
                     <i className={`fa-solid ${b.icon}`} style={{color:b.color,fontSize:16}}/>
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                    <div className="badge-row-pills" style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
                       <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{b.name}</span>
                       <span style={{fontSize:9,fontWeight:500,padding:"2px 7px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.4px",background:rb,color:rc}}>{b.rarity}</span>
                       <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:b.award_type==="auto"?"rgba(52,211,153,0.1)":"rgba(96,165,250,0.1)",color:b.award_type==="auto"?"#34d399":"#93c5fd",border:`0.5px solid ${b.award_type==="auto"?"rgba(52,211,153,0.2)":"rgba(96,165,250,0.2)"}`}}>
@@ -6028,7 +6050,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             </F>
 
             <div className="fgt" style={{marginTop:20}}>Site logo</div>
-            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
+            <div className="logo-upload-row" style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
               {general.logo_url
                 ?<img src={general.logo_url} style={{height:48,borderRadius:8,border:"0.5px solid var(--b2)",background:"var(--bg2)",padding:4}} alt="logo"/>
                 :<div style={{width:48,height:48,borderRadius:8,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:11}}>none</div>}
@@ -6053,7 +6075,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             </div>
 
             <div className="fgt" style={{marginTop:20}}>Favicon</div>
-            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
+            <div className="logo-upload-row" style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>
               {general.favicon_url
                 ?<img src={general.favicon_url} style={{width:32,height:32,borderRadius:4,border:"0.5px solid var(--b2)",background:"var(--bg2)",padding:2}} alt="favicon"/>
                 :<div style={{width:32,height:32,borderRadius:4,border:"0.5px dashed var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:10}}>none</div>}
@@ -6128,7 +6150,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} onClick={()=>{setNewUser({username:"",email:"",password:"",role:"member",skip_verification:false});setShowCreateUser(true);}}>+ New member</button>
             </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
-              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl members-tbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>{users.map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
@@ -6377,6 +6399,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             {uploads.length===0
               ?<div style={{padding:"20px 0",color:"var(--t5)",fontSize:13}}>No uploads yet</div>
               :<div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
                 <table className="atbl">
                   <thead><tr><th style={{width:48}}>File</th><th>Name</th><th>Type</th><th>Size</th><th>Dims</th><th>By</th><th>Date</th><th style={{width:40}}></th></tr></thead>
                   <tbody>
@@ -6404,6 +6427,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>}
           </>}
 
