@@ -1708,7 +1708,17 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         </button>
                         {openPostMenu===p.id&&(
                           <div style={{position:"absolute",top:30,right:0,background:"var(--s3)",border:"0.5px solid var(--b2)",borderRadius:10,padding:"4px 0",minWidth:148,boxShadow:"0 4px 20px rgba(0,0,0,.4)",zIndex:20}}>
-                            {(currentUser.role==="admin"||currentUser.role==="moderator")&&(
+                            {currentUser.id!==p.user?.id&&(
+                              <button onClick={e=>{e.stopPropagation();setOpenPostMenu(null);
+                                // Report modal lives in PostPage — navigate there with report intent
+                                navigate("post",{id:p.id,openReport:true});}}
+                                style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                                <i className="fa-solid fa-flag" style={{fontSize:11,color:"var(--t4)",width:14}}/>Report
+                              </button>
+                            )}
+                        {(currentUser.role==="admin"||currentUser.role==="moderator")&&(
                               <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);await api.post(`/posts/${p.id}/hide`,{});setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post hidden");}}
                                 style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                                 onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
@@ -1739,7 +1749,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 }
 
 // ── Post view ─────────────────────────────────────────────────────────────────
-function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent}) {
+function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
   const [submitting,setSubmitting]=useState(false);
@@ -1877,6 +1887,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
+  // Auto-open report modal if navigated here with openReport flag
+  useEffect(()=>{
+    if(openReport&&post) { setReportTarget({type:"post",id:post.id}); setReportReason(""); }
+  },[openReport, post]);
   const [postMenuOpen, setPostMenuOpen] = useState(false);
   const [openReplyMenu, setOpenReplyMenu] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
@@ -1894,8 +1908,21 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
       {reportTarget&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}} onClick={e=>e.target===e.currentTarget&&setReportTarget(null)}>
           <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:12,padding:24,width:"100%",maxWidth:400}}>
-            <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginBottom:16}}>Report content</div>
-            <textarea className="fi" style={{resize:"vertical",minHeight:80,borderRadius:8}} placeholder="Describe why this content violates the rules…" value={reportReason} onChange={e=>setReportReason(e.target.value)}/>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Report content</div>
+            <div style={{fontSize:12,color:"var(--t4)",marginBottom:14}}>Select a reason — this will be sent to moderators for review.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+              {["Spam","Harassment or abuse","Misinformation","Inappropriate content","Other"].map(r=>(
+                <div key={r} onClick={()=>setReportReason(r)} style={{padding:"8px 12px",borderRadius:8,cursor:"pointer",fontSize:13,
+                  background:reportReason===r?"var(--ac-bg)":"rgba(255,255,255,0.04)",
+                  border:`0.5px solid ${reportReason===r?"var(--ac-border)":"rgba(255,255,255,0.08)"}`,
+                  color:reportReason===r?"var(--ac-text)":"var(--t2)",
+                  display:"flex",alignItems:"center",gap:8}}>
+                  <i className={`fa-solid ${reportReason===r?"fa-circle-dot":"fa-circle"}`} style={{fontSize:11,color:reportReason===r?"var(--ac)":"var(--t5)"}}/>
+                  {r}
+                </div>
+              ))}
+            </div>
+            <textarea className="fi" style={{resize:"vertical",minHeight:60,borderRadius:8,fontSize:12}} placeholder="Add more detail (optional)…" value={reportReason==="Spam"||reportReason==="Harassment or abuse"||reportReason==="Misinformation"||reportReason==="Inappropriate content"||reportReason==="Other"?"":reportReason} onChange={e=>setReportReason(e.target.value)}/>
             <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
               <button className="btn-ghost" onClick={()=>setReportTarget(null)}>Cancel</button>
               <button className="btn-primary" onClick={submitReport} disabled={reporting||!reportReason.trim()}>{reporting?"Submitting…":"Submit report"}</button>
@@ -4834,7 +4861,7 @@ function App() {
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
-      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>;
+      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
