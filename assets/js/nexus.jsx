@@ -4191,7 +4191,7 @@ function ToolbarEditor({items, onChange}) {
   );
 }
 
-function AdminPage({currentUser, navigate, onSpacesUpdated}) {
+function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
   const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
   const [queueStats,setQueueStats]=useState(null);
@@ -4205,7 +4205,6 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [uploadCfg,setUploadCfg]=useState({});
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
-  const [layoutCfg,setLayoutCfg]=useState({});
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -4233,18 +4232,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});const lc=s.layout||{}; setLayoutCfg(lc);
-        if(lc.toolbar){
-          // Merge saved config with TB_BTNS: add any new items not in saved config
-          var saved=lc.toolbar; var merged=saved.slice();
-          TB_BTNS.forEach(function(def){
-            if(def.sep) return; // separators don't need merging
-            var exists=saved.some(function(s){return s.type===def.type;});
-            if(!exists) merged.push(def);
-          });
-          _activeToolbar=merged;
-          setLayoutCfg({...lc,toolbar:merged});
-        } });
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});});
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -5389,6 +5377,7 @@ function App() {
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
   const [modReportCount,setModReportCount]=useState(0);
+  const [layoutCfg,setLayoutCfg]=useState({});
   const [msgPageKey,setMsgPageKey]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
@@ -5471,7 +5460,11 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);}).catch(()=>{});
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);
+      const lc=s.layout||{};
+      if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();TB_BTNS.forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;_activeToolbar=merged;}
+      setLayoutCfg(lc);
+    }).catch(()=>{});
   },[]);
 
   useEffect(()=>{
@@ -5503,7 +5496,7 @@ function App() {
   // Admin gets its own full shell
   if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate} onVerified={()=>updateCurrentUser(u=>u?{...u,email_verified:true}:u)}/></div><Toasts/></>;
 
-  if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/></div><Toasts/></>;
+  if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
 
   const renderPage=()=>{
     const requireAuth = (el) => {
