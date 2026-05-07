@@ -699,6 +699,14 @@ select option{background:#1a1a2e;color:var(--t1);}
 @media(min-width:768px) and (max-width:1239.99px){
 .right-panel{display:none!important;}
 }
+@media(min-width:768px) and (max-width:1080px){
+.tb-search{max-width:240px;padding:8px 14px;}
+.tb-search input{font-size:13px;}
+}
+@media(min-width:768px) and (max-width:900px){
+.tb-search{max-width:44px;min-width:44px;padding:10px;overflow:hidden;border-radius:50%;}
+.tb-search input,.tb-search-placeholder{display:none;}
+}
 @media(max-width:767.99px){.desk-composer{display:none!important;}}
 @media(max-width:767.99px){
 .admin-sidenav{display:none!important;}
@@ -1843,8 +1851,8 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 
   return (
     <div className="topbar">
-      <div className="tb-search" ref={searchRef} style={{position:"relative"}}>
-        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:searching?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s"}}></i>
+      <div className="tb-search" ref={searchRef} style={{position:"relative"}} onClick={e=>{if(e.currentTarget===e.target||e.target.closest("i"))searchRef.current?.querySelector("input")?.focus();}}>
+        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:searching?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s",flexShrink:0}}></i>
         <input placeholder="search threads…" value={q}
           onChange={onChange}
           onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(debounceRef.current);goAll();}if(e.key==="Escape"){setDrop(null);setQ("");}}}
