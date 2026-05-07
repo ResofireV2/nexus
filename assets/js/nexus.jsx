@@ -1662,6 +1662,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}}) {
 // ── Feed ──────────────────────────────────────────────────────────────────────
 function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], onAuthRequired}) {
   const [sort,setSort]=useState(sortOverride||"latest");
+  useEffect(()=>{setSort(sortOverride||"latest");},[sortOverride]);
   const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true);
   const [cursor,setCursor]=useState(null); const [hasMore,setHasMore]=useState(false);
   const [liveCount,setLiveCount]=useState(0);
