@@ -1843,7 +1843,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [reportNotes,setReportNotes]=useState("");
   const [reporting,setReporting]=useState(false);
   const [quoteTooltip,setQuoteTooltip]=useState(null);
-  const [typingUsers,setTypingUsers]=useState([]); // usernames currently typing
+  const [typingUsers,setTypingUsers]=useState([]);
+  const [lastReadReplyId, setLastReadReplyId] = useState(null);
+  const [lastReadCount, setLastReadCount] = useState(0);
+  const repliesContainerRef = useRef(null); // usernames currently typing
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
@@ -2003,9 +2006,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
-  const [lastReadReplyId, setLastReadReplyId] = useState(null);
-  const [lastReadCount, setLastReadCount] = useState(0);
-  const repliesContainerRef = useRef(null);
   // Auto-open report modal if navigated here with openReport flag
   useEffect(()=>{
     if(openReport&&post) { setReportTarget({type:"post",id:post.id}); setReportReason(""); }
