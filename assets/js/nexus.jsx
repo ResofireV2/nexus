@@ -680,12 +680,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-overlay-body{flex:1;overflow-y:auto;}
 }
 
-/* Mid breakpoint: 768px–1240px — right panel hidden, triggered via topbar icon */
-.topbar-right-btn{display:none;}
 @media(min-width:768px) and (max-width:1239.99px){
   .right-panel{display:none!important;}
-  .mob-overlay.right{left:auto;width:320px;right:0;top:0;bottom:0;inset:unset;}
-  .topbar-right-btn{display:flex!important;}
 }
 .mob-page-wrap{padding-top:52px;padding-bottom:calc(54px + env(safe-area-inset-bottom));flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .mob-user-overlay{position:fixed;inset:0;background:var(--bg);z-index:960;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
@@ -701,13 +697,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-reply-fake{flex:1;height:36px;background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);border-radius:20px;display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--t5);cursor:text;}
 }
 @media(min-width:768px){
-.mob-topbar,.mob-tabbar,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
-.mob-overlay:not(.right){display:none!important;}
+.mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
 .mob-admin-topbar{display:none;}
 .mob-admin-close{display:none;}
-}
-@media(min-width:1240px){
-.mob-overlay{display:none!important;}
 }
 @media(max-width:767.99px){.desk-composer{display:none!important;}}
 @media(max-width:767.99px){
@@ -1814,7 +1806,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 }
 
 // ── Shared topbar ─────────────────────────────────────────────────────────────
-function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true, onRightOpen}) {
+function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true}) {
   const [q,setQ]=useState("");
   const [drop,setDrop]=useState(null); // {posts, replies} | null
   const [searching,setSearching]=useState(false);
@@ -1907,9 +1899,6 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
           </div>
           <button className="write-btn" onClick={()=>navigate("compose")}>+ write</button>
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
-          <button className="topbar-right-btn icon-btn" onClick={onRightOpen} title="Activity">
-            <i className="fa-solid fa-chart-simple" style={{fontSize:16}}></i>
-          </button>
         </> : <>
           <button onClick={()=>onAuthRequired?.("login")} className="write-btn" style={{background:"transparent",border:"1.5px solid var(--b2)",color:"var(--t2)"}}>Log in</button>
           {registrationOpen&&<button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>}
@@ -7628,7 +7617,7 @@ function App() {
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
         <div className="main-area">
-          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen} onRightOpen={()=>setMobRightOpen(true)}/>
+          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           <div className="page-area" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
           </div>
