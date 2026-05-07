@@ -196,6 +196,20 @@ defmodule NexusWeb.API.V1.AuthController do
   end
 
   # ---------------------------------------------------------------------------
+  # POST /api/v1/auth/resend-verification
+  # ---------------------------------------------------------------------------
+
+  def resend_verification(conn, _params) do
+    user = conn.assigns.current_user
+    if user.email_verified do
+      json(conn, %{ok: true, message: "Email already verified"})
+    else
+      Task.start(fn -> Accounts.send_verification_email(user) end)
+      json(conn, %{ok: true, message: "Verification email sent"})
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # GET /api/v1/auth/me
   # ---------------------------------------------------------------------------
 

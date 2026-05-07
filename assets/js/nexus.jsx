@@ -6124,7 +6124,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   });
   const [notifSaving, setNotifSaving] = useState(false);
 
-  const emailLocked = window._requireEmailVerification===true && !currentUser?.email_verified;
+  const emailLocked = window._requireEmailVerification===true && !currentUser?.email_verified && currentUser?.role !== "admin";
 
   const NOTIF_ROWS = [
     {k:"reply",        label:"Replies to your posts",  desc:"Someone replied to a thread you started"},
@@ -6228,7 +6228,11 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
               <div style={{background:"rgba(251,191,36,0.08)",border:"0.5px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"10px 14px",marginBottom:20,display:"flex",alignItems:"center",gap:10,fontSize:12,color:"var(--amber)"}}>
                 <i className="fa-solid fa-triangle-exclamation" style={{flexShrink:0}}/>
                 Email notifications require a verified address.{" "}
-                <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={()=>navigate("settings")}>Verify your email</span> to enable them.
+                <span style={{textDecoration:"underline",cursor:"pointer"}} onClick={async()=>{
+                  const d=await api.post("/auth/resend-verification",{});
+                  if(d.ok) toast("Verification email sent — check your inbox");
+                  else toast(d.error||"Failed to send","err");
+                }}>Send verification email</span>
               </div>
             )}
 
