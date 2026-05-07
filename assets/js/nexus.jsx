@@ -1670,7 +1670,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         <div className="participants-row">
                           <div className="av-stack">
                             {p.user?.avatar_url
-                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:6,objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
+                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
                               :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
@@ -1685,7 +1685,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         <div className="meta-div"/>
                         <div className="thread-last">
                           {p.user?.avatar_url
-                              ?<img src={p.user.avatar_url} style={{width:24,height:24,borderRadius:6,objectFit:"cover",border:`1px solid ${col}33`}} alt={p.user.username}/>
+                              ?<img src={p.user.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={p.user.username}/>
                               :<div className="last-av" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
@@ -2242,7 +2242,7 @@ function ProfilePage({username, currentUser, navigate}) {
             {/* Avatar */}
             <div style={{position:"relative",display:"inline-block"}}>
               {user?.avatar_url
-                ?<img src={user.avatar_url} style={{width:64,height:64,borderRadius:12,objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
+                ?<img src={user.avatar_url} style={{width:64,height:64,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
                 :<div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>}
               {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:12,background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
