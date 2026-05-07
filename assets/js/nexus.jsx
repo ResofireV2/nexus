@@ -561,6 +561,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .fgt{font-size:11px;}
 }
 .post-content-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
+@media(max-width:767.99px){.post-content-wrap{padding-bottom:calc(80px + env(safe-area-inset-bottom));}}
 .post-back{font-size:12px;color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:18px;transition:color .1s;}
 .post-back:hover{color:var(--t2);}
 .post-title{font-size:20px;font-weight:600;color:var(--t1);letter-spacing:-.3px;line-height:1.35;margin-bottom:12px;}
