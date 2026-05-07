@@ -2897,54 +2897,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
           <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
         </button>
       </form>
-    </div>
-    {/* Create User Modal */}
-        {showCreateUser&&(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowCreateUser(false)}>
-            <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,width:"100%",maxWidth:420,display:"flex",flexDirection:"column",gap:14}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Create member</div>
-                <button onClick={()=>setShowCreateUser(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer"}}>✕</button>
-              </div>
-              <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Username</label><input className="fi" value={newUser.username} onChange={e=>setNewUser(p=>({...p,username:e.target.value}))} placeholder="username"/></div>
-              <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Email</label><input className="fi" type="email" value={newUser.email} onChange={e=>setNewUser(p=>({...p,email:e.target.value}))} placeholder="user@example.com"/></div>
-              <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Password</label><input className="fi" type="password" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="Temporary password"/></div>
-              <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Role</label>
-                <select className="fi" value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))} style={{fontFamily:"inherit"}}>
-                  <option value="member">Member</option><option value="moderator">Moderator</option><option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:8}}>Email verification</label>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {[{v:true,label:"Skip — mark as verified immediately",desc:"User can post right away"},{v:false,label:"Require email verification",desc:"User receives a verification email first"}].map(function(opt){return (
-                    <div key={String(opt.v)} onClick={()=>setNewUser(p=>({...p,skip_verification:opt.v}))}
-                      style={{padding:"10px 12px",borderRadius:8,cursor:"pointer",border:`0.5px solid ${newUser.skip_verification===opt.v?"var(--ac-border)":"rgba(255,255,255,0.08)"}`,background:newUser.skip_verification===opt.v?"var(--ac-bg)":"rgba(255,255,255,0.03)"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-                        <i className={`fa-solid ${newUser.skip_verification===opt.v?"fa-circle-dot":"fa-circle"}`} style={{fontSize:11,color:newUser.skip_verification===opt.v?"var(--ac)":"var(--t5)"}}/>
-                        <span style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{opt.label}</span>
-                      </div>
-                      <div style={{fontSize:11,color:"var(--t5)",paddingLeft:19}}>{opt.desc}</div>
-                    </div>
-                  );})}
-                </div>
-              </div>
-              <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
-                <button className="btn-ghost" onClick={()=>setShowCreateUser(false)}>Cancel</button>
-                <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
-                  disabled={!newUser.username.trim()||!newUser.email.trim()||!newUser.password.trim()}
-                  onClick={async()=>{
-                    const d=await api.post("/admin/users",{...newUser});
-                    if(d.user){setUsers(p=>[...p,d.user]);setShowCreateUser(false);toast("User created");}
-                    else toast((d.errors&&Object.values(d.errors).flat().join(", "))||d.error||"Failed","err");
-                  }}>
-                  Create member
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        {showSettings&&thread&&<GroupSettingsModal
+    </div>        {showSettings&&thread&&<GroupSettingsModal
       thread={thread}
       currentUser={currentUser}
       onClose={()=>setShowSettings(false)}
@@ -4568,6 +4521,52 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
         </div>
       </div>
     </div>
+    {/* Create User Modal */}
+    {showCreateUser&&(
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowCreateUser(false)}>
+        <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,width:"100%",maxWidth:420,display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Create member</div>
+            <button onClick={()=>setShowCreateUser(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer"}}>✕</button>
+          </div>
+          <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Username</label><input className="fi" value={newUser.username} onChange={e=>setNewUser(p=>({...p,username:e.target.value}))} placeholder="username"/></div>
+          <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Email</label><input className="fi" type="email" value={newUser.email} onChange={e=>setNewUser(p=>({...p,email:e.target.value}))} placeholder="user@example.com"/></div>
+          <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Password</label><input className="fi" type="password" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="Temporary password"/></div>
+          <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Role</label>
+            <select className="fi" value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))} style={{fontFamily:"inherit"}}>
+              <option value="member">Member</option><option value="moderator">Moderator</option><option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:8}}>Email verification</label>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {[{v:true,label:"Skip — mark as verified immediately",desc:"User can post right away"},{v:false,label:"Require email verification",desc:"User receives a verification email first"}].map(function(opt){return (
+                <div key={String(opt.v)} onClick={()=>setNewUser(p=>({...p,skip_verification:opt.v}))}
+                  style={{padding:"10px 12px",borderRadius:8,cursor:"pointer",border:`0.5px solid ${newUser.skip_verification===opt.v?"var(--ac-border)":"rgba(255,255,255,0.08)"}`,background:newUser.skip_verification===opt.v?"var(--ac-bg)":"rgba(255,255,255,0.03)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                    <i className={`fa-solid ${newUser.skip_verification===opt.v?"fa-circle-dot":"fa-circle"}`} style={{fontSize:11,color:newUser.skip_verification===opt.v?"var(--ac)":"var(--t5)"}}/>
+                    <span style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{opt.label}</span>
+                  </div>
+                  <div style={{fontSize:11,color:"var(--t5)",paddingLeft:19}}>{opt.desc}</div>
+                </div>
+              );})}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
+            <button className="btn-ghost" onClick={()=>setShowCreateUser(false)}>Cancel</button>
+            <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
+              disabled={!newUser.username.trim()||!newUser.email.trim()||!newUser.password.trim()}
+              onClick={async()=>{
+                const d=await api.post("/admin/users",{...newUser});
+                if(d.user){setUsers(p=>[...p,d.user]);setShowCreateUser(false);toast("User created");}
+                else toast((d.errors&&Object.values(d.errors).flat().join(", "))||d.error||"Failed","err");
+              }}>
+              Create member
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }
 
