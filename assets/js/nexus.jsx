@@ -1759,17 +1759,16 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
   const readCount = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
   const fillPct = replies.length > 0 ? (readCount / replies.length) * 100 : 0;
 
-  const scrollToIdx = (idx) => {
-    const r = replies[Math.max(0, Math.min(idx, replies.length-1))];
-    if(!r) return;
-    const el = document.getElementById(`reply-${r.id}`);
+  const scrollToReplyAt = (replyIndex) => {
+    const reply = replies[Math.max(0, Math.min(replyIndex, replies.length-1))];
+    if(!reply) return;
+    const el = document.getElementById(`reply-${reply.id}`);
     if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
-    // Save position
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(()=>{
       if(currentUser){
-        api.post(`/posts/${postId}/read-position`,{last_reply_id:r.id,reply_count:idx+1}).catch(()=>{});
-        onSavePosition?.(r.id, idx+1);
+        api.post(`/posts/${postId}/read-position`,{last_reply_id:reply.id,reply_count:replyIndex+1}).catch(()=>{});
+        onSavePosition?.(reply.id, replyIndex+1);
       }
     },800);
   };
@@ -1778,8 +1777,8 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     if(!trackRef.current) return;
     const rect = trackRef.current.getBoundingClientRect();
     const pct = (e.clientY - rect.top) / rect.height;
-    const idx = Math.round(pct * (replies.length-1));
-    scrollToIdx(idx);
+    const clickedIndex = Math.round(pct * (replies.length-1));
+    scrollToReplyAt(clickedIndex);
   };
 
   // Intersection observer to track scroll position
