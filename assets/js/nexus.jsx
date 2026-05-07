@@ -442,6 +442,44 @@ select option{background:#1a1a2e;color:var(--t1);}
 .sp-tag{font-size:9px;font-weight:500;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;}
 
 /* Reply box */
+
+@media(max-width:767.99px){
+.sidebar,.right-panel,.topbar{display:none!important;}
+.mob-topbar{position:fixed;top:0;left:0;right:0;height:52px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-between;padding:0 14px;z-index:900;}
+.mob-topbar-logo{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-1px;}
+.mob-topbar-logo em{color:var(--ac);font-style:normal;}
+.mob-icon-btn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;background:none;border:none;color:var(--t2);font-size:18px;}
+.mob-tabbar{position:fixed;bottom:0;left:0;right:0;height:calc(54px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--bg);border-top:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-around;z-index:900;}
+.mob-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:52px;height:44px;cursor:pointer;position:relative;border:none;background:none;color:var(--t4);}
+.mob-tab.active{color:var(--ac);}
+.mob-tab i{font-size:20px;}
+.mob-tab-label{font-size:9px;letter-spacing:.2px;}
+.mob-tab-compose{width:46px;height:46px;border-radius:14px;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;border:none;cursor:pointer;box-shadow:0 2px 12px rgba(167,139,250,.4);}
+.mob-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg);}
+.mob-overlay{position:fixed;inset:0;background:var(--bg);z-index:950;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
+.mob-overlay.right{transform:translateX(100%);}
+.mob-overlay.open{transform:translateX(0);}
+.mob-overlay-head{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
+.mob-overlay-title{font-size:15px;font-weight:600;color:var(--t1);}
+.mob-overlay-body{flex:1;overflow-y:auto;}
+.mob-page-wrap{padding-top:52px;padding-bottom:calc(54px + env(safe-area-inset-bottom));flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.mob-user-overlay{position:fixed;inset:0;background:var(--bg);z-index:960;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
+.mob-user-overlay.open{transform:translateY(0);}
+.mob-scrubber-bar{height:36px;background:var(--s1);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.mob-scrubber-track{flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;position:relative;}
+.mob-scrubber-fill{position:absolute;top:0;left:0;height:4px;border-radius:2px;background:var(--ac);transition:width .2s;}
+.mob-scrubber-label{font-size:11px;color:var(--t4);flex-shrink:0;}
+.mob-sheet{position:fixed;bottom:0;left:0;right:0;background:var(--s2);border:0.5px solid var(--b2);border-bottom:none;border-radius:16px 16px 0 0;z-index:980;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);padding-bottom:env(safe-area-inset-bottom);}
+.mob-sheet.open{transform:translateY(0);}
+.mob-sheet-handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);margin:12px auto 8px;}
+.mob-reply-bar{position:fixed;left:0;right:0;background:var(--s1);border-top:0.5px solid var(--b1);z-index:895;}
+.mob-reply-fake{flex:1;height:36px;background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);border-radius:20px;display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--t5);cursor:text;}
+}
+@media(min-width:768px){
+.mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
+}
+@media(max-width:767.99px){.page-area{padding-top:52px;padding-bottom:calc(54px + env(safe-area-inset-bottom));}}
+
 .reply-box{border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.02);overflow:hidden;margin-top:16px;}
 .reply-box-ta{width:100%;background:transparent;border:none;outline:none;font-size:13px;color:var(--t2);font-family:inherit;resize:none;min-height:72px;line-height:1.6;padding:14px 16px;caret-color:var(--ac);}
 .reply-box-ta::placeholder{color:rgba(255,255,255,0.15);}
@@ -2022,7 +2060,9 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [typingUsers,setTypingUsers]=useState([]);
   const [lastReadReplyId, setLastReadReplyId] = useState(null);
   const [lastReadCount, setLastReadCount] = useState(0);
-  const repliesContainerRef = useRef(null); // usernames currently typing
+  const repliesContainerRef = useRef(null);
+  const [mobSheetOpen, setMobSheetOpen] = useState(false);
+  const [mobReplyOpen, setMobReplyOpen] = useState(false); // usernames currently typing
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
@@ -2225,6 +2265,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         </div>
       )}
       <div className="post-content-wrap" ref={repliesContainerRef}>
+          {replies.length>0&&<MobileScrubberBar replies={replies} scrollPct={0} displayIdx={0} onClick={()=>setMobSheetOpen(true)}/>}
+          <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrollPct={0} displayIdx={0} onJump={(ri)=>{var r=replies[ri];if(!r)return;var el=document.getElementById("reply-"+r.id);var c=repliesContainerRef.current;if(el&&c){c.scrollTo({top:el.offsetTop-20,behavior:"smooth"});setMobSheetOpen(false);}}}/>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
@@ -2408,6 +2450,20 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         currentUser={currentUser}
         onSavePosition={(replyId,count)=>{setLastReadReplyId(replyId);setLastReadCount(count);}}
       />}
+      {currentUser&&!post?.locked&&<div className="mob-reply-bar" style={{bottom:"calc(54px + env(safe-area-inset-bottom))"}}>
+        {!mobReplyOpen
+          ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px"}}>
+              <div className="mob-reply-fake" onClick={()=>setMobReplyOpen(true)}>Write a reply…</div>
+              <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",flexShrink:0}} onClick={()=>setMobReplyOpen(true)}>Reply</button>
+            </div>
+          : <div>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={100} currentUser={currentUser} autoFocus={true}/>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"6px 12px",borderTop:"0.5px solid var(--b1)"}}>
+                <button className="btn-ghost" style={{fontSize:12}} onClick={()=>{setMobReplyOpen(false);setReplyBody("");}}>Cancel</button>
+                <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} disabled={submitting||!replyBody.trim()} onClick={async()=>{await submitReply();setMobReplyOpen(false);}}>Reply</button>
+              </div>
+            </div>}
+      </div>}
     </div>
   );
 }
@@ -5359,6 +5415,208 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
+
+// ── Mobile shell components ────────────────────────────────────────────────────
+
+function MobileTopBar({onHamburger, onRight, branding}) {
+  return (
+    <div className="mob-topbar">
+      <button className="mob-icon-btn" onClick={onHamburger} aria-label="Menu">
+        <i className="fa-solid fa-bars"/>
+      </button>
+      <div className="mob-topbar-logo">
+        {branding?.logo_url
+          ? <img src={branding.logo_url} style={{height:28,objectFit:"contain"}} alt="logo"/>
+          : <>{branding?.site_name||"nexus"}<em>.</em></>}
+      </div>
+      <button className="mob-icon-btn" onClick={onRight} aria-label="Activity">
+        <i className="fa-solid fa-chart-simple"/>
+      </button>
+    </div>
+  );
+}
+
+function MobileTabBar({currentUser, navigate, page, notifCount, msgCount, onCompose, onSearch, onProfile, onAuthRequired, registrationOpen}) {
+  if(currentUser) {
+    return (
+      <div className="mob-tabbar">
+        <button className="mob-tab" onClick={()=>navigate("notifications")}>
+          <i className="fa-solid fa-bell"/>
+          {notifCount>0&&<div className="mob-badge"/>}
+          <span className="mob-tab-label">Alerts</span>
+        </button>
+        <button className="mob-tab" onClick={()=>navigate("messages")}>
+          <i className="fa-solid fa-message"/>
+          <span className="mob-tab-label">Messages</span>
+        </button>
+        <button className="mob-tab-compose" onClick={onCompose} aria-label="Write">+</button>
+        <button className="mob-tab" onClick={onSearch}>
+          <i className="fa-solid fa-magnifying-glass"/>
+          <span className="mob-tab-label">Search</span>
+        </button>
+        <button className="mob-tab" onClick={onProfile}>
+          {currentUser.avatar_url
+            ? <img src={currentUser.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt={currentUser.username}/>
+            : <i className="fa-solid fa-circle-user"/>}
+          <span className="mob-tab-label">Profile</span>
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mob-tabbar">
+      <button className="mob-tab" onClick={onSearch}>
+        <i className="fa-solid fa-magnifying-glass"/>
+        <span className="mob-tab-label">Search</span>
+      </button>
+      <button className="mob-tab-compose" onClick={()=>onAuthRequired?.("login")} aria-label="Write">+</button>
+      {registrationOpen
+        ? <button className="mob-tab" onClick={()=>onAuthRequired?.("register")}>
+            <i className="fa-solid fa-user-plus"/>
+            <span className="mob-tab-label">Sign up</span>
+          </button>
+        : <button className="mob-tab" onClick={()=>onAuthRequired?.("login")}>
+            <i className="fa-solid fa-arrow-right-to-bracket"/>
+            <span className="mob-tab-label">Login</span>
+          </button>}
+    </div>
+  );
+}
+
+function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
+  if(!user) return null;
+  return (
+    <div className={`mob-user-overlay ${open?"open":""}`}>
+      <div className="mob-overlay-head">
+        <span className="mob-overlay-title">Account</span>
+        <button className="mob-icon-btn" onClick={onClose}><i className="fa-solid fa-xmark"/></button>
+      </div>
+      <div style={{padding:"20px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:14}}>
+        {user.avatar_url
+          ? <img src={user.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt={user.username}/>
+          : <div style={{width:56,height:56,borderRadius:"var(--av-radius)",background:spaceColor({id:user.id}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:600,color:"#fff"}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>}
+        <div>
+          <div style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>{user.username}</div>
+          <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>@{user.username?.toLowerCase()} · {user.role}</div>
+        </div>
+      </div>
+      {[
+        {icon:"fa-user",label:"Profile",action:()=>{navigate("profile",{username:user.username});onClose();}},
+        {icon:"fa-gear",label:"Settings",action:()=>{navigate("settings");onClose();}},
+        ...(user.role==="admin"?[{icon:"fa-shield-halved",label:"Admin Panel",action:()=>{navigate("admin");onClose();}}]:[]),
+      ].map(item=>(
+        <div key={item.label} onClick={item.action}
+          style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"0.5px solid var(--b1)",cursor:"pointer",fontSize:15,color:"var(--t2)"}}>
+          <i className={`fa-solid ${item.icon}`} style={{width:20,color:"var(--t4)",textAlign:"center"}}/>
+          {item.label}
+        </div>
+      ))}
+      <div onClick={()=>{onLogout();onClose();}}
+        style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",cursor:"pointer",fontSize:15,color:"var(--red)"}}>
+        <i className="fa-solid fa-arrow-right-from-bracket" style={{width:20,textAlign:"center"}}/>
+        Log out
+      </div>
+    </div>
+  );
+}
+
+function MobileSearchOverlay({open, onClose, navigate}) {
+  const [q, setQ] = React.useState("");
+  const [results, setResults] = React.useState(null);
+  const inputRef = React.useRef();
+  React.useEffect(()=>{if(open) setTimeout(()=>inputRef.current?.focus(),100);},[open]);
+  async function search(val) {
+    if(!val.trim()){setResults(null);return;}
+    const d = await api.get(`/search?q=${encodeURIComponent(val)}`).catch(()=>({}));
+    setResults(d);
+  }
+  return (
+    <div className={`mob-overlay ${open?"open":""}`} style={{zIndex:970}}>
+      <div className="mob-overlay-head">
+        <span className="mob-overlay-title">Search</span>
+        <button className="mob-icon-btn" onClick={()=>{setQ("");setResults(null);onClose();}}><i className="fa-solid fa-xmark"/></button>
+      </div>
+      <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)"}}>
+        <div style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:24,display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}>
+          <i className="fa-solid fa-magnifying-glass" style={{color:"var(--t5)",fontSize:13}}/>
+          <input ref={inputRef} value={q} onChange={e=>{setQ(e.target.value);search(e.target.value);}}
+            placeholder="Search threads…"
+            style={{background:"transparent",border:"none",outline:"none",fontSize:14,color:"var(--t2)",fontFamily:"inherit",flex:1}}/>
+        </div>
+      </div>
+      <div className="mob-overlay-body" style={{padding:"8px 0"}}>
+        {results&&(results.posts||[]).map(p=>(
+          <div key={p.id} onClick={()=>{navigate("post",{id:p.id});setQ("");setResults(null);onClose();}}
+            style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",cursor:"pointer"}}>
+            <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{p.title}</div>
+            <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{p.space?.name} · {ago(p.inserted_at)}</div>
+          </div>
+        ))}
+        {results&&!(results.posts||[]).length&&<div style={{padding:"40px",textAlign:"center",color:"var(--t5)",fontSize:13}}>No results for "{q}"</div>}
+      </div>
+    </div>
+  );
+}
+
+// Mobile scrubber bottom sheet
+function MobileScrubberBar({replies, scrollPct, displayIdx, onClick}) {
+  return (
+    <div className="mob-scrubber-bar" onClick={onClick}>
+      <i className="fa-solid fa-list" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
+      <div className="mob-scrubber-track">
+        <div className="mob-scrubber-fill" style={{width:scrollPct+"%"}}/>
+      </div>
+      <span className="mob-scrubber-label">{displayIdx+1}/{replies.length}</span>
+      <i className="fa-solid fa-chevron-up" style={{fontSize:10,color:"var(--t5)",flexShrink:0}}/>
+    </div>
+  );
+}
+
+function MobileScrubberSheet({open, onClose, replies, scrollPct, displayIdx, onJump}) {
+  const trackRef = React.useRef();
+  function handleTrack(e) {
+    if(!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const pct = Math.max(0,Math.min(100,((e.clientY-rect.top)/rect.height)*100));
+    onJump(Math.round((pct/100)*(replies.length-1)));
+  }
+  return (
+    <div className={`mob-sheet ${open?"open":""}`}>
+      <div className="mob-sheet-handle" onClick={onClose}/>
+      <div style={{padding:"0 20px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>Jump to reply</span>
+        <span style={{fontSize:12,color:"var(--t4)"}}>{displayIdx+1} of {replies.length}</span>
+      </div>
+      <div style={{display:"flex",gap:16,padding:"0 20px 20px",alignItems:"stretch"}}>
+        {/* Vertical track */}
+        <div ref={trackRef} onClick={handleTrack}
+          style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200}}>
+          <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:4,transform:"translateX(-50%)",background:"rgba(255,255,255,0.08)",borderRadius:2}}/>
+          <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:scrollPct+"%",borderRadius:2,transition:"height .2s"}}/>
+          <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:scrollPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)"}}/>
+        </div>
+        {/* Reply list */}
+        <div style={{flex:1,overflow:"auto",maxHeight:260}}>
+          {replies.map(function(r,i){
+            var isActive = i===displayIdx;
+            return React.createElement('div',{
+              key:r.id, onClick:function(){onJump(i);},
+              style:{padding:"10px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
+                background:isActive?"var(--ac-bg)":"rgba(255,255,255,0.03)",
+                border:"0.5px solid "+(isActive?"var(--ac-border)":"transparent")}
+            },
+              React.createElement('div',{style:{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}},
+                (r.user?.username||"?")),
+              React.createElement('div',{style:{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
+                r.body?.slice(0,50)||"")
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [currentUser,setCurrentUser]=useState(()=>{
     // Load cached user immediately to prevent flash of default avatar
@@ -5379,6 +5637,10 @@ function App() {
   const [msgCount,setMsgCount]=useState(0);
   const [modReportCount,setModReportCount]=useState(0);
   const [layoutCfg,setLayoutCfg]=useState({});
+  const [mobLeftOpen,setMobLeftOpen]=useState(false);
+  const [mobRightOpen,setMobRightOpen]=useState(false);
+  const [mobUserOpen,setMobUserOpen]=useState(false);
+  const [mobSearchOpen,setMobSearchOpen]=useState(false);
   const [msgPageKey,setMsgPageKey]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
@@ -5527,11 +5789,34 @@ function App() {
   return (
     <>
       <div className="app-root">
+        {/* Mobile overlays */}
+        <div className={`mob-overlay ${mobLeftOpen?"open":""}`}>
+          <div className="mob-overlay-head">
+            <span className="mob-overlay-title">Menu</span>
+            <button className="mob-icon-btn" onClick={()=>setMobLeftOpen(false)}><i className="fa-solid fa-xmark"/></button>
+          </div>
+          <div className="mob-overlay-body">
+            <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={p=>{setMobLeftOpen(false);navigate(p);}} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg} mobile={true}/>
+          </div>
+        </div>
+        <div className={`mob-overlay right ${mobRightOpen?"open":""}`}>
+          <div className="mob-overlay-head">
+            <span className="mob-overlay-title">Activity</span>
+            <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
+          </div>
+          <div className="mob-overlay-body">
+            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg}/>
+          </div>
+        </div>
+        <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
+        <MobileSearchOverlay open={mobSearchOpen} onClose={()=>setMobSearchOpen(false)} navigate={navigate}/>
+        <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={branding}/>
+        <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>setMobSearchOpen(true)} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
         <div className="main-area">
           <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
-          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div className="page-area" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
           </div>
         </div>
