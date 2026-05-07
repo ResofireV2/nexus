@@ -62,6 +62,7 @@ defmodule NexusWeb.API.V1.AuthController do
         {:ok, tokens} = Accounts.issue_tokens(user, opts)
 
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
+        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
 
         conn
         |> put_refresh_cookie(tokens.refresh_token, remember_me)

@@ -265,6 +265,20 @@ defmodule Nexus.Admin do
       "smtp_password"    => "",
       "smtp_encryption"  => "tls",
       "provider"         => "smtp"
+    },
+    "leaderboard" => %{
+      "enabled"                   => true,
+      "points_name"               => "points",
+      "post_points"               => 1,
+      "reply_points"              => 1,
+      "reaction_given_points"     => 1,
+      "reaction_received_points"  => 1,
+      "login_points"              => 1,
+      "streak_multiplier"         => 0.1,
+      "streak_cap"                => 3.0,
+      "badge_points"              => 5,
+      "pin_points"                => 3,
+      "mention_received_points"   => 1
     }
   }
 

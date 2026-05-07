@@ -88,11 +88,15 @@ defmodule NexusWeb.Router do
     get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
     get "/badges",                 BadgeController,  :index
+    get "/leaderboard",            LeaderboardController, :index
   end
 
   # API v1 — authenticated member actions
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through [:api, :authenticated]
+
+    # Leaderboard — own rank
+    get "/leaderboard/me", LeaderboardController, :me
 
     # File uploads
     post "/uploads", UploadController, :create
@@ -231,6 +235,11 @@ defmodule NexusWeb.Router do
     post   "/badges/:id/award",        BadgeController, :award
     delete "/badges/:id/revoke/:user_id", BadgeController, :revoke
     get    "/badges/:id/holders",      BadgeController, :holders
+
+    # Leaderboard (admin)
+    get    "/leaderboard/settings",    LeaderboardController, :get_settings
+    patch  "/leaderboard/settings",    LeaderboardController, :update_settings
+    post   "/leaderboard/recalculate", LeaderboardController, :recalculate
   end
 
   # Public slot endpoint

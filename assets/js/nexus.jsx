@@ -1083,8 +1083,9 @@ function urlToPage(pathname) {
   if (p === "/verify-email")           return {page:"verify-email", props:{token: new URLSearchParams(window.location.search).get("token")}};
   if (p === "/admin")                  return {page:"admin", props:{}};
   if (p === "/settings")               return {page:"settings", props:{}};
-  if (p === "/members")                return {page:"members", props:{}};
-  if (p === "/badges")                 return {page:"badges",  props:{}};
+  if (p === "/members")                return {page:"members",     props:{}};
+  if (p === "/badges")                 return {page:"badges",      props:{}};
+  if (p === "/leaderboard")            return {page:"leaderboard", props:{}};
   if (p === "/saved")                  return {page:"saved", props:{}};
   const postM    = p.match(/^\/post\/(.+)$/);
   if (postM)  return {page:"post",    props:{id: postM[1]}};
@@ -1112,6 +1113,7 @@ function pageToUrl(page, props={}) {
     case "settings":      return "/settings";
     case "members":       return "/members";
     case "badges":        return "/badges";
+    case "leaderboard":   return "/leaderboard";
     case "saved":         return "/saved";
     default:              return "/";
   }
@@ -1310,6 +1312,7 @@ const EXPLORE_ITEMS = [
   {id:"notifications",label:"Notifications",icon:"fa-bell",   authOnly:true},
   {id:"messages",   label:"Messages",     icon:"fa-message", authOnly:true},
   {id:"members",    label:"Members",      icon:"fa-users"},
+  {id:"leaderboard",label:"Leaderboard",  icon:"fa-trophy"},
   {id:"badges",     label:"Badges",       icon:"fa-medal"},
 ];
 const RIGHT_WIDGETS = [
@@ -1719,6 +1722,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
             notifications: currentUser&&<SbItem key="notifications" icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>,
             messages:   currentUser&&<SbItem key="messages" icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>,
             members:    <SbItem key="members" icon="fa-users" label="Members" targetPage="members"/>,
+            leaderboard:<SbItem key="leaderboard" icon="fa-trophy" label="Leaderboard" targetPage="leaderboard"/>,
             badges:     <SbItem key="badges" icon="fa-medal" label="Badges" targetPage="badges"/>,
           };
 
@@ -1865,9 +1869,15 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
-function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false}) {
+function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate}) {
   const [stats, setStats] = useState({members:0, threads:0});
+  const [myRank, setMyRank] = useState(null);
   useEffect(()=>{ api.get("/stats").then(d=>setStats(d)).catch(()=>{}); },[]);
+  useEffect(()=>{
+    if(currentUser) {
+      api.get("/leaderboard/me?period=all").then(d=>{ if(d.rank) setMyRank(d.rank); }).catch(()=>{});
+    }
+  },[currentUser]);
 
   const sorted = [...spaces].sort((a,b)=>(b.post_count||0)-(a.post_count||0));
   const max = sorted[0]?.post_count||1;
@@ -1913,7 +1923,10 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false}) {
         <div className="stat-card"><div className="stat-n">{stats.threads}</div><div className="stat-l">threads</div></div>
         <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>1</div><div className="stat-l">online</div></div>
         <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
-        <div className="stat-card"><div className="stat-n" style={{color:"#a78bfa"}}>—</div><div className="stat-l">your rank</div></div>
+        <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
+          <div className="stat-n" style={{color:"#a78bfa"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
+          <div className="stat-l">your rank</div>
+        </div>
     </div>
   );
   var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
@@ -4673,6 +4686,256 @@ function ToolbarEditor({items, onChange}) {
 }
 
 
+// ── LeaderboardPage ───────────────────────────────────────────────────────────
+function LeaderboardPage({currentUser, navigate}) {
+  const [period,   setPeriod]   = useState("all");
+  const [data,     setData]     = useState(null);
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(()=>{
+    setLoading(true);
+    api.get(`/leaderboard?period=${period}`).then(d=>{
+      setData(d);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[period]);
+
+  const pointsName = data?.points_name || "points";
+  const board      = data?.leaderboard || [];
+  const myRank     = data?.my_rank;
+  const top3       = board.slice(0,3);
+  const rest       = board.slice(3);
+
+  // Podium order: 2nd left, 1st centre, 3rd right
+  const podiumOrder = top3.length === 3
+    ? [top3[1], top3[0], top3[2]]
+    : top3;
+
+  const podiumStyle = {
+    1: {avSize:72, avRadius:20, fontSize:20, blockH:72, blockBg:"rgba(251,191,36,0.12)", blockBorder:"rgba(251,191,36,0.2)", scoreColor:"#fbbf24", badgeColor:"#fbbf24", badgeBg:"rgba(251,191,36,0.15)"},
+    2: {avSize:58, avRadius:16, fontSize:16, blockH:52, blockBg:"rgba(176,184,200,0.08)", blockBorder:"rgba(176,184,200,0.15)", scoreColor:"#b0b8c8", badgeColor:"#b0b8c8", badgeBg:"rgba(176,184,200,0.12)"},
+    3: {avSize:52, avRadius:14, fontSize:14, blockH:36, blockBg:"rgba(200,121,65,0.08)", blockBorder:"rgba(200,121,65,0.15)", scoreColor:"#c87941", badgeColor:"#c87941", badgeBg:"rgba(200,121,65,0.12)"},
+  };
+  const rankBadgeStyle = {
+    1:{bg:"#fbbf24",color:"#412402"},
+    2:{bg:"#b0b8c8",color:"#1a1e2a"},
+    3:{bg:"#c87941",color:"#fff"},
+  };
+
+  const Av = ({user, size, radius, fontSize}) => {
+    const col = spaceColor({id:user.user_id});
+    if(user.avatar_url) return <img src={user.avatar_url} style={{width:size,height:size,borderRadius:radius,objectFit:"cover",display:"block"}} alt={user.username}/>;
+    return <div style={{width:size,height:size,borderRadius:radius,background:`${col}33`,color:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:600}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>;
+  };
+
+  const periodLabels = [{id:"week",label:"This week"},{id:"month",label:"This month"},{id:"all",label:"All time"}];
+
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{padding:"22px 28px 0",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,marginBottom:3}}>Leaderboard</div>
+            <div style={{fontSize:13,color:"var(--t4)"}}>The most active and celebrated voices in the community.</div>
+          </div>
+          <div style={{display:"flex",gap:4}}>
+            {periodLabels.map(p=>(
+              <button key={p.id} onClick={()=>setPeriod(p.id)}
+                style={{fontSize:11,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${period===p.id?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.1)"}`,background:period===p.id?"rgba(167,139,250,0.1)":"transparent",color:period===p.id?"#c4b5fd":"rgba(255,255,255,0.3)",cursor:"pointer",fontFamily:"inherit"}}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>
+        {loading ? <div style={{textAlign:"center",padding:"60px 0",color:"var(--t5)"}}>Loading…</div> : <>
+
+          {/* Podium */}
+          {podiumOrder.length > 0 && (
+            <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:16,marginBottom:32,padding:"0 20px"}}>
+              {podiumOrder.map((u, idx)=>{
+                const rank = podiumOrder.length === 3 ? [2,1,3][idx] : idx+1;
+                const ps   = podiumStyle[rank] || podiumStyle[3];
+                const rbs  = rankBadgeStyle[rank] || rankBadgeStyle[3];
+                return (
+                  <div key={u.user_id} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,maxWidth:160,cursor:"pointer"}} onClick={()=>navigate("profile",{username:u.username})}>
+                    <div style={{position:"relative",marginBottom:10}}>
+                      {rank===1 && <div style={{position:"absolute",top:-16,left:"50%",transform:"translateX(-50%)",fontSize:20,lineHeight:1}}>👑</div>}
+                      <Av user={u} size={ps.avSize} radius={ps.avRadius} fontSize={ps.fontSize}/>
+                      <div style={{position:"absolute",bottom:-6,right:-6,width:20,height:20,borderRadius:"50%",background:rbs.bg,color:rbs.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600,border:"2px solid var(--bg)"}}>{rank}</div>
+                    </div>
+                    <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:2,textAlign:"center"}}>{u.username}</div>
+                    <div style={{fontSize:11,color:"var(--t5)",marginBottom:8,textAlign:"center"}}>@{u.username}</div>
+                    <div style={{fontSize:18,fontWeight:600,letterSpacing:-0.5,color:ps.scoreColor,textAlign:"center",marginBottom:2}}>{Number(u.score).toLocaleString()}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:10,textAlign:"center"}}>{pointsName}</div>
+                    <div style={{height:ps.blockH,width:"100%",background:ps.blockBg,border:`0.5px solid ${ps.blockBorder}`,borderRadius:"12px 12px 0 0"}}/>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Your rank banner */}
+          {currentUser && myRank && (
+            <div style={{background:"rgba(167,139,250,0.07)",border:"0.5px solid rgba(167,139,250,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#a78bfa,#ec4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:500,color:"#fff",flexShrink:0}}>
+                {currentUser.username.slice(0,2).toUpperCase()}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:2}}>your ranking — {periodLabels.find(p=>p.id===period)?.label?.toLowerCase()}</div>
+                <div style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{Number(myRank.score).toLocaleString()} {pointsName}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:22,fontWeight:600,color:"#a78bfa",letterSpacing:-0.5,lineHeight:1}}>#{myRank.rank}</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>top {myRank.pct}%</div>
+              </div>
+            </div>
+          )}
+
+          {/* Rank table */}
+          {rest.length > 0 && <>
+            <div style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"0 16px 8px",fontSize:10,fontWeight:500,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:"0.8px",borderBottom:"0.5px solid rgba(255,255,255,0.06)",marginBottom:4}}>
+              <div>#</div><div>member</div><div style={{textAlign:"right"}}>{pointsName}</div><div style={{textAlign:"right"}}>streak</div>
+            </div>
+            {rest.map((u, idx)=>{
+              const rank  = idx + 4;
+              const isMe  = currentUser?.username === u.username;
+              const col   = spaceColor({id:u.user_id});
+              return (
+                <div key={u.user_id}
+                  style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"10px 16px",borderRadius:10,cursor:"pointer",alignItems:"center",marginBottom:2,background:isMe?"rgba(167,139,250,0.07)":"transparent",border:isMe?"0.5px solid rgba(167,139,250,0.15)":"0.5px solid transparent"}}
+                  onMouseEnter={e=>{ if(!isMe) e.currentTarget.style.background="rgba(255,255,255,0.03)"; }}
+                  onMouseLeave={e=>{ if(!isMe) e.currentTarget.style.background="transparent"; }}
+                  onClick={()=>navigate("profile",{username:u.username})}>
+                  <div style={{fontSize:14,fontWeight:500,color:isMe?"#a78bfa":"rgba(255,255,255,0.25)"}}>{rank}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                    {u.avatar_url
+                      ? <img src={u.avatar_url} style={{width:34,height:34,borderRadius:10,objectFit:"cover",flexShrink:0}} alt=""/>
+                      : <div style={{width:34,height:34,borderRadius:10,background:`${col}22`,color:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,flexShrink:0}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:500,color:isMe?"var(--t1)":"rgba(255,255,255,0.75)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                        {u.username}{isMe&&<span style={{fontSize:11,color:"rgba(167,139,250,0.6)",fontWeight:400,marginLeft:6}}>you</span>}
+                      </div>
+                      {u.badges && u.badges.length > 0 && (
+                        <div style={{display:"flex",gap:4,marginTop:2}}>
+                          {u.badges.map((b,i)=>(
+                            <span key={i} style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:`${b.color}20`,color:b.color}}>{b.name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:500,color:isMe?"#c4b5fd":"rgba(255,255,255,0.5)",textAlign:"right"}}>{Number(u.score).toLocaleString()}</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",textAlign:"right"}}>—</div>
+                </div>
+              );
+            })}
+          </>}
+
+          {board.length === 0 && (
+            <div style={{textAlign:"center",padding:"60px 0",color:"var(--t5)"}}>
+              <i className="fa-solid fa-trophy" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}/>
+              No scores yet. Activity will appear here once members start posting.
+            </div>
+          )}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+// ── AdminLeaderboardPanel ─────────────────────────────────────────────────────
+function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
+  const [recalculating, setRecalculating] = useState(false);
+
+  const recalculate = async () => {
+    if(!confirm("This will recompute scores for every member. For large communities this may take a while. Continue?")) return;
+    setRecalculating(true);
+    const res = await api.post("/admin/leaderboard/recalculate", {});
+    setRecalculating(false);
+    if(res.ok) toast(`Recalculation started — ${res.enqueued} member${res.enqueued===1?"":"s"} queued`);
+    else toast(res.error||"Failed","err");
+  };
+
+  const fi = {width:"100%",background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--t2)",fontFamily:"inherit",outline:"none",boxSizing:"border-box"};
+
+  const NumField = ({label, hint, cfgKey, min=0, max, step=1, isFloat=false}) => (
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>{label}</div>
+      {hint && <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>{hint}</div>}
+      <input style={{...fi,width:120}} type="number" min={min} max={max} step={step}
+        value={lbCfg[cfgKey] ?? (isFloat ? 1.0 : 1)}
+        onChange={e=>{
+          const v = isFloat ? parseFloat(e.target.value)||0 : parseInt(e.target.value)||0;
+          setLbCfg(p=>({...p,[cfgKey]:v}));
+        }}/>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3}}>Leaderboard</div>
+          <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>Configure scoring, point values, and the points currency name.</div>
+        </div>
+        <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={recalculate} disabled={recalculating}>
+          <i className="fa-solid fa-rotate" style={{fontSize:11}}/>{recalculating?"Recalculating…":"Recalculate all scores"}
+        </button>
+        <button className="btn-primary" style={{fontSize:12,padding:"7px 16px"}} onClick={()=>saveSection("leaderboard",lbCfg)} disabled={saving}>
+          {saving?"Saving…":"Save"}
+        </button>
+      </div>
+
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:20}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:16}}>General</div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Enabled</div>
+            <div style={{fontSize:12,color:"var(--t4)"}}>Show the leaderboard page and rank stats to members.</div>
+          </div>
+          <div style={{position:"relative",width:40,height:22,borderRadius:11,background:lbCfg.enabled!==false?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
+            onClick={()=>setLbCfg(p=>({...p,enabled:p.enabled===false?true:false}))}>
+            <div style={{position:"absolute",top:2,left:lbCfg.enabled!==false?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+          </div>
+        </div>
+        <div style={{marginBottom:0}}>
+          <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Points currency name</div>
+          <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>What members see (e.g. "points", "kudos", "karma", "stars").</div>
+          <input style={{...fi,width:200}} value={lbCfg.points_name||"points"} onChange={e=>setLbCfg(p=>({...p,points_name:e.target.value}))} placeholder="points"/>
+        </div>
+      </div>
+
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:20}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:16}}>Point values per action</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
+          <NumField label="Post created"         cfgKey="post_points"/>
+          <NumField label="Reply posted"          cfgKey="reply_points"/>
+          <NumField label="Reaction given"        cfgKey="reaction_given_points"/>
+          <NumField label="Reaction received"     cfgKey="reaction_received_points"/>
+          <NumField label="Daily login"           cfgKey="login_points"/>
+          <NumField label="Badge earned"          cfgKey="badge_points"/>
+          <NumField label="Post pinned"           cfgKey="pin_points"/>
+          <NumField label="Mention received"      cfgKey="mention_received_points"/>
+        </div>
+      </div>
+
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:4}}>Login streak multiplier</div>
+        <div style={{fontSize:12,color:"var(--t4)",marginBottom:16}}>Daily login points are multiplied by <code style={{color:"var(--ac)"}}>1 + (streak_days × multiplier)</code>, capped at the maximum.</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
+          <NumField label="Multiplier per streak day" hint="e.g. 0.1 means +10% per day" cfgKey="streak_multiplier" step={0.05} isFloat={true}/>
+          <NumField label="Maximum multiplier"        hint="e.g. 3.0 means up to 3× base"  cfgKey="streak_cap"        step={0.5}  isFloat={true}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Rarity helpers ────────────────────────────────────────────────────────────
 const RARITY_COLOR = {common:"var(--t5)", rare:"#93c5fd", epic:"#c4b5fd", legendary:"#fcd34d"};
 const RARITY_BG    = {common:"rgba(255,255,255,0.06)", rare:"rgba(96,165,250,0.1)", epic:"rgba(167,139,250,0.12)", legendary:"rgba(251,191,36,0.12)"};
@@ -5090,6 +5353,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const [uploadCfg,setUploadCfg]=useState({});
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
+  const [lbCfg,setLbCfg]=useState({});
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -5117,7 +5381,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});setLbCfg(s.leaderboard||{});});
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -5139,6 +5403,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       {k:"layout",     icon:"fa-table-columns",    label:"layout"},
       {k:"email",      icon:"fa-envelope",        label:"email"},
       {k:"permissions",icon:"fa-shield",          label:"permissions"},
+      {k:"leaderboard",icon:"fa-trophy",          label:"leaderboard"},
       {k:"moderation", icon:"fa-lock",            label:"moderation"},
       {k:"extensions", icon:"fa-plug",            label:"extensions", badge:0},
     ]},
@@ -5206,6 +5471,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             else if(sec==="layout") saveSection("layout",layoutCfg);
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
+            else if(sec==="leaderboard") saveSection("leaderboard",lbCfg);
             else if(sec==="moderation") saveSection("moderation",general);
             else toast("No changes to save for this section");
           }} disabled={saving}>{saving?"…":"Save changes"}</button>
@@ -5666,6 +5932,8 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
+
+          {sec==="leaderboard"&&<AdminLeaderboardPanel lbCfg={lbCfg} setLbCfg={setLbCfg} saving={saving} saveSection={saveSection}/>}
 
           {sec==="storage"&&<>
             {/* Upload Settings */}
@@ -6618,6 +6886,7 @@ function App() {
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
       case "badges":      return <BadgesPage currentUser={currentUser} navigate={navigate}/>;
+      case "leaderboard": return <LeaderboardPage currentUser={currentUser} navigate={navigate}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
@@ -6645,7 +6914,7 @@ function App() {
             <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
-            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true}/>
+            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate}/>
           </div>
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
@@ -6660,7 +6929,7 @@ function App() {
             {renderPage()}
           </div>
         </div>
-        <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg}/>
+        <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate}/>
       </div>
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
