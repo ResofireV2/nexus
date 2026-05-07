@@ -3997,7 +3997,19 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});const lc=s.layout||{}; setLayoutCfg(lc); if(lc.toolbar) _activeToolbar=lc.toolbar; });
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});const lc=s.layout||{}; setLayoutCfg(lc);
+        if(lc.toolbar){
+          // Merge saved config with TB_BTNS: add any new items not in saved config
+          var saved=lc.toolbar; var merged=saved.slice();
+          TB_BTNS.forEach(function(def){
+            if(def.sep) return; // separators don't need merging
+            var exists=saved.some(function(s){return s.type===def.type;});
+            if(!exists) merged.push(def);
+          });
+          _activeToolbar=merged;
+          setLayoutCfg({...lc,toolbar:merged});
+        } });
+
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
 
