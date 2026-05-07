@@ -380,6 +380,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Post view */
 .post-shell{flex:1;display:flex;overflow:hidden;}
+@media(max-width:767.99px){.desk-scrubber{display:none!important;}}
 .post-content-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
 .post-back{font-size:12px;color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:18px;transition:color .1s;}
 .post-back:hover{color:var(--t2);}
@@ -477,6 +478,12 @@ select option{background:#1a1a2e;color:var(--t1);}
 }
 @media(min-width:768px){
 .mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
+}
+@media(max-width:767.99px){
+.mob-sidebar-inner{width:100%;display:flex;flex-direction:column;}
+.mob-sidebar-inner .sb-logo{display:none;}
+.mob-sidebar-inner .sb-scroll{flex:1;overflow-y:auto;padding:8px 0;}
+.mob-rightpanel-inner{width:100%;padding:16px;display:flex;flex-direction:column;gap:16px;}
 }
 @media(max-width:767.99px){.page-area{padding-top:52px;padding-bottom:calc(54px + env(safe-area-inset-bottom));}}
 
@@ -1437,7 +1444,7 @@ function AuthPage({onLogin}) {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}}) {
+function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
   useEffect(()=>{
     setBranding({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name});
@@ -1455,7 +1462,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
     );
   };
   return (
-    <div className="sidebar">
+    <div className={mobile?"mob-sidebar-inner":"sidebar"}>
       <div className="sb-logo" style={{cursor:"pointer"}} onClick={()=>navigate("feed",{})}>
         {branding.logo_url
           ?<img src={branding.logo_url} style={{height:32,maxWidth:140,objectFit:"contain"}} alt={branding.site_name||"nexus"}/>
@@ -1638,7 +1645,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
-function RightPanel({spaces, liveEvents=[], layoutCfg={}}) {
+function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false}) {
   const [stats, setStats] = useState({members:0, threads:0});
   useEffect(()=>{ api.get("/stats").then(d=>setStats(d)).catch(()=>{}); },[]);
 
@@ -1691,7 +1698,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}}) {
   );
   var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
   return (
-    <div className="right-panel">
+    <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
       {widgets.map(function(w){return widgetMap[w.id]||null;})}
     </div>
   );
@@ -2443,13 +2450,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>
         </>)}
       </div>
-      {replies.length>0&&currentUser&&<PostScrubber
+      <div className="desk-scrubber">{replies.length>0&&currentUser&&<PostScrubber
         replies={replies}
         lastReadReplyId={lastReadReplyId}
         postId={postId}
         currentUser={currentUser}
         onSavePosition={(replyId,count)=>{setLastReadReplyId(replyId);setLastReadCount(count);}}
-      />}
+      />}</div>
       {currentUser&&!post?.locked&&<div className="mob-reply-bar" style={{bottom:"calc(54px + env(safe-area-inset-bottom))"}}>
         {!mobReplyOpen
           ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px"}}>
@@ -2635,6 +2642,7 @@ function NotificationsPage({navigate}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0,borderBottom:"0.5px solid var(--b1)"}}>
+        <button className="mob-icon-btn" onClick={()=>window.history.back()} style={{marginRight:4}}><i className="fa-solid fa-arrow-left"/></button>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Notifications</span>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
           {notifs.some(n=>!n.read)&&<button className="btn-ghost" style={{fontSize:11}} onClick={markAll}>Mark all read</button>}
@@ -2856,6 +2864,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
+        <button className="mob-icon-btn" onClick={()=>window.history.back()} style={{marginRight:4}}><i className="fa-solid fa-arrow-left"/></button>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Messages</span>
         <button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"5px 14px"}} onClick={()=>navigate("dm-new")}>+ New</button>
       </div>
@@ -5806,7 +5815,7 @@ function App() {
             <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
-            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg}/>
+            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true}/>
           </div>
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
