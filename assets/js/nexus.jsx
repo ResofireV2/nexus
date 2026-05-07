@@ -4930,6 +4930,109 @@ function LeaderboardPage({currentUser, navigate}) {
   );
 }
 
+// ── AdminLogsPanel ────────────────────────────────────────────────────────────
+function AdminLogsPanel() {
+  const [tab, setTab] = useState("jobs");
+  const [jobs, setJobs] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = (t) => {
+    setLoading(true);
+    if(t==="jobs") {
+      api.get("/admin/logs/jobs").then(d=>{ setJobs(d.jobs||[]); setLoading(false); });
+    } else {
+      api.get("/admin/logs/settings").then(d=>{ setSettings(d.logs||[]); setLoading(false); });
+    }
+  };
+
+  useEffect(()=>{ load(tab); },[tab]);
+
+  const STATE_COLOR = {discarded:"var(--red)", retryable:"var(--amber)"};
+  const STATE_BG    = {discarded:"rgba(248,113,113,0.1)", retryable:"rgba(251,191,36,0.1)"};
+
+  const diffSettings = (oldV, newV) => {
+    const keys = new Set([...Object.keys(oldV||{}), ...Object.keys(newV||{})]);
+    return Array.from(keys).filter(k => JSON.stringify((oldV||{})[k]) !== JSON.stringify((newV||{})[k])).map(k => ({
+      key: k,
+      from: (oldV||{})[k],
+      to:   (newV||{})[k]
+    }));
+  };
+
+  return (
+    <div>
+      <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,marginBottom:4}}>Logs</div>
+      <div style={{fontSize:12,color:"var(--t4)",marginBottom:20}}>Job failures and settings changes.</div>
+
+      {/* Tab bar */}
+      <div style={{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:20}}>
+        {[{id:"jobs",label:"Job failures"},{id:"settings",label:"Settings changes"}].map(t=>(
+          <div key={t.id} onClick={()=>setTab(t.id)}
+            style={{fontSize:13,color:tab===t.id?"var(--t1)":"var(--t4)",padding:"10px 0",marginRight:24,cursor:"pointer",borderBottom:`1.5px solid ${tab===t.id?"var(--ac)":"transparent"}`,marginBottom:-1}}>
+            {t.label}
+          </div>
+        ))}
+      </div>
+
+      {loading && <div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>Loading…</div>}
+
+      {/* Job failures */}
+      {!loading && tab==="jobs" && jobs !== null && <>
+        {jobs.length===0
+          ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+              <i className="fa-solid fa-circle-check" style={{fontSize:28,color:"var(--green)",opacity:.5,marginBottom:12,display:"block"}}/>
+              No failed or retrying jobs
+            </div>
+          : <>
+              <div style={{display:"grid",gridTemplateColumns:"80px 1fr 80px 80px 1fr 120px",gap:0,padding:"0 14px 8px",fontSize:10,fontWeight:500,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:"0.8px",borderBottom:"0.5px solid var(--b1)",marginBottom:4}}>
+                <div>State</div><div>Worker</div><div>Queue</div><div>Attempts</div><div>Error</div><div>When</div>
+              </div>
+              {jobs.map(j=>(
+                <div key={j.id} style={{display:"grid",gridTemplateColumns:"80px 1fr 80px 80px 1fr 120px",gap:0,padding:"10px 14px",borderBottom:"0.5px solid rgba(255,255,255,0.04)",alignItems:"start"}}>
+                  <div>
+                    <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:STATE_BG[j.state],color:STATE_COLOR[j.state]}}>{j.state}</span>
+                  </div>
+                  <div style={{fontSize:12,color:"var(--t2)",fontFamily:"monospace",wordBreak:"break-all"}}>{j.worker}</div>
+                  <div style={{fontSize:12,color:"var(--t4)"}}>{j.queue}</div>
+                  <div style={{fontSize:12,color:"var(--t4)"}}>{j.attempt}/{j.max_attempts}</div>
+                  <div style={{fontSize:11,color:"var(--red)",fontFamily:"monospace",wordBreak:"break-all",lineHeight:1.5}}>{j.last_error?.message||"—"}</div>
+                  <div style={{fontSize:11,color:"var(--t5)"}}>{j.attempted_at?ago(j.attempted_at):ago(j.inserted_at)}</div>
+                </div>
+              ))}
+            </>}
+      </>}
+
+      {/* Settings changes */}
+      {!loading && tab==="settings" && settings !== null && <>
+        {settings.length===0
+          ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>No settings changes recorded yet</div>
+          : settings.map((l,i)=>{
+              const diffs = diffSettings(l.old_value, l.new_value);
+              return (
+                <div key={l.id||i} style={{padding:"12px 14px",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:diffs.length?8:0}}>
+                    <span style={{fontSize:12,fontWeight:500,color:"var(--ac-text)",background:"var(--ac-bg)",padding:"2px 8px",borderRadius:20}}>{l.section}</span>
+                    <span style={{fontSize:12,color:"var(--t4)"}}>changed by</span>
+                    <span style={{fontSize:12,fontWeight:500,color:"var(--t2)"}}>{l.admin||"unknown"}</span>
+                    <span style={{fontSize:11,color:"var(--t5)",marginLeft:"auto"}}>{ago(l.inserted_at)}</span>
+                  </div>
+                  {diffs.map(d=>(
+                    <div key={d.key} style={{display:"flex",alignItems:"baseline",gap:8,fontSize:11,fontFamily:"monospace",marginTop:4}}>
+                      <span style={{color:"var(--t4)",minWidth:160,flexShrink:0}}>{d.key}</span>
+                      <span style={{color:"rgba(248,113,113,0.8)",textDecoration:"line-through"}}>{JSON.stringify(d.from)}</span>
+                      <span style={{color:"var(--t5)"}}>→</span>
+                      <span style={{color:"rgba(52,211,153,0.9)"}}>{JSON.stringify(d.to)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+      </>}
+    </div>
+  );
+}
+
 // ── AdminDigestPanel ──────────────────────────────────────────────────────────
 const DIGEST_SECTIONS = [
   {id:"posts",       label:"Top posts",        icon:"fa-pen-to-square"},
@@ -6303,7 +6406,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           </>}
 
           {sec==="layout"&&<LayoutAdmin layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
-          {(sec==="logs"||sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
+          {(sec==="logs")&&<AdminLogsPanel/>}
+
+          {(sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
             <i className="fa-solid fa-tools" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}></i>
             This section is not yet available
           </div>}

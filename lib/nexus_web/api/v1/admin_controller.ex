@@ -160,10 +160,52 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # PATCH /api/v1/admin/settings/:key
   def update_settings(conn, %{"key" => key, "value" => value}) do
-    case Admin.update_setting(key, value) do
+    admin_id = conn.assigns.current_user.id
+    case Admin.update_setting(key, value, admin_id) do
       {:ok, _}   -> json(conn, %{ok: true, settings: Admin.get_settings()})
       {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
     end
+  end
+
+  # GET /api/v1/admin/logs/settings
+  def setting_changes(conn, _params) do
+    logs = Admin.list_setting_changes(200)
+    json(conn, %{logs: Enum.map(logs, fn l ->
+      %{
+        id:          l.id,
+        section:     l.section,
+        old_value:   l.old_value,
+        new_value:   l.new_value,
+        inserted_at: l.inserted_at,
+        admin:       l.admin
+      }
+    end)})
+  end
+
+  # GET /api/v1/admin/logs/jobs
+  def job_failures(conn, _params) do
+    jobs = Admin.list_job_failures(200)
+    json(conn, %{jobs: Enum.map(jobs, fn j ->
+      last_error =
+        case j.errors do
+          [_ | _] = errs ->
+            err = List.last(errs)
+            %{message: err["error"] || err["message"] || "Unknown error",
+              at:      err["attempt_at"] || err["at"]}
+          _ -> nil
+        end
+      %{
+        id:           j.id,
+        queue:        j.queue,
+        worker:       j.worker |> String.replace("Elixir.", ""),
+        state:        j.state,
+        attempt:      j.attempt,
+        max_attempts: j.max_attempts,
+        last_error:   last_error,
+        attempted_at: j.attempted_at,
+        inserted_at:  j.inserted_at
+      }
+    end)})
   end
 
   # GET /api/v1/admin/pending — list posts and replies pending approval

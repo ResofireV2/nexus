@@ -6,6 +6,7 @@ defmodule Nexus.Admin do
   import Ecto.Query
   alias Nexus.Repo
   alias Nexus.Admin.SiteSetting
+  alias Nexus.Admin.SettingChangeLog
   alias Nexus.Accounts.User
   alias Nexus.Forum.{Post, Reply, Space}
   alias Nexus.Moderation.Report
@@ -312,17 +313,79 @@ defmodule Nexus.Admin do
     end
   end
 
-  def update_setting(key, value) do
-    case Repo.get(SiteSetting, key) do
-      nil ->
-        %SiteSetting{}
-        |> SiteSetting.changeset(%{key: key, value: value})
-        |> Repo.insert()
+  def update_setting(key, value, admin_id \\ nil) do
+    old_value =
+      case Repo.get(SiteSetting, key) do
+        nil     -> %{}
+        setting -> setting.value
+      end
 
-      setting ->
-        setting
-        |> SiteSetting.changeset(%{value: Map.merge(setting.value, value)})
-        |> Repo.update()
+    result =
+      case Repo.get(SiteSetting, key) do
+        nil ->
+          %SiteSetting{}
+          |> SiteSetting.changeset(%{key: key, value: value})
+          |> Repo.insert()
+
+        setting ->
+          setting
+          |> SiteSetting.changeset(%{value: Map.merge(setting.value, value)})
+          |> Repo.update()
+      end
+
+    # Record the change if an admin_id is supplied
+    if admin_id && match?({:ok, _}, result) do
+      %SettingChangeLog{}
+      |> SettingChangeLog.changeset(%{
+        section:    key,
+        old_value:  old_value,
+        new_value:  value,
+        admin_id:   admin_id,
+        inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+      |> Repo.insert()
     end
+
+    result
+  end
+
+  def list_setting_changes(limit \\ 100) do
+    import Ecto.Query
+    Repo.all(
+      from l in SettingChangeLog,
+      left_join: u in Nexus.Accounts.User, on: l.admin_id == u.id,
+      order_by: [desc: l.inserted_at],
+      limit: ^limit,
+      select: %{
+        id:          l.id,
+        section:     l.section,
+        old_value:   l.old_value,
+        new_value:   l.new_value,
+        inserted_at: l.inserted_at,
+        admin: u.username
+      }
+    )
+  end
+
+  def list_job_failures(limit \\ 100) do
+    import Ecto.Query
+    Repo.all(
+      from j in "oban_jobs",
+      where: j.state in ["discarded", "retryable"],
+      order_by: [desc: j.attempted_at],
+      limit: ^limit,
+      select: %{
+        id:           j.id,
+        queue:        j.queue,
+        worker:       j.worker,
+        state:        j.state,
+        args:         j.args,
+        errors:       j.errors,
+        attempt:      j.attempt,
+        max_attempts: j.max_attempts,
+        attempted_at: j.attempted_at,
+        inserted_at:  j.inserted_at
+      }
+    )
   end
 end

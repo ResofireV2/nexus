@@ -204,6 +204,8 @@ defmodule NexusWeb.Router do
     get    "/dashboard",          AdminController,  :dashboard
     get    "/system",             AdminController,  :system
     get    "/queues",             AdminController,  :queues
+    get    "/logs/settings",      AdminController,  :setting_changes
+    get    "/logs/jobs",          AdminController,  :job_failures
     get    "/users",              AdminController,  :list_users
     get    "/users/:id",          AdminController,  :get_user
     patch  "/users/:id/role",     AdminController,  :update_role
