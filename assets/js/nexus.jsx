@@ -3309,7 +3309,7 @@ function ProfilePage({username, currentUser, navigate}) {
             : <div className="p-media-grid">
                 {media.map(u=>(
                   <div key={u.id} style={{aspectRatio:"1",overflow:"hidden",borderRadius:8,background:"var(--s2)",cursor:"zoom-in"}}
-                    onClick={()=>{ if(window._lbSetState) window._lbSetState({src:u.url, originalSrc:u.original_url||u.url}); }}>
+                    onClick={()=>{ if(_lbSetState) _lbSetState({src:u.url, originalSrc:u.original_url||u.url}); }}>
                     <img src={u.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
                       onError={e=>e.target.style.display="none"}/>
                   </div>
