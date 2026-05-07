@@ -190,7 +190,7 @@ document.addEventListener("mouseover", e => {
   _refPopupSetState && _refPopupSetState({
     data,
     x: Math.min(Math.max(lr.left, 8), window.innerWidth - 428),
-    y: showBelow ? lr.bottom + 6 : lr.top - 6 - 280,
+    y: showBelow ? lr.bottom + 6 : lr.top - 6,
     above: !showBelow
   });
 });
@@ -236,6 +236,7 @@ function RefPreviewPopup() {
     <div className="ref-popup" style={{
       left: x,
       top: Math.max(8, y),
+      transform: above ? "translateY(-100%)" : "translateY(0)"
     }}>
       <div className="ref-popup-meta">
         {data.avatar_url
@@ -787,7 +788,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .ref-popup-av{width:26px;height:26px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;object-fit:cover;}
 .ref-popup-username{font-size:12px;font-weight:500;color:var(--t2);}
 .ref-popup-time{font-size:11px;color:var(--t5);margin-left:auto;}
-.ref-popup-body{font-size:12px;color:var(--t4);line-height:1.6;min-height:96px;max-height:220px;overflow:hidden;position:relative;}
+.ref-popup-body{font-size:12px;color:var(--t4);line-height:1.6;max-height:220px;overflow:hidden;position:relative;}
 .ref-popup-body::after{content:"";position:absolute;bottom:0;left:0;right:0;height:32px;background:linear-gradient(transparent,var(--s2));}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
