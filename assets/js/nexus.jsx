@@ -678,9 +678,10 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-overlay-head{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .mob-overlay-title{font-size:15px;font-weight:600;color:var(--t1);}
 .mob-overlay-body{flex:1;overflow-y:auto;}
+}
 
-.topbar-right-btn{display:none;}
 /* Mid breakpoint: 768px–1240px — right panel hidden, triggered via topbar icon */
+.topbar-right-btn{display:none;}
 @media(min-width:768px) and (max-width:1239.99px){
   .right-panel{display:none!important;}
   .mob-overlay.right{left:auto;width:320px;right:0;top:0;bottom:0;inset:unset;}
@@ -701,6 +702,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 }
 @media(min-width:768px){
 .mob-topbar,.mob-tabbar,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
+.mob-overlay:not(.right){display:none!important;}
 .mob-admin-topbar{display:none;}
 .mob-admin-close{display:none;}
 }
