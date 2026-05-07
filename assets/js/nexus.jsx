@@ -1749,7 +1749,100 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 }
 
 // ── Post view ─────────────────────────────────────────────────────────────────
-function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport}) {
+function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
+  const [dragging, setDragging] = useState(false);
+  const trackRef = useRef(null);
+  const saveTimer = useRef(null);
+
+  // Find index of last read reply
+  const lastReadIdx = lastReadReplyId ? replies.findIndex(r=>r.id===lastReadReplyId) : -1;
+  const readCount = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
+  const fillPct = replies.length > 0 ? (readCount / replies.length) * 100 : 0;
+
+  const scrollToIdx = (idx) => {
+    const r = replies[Math.max(0, Math.min(idx, replies.length-1))];
+    if(!r) return;
+    const el = document.getElementById(`reply-${r.id}`);
+    if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
+    // Save position
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(()=>{
+      if(currentUser){
+        api.post(`/posts/${postId}/read-position`,{last_reply_id:r.id,reply_count:idx+1}).catch(()=>{});
+        onSavePosition?.(r.id, idx+1);
+      }
+    },800);
+  };
+
+  const handleTrackClick = e => {
+    if(!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const pct = (e.clientY - rect.top) / rect.height;
+    const idx = Math.round(pct * (replies.length-1));
+    scrollToIdx(idx);
+  };
+
+  // Intersection observer to track scroll position
+  useEffect(()=>{
+    if(!currentUser||!replies.length) return;
+    const observers = [];
+    replies.forEach((r,i)=>{
+      const el = document.getElementById(`reply-${r.id}`);
+      if(!el) return;
+      const obs = new IntersectionObserver(([entry])=>{
+        if(entry.isIntersecting && i >= readCount-1){
+          clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(()=>{
+            api.post(`/posts/${postId}/read-position`,{last_reply_id:r.id,reply_count:i+1}).catch(()=>{});
+            onSavePosition?.(r.id, i+1);
+          },1500);
+        }
+      },{threshold:0.6});
+      obs.observe(el);
+      observers.push(obs);
+    });
+    return ()=>observers.forEach(o=>o.disconnect());
+  },[replies.length, postId, currentUser]);
+
+  return (
+    <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)"}}>
+      <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
+      <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
+      {/* Track */}
+      <div ref={trackRef} onClick={handleTrackClick}
+        style={{flex:1,width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,position:"relative",cursor:"pointer",margin:"4px 0"}}>
+        {/* Fill */}
+        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:`${fillPct}%`,transition:"height .3s"}}/>
+        {/* Pips */}
+        {replies.map((r,i)=>{
+          const top = replies.length>1 ? (i/(replies.length-1))*100 : 50;
+          const isRead = i < readCount;
+          const isCurrent = r.id === lastReadReplyId;
+          return <div key={r.id} style={{
+            position:"absolute",left:"50%",transform:"translateX(-50%)",
+            top:`${top}%`,marginTop:-1.5,
+            width:isCurrent?10:6,height:isCurrent?10:3,
+            borderRadius:isCurrent?"50%":1.5,
+            background:isCurrent?"var(--ac)":isRead?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.15)",
+            border:isCurrent?"2px solid var(--s1)":"none",
+            transition:"all .2s",cursor:"pointer",zIndex:isCurrent?2:1
+          }} title={`Reply ${i+1} by ${r.user?.username||"?"}`}/>;
+        })}
+        {/* Thumb */}
+        <div style={{
+          position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
+          top:`${fillPct}%`,
+          width:14,height:14,borderRadius:"50%",
+          background:"var(--ac)",border:"2px solid var(--s1)",
+          zIndex:3,transition:"top .3s",cursor:"grab",pointerEvents:"none"
+        }}/>
+      </div>
+      <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{readCount}/{replies.length}</div>
+    </div>
+  );
+}
+
+function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
   const [submitting,setSubmitting]=useState(false);
@@ -1797,13 +1890,29 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   useEffect(()=>{
     (async()=>{ setLoading(true);
-      try { const [pd,rd]=await Promise.all([api.get(`/posts/${postId}`),api.get(`/posts/${postId}/replies`)]);
+      try { const [pd,rd,rp]=await Promise.all([
+          api.get(`/posts/${postId}`),
+          api.get(`/posts/${postId}/replies`),
+          currentUser?api.get(`/posts/${postId}/read-position`):Promise.resolve({})
+        ]);
         setPost(pd.post); setReplies(rd.replies||[]);
         setUserReaction(pd.post?.user_reaction||null);
+        if(rp.last_reply_id){setLastReadReplyId(rp.last_reply_id);setLastReadCount(rp.reply_count||0);}
       }
       finally { setLoading(false); }
     })();
   },[postId]);
+
+  useEffect(()=>{
+    if(!replies.length) return;
+    const targetId = scrollToReply || lastReadReplyId;
+    if(targetId){
+      setTimeout(()=>{
+        const el = document.getElementById(`reply-${targetId}`);
+        if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
+      },150);
+    }
+  },[replies.length>0, scrollToReply, lastReadReplyId]);
 
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
@@ -1891,6 +2000,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
+  const [openReplyMenu2, _] = useState(null); // placeholder
+  const [lastReadReplyId, setLastReadReplyId] = useState(null);
+  const [lastReadCount, setLastReadCount] = useState(0);
+  const repliesContainerRef = useRef(null);
   // Auto-open report modal if navigated here with openReport flag
   useEffect(()=>{
     if(openReport&&post) { setReportTarget({type:"post",id:post.id}); setReportReason(""); }
@@ -1934,7 +2047,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>
         </div>
       )}
-      <div className="post-content-wrap">
+      <div className="post-content-wrap" ref={repliesContainerRef}>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
@@ -2032,7 +2145,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>oldest first</span>
         </div>
         {replies.map(r=>(
-          <div key={r.id} className="reply-item">
+          <div key={r.id} id={`reply-${r.id}`} className="reply-item">
             {r.user?.avatar_url
               ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
               :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
@@ -2273,8 +2386,8 @@ function NotificationsPage({navigate}) {
   const markRead=async n=>{
     if(!n.read){await api.patch(`/notifications/${n.id}/read`,{});setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x));}
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
-    else if(n.post_id) navigate("post",{id:n.post_id});
-    else if(n.reply_id) api.get(`/posts/by-reply/${n.reply_id}`).then(d=>{ if(d.post_id) navigate("post",{id:d.post_id}); }).catch(()=>{});
+    else if(n.post_id) navigate("post",{id:n.post_id, scrollToReply:n.reply_id||null});
+    else if(n.reply_id) api.get(`/posts/by-reply/${n.reply_id}`).then(d=>{ if(d.post_id) navigate("post",{id:d.post_id, scrollToReply:n.reply_id}); }).catch(()=>{});
   };
   const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement"};
   const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn"};
@@ -2288,7 +2401,7 @@ function NotificationsPage({navigate}) {
           {notifs.length>0&&<button className="btn-ghost" style={{fontSize:11,color:"var(--red)"}} onClick={deleteAll}>Clear all</button>}
         </div>
       </div>
-      <div style={{flex:1,overflowY:"auto",maxWidth:640,width:"100%"}}>
+      <div style={{flex:1,overflowY:"auto",width:"100%"}}>
         {loading?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
           :notifs.length===0?<div style={{padding:"60px",textAlign:"center",color:"var(--t5)"}}>No notifications yet</div>
           :notifs.map(n=>(
@@ -2525,6 +2638,13 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
         </div>
 
       </div>
+    {replies.length>0&&currentUser&&<PostScrubber
+        replies={replies}
+        lastReadReplyId={lastReadReplyId}
+        postId={postId}
+        currentUser={currentUser}
+        onSavePosition={(replyId,count)=>{setLastReadReplyId(replyId);setLastReadCount(count);}}
+      />}
     </div>
   );
 }
@@ -4870,7 +4990,7 @@ function App() {
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
-      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport}/>;
+      case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);

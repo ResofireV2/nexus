@@ -69,6 +69,33 @@ defmodule NexusWeb.API.V1.PostController do
     end
   end
 
+  # GET /api/v1/posts/:id/read-position
+  def read_position(conn, %{"id" => post_id}) do
+    user_id = conn.assigns.current_user.id
+    alias Nexus.Forum.PostRead
+    import Ecto.Query
+    read = Nexus.Repo.one(from r in PostRead, where: r.user_id == ^user_id and r.post_id == ^String.to_integer("#{post_id}"))
+    json(conn, %{last_reply_id: read && read.last_reply_id, reply_count: read && read.reply_count || 0})
+  end
+
+  # POST /api/v1/posts/:id/read-position
+  def save_read_position(conn, %{"id" => post_id, "last_reply_id" => last_reply_id, "reply_count" => reply_count}) do
+    user_id = conn.assigns.current_user.id
+    alias Nexus.Forum.PostRead
+    import Ecto.Query
+    post_id_int = String.to_integer("#{post_id}")
+    existing = Nexus.Repo.one(from r in PostRead, where: r.user_id == ^user_id and r.post_id == ^post_id_int)
+    attrs = %{user_id: user_id, post_id: post_id_int, last_reply_id: last_reply_id, reply_count: reply_count}
+    result = case existing do
+      nil -> %PostRead{} |> PostRead.changeset(attrs) |> Nexus.Repo.insert()
+      rec -> rec |> PostRead.changeset(attrs) |> Nexus.Repo.update()
+    end
+    case result do
+      {:ok, _} -> json(conn, %{ok: true})
+      {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "Failed"})
+    end
+  end
+
   # DELETE /api/v1/posts/:id
   def delete(conn, %{"id" => id}) do
     user = conn.assigns.current_user

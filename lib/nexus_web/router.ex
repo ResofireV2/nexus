@@ -117,15 +117,11 @@ defmodule NexusWeb.Router do
 
     # Direct messaging
     get  "/threads",               ThreadController, :index
-    get    "/threads/unread",              ThreadController, :unread
-    get    "/threads/:id",                 ThreadController, :show
-    patch  "/threads/:id",                 ThreadController, :update
-    post   "/threads/direct",              ThreadController, :create_direct
-    post   "/threads/group",               ThreadController, :create_group
-    post   "/threads/:id/mute",            ThreadController, :mute
-    post   "/threads/:id/read",            ThreadController, :mark_read
-    post   "/threads/:id/members",         ThreadController, :add_member
-    delete "/threads/:id/members/:user_id", ThreadController, :remove_member
+    post "/threads/direct",        ThreadController, :create_direct
+    post "/threads/group",         ThreadController, :create_group
+    post "/threads/:id/mute",      ThreadController, :mute
+    post "/threads/:id/read",      ThreadController, :mark_read
+    get  "/threads/unread",        ThreadController, :unread
 
     get  "/threads/:thread_id/messages", MessageController, :index
     post "/threads/:thread_id/messages", MessageController, :create
@@ -155,15 +151,16 @@ defmodule NexusWeb.Router do
     # Post moderation
     post "/posts/:id/pin",  PostController, :pin
     post "/posts/:id/lock", PostController, :lock
-    post "/posts/:id/hide", PostController, :hide
+    post "/posts/:id/hide",          PostController, :hide
+    get  "/posts/:id/read-position",  PostController, :read_position
+    post "/posts/:id/read-position",  PostController, :save_read_position
 
     # Reply moderation
     post "/posts/:post_id/replies/:id/hide", ReplyController, :hide
 
     # Reports
-    get   "/reports",          ReportController,     :index
-    patch "/reports/:id",     ReportController,     :update
-    get   "/moderation/hidden",  ModerationController, :hidden
+    get   "/reports",     ReportController,     :index
+    patch "/reports/:id", ReportController,     :update
 
     # User moderation
     post   "/moderation/users/:username/ban",     ModerationController, :ban
@@ -182,8 +179,6 @@ defmodule NexusWeb.Router do
     pipe_through [:api, :admin]
 
     get    "/dashboard",          AdminController,  :dashboard
-    get    "/queues",             AdminController,  :queues
-    get    "/system",             AdminController,  :system
     get    "/users",              AdminController,  :list_users
     get    "/users/:id",          AdminController,  :get_user
     patch  "/users/:id/role",     AdminController,  :update_role
