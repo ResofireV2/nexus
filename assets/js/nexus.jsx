@@ -835,6 +835,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 .p-reply-card{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .p-reply-body{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .p-reply-meta{font-size:11px;color:var(--t5);display:flex;align-items:center;gap:6px;}
+.members-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+@media(max-width:767.99px){.members-grid{grid-template-columns:1fr;}}
 .p-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:16px 0;}
 @media(max-width:767.99px){.profile-stat-grid{grid-template-columns:repeat(2,1fr);}.p-media-grid{grid-template-columns:repeat(2,1fr);}}
 
@@ -6934,7 +6936,7 @@ function MembersPage({navigate, currentUser}) {
           ?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
           :filtered.length===0
             ?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>No members found</div>
-            :<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
+            :<div className="members-grid">
               {filtered.map(m=><MemberCard key={m.id} m={m} navigate={navigate} currentUser={currentUser}/>)}
             </div>}
       </div>
