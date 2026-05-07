@@ -163,9 +163,17 @@ function stripMd(text) {
 
 // Track whether the user's last interaction was touch so we can
 // switch between hover-popup (desktop) and tap-popup (mobile).
+// We use touchend (not touchstart) because mobile browsers fire synthetic
+// mousemove/click events ~300ms after touchend — setting the flag here
+// ensures it's still true when the click handler runs.
 let _lastWasTouch = false;
-document.addEventListener("touchstart", () => { _lastWasTouch = true; }, {passive: true});
-document.addEventListener("mousemove", () => { _lastWasTouch = false; }, {passive: true});
+let _touchFlagTimer = null;
+document.addEventListener("touchend", () => {
+  _lastWasTouch = true;
+  clearTimeout(_touchFlagTimer);
+  // Clear after 1s — long enough for all synthetic mouse events to fire
+  _touchFlagTimer = setTimeout(() => { _lastWasTouch = false; }, 1000);
+}, {passive: true});
 
 function _showRefPopup(link) {
   const href = link.getAttribute("href") || "";
