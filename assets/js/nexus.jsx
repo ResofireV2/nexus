@@ -4481,6 +4481,7 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     next[key] = val;
     setLayoutCfg(next);
     if(key === "toolbar") _activeToolbar = val;
+    api.patch("/admin/settings/layout", {value: next}).catch(function(){});
   }
 
   // Get ordered list with defaults for any missing ids
