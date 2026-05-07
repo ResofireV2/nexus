@@ -7,8 +7,7 @@ defmodule Nexus.Digest do
   import Ecto.Query
   alias Nexus.Repo
   alias Nexus.Accounts.User
-  alias Nexus.Forum.{Post, Reply, Space}
-  alias Nexus.Activity.UserDailyStat
+  alias Nexus.Forum.{Post, Space}
   alias Nexus.Badges.UserBadge
   alias Nexus.Leaderboard.UserScore
   alias Nexus.Admin

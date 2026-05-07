@@ -471,24 +471,26 @@ defmodule Nexus.Mailer do
     lines = lines ++ Enum.flat_map(order, fn key ->
       case {key, Map.get(sects, key)} do
         {"posts", posts} when is_list(posts) and posts != [] ->
-          ["TOP POSTS", ""] ++ Enum.with_index(posts, 1) |> Enum.map(fn {p, i} ->
+          post_lines = Enum.with_index(posts, 1) |> Enum.map(fn {p, i} ->
             "#{i}. #{p.title} (#{p.reply_count} replies, #{p.reaction_count} hearts) — #{url}/posts/#{p.id}"
-          end) ++ [""]
+          end)
+          ["TOP POSTS", ""] ++ post_lines ++ [""]
         {"leaderboard", %{top3: top3, points_name: pn}} when top3 != [] ->
-          ["LEADERBOARD", ""] ++ Enum.with_index(top3, 1) |> Enum.map(fn {u, i} ->
+          lb_lines = Enum.with_index(top3, 1) |> Enum.map(fn {u, i} ->
             "#{i}. #{u.username} — #{u.score} #{pn}"
-          end) ++ [""]
+          end)
+          ["LEADERBOARD", ""] ++ lb_lines ++ [""]
         {"badges", badges} when is_list(badges) and badges != [] ->
-          ["BADGES AWARDED", ""] ++ Enum.map(badges, fn b ->
+          badge_lines = Enum.map(badges, fn b ->
             "#{b.badge_name}: #{Enum.join(b.holders, ", ")}"
-          end) ++ [""]
+          end)
+          ["BADGES AWARDED", ""] ++ badge_lines ++ [""]
         {"members", members} when is_list(members) and members != [] ->
-          names = Enum.map(members, & &1.username) |> Enum.join(", ")
+          names = Enum.map_join(members, ", ", & &1.username)
           ["NEW MEMBERS", names, ""]
         {"spaces", spaces} when is_list(spaces) and spaces != [] ->
-          ["TRENDING SPACES", ""] ++ Enum.map(spaces, fn s ->
-            "#{s.name}: #{s.post_count} posts"
-          end) ++ [""]
+          space_lines = Enum.map(spaces, fn s -> "#{s.name}: #{s.post_count} posts" end)
+          ["TRENDING SPACES", ""] ++ space_lines ++ [""]
         _ -> []
       end
     end)
