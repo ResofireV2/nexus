@@ -489,6 +489,14 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
 }
 @media(max-width:767.99px){
+.admin-sidenav{display:none;}
+.admin-shell{flex-direction:column;}
+.mob-admin-nav-open .admin-sidenav{display:flex;position:fixed;inset:0;z-index:950;width:100%;background:var(--bg);}
+.mob-admin-topbar{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;background:var(--bg);}
+.mob-admin-back{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ac-text);cursor:pointer;padding:6px 0;}
+.mob-admin-back i{font-size:15px;}
+}
+@media(max-width:767.99px){
 .mob-sidebar-inner{width:100%;display:flex;flex-direction:column;}
 .mob-sidebar-inner .sb-logo{display:none;}
 .mob-sidebar-inner .sb-scroll{flex:1;overflow-y:auto;padding:8px 0;}
@@ -4274,6 +4282,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const [spaces,setSpaces]=useState([]); const [tags,setTags]=useState([]);
   const [reports,setReports]=useState([]); const [modLogs,setModLogs]=useState([]);
   const [showCreateUser,setShowCreateUser]=useState(false);
+  const [mobAdminNavOpen,setMobAdminNavOpen]=useState(false);
   const [newUser,setNewUser]=useState({username:"",email:"",password:"",role:"member",skip_verification:false});
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
   const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false);
@@ -4349,8 +4358,19 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
   return (
     <>
-    <div className="admin-shell">
+    <div className={`admin-shell${mobAdminNavOpen?" mob-admin-nav-open":""}`}>
+      <div className="mob-admin-topbar">
+        <div className="mob-admin-back" onClick={()=>navigate("feed",{})}>
+          <i className="fa-solid fa-arrow-left"/>Back to forum
+        </div>
+        <button className="mob-icon-btn" onClick={()=>setMobAdminNavOpen(true)}>
+          <i className="fa-solid fa-bars"/>
+        </button>
+      </div>
       <div className="admin-sidenav">
+        <div style={{height:52,display:"flex",alignItems:"center",justifyContent:"flex-end",padding:"0 14px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+          <button className="mob-icon-btn" onClick={()=>setMobAdminNavOpen(false)}><i className="fa-solid fa-xmark"/></button>
+        </div>
         <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)"}}>
           <span className="logo-text">nexus<em>.</em></span>
           <div className="admin-badge"><i className="fa-solid fa-shield-halved" style={{fontSize:13}}></i>administration</div>
@@ -4360,7 +4380,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             <div key={ns.label}>
               <div className="admin-sn-label">{ns.label}</div>
               {ns.items.map(item=>(
-                <div key={item.k} className={`admin-sn-item ${sec===item.k?"active":""}`} onClick={()=>setSec(item.k)}>
+                <div key={item.k} className={`admin-sn-item ${sec===item.k?"active":""}`} onClick={()=>{setSec(item.k);setMobAdminNavOpen(false);}}>
                   <i className={`fa-solid ${item.icon}`}></i>
                   <span className="admin-sn-item-name">{item.label}</span>
                   {item.badge>0&&<span className="admin-sn-badge">{item.badge}</span>}
@@ -5436,13 +5456,13 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
 
 // ── Mobile shell components ────────────────────────────────────────────────────
 
-function MobileTopBar({onHamburger, onRight, branding}) {
+function MobileTopBar({onHamburger, onRight, branding, onNavigateHome}) {
   return (
     <div className="mob-topbar">
       <button className="mob-icon-btn" onClick={onHamburger} aria-label="Menu">
         <i className="fa-solid fa-bars"/>
       </button>
-      <div className="mob-topbar-logo">
+      <div className="mob-topbar-logo" onClick={onNavigateHome} style={{cursor:"pointer"}}>
         {branding?.logo_url
           ? <img src={branding.logo_url} style={{height:28,objectFit:"contain"}} alt="logo"/>
           : <>{branding?.site_name||"nexus"}<em>.</em></>}
@@ -5829,7 +5849,7 @@ function App() {
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
         <MobileSearchOverlay open={mobSearchOpen} onClose={()=>setMobSearchOpen(false)} navigate={navigate}/>
-        <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={appBranding}/>
+        <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={appBranding} onNavigateHome={()=>navigate("feed",{})}/>
         <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>setMobSearchOpen(true)} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
