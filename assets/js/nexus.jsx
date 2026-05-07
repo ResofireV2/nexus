@@ -411,16 +411,16 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-text{font-size:13px;color:var(--t3);line-height:1.65;}
 
 /* Composer */
-.composer-shell{flex:1;overflow-y:auto;padding:0;}
-.composer-inner{max-width:680px;margin:0 auto;padding:32px 28px 40px;}
+.composer-shell{flex:1;overflow-y:auto;padding:0;display:flex;flex-direction:column;}
+.composer-inner{width:100%;padding:32px 48px 40px;box-sizing:border-box;}
 .comp-title-input{width:100%;background:transparent;border:none;outline:none;font-size:22px;font-weight:600;color:var(--t1);font-family:inherit;letter-spacing:-.3px;margin-bottom:8px;}
 .comp-title-input::placeholder{color:rgba(255,255,255,0.15);}
 .comp-meta-row{display:flex;align-items:center;gap:8px;padding:10px 0 16px;border-bottom:0.5px solid var(--b1);flex-wrap:wrap;margin-bottom:20px;}
 .comp-sel{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--t3);cursor:pointer;font-family:inherit;outline:none;}
 .comp-tag-pill{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);cursor:pointer;}
 .comp-tag-add{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);background:transparent;color:var(--t4);cursor:pointer;}
-.comp-body-area{position:relative;min-height:240px;}
-.comp-ta{width:100%;background:transparent;border:none;outline:none;font-size:15px;color:var(--t3);line-height:1.75;font-family:inherit;resize:none;min-height:240px;caret-color:var(--ac);padding:0 16px;box-sizing:border-box;}
+.comp-body-area{position:relative;flex:1;min-height:240px;}
+.comp-ta{width:100%;height:100%;background:transparent;border:none;outline:none;font-size:15px;color:var(--t3);line-height:1.75;font-family:inherit;resize:none;min-height:240px;caret-color:var(--ac);padding:0 16px;box-sizing:border-box;}
 .comp-ta::placeholder{color:rgba(255,255,255,0.12);}
 .comp-footer{display:flex;align-items:center;gap:10px;padding-top:16px;border-top:0.5px solid var(--b1);margin-top:16px;}
 .comp-char{font-size:11px;color:var(--t5);}
@@ -1077,7 +1077,8 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     }, 0);
   };
   // Mention state
-  const [mentionDrop, setMentionDrop] = useState(null); // {users, query, pos, x, y, selIdx}
+  const [mentionDrop, setMentionDrop] = useState(null);
+  const [isFocused, setIsFocused] = useState(false); // {users, query, pos, x, y, selIdx}
   const mentionDebounce = useRef();
   const mentionSearch = async (q, caretPos, x, y) => {
     if (q.length === 0) { setMentionDrop(null); return; }
@@ -1216,9 +1217,9 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
             : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
         </label>
       </div>
-      {!value && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
+      {!value && !isFocused && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
-        onBlur={handleBlur} autoFocus={autoFocus}
+        onFocus={()=>setIsFocused(true)} onBlur={e=>{handleBlur(e);setIsFocused(false);}} autoFocus={autoFocus}
         className="comp-ta" style={{minHeight,paddingTop:12,paddingBottom:12}}
         onPaste={e=>{
           const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
@@ -2336,7 +2337,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
           <i className="fa-solid fa-arrow-left"></i> back to feed
         </span>
       </div>
-      <div className="composer-inner">
+      <div className="composer-inner" style={{display:"flex",flexDirection:"column",flex:1}}>
         <input className="comp-title-input" placeholder="Thread title…" value={title} onChange={e=>setTitle(e.target.value)} autoFocus/>
         <div className="comp-meta-row">
           <select className="comp-sel" value={spaceId} onChange={e=>setSpaceId(e.target.value)}>
