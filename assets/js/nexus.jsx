@@ -5866,7 +5866,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                 </label>
                 {general.logo_url&&<span className="btn-ghost" style={{fontSize:12,color:"var(--red)",cursor:"pointer"}} onClick={()=>setGeneral(p=>({...p,logo_url:null}))}>Remove</span>}
               </div>
-              <div style={{fontSize:11,color:"var(--t5)",lineHeight:1.5}}>PNG or SVG recommended.<br/>Max 400px wide.</div>
+              <div style={{fontSize:11,color:"var(--t5)",lineHeight:1.5}}>PNG or SVG recommended.<br/>Max 400px wide.<br/><span style={{color:"var(--amber)"}}>Avoid WebP — not supported in most email clients.</span></div>
             </div>
 
             <div className="fgt" style={{marginTop:20}}>Favicon</div>
@@ -6291,6 +6291,17 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   const [pw,setPw]=useState({current:"",next:"",confirm:""});
   const [saving,setSaving]=useState(false);
   const [pwErr,setPwErr]=useState(null);
+  const [digestSettings,setDigestSettings]=useState({enabled:false,frequencies:[]});
+
+  // Fetch digest settings when notifications tab is first opened
+  useEffect(()=>{
+    if(tab==="notifications") {
+      api.get("/branding").then(d=>{
+        const ds = d.settings?.digest || {};
+        setDigestSettings({enabled:ds.enabled===true, frequencies:ds.frequencies||[]});
+      }).catch(()=>{});
+    }
+  },[tab]);
 
   // Notification preferences — loaded from currentUser.preferences
   const DEFAULT_NOTIF_PREFS = {

@@ -96,9 +96,18 @@ defmodule Nexus.Mailer do
     preview_text = Keyword.get(opts, :preview, "")
     url          = base_url()
 
-    logo_html = if logo_url && logo_url != "" do
+    # Email clients cannot resolve relative URLs — make absolute.
+    # If already starts with http it's a CDN/external URL, leave as-is.
+    absolute_logo =
+      cond do
+        is_nil(logo_url) or logo_url == "" -> nil
+        String.starts_with?(logo_url, "http") -> logo_url
+        true -> "#{url}#{logo_url}"
+      end
+
+    logo_html = if absolute_logo do
       """
-      <img src="#{logo_url}" alt="#{site_name}" style="max-height:40px;max-width:160px;object-fit:contain;display:block;" />
+      <img src="#{absolute_logo}" alt="#{site_name}" style="max-height:40px;max-width:160px;object-fit:contain;display:block;" />
       """
     else
       """
