@@ -3855,6 +3855,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const wsRef = useRef(null);
   const heartbeatRef = useRef(null);
   const reconnectRef = useRef(null);
+  const reconnectDelay = useRef(3000);
   const refSeq = useRef(1);
   // Topics the application wants to be joined. Persists across reconnects.
   const desiredTopics = useRef(new Set());
@@ -3917,6 +3918,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
       const send = (msg) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(msg));
 
       ws.onopen = () => {
+        reconnectDelay.current = 3000; // reset backoff on successful connection
         // Always join the core topics
         send([null, String(refSeq.current++), "feed:global", "phx_join", {}]);
         joinedTopics.current.add("feed:global");
@@ -3977,9 +3979,10 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
       ws.onclose = () => {
         clearInterval(heartbeatRef.current);
         joinedTopics.current.clear();
-        // Reconnect after 3 seconds if still mounted and authenticated
+        // Reconnect with exponential backoff: 3s → 6s → 12s → 24s → 60s max
         if (mountedRef.current && token && userId) {
-          reconnectRef.current = setTimeout(connect, 3000);
+          reconnectRef.current = setTimeout(connect, reconnectDelay.current);
+          reconnectDelay.current = Math.min(reconnectDelay.current * 2, 60000);
         }
       };
     };
