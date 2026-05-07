@@ -1834,6 +1834,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
+  const [showPostMenu, setShowPostMenu] = useState(false);
+  const [postMenuOpen, setPostMenuOpen] = useState(false);
   const col = spaceColor(post?.space||{id:postId});
 
   if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
@@ -1867,26 +1869,56 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
               <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
               <span style={{fontSize:11,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
-              <span style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
-                {/* Report — shown to non-authors */}
-                {currentUser&&currentUser?.id!==post.user?.id&&(
-                  <span style={{fontSize:11,color:"var(--t4)",cursor:"pointer"}} onClick={()=>{setReportTarget({type:"post",id:post.id});setReportReason("");}}>report</span>
-                )}
-                {/* Mod actions */}
-                {isMod&&<>
-                  <span style={{fontSize:11,color:post.pinned?"var(--ac-text)":"var(--t4)",cursor:"pointer"}} onClick={()=>modAction("pin")}>{post.pinned?"unpin":"pin"}</span>
-                  <span style={{fontSize:11,color:post.locked?"var(--amber)":"var(--t4)",cursor:"pointer"}} onClick={()=>modAction("lock")}>{post.locked?"unlock":"lock"}</span>
-                  <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={()=>modAction("hide")}>{post.hidden?"unhide":"hide"}</span>
-                </>}
-                {/* Delete — author or mod */}
-                {(currentUser?.id===post.user?.id||isMod)&&(
-                  <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={async()=>{if(!confirm("Delete this post?"))return;await api.delete(`/posts/${post.id}`);navigate("feed");toast("Post deleted");}}>delete</span>
-                )}
-              </span>
+
             </div>
             <div className="post-body"><Md text={post.body}/></div>
-            <div className="reaction-row" style={{justifyContent:"flex-end"}}>
+            <div className="reaction-row" style={{justifyContent:"flex-end",position:"relative"}} onMouseEnter={()=>setShowPostMenu(true)} onMouseLeave={()=>setShowPostMenu(false)}>
               <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
+              {currentUser&&(currentUser.id===post.user?.id||isMod||currentUser.id!==post.user?.id)&&(
+                <div style={{position:"relative"}}>
+                  <button
+                    style={{width:30,height:30,borderRadius:"50%",background:"transparent",border:"0.5px solid var(--b1)",color:"var(--t4)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:showPostMenu?1:0,transition:"opacity .15s",fontSize:14}}
+                    onClick={e=>{e.stopPropagation();setPostMenuOpen(p=>!p);}}>
+                    <i className="fa-solid fa-ellipsis"/>
+                  </button>
+                  {postMenuOpen&&<div style={{position:"absolute",bottom:36,right:0,background:"var(--s3)",border:"0.5px solid var(--b2)",borderRadius:10,padding:"4px 0",minWidth:140,zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}}
+                    onMouseLeave={()=>{setPostMenuOpen(false);setShowPostMenu(false);}}>
+                    {/* Report */}
+                    {currentUser.id!==post.user?.id&&<button onClick={()=>{setPostMenuOpen(false);setReportTarget({type:"post",id:post.id});setReportReason("");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <i className="fa-solid fa-flag" style={{fontSize:11,color:"var(--t4)",width:14}}/>Report
+                    </button>}
+                    {/* Mod actions */}
+                    {isMod&&<>
+                      <button onClick={()=>{setPostMenuOpen(false);modAction("pin");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:post.pinned?"var(--ac-text)":"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <i className={`fa-solid ${post.pinned?"fa-thumbtack fa-rotate-90":"fa-thumbtack"}`} style={{fontSize:11,color:"var(--t4)",width:14}}/>{post.pinned?"Unpin":"Pin"}
+                      </button>
+                      <button onClick={()=>{setPostMenuOpen(false);modAction("lock");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:post.locked?"var(--amber)":"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <i className={`fa-solid ${post.locked?"fa-lock-open":"fa-lock"}`} style={{fontSize:11,color:"var(--t4)",width:14}}/>{post.locked?"Unlock":"Lock"}
+                      </button>
+                      <button onClick={()=>{setPostMenuOpen(false);modAction("hide");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <i className={`fa-solid ${post.hidden?"fa-eye":"fa-eye-slash"}`} style={{fontSize:11,color:"var(--red)",width:14}}/>{post.hidden?"Unhide":"Hide"}
+                      </button>
+                    </>}
+                    {/* Delete */}
+                    {(currentUser.id===post.user?.id||isMod)&&<>
+                      <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
+                      <button onClick={async()=>{setPostMenuOpen(false);if(!confirm("Delete this post?"))return;await api.delete(`/posts/${post.id}`);navigate("feed");toast("Post deleted");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <i className="fa-solid fa-trash" style={{fontSize:11,color:"var(--red)",width:14}}/>Delete post
+                      </button>
+                    </>}
+                  </div>}
+                </div>
+              )}
             </div>
           </div>
         </div>
