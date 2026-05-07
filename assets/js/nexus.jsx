@@ -2911,14 +2911,37 @@ function SearchPage({navigate, tags, initialQ=""}) {
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
-function NotificationsPage({navigate}) {
+function NotificationsPage({navigate, onCountChange}) {
   const [notifs,setNotifs]=useState([]); const [loading,setLoading]=useState(true);
-  useEffect(()=>{api.get("/notifications").then(d=>{setNotifs(d.notifications||[]);setLoading(false);});},[]);
-  const markAll=async()=>{await api.post("/notifications/read-all",{});setNotifs(p=>p.map(n=>({...n,read:true})));toast("All marked as read");};
-  const deleteAll=async()=>{if(!confirm("Delete all notifications?"))return;await api.delete("/notifications");setNotifs([]);toast("Notifications cleared");};
-  const deleteOne=async(e,id)=>{e.stopPropagation();await api.delete(`/notifications/${id}`);setNotifs(p=>p.filter(n=>n.id!==id));};
+
+  const updateCount = (list) => {
+    const unread = list.filter(n=>!n.read).length;
+    onCountChange?.(unread);
+  };
+
+  useEffect(()=>{
+    api.get("/notifications").then(d=>{
+      const list = d.notifications||[];
+      setNotifs(list);
+      setLoading(false);
+      updateCount(list);
+    });
+  },[]);
+
+  const markAll=async()=>{
+    await api.post("/notifications/read-all",{});
+    const next = notifs.map(n=>({...n,read:true}));
+    setNotifs(next);
+    updateCount(next);
+    toast("All marked as read");
+  };
+  const deleteAll=async()=>{if(!confirm("Delete all notifications?"))return;await api.delete("/notifications");setNotifs([]);onCountChange?.(0);toast("Notifications cleared");};
+  const deleteOne=async(e,id)=>{e.stopPropagation();await api.delete(`/notifications/${id}`);setNotifs(p=>{const next=p.filter(n=>n.id!==id);updateCount(next);return next;});};
   const markRead=async n=>{
-    if(!n.read){await api.patch(`/notifications/${n.id}/read`,{});setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x));}
+    if(!n.read){
+      await api.patch(`/notifications/${n.id}/read`,{});
+      setNotifs(p=>{const next=p.map(x=>x.id===n.id?{...x,read:true}:x);updateCount(next);return next;});
+    }
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
     else if(n.type==="badge") { navigate("badges"); }
     else if(n.post_id) navigate("post",{id:n.post_id, scrollToReply:n.reply_id||null});
@@ -7204,7 +7227,7 @@ function App() {
       case "saved":       return requireAuth(<SavedPage navigate={navigate}/>);
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
-      case "notifications": return requireAuth(<NotificationsPage navigate={navigate}/>);
+      case "notifications": return requireAuth(<NotificationsPage navigate={navigate} onCountChange={setNotifCount}/>);
       case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
