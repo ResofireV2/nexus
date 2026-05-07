@@ -6910,7 +6910,7 @@ function MembersPage({navigate, currentUser}) {
 
   useEffect(()=>{
     setLoading(true);
-    const endpoint = currentUser?.role === "admin" ? "/admin/users" : `/users?sort=${sort}`;
+    const endpoint = `/users?sort=${sort}`;
     api.get(endpoint).then(d=>{
       setMembers(d.users || d.members || []);
       setLoading(false);
