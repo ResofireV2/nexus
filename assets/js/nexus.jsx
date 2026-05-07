@@ -845,8 +845,8 @@ function pageToUrl(page, props={}) {
 let _cssEl = null;
 // Initialize branding from cache immediately to avoid flash on load
 let _brandingState = (() => {
-  try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : {logo_url:null,site_name:null,favicon_url:null}; }
-  catch { return {logo_url:null,site_name:null,favicon_url:null}; }
+  try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : {logo_url:null,site_name:null,favicon_url:null,hero_title:null,hero_body:null,hero_enabled:false}; }
+  catch { return {logo_url:null,site_name:null,favicon_url:null,hero_title:null,hero_body:null,hero_enabled:false}; }
 })();
 let _brandingListeners = [];
 function onBrandingChange(fn) { _brandingListeners.push(fn); }
@@ -928,7 +928,7 @@ function applyBranding(app={}, gen={}) {
     if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
     link.href = gen.favicon_url;
   }
-  const newBranding = {logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null};
+  const newBranding = {logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null, hero_title: gen.hero_title||null, hero_body: gen.hero_body||null, hero_enabled: gen.hero_enabled||false};
   try { localStorage.setItem("nexus_branding", JSON.stringify(newBranding)); } catch {}
   setBrandingState(newBranding);
 }
@@ -1603,9 +1603,17 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   const feedTitle = followingOnly ? "following" : activeSpace ? activeSpace.name : "everything";
 
+  const hero = _brandingState;
+
   return (
     <div className="feed-wrap">
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {!spaceFilter&&!followingOnly&&hero.hero_enabled&&(hero.hero_title||hero.hero_body)&&(
+            <div style={{padding:"32px 28px",borderBottom:"0.5px solid var(--b1)",background:"linear-gradient(180deg, var(--s2) 0%, transparent 100%)",flexShrink:0}}>
+              {hero.hero_title&&<div style={{fontSize:22,fontWeight:600,color:"var(--t1)",letterSpacing:-0.4,marginBottom:hero.hero_body?8:0,lineHeight:1.3}}>{hero.hero_title}</div>}
+              {hero.hero_body&&<div style={{fontSize:14,color:"var(--t3)",lineHeight:1.7,maxWidth:600}}>{hero.hero_body}</div>}
+            </div>
+          )}
           <div className="feed-header">
             <div className="feed-title">{feedTitle}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3674,6 +3682,22 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
             <F label="Forum name" hint="Appears in the browser tab and emails"><input className="fi" value={general.site_name||""} onChange={e=>setGeneral(p=>({...p,site_name:e.target.value}))} placeholder="Nexus"/></F>
             <F label="Forum description"><input className="fi" value={general.site_description||""} onChange={e=>setGeneral(p=>({...p,site_description:e.target.value}))} placeholder="A short description…"/></F>
             <F label="Base URL"><input className="fi" value={general.base_url||""} onChange={e=>setGeneral(p=>({...p,base_url:e.target.value}))} placeholder="forum.example.com"/></F>
+
+            <div className="fgt" style={{marginTop:20}}>Homepage hero</div>
+            <F label="Show hero banner" hint="Displays a welcome banner above the post feed on the homepage">
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+                <div className={`tgl-track ${general.hero_enabled?"on":""}`} onClick={()=>setGeneral(p=>({...p,hero_enabled:!p.hero_enabled}))} style={{width:36,height:20,borderRadius:10,background:general.hero_enabled?"var(--ac)":"rgba(255,255,255,0.1)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:general.hero_enabled?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+                </div>
+                <span style={{fontSize:12,color:"var(--t3)"}}>{general.hero_enabled?"Enabled":"Disabled"}</span>
+              </label>
+            </F>
+            <F label="Hero headline" hint="Large text displayed prominently in the banner">
+              <input className="fi" value={general.hero_title||""} onChange={e=>setGeneral(p=>({...p,hero_title:e.target.value}))} placeholder="Welcome to our community"/>
+            </F>
+            <F label="Hero body text" hint="Supporting text below the headline">
+              <textarea className="fi" value={general.hero_body||""} onChange={e=>setGeneral(p=>({...p,hero_body:e.target.value}))} placeholder="A place to discuss ideas, share knowledge, and connect." style={{resize:"vertical",minHeight:72,lineHeight:1.6}}/>
+            </F>
 
             <div className="fgt" style={{marginTop:20}}>Site logo</div>
             <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:8}}>

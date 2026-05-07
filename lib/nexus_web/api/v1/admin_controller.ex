@@ -5,19 +5,10 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
-    stats    = Admin.dashboard_stats()
-    extended = Admin.extended_stats()
-    dau_7    = Nexus.Activity.daily_active_users(7)
-    dau_30   = Nexus.Activity.daily_active_users(30)
-    json(conn, %{stats: Map.merge(stats, %{dau_7: dau_7, dau_30: dau_30, extended: extended})})
-  end
-
-  def queues(conn, _params) do
-    json(conn, Admin.queue_stats())
-  end
-
-  def system(conn, _params) do
-    json(conn, %{system: Admin.system_stats()})
+    stats = Admin.dashboard_stats()
+    dau_7  = Nexus.Activity.daily_active_users(7)
+    dau_30 = Nexus.Activity.daily_active_users(30)
+    json(conn, %{stats: Map.merge(stats, %{dau_7: dau_7, dau_30: dau_30})})
   end
 
   # ---------------------------------------------------------------------------
@@ -103,7 +94,7 @@ defmodule NexusWeb.API.V1.AdminController do
     s = Admin.get_settings()
     json(conn, %{
       settings: %{
-        general:    Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url"]),
+        general:    Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url","hero_title","hero_body","hero_enabled"]),
         appearance: Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css"]),
         registration: Map.take(s["registration"]||%{}, ["open"])
       }
