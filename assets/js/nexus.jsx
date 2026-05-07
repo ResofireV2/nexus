@@ -420,7 +420,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-tag-pill{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);cursor:pointer;}
 .comp-tag-add{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);background:transparent;color:var(--t4);cursor:pointer;}
 .comp-body-area{position:relative;min-height:240px;}
-.comp-ta{width:100%;background:transparent;border:none;outline:none;font-size:15px;color:var(--t3);line-height:1.75;font-family:inherit;resize:none;min-height:240px;caret-color:var(--ac);}
+.comp-ta{width:100%;background:transparent;border:none;outline:none;font-size:15px;color:var(--t3);line-height:1.75;font-family:inherit;resize:none;min-height:240px;caret-color:var(--ac);padding:0 16px;box-sizing:border-box;}
 .comp-ta::placeholder{color:rgba(255,255,255,0.12);}
 .comp-footer{display:flex;align-items:center;gap:10px;padding-top:16px;border-top:0.5px solid var(--b1);margin-top:16px;}
 .comp-char{font-size:11px;color:var(--t5);}
@@ -1219,7 +1219,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
       {!value && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
         onBlur={handleBlur} autoFocus={autoFocus}
-        className="comp-ta" style={{minHeight,paddingTop:8}}
+        className="comp-ta" style={{minHeight,paddingTop:12,paddingBottom:12}}
         onPaste={e=>{
           const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
           if (file) { e.preventDefault(); handleImageFile(file); }
@@ -2284,7 +2284,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>}
           <div style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={72} currentUser={currentUser}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser}/>
               <div className="reply-box-foot">
                 <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
