@@ -5637,6 +5637,7 @@ function App() {
   const [msgCount,setMsgCount]=useState(0);
   const [modReportCount,setModReportCount]=useState(0);
   const [layoutCfg,setLayoutCfg]=useState({});
+  const [appBranding,setAppBranding]=useState({});
   const [mobLeftOpen,setMobLeftOpen]=useState(false);
   const [mobRightOpen,setMobRightOpen]=useState(false);
   const [mobUserOpen,setMobUserOpen]=useState(false);
@@ -5723,7 +5724,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});
       const lc=s.layout||{};
       if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();TB_BTNS.forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;_activeToolbar=merged;}
       setLayoutCfg(lc);
@@ -5810,7 +5811,7 @@ function App() {
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
         <MobileSearchOverlay open={mobSearchOpen} onClose={()=>setMobSearchOpen(false)} navigate={navigate}/>
-        <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={branding}/>
+        <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={appBranding}/>
         <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>setMobSearchOpen(true)} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
