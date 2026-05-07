@@ -3917,6 +3917,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
 
 
   return (
+    <>
     <div className="admin-shell">
       <div className="admin-sidenav">
         <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)"}}>
@@ -4567,6 +4568,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
         </div>
       </div>
     )}
+    </>
   );
 }
 
