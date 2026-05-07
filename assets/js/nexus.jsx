@@ -4328,13 +4328,17 @@ function MemberCard({m, navigate, currentUser}) {
   const col = spaceColor({id:m.id});
   const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
   const ROLE_BG    = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
-  const [stats, setStats] = useState(null);
+  const [fullUser, setFullUser] = useState(null);
+  const stats = fullUser ? {post_count:fullUser.post_count||0,reply_count:fullUser.reply_count||0,reactions_received:fullUser.reactions_received||0} : null;
 
   useEffect(()=>{
     api.get(`/users/${m.username}`).then(d=>{
-      if(d.user) setStats({post_count:d.user.post_count||0,reply_count:d.user.reply_count||0,reactions_received:d.user.reactions_received||0});
+      if(d.user) setFullUser(d.user);
     });
   },[m.username]);
+
+  const cover_url = fullUser?.cover_url || m.cover_url;
+  const bio = fullUser?.bio || m.bio;
 
   const startDM = async e => {
     e.stopPropagation();
@@ -4349,7 +4353,7 @@ function MemberCard({m, navigate, currentUser}) {
       onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--b2)";e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.3)";}}
       onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--b1)";e.currentTarget.style.boxShadow="none";}}>
       {/* Cover */}
-      <div style={{height:90,position:"relative",background:m.cover_url?`url(${m.cover_url}) center/cover`:`linear-gradient(135deg,#1e1c2e,#312e55)`}}>
+      <div style={{height:90,position:"relative",background:cover_url?`url(${cover_url}) center/cover`:`linear-gradient(135deg,#1e1c2e,#312e55)`}}>
         <div style={{position:"absolute",bottom:-36,left:16}}>
           {m.avatar_url
             ?<img src={m.avatar_url} style={{width:72,height:72,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",objectFit:"cover"}} alt={m.username}/>
@@ -4370,7 +4374,7 @@ function MemberCard({m, navigate, currentUser}) {
           {m.role&&m.role!=="member"&&<div style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:ROLE_BG[m.role],color:ROLE_COLOR[m.role],border:`0.5px solid ${ROLE_COLOR[m.role]}44`,flexShrink:0}}>{m.role}</div>}
         </div>
         {/* Bio */}
-        {m.bio&&<p style={{fontSize:13,color:"var(--t3)",margin:"0 0 10px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{m.bio}</p>}
+        {bio&&<p style={{fontSize:13,color:"var(--t3)",margin:"0 0 10px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{bio}</p>}
         {/* Stats */}
         <div style={{display:"flex",gap:6,marginBottom:10}}>
           <div className="ucard-stat"><div className="ucard-stat-n">{stats?stats.post_count:"·"}</div><div className="ucard-stat-l">posts</div></div>
