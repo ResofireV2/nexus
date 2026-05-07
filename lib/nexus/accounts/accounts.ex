@@ -210,11 +210,35 @@ defmodule Nexus.Accounts do
   # Email verification
   # ---------------------------------------------------------------------------
 
+  # ---------------------------------------------------------------------------
+  # Admin user management
+  # ---------------------------------------------------------------------------
+
+  def admin_verify_email(user_id) do
+    case Repo.get(User, user_id) do
+      nil  -> {:error, :not_found}
+      user ->
+        user
+        |> Ecto.Changeset.change(email_verified: true, email_verify_token: nil)
+        |> Repo.update()
+    end
+  end
+
+  def admin_create_user(attrs) do
+    # skip_verification: true means email_verified is set to true immediately
+    skip = Map.get(attrs, "skip_verification", false)
+    changeset =
+      %User{}
+      |> User.registration_changeset(attrs)
+      |> (fn cs -> if skip, do: Ecto.Changeset.put_change(cs, :email_verified, true), else: cs end).()
+    Repo.insert(changeset)
+  end
+
   def send_verification_email(user) do
     token = generate_raw_token()
 
     user
-    |> User.email_verify_token_changeset(token)
+    |> User.magic_token_changeset(token)
     |> Repo.update!()
 
     Nexus.Mailer.send_verification_email(user, token)
