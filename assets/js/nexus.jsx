@@ -1038,6 +1038,8 @@ const TB_BTNS = [
   {type:"divider", label:"—",    tip:"Divider",     style:{},                                  wrap:["\n---\n",""]},
   {sep:true},
   {type:"spoiler",  label:"👁",    tip:"Spoiler",     style:{},                                  wrap:["||","||"]},
+  {sep:true},
+  {type:"image",    label:"🖼",    tip:"Upload image", style:{},                                  wrap:null},
 ];
 let _activeToolbar = null; // set by App when layoutCfg loads
 let _slashMenu=null, _activeTA=null, _slashIdx=0;
@@ -1217,19 +1219,19 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Static toolbar */}
       <div className="comp-toolbar">
-        {(toolbarItems||TB_BTNS).map((b,i)=> b.sep
+        {(toolbarItems||TB_BTNS).filter(b=>!b.hidden).map((b,i)=> b.sep
           ? <div key={i} className="comp-tb-sep"/>
-          : <button key={b.type} className="comp-tb-btn" title={b.tip}
-              style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
-              {b.label}
-            </button>
+          : b.type==="image"
+            ? <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
+                {uploading
+                  ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
+                  : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
+              </label>
+            : <button key={b.type} className="comp-tb-btn" title={b.tip}
+                style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
+                {b.label}
+              </button>
         )}
-        <div className="comp-tb-sep"/>
-        <label className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
-          {uploading
-            ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
-            : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
-        </label>
         <div style={{flex:1}}/>
         <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
           <i className="fa-regular fa-eye" style={{fontSize:12}}/>
@@ -3907,7 +3909,7 @@ function ToolbarEditor({items, onChange}) {
                     </div>
                     <div>
                       <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{item.tip}</div>
-                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
+                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
                     </div>
                   </div>}
               {/* Toggle visible */}
