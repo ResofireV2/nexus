@@ -161,8 +161,9 @@ defmodule NexusWeb.Router do
     post "/posts/:post_id/replies/:id/hide", ReplyController, :hide
 
     # Reports
-    get   "/reports",     ReportController,     :index
-    patch "/reports/:id", ReportController,     :update
+    get   "/reports",          ReportController,     :index
+    patch "/reports/:id",     ReportController,     :update
+    get   "/moderation/hidden",  ModerationController, :hidden
 
     # User moderation
     post   "/moderation/users/:username/ban",     ModerationController, :ban

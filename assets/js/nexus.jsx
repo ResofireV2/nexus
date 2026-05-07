@@ -809,6 +809,7 @@ function urlToPage(pathname) {
   if (p === "/search")                 return {page:"search", props:{}};
   if (p === "/notifications")          return {page:"notifications", props:{}};
   if (p === "/messages")               return {page:"messages", props:{}};
+  if (p === "/verify-email")           return {page:"verify-email", props:{token: new URLSearchParams(window.location.search).get("token")}};
   if (p === "/admin")                  return {page:"admin", props:{}};
   if (p === "/settings")               return {page:"settings", props:{}};
   if (p === "/members")                return {page:"members", props:{}};
@@ -1603,11 +1604,20 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   const feedTitle = followingOnly ? "following" : activeSpace ? activeSpace.name : "everything";
 
-  const hero = _brandingState;
+  const [hero, setHero] = useState(_brandingState);
+  useEffect(()=>{ return onBrandingChange(b=>setHero({...b})); },[]);
 
   return (
     <div className="feed-wrap">
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {currentUser&&currentUser.email_verified===false&&(
+            <div style={{background:"rgba(251,191,36,0.08)",borderBottom:"0.5px solid rgba(251,191,36,0.2)",padding:"9px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+              <i className="fa-solid fa-triangle-exclamation" style={{color:"#fbbf24",fontSize:12,flexShrink:0}}/>
+              <span style={{fontSize:12,color:"rgba(251,191,36,0.85)",flex:1}}>
+                Please verify your email address to post, reply, and react. Check your inbox for a verification link.
+              </span>
+            </div>
+          )}
           {!spaceFilter&&!followingOnly&&hero.hero_enabled&&(hero.hero_title||hero.hero_body)&&(
             <div style={{padding:"32px 28px",borderBottom:"0.5px solid var(--b1)",background:"linear-gradient(180deg, var(--s2) 0%, transparent 100%)",flexShrink:0}}>
               {hero.hero_title&&<div style={{fontSize:22,fontWeight:600,color:"var(--t1)",letterSpacing:-0.4,marginBottom:hero.hero_body?8:0,lineHeight:1.3}}>{hero.hero_title}</div>}
@@ -3036,6 +3046,41 @@ function ColorPicker({value, onChange}) {
       </div>
       <input className="fi" value={value||""} onChange={e=>onChange(e.target.value)}
         placeholder="#a78bfa" style={{fontFamily:"monospace",maxWidth:160}}/>
+    </div>
+  );
+}
+
+// ── Email verification page ─────────────────────────────────────────────────
+function VerifyEmailPage({token, navigate}) {
+  const [status, setStatus] = useState("loading");
+
+  useEffect(()=>{
+    if (!token) { setStatus("error"); return; }
+    api.request("GET", `/auth/verify-email?token=${encodeURIComponent(token)}`, null, false, true)
+      .then(d => { if (d.ok) setStatus("ok"); else setStatus("error"); })
+      .catch(() => setStatus("error"));
+  }, [token]);
+
+  return (
+    <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
+      <div style={{maxWidth:400,width:"100%",textAlign:"center"}}>
+        {status==="loading"&&<>
+          <i className="fa-solid fa-spinner fa-spin" style={{fontSize:32,color:"var(--ac)",marginBottom:16,display:"block"}}/>
+          <div style={{fontSize:15,color:"var(--t3)"}}>Verifying your email…</div>
+        </>}
+        {status==="ok"&&<>
+          <i className="fa-solid fa-circle-check" style={{fontSize:40,color:"var(--green)",marginBottom:16,display:"block"}}/>
+          <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",marginBottom:8}}>Email verified!</div>
+          <div style={{fontSize:13,color:"var(--t3)",marginBottom:24}}>Your email has been confirmed. You can now fully participate in the forum.</div>
+          <button className="btn-primary" style={{padding:"10px 28px",borderRadius:20}} onClick={()=>navigate("feed")}>Go to forum</button>
+        </>}
+        {status==="error"&&<>
+          <i className="fa-solid fa-circle-xmark" style={{fontSize:40,color:"var(--red)",marginBottom:16,display:"block"}}/>
+          <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",marginBottom:8}}>Verification failed</div>
+          <div style={{fontSize:13,color:"var(--t3)",marginBottom:24}}>This link may have expired or already been used. Try registering again or contact support.</div>
+          <button className="btn-primary" style={{padding:"10px 28px",borderRadius:20}} onClick={()=>navigate("feed")}>Go to forum</button>
+        </>}
+      </div>
     </div>
   );
 }
@@ -4568,6 +4613,7 @@ function App() {
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
 
   // Admin gets its own full shell
+  if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate}/></div><Toasts/></>;
   if(page==="moderation"&&currentUser) return <><div className="app-root"><ModerationPage currentUser={currentUser} navigate={navigate}/></div><Toasts/></>;
   if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/></div><Toasts/></>;
 

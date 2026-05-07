@@ -87,7 +87,7 @@ defmodule Nexus.Mailer do
   end
 
   def send_verification_email(user, token) do
-    url = "#{base_url()}/api/v1/auth/verify-email?token=#{token}"
+    url = "#{base_url()}/verify-email?token=#{token}"
     new()
     |> from(from_addr())
     |> to({user.username, user.email})
