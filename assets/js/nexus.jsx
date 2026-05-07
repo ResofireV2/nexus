@@ -1750,92 +1750,83 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
 // ── Post view ─────────────────────────────────────────────────────────────────
 function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
-  const [dragging, setDragging] = useState(false);
   const trackRef = useRef(null);
   const saveTimer = useRef(null);
-
-  // Find index of last read reply
-  const lastReadIdx = lastReadReplyId ? replies.findIndex(r=>r.id===lastReadReplyId) : -1;
+  const lastReadIdx = lastReadReplyId ? replies.findIndex(function(r){return r.id===lastReadReplyId;}) : -1;
   const readCount = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
-  const fillPct = replies.length > 0 ? (readCount / replies.length) * 100 : 0;
+  const fillPct = replies.length > 0 ? Math.round((readCount / replies.length) * 100) : 0;
 
-  const scrollToReplyAt = (replyIndex) => {
-    const reply = replies[Math.max(0, Math.min(replyIndex, replies.length-1))];
+  function jumpTo(replyIndex) {
+    var ri = Math.max(0, Math.min(replyIndex, replies.length-1));
+    var reply = replies[ri];
     if(!reply) return;
-    const el = document.getElementById(`reply-${reply.id}`);
-    if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
+    var el = document.getElementById('reply-'+reply.id);
+    if(el) el.scrollIntoView({behavior:'smooth',block:'center'});
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(()=>{
+    saveTimer.current = setTimeout(function(){
       if(currentUser){
-        api.post(`/posts/${postId}/read-position`,{last_reply_id:reply.id,reply_count:replyIndex+1}).catch(()=>{});
-        onSavePosition?.(reply.id, replyIndex+1);
+        api.post('/posts/'+postId+'/read-position',{last_reply_id:reply.id,reply_count:ri+1}).catch(function(){});
+        if(onSavePosition) onSavePosition(reply.id, ri+1);
       }
-    },800);
-  };
+    }, 800);
+  }
 
-  const handleTrackClick = e => {
+  function onTrackClick(e) {
     if(!trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const pct = (e.clientY - rect.top) / rect.height;
-    const clickedIndex = Math.round(pct * (replies.length-1));
-    scrollToReplyAt(clickedIndex);
-  };
+    var rect = trackRef.current.getBoundingClientRect();
+    var pct = (e.clientY - rect.top) / rect.height;
+    jumpTo(Math.round(pct * (replies.length-1)));
+  }
 
-  // Intersection observer to track scroll position
-  useEffect(()=>{
-    if(!currentUser||!replies.length) return;
-    const observers = [];
-    replies.forEach((r,i)=>{
-      const el = document.getElementById(`reply-${r.id}`);
-      if(!el) return;
-      const obs = new IntersectionObserver(([entry])=>{
-        if(entry.isIntersecting && i >= readCount-1){
-          clearTimeout(saveTimer.current);
-          saveTimer.current = setTimeout(()=>{
-            api.post(`/posts/${postId}/read-position`,{last_reply_id:r.id,reply_count:i+1}).catch(()=>{});
-            onSavePosition?.(r.id, i+1);
-          },1500);
+  // Track scroll progress via scroll event on post-content-wrap
+  useEffect(function(){
+    if(!currentUser || !replies.length) return;
+    var container = document.querySelector('.post-content-wrap');
+    if(!container) return;
+    var timer = null;
+    function onScroll() {
+      clearTimeout(timer);
+      timer = setTimeout(function(){
+        var furthestIdx = -1;
+        for(var j=0; j<replies.length; j++){
+          var el = document.getElementById('reply-'+replies[j].id);
+          if(!el) continue;
+          var rect = el.getBoundingClientRect();
+          if(rect.top < window.innerHeight * 0.75) furthestIdx = j;
         }
-      },{threshold:0.6});
-      obs.observe(el);
-      observers.push(obs);
-    });
-    return ()=>observers.forEach(o=>o.disconnect());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[replies.length, postId]);
+        if(furthestIdx >= 0){
+          var r = replies[furthestIdx];
+          if(onSavePosition) onSavePosition(r.id, furthestIdx+1);
+          api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:furthestIdx+1}).catch(function(){});
+        }
+      }, 1000);
+    }
+    container.addEventListener('scroll', onScroll);
+    return function(){ container.removeEventListener('scroll', onScroll); clearTimeout(timer); };
+  }, [replies.length, postId]);
 
   return (
     <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)"}}>
       <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
-      {/* Track */}
-      <div ref={trackRef} onClick={handleTrackClick}
+      <div ref={trackRef} onClick={onTrackClick}
         style={{flex:1,width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,position:"relative",cursor:"pointer",margin:"4px 0"}}>
-        {/* Fill */}
-        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:`${fillPct}%`,transition:"height .3s"}}/>
-        {/* Pips */}
-        {replies.map((r,i)=>{
-          const top = replies.length>1 ? (i/(replies.length-1))*100 : 50;
-          const isRead = i < readCount;
-          const isCurrent = r.id === lastReadReplyId;
-          return <div key={r.id} style={{
+        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:fillPct+"%",transition:"height .3s"}}/>
+        {replies.map(function(r,i){
+          var topPct = replies.length>1 ? (i/(replies.length-1))*100 : 50;
+          var isRead = i < readCount;
+          var isCurrent = r.id === lastReadReplyId;
+          return React.createElement('div',{key:r.id,onClick:function(){jumpTo(i);},title:"Reply "+(i+1)+" by "+(r.user&&r.user.username||"?"),style:{
             position:"absolute",left:"50%",transform:"translateX(-50%)",
-            top:`${top}%`,marginTop:-1.5,
+            top:topPct+"%",marginTop:-1.5,
             width:isCurrent?10:6,height:isCurrent?10:3,
             borderRadius:isCurrent?"50%":1.5,
             background:isCurrent?"var(--ac)":isRead?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.15)",
             border:isCurrent?"2px solid var(--s1)":"none",
-            transition:"all .2s",cursor:"pointer",zIndex:isCurrent?2:1
-          }} title={`Reply ${i+1} by ${r.user?.username||"?"}`}/>;
+            cursor:"pointer",zIndex:isCurrent?2:1
+          }});
         })}
-        {/* Thumb */}
-        <div style={{
-          position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
-          top:`${fillPct}%`,
-          width:14,height:14,borderRadius:"50%",
-          background:"var(--ac)",border:"2px solid var(--s1)",
-          zIndex:3,transition:"top .3s",cursor:"grab",pointerEvents:"none"
-        }}/>
+        <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:fillPct+"%",width:14,height:14,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--s1)",zIndex:3,pointerEvents:"none"}}/>
       </div>
       <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{readCount}/{replies.length}</div>
     </div>
