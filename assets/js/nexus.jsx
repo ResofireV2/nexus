@@ -471,6 +471,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Post view */
 .post-shell{flex:1;display:flex;overflow:hidden;}
+.desk-scrubber{display:flex;align-items:stretch;flex-shrink:0;}
 @media(max-width:767.99px){
 /* Scrubber */
 .desk-scrubber{display:none!important;}
