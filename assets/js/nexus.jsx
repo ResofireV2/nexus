@@ -696,6 +696,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-admin-topbar{display:none;}
 .mob-admin-close{display:none;}
 }
+@media(min-width:768px) and (max-width:1239.99px){
+.right-panel{display:none!important;}
+}
 @media(max-width:767.99px){.desk-composer{display:none!important;}}
 @media(max-width:767.99px){
 .admin-sidenav{display:none!important;}
