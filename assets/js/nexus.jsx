@@ -143,6 +143,63 @@ function useLightbox() {
   useEffect(()=>{ _lbSetState = setLb; return ()=>{ _lbSetState=null; }; }, []);
   return [lb, setLb];
 }
+
+// ── Reply reference preview popup ─────────────────────────────────────────────
+let _refPopupSetState = null;
+// Map of anchor → {user, body, inserted_at} — populated by PostPage
+const _refDataMap = {};
+function stripMd(text) {
+  if (!text) return "";
+  return text
+    .replace(/```[\s\S]*?```/g, "[code]")
+    .replace(/`[^`]+`/g, "[code]")
+    .replace(/!\[.*?\]\(.*?\)/g, "[image]")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[*_~>]/g, "")
+    .replace(/\n+/g, " ")
+    .trim();
+}
+let _refHideTimer = null;
+document.addEventListener("mouseover", e => {
+  const link = e.target.closest(".reply-ref-link");
+  if (!link) return;
+  clearTimeout(_refHideTimer);
+  const href = link.getAttribute("href") || "";
+  const data = _refDataMap[href];
+  if (!data) return;
+  // Check if target element is in viewport
+  const targetEl = document.querySelector(href.replace("#", "#").replace(/[^\w-]/g, s => "\\" + s) ) ||
+                   document.getElementById(href.slice(1));
+  if (targetEl) {
+    const rect = targetEl.getBoundingClientRect();
+    const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (inView) {
+      // Highlight in place instead of popup
+      targetEl.classList.remove("reply-ref-highlight");
+      void targetEl.offsetWidth; // reflow to restart animation
+      targetEl.classList.add("reply-ref-highlight");
+      return;
+    }
+  }
+  // Position popup near the link
+  const lr = link.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - lr.bottom;
+  const showBelow = spaceBelow > 180;
+  _refPopupSetState && _refPopupSetState({
+    data,
+    x: Math.min(Math.max(lr.left, 8), window.innerWidth - 328),
+    y: showBelow ? lr.bottom + 6 : lr.top - 6,
+    above: !showBelow
+  });
+});
+document.addEventListener("mouseout", e => {
+  const link = e.target.closest(".reply-ref-link");
+  if (!link) return;
+  _refHideTimer = setTimeout(() => {
+    _refPopupSetState && _refPopupSetState(null);
+  }, 120);
+});
 // Attach delegated click handler to .md-body images once at module load
 document.addEventListener("click", e => {
   // Handle mention link clicks — SPA navigation
@@ -162,6 +219,37 @@ document.addEventListener("click", e => {
   const originalSrc = img.getAttribute("data-original") || img.src;
   if (_lbSetState) _lbSetState({ src: img.src, originalSrc });
 });
+
+function useRefPreview() {
+  const [popup, setPopup] = useState(null);
+  useEffect(()=>{ _refPopupSetState = setPopup; return ()=>{ _refPopupSetState=null; }; }, []);
+  return popup;
+}
+
+function RefPreviewPopup() {
+  const popup = useRefPreview();
+  if (!popup) return null;
+  const { data, x, y, above } = popup;
+  const col = spaceColor({id: data.userId});
+  return (
+    <div className="ref-popup" style={{
+      left: x,
+      top: above ? undefined : y,
+      bottom: above ? window.innerHeight - y : undefined,
+      transform: "translateY(0)"
+    }}>
+      <div className="ref-popup-meta">
+        {data.avatar_url
+          ? <img src={data.avatar_url} className="ref-popup-av" alt={data.username}/>
+          : <div className="ref-popup-av" style={{background:col}}>{(data.username||"?").slice(0,2).toUpperCase()}</div>
+        }
+        <span className="ref-popup-username">{data.username}</span>
+        <span className="ref-popup-time">{ago(data.inserted_at)}</span>
+      </div>
+      <div className="ref-popup-body">{stripMd(data.body).slice(0, 260)}</div>
+    </div>
+  );
+}
 
 // ── API ──────────────────────────────────────────────────────────────────────
 const api = {
@@ -693,6 +781,15 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body a{color:var(--blue);}
 .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;}
+@keyframes refHighlight{0%{background:transparent;}25%{background:rgba(167,139,250,0.18);}75%{background:rgba(167,139,250,0.12);}100%{background:transparent;}}
+.reply-ref-highlight{animation:refHighlight 1.2s ease forwards;}
+.ref-popup{position:fixed;z-index:9100;width:320px;max-width:calc(100vw - 24px);background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:12px 14px;box-shadow:0 8px 32px rgba(0,0,0,.55);pointer-events:none;}
+.ref-popup-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.ref-popup-av{width:26px;height:26px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;object-fit:cover;}
+.ref-popup-username{font-size:12px;font-weight:500;color:var(--t2);}
+.ref-popup-time{font-size:11px;color:var(--t5);margin-left:auto;}
+.ref-popup-body{font-size:12px;color:var(--t4);line-height:1.6;max-height:80px;overflow:hidden;position:relative;}
+.ref-popup-body::after{content:"";position:absolute;bottom:0;left:0;right:0;height:24px;background:linear-gradient(transparent,var(--s2));}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
 .yt-lite img,.yt-thumb{cursor:pointer!important;border:none!important;background:none!important;margin:0!important;border-radius:0!important;max-height:none!important;}
@@ -2126,6 +2223,28 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
   useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
+
+  // Keep the global ref-data map in sync so hover previews have content
+  useEffect(()=>{
+    if (post) {
+      _refDataMap[`#post-${post.id}`] = {
+        username: post.user?.username,
+        avatar_url: post.user?.avatar_url,
+        userId: post.user?.id,
+        body: post.body,
+        inserted_at: post.inserted_at
+      };
+    }
+    replies.forEach(r => {
+      _refDataMap[`#reply-${r.id}`] = {
+        username: r.user?.username,
+        avatar_url: r.user?.avatar_url,
+        userId: r.user?.id,
+        body: r.body,
+        inserted_at: r.inserted_at
+      };
+    });
+  }, [post, replies]);
 
   // Join post channel for realtime replies + typing
   useEffect(()=>{
@@ -5929,6 +6048,7 @@ function App() {
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
       {userCard&&<UserCardPopover card={userCard} setCard={setUserCard} currentUser={currentUser} navigate={navigate}/>}
+      <RefPreviewPopup/>
       {authModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAuthModal(null)}>
           <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:20,padding:40,position:"relative"}}>
