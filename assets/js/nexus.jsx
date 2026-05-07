@@ -2885,8 +2885,7 @@ function TagsAdmin({tags, onRefresh}) {
               <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{t.slug}</td>
               <td>{t.post_count||0}</td>
               <td style={{textAlign:"right"}}>
-                <span style={{fontSize:11,color:"var(--blue)",cursor:"pointer",marginRight:12}} onClick={()=>openEdit(t)}>edit</span>
-                <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={()=>del(t)}>delete</span>
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(t)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(t)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
               </td>
             </tr>
           ))}</tbody>
@@ -2964,8 +2963,7 @@ function SpacesAdmin({spaces, onRefresh}) {
               <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{s.visibility}</span></td>
               <td>{s.post_count||0}</td>
               <td style={{textAlign:"right"}}>
-                <span style={{fontSize:11,color:"var(--blue)",cursor:"pointer",marginRight:12}} onClick={()=>openEdit(s)}>edit</span>
-                <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={()=>del(s)}>delete</span>
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
               </td>
             </tr>
           ))}</tbody>
@@ -3851,13 +3849,15 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                     <td><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12}}><span style={{width:6,height:6,borderRadius:"50%",background:u.status==="active"?"var(--green)":"var(--red)"}}></span>{u.status}</span></td>
                     <td style={{textAlign:"right"}}>
                       {u.id!==currentUser.id&&<>
-                        {u.status==="banned"
-                          ?<span style={{fontSize:11,color:"var(--green)",cursor:"pointer",marginRight:8}} onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}}>unban</span>
-                          :<span style={{fontSize:11,color:"var(--red)",cursor:"pointer",marginRight:8}} onClick={async()=>{if(!confirm(`Ban ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/ban`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"banned"}:x));toast("User banned");}}>ban</span>}
-                        {u.status==="suspended"
-                          ?<span style={{fontSize:11,color:"var(--green)",cursor:"pointer"}} onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}}>unsuspend</span>
-                          :<span style={{fontSize:11,color:"var(--amber)",cursor:"pointer"}} onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}}>suspend</span>}
-                        <span style={{fontSize:11,color:"var(--red)",cursor:"pointer",marginLeft:8,opacity:0.7}} onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}}>delete</span>
+                        <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                          {u.status==="banned"
+                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(52,211,153,0.25)",background:"rgba(52,211,153,0.12)",color:"#34d399",cursor:"pointer",fontFamily:"inherit"}}>unban</button>
+                            :<button onClick={async()=>{if(!confirm(`Ban ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/ban`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"banned"}:x));toast("User banned");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>ban</button>}
+                          {u.status==="suspended"
+                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(52,211,153,0.25)",background:"rgba(52,211,153,0.12)",color:"#34d399",cursor:"pointer",fontFamily:"inherit"}}>unsuspend</button>
+                            :<button onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.12)",color:"#fbbf24",cursor:"pointer",fontFamily:"inherit"}}>suspend</button>}
+                          <button onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.15)",background:"rgba(248,113,113,0.07)",color:"rgba(248,113,113,0.6)",cursor:"pointer",fontFamily:"inherit"}}>delete</button>
+                        </div>
                       </>}
                     </td>
                   </tr>
