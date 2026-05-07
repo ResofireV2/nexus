@@ -151,13 +151,14 @@ const _refDataMap = {};
 function stripMd(text) {
   if (!text) return "";
   return text
-    .replace(/```[\s\S]*?```/g, "[code]")
+    .replace(/```[\s\S]*?```/g, "[code block]")
     .replace(/`[^`]+`/g, "[code]")
-    .replace(/!\[.*?\]\(.*?\)/g, "[image]")
+    .replace(/!\[.*?\]\(.*?\)/g, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/[*_~>]/g, "")
     .replace(/\n+/g, " ")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 let _refHideTimer = null;
@@ -246,7 +247,7 @@ function RefPreviewPopup() {
         <span className="ref-popup-username">{data.username}</span>
         <span className="ref-popup-time">{ago(data.inserted_at)}</span>
       </div>
-      <div className="ref-popup-body">{stripMd(data.body).slice(0, 260)}</div>
+      <div className="ref-popup-body">{stripMd(data.body).slice(0, 600)}</div>
     </div>
   );
 }
@@ -783,13 +784,13 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;}
 @keyframes refHighlight{0%{background:transparent;}25%{background:rgba(167,139,250,0.18);}75%{background:rgba(167,139,250,0.12);}100%{background:transparent;}}
 .reply-ref-highlight{animation:refHighlight 1.2s ease forwards;}
-.ref-popup{position:fixed;z-index:9100;width:320px;max-width:calc(100vw - 24px);background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:12px 14px;box-shadow:0 8px 32px rgba(0,0,0,.55);pointer-events:none;}
+.ref-popup{position:fixed;z-index:9100;width:420px;max-width:calc(100vw - 24px);background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.55);pointer-events:none;}
 .ref-popup-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .ref-popup-av{width:26px;height:26px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;object-fit:cover;}
 .ref-popup-username{font-size:12px;font-weight:500;color:var(--t2);}
 .ref-popup-time{font-size:11px;color:var(--t5);margin-left:auto;}
-.ref-popup-body{font-size:12px;color:var(--t4);line-height:1.6;max-height:80px;overflow:hidden;position:relative;}
-.ref-popup-body::after{content:"";position:absolute;bottom:0;left:0;right:0;height:24px;background:linear-gradient(transparent,var(--s2));}
+.ref-popup-body{font-size:12px;color:var(--t4);line-height:1.6;max-height:200px;overflow:hidden;position:relative;}
+.ref-popup-body::after{content:"";position:absolute;bottom:0;left:0;right:0;height:32px;background:linear-gradient(transparent,var(--s2));}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
 .yt-lite img,.yt-thumb{cursor:pointer!important;border:none!important;background:none!important;margin:0!important;border-radius:0!important;max-height:none!important;}
