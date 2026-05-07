@@ -6,7 +6,12 @@ defmodule NexusWeb.API.V1.TagController do
   # GET /api/v1/tags
   def index(conn, _params) do
     tags = Forum.list_tags()
-    json(conn, %{tags: Enum.map(tags, &tag_json/1)})
+    subscribed_ids =
+      case conn.assigns[:current_user] do
+        nil  -> []
+        user -> Forum.user_tag_ids(user.id)
+      end
+    json(conn, %{tags: Enum.map(tags, &tag_json(&1, subscribed_ids))})
   end
 
   # POST /api/v1/tags  (moderator+)
@@ -62,13 +67,14 @@ defmodule NexusWeb.API.V1.TagController do
     end
   end
 
-  defp tag_json(tag) do
+  defp tag_json(tag, subscribed_ids \\ []) do
     %{
-      id: tag.id,
-      name: tag.name,
-      slug: tag.slug,
-      color: tag.color,
-      post_count: tag.post_count
+      id:         tag.id,
+      name:       tag.name,
+      slug:       tag.slug,
+      color:      tag.color,
+      post_count: tag.post_count,
+      subscribed: tag.id in subscribed_ids
     }
   end
 

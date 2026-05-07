@@ -5,7 +5,7 @@ defmodule Nexus.Forum do
 
   import Ecto.Query
   alias Nexus.Repo
-  alias Nexus.Forum.{Space, Tag, Post, Reply, Reaction, SpaceSubscription, TagSubscription}
+  alias Nexus.Forum.{Space, Tag, Post, Reply, Reaction, SpaceSubscription, TagSubscription, PostSave}
 
   # ---------------------------------------------------------------------------
   # Spaces
@@ -533,5 +533,79 @@ defmodule Nexus.Forum do
 
   def user_tag_ids(user_id) do
     from(s in TagSubscription, where: s.user_id == ^user_id, select: s.tag_id) |> Repo.all()
+  end
+
+  # ---------------------------------------------------------------------------
+  # Post / reply saves (bookmarks)
+  # ---------------------------------------------------------------------------
+
+  def save_post(user_id, post_id) do
+    %PostSave{}
+    |> PostSave.changeset(%{user_id: user_id, post_id: post_id, inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)})
+    |> Repo.insert(on_conflict: :nothing)
+  end
+
+  def unsave_post(user_id, post_id) do
+    Repo.delete_all(from s in PostSave, where: s.user_id == ^user_id and s.post_id == ^post_id)
+    {:ok, :unsaved}
+  end
+
+  def save_reply(user_id, reply_id) do
+    %PostSave{}
+    |> PostSave.changeset(%{user_id: user_id, reply_id: reply_id, inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)})
+    |> Repo.insert(on_conflict: :nothing)
+  end
+
+  def unsave_reply(user_id, reply_id) do
+    Repo.delete_all(from s in PostSave, where: s.user_id == ^user_id and s.reply_id == ^reply_id)
+    {:ok, :unsaved}
+  end
+
+  def post_saved?(user_id, post_id) do
+    Repo.exists?(from s in PostSave, where: s.user_id == ^user_id and s.post_id == ^post_id)
+  end
+
+  def reply_saved?(user_id, reply_id) do
+    Repo.exists?(from s in PostSave, where: s.user_id == ^user_id and s.reply_id == ^reply_id)
+  end
+
+  def list_saved(user_id) do
+    Repo.all(
+      from s in PostSave,
+      where: s.user_id == ^user_id,
+      left_join: p in Post,  on: s.post_id  == p.id  and not p.hidden and not p.pending_approval,
+      left_join: r in Reply, on: s.reply_id == r.id  and not r.hidden and not r.pending_approval,
+      left_join: sp in Space, on: p.space_id == sp.id,
+      left_join: rp in Post,  on: r.post_id  == rp.id,
+      left_join: rsp in Space, on: rp.space_id == rsp.id,
+      left_join: pu in Nexus.Accounts.User, on: p.user_id  == pu.id,
+      left_join: ru in Nexus.Accounts.User, on: r.user_id  == ru.id,
+      order_by: [desc: s.inserted_at],
+      select: %{
+        id:         s.id,
+        saved_at:   s.inserted_at,
+        type:       fragment("CASE WHEN ? IS NOT NULL THEN 'post' ELSE 'reply' END", s.post_id),
+        post_id:    p.id,
+        post_title: p.title,
+        post_body:  p.body,
+        post_reply_count:    p.reply_count,
+        post_reaction_count: p.reaction_count,
+        post_inserted_at:    p.inserted_at,
+        post_space_name:  sp.name,
+        post_space_slug:  sp.slug,
+        post_space_color: sp.color,
+        post_username:    pu.username,
+        post_avatar_url:  pu.avatar_url,
+        reply_id:   r.id,
+        reply_body: r.body,
+        reply_inserted_at: r.inserted_at,
+        reply_post_id:     rp.id,
+        reply_post_title:  rp.title,
+        reply_space_name:  rsp.name,
+        reply_space_color: rsp.color,
+        reply_username:    ru.username,
+        reply_avatar_url:  ru.avatar_url
+      }
+    )
   end
 end

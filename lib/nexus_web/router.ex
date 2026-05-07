@@ -153,6 +153,13 @@ defmodule NexusWeb.Router do
 
     # User profile media (auth required — access enforced in controller)
     get "/users/:username/uploads", UserContentController, :uploads
+
+    # Saved items (bookmarks)
+    get    "/saved",                               SaveController, :index
+    post   "/posts/:id/save",                      SaveController, :save_post
+    delete "/posts/:id/save",                      SaveController, :unsave_post
+    post   "/posts/:post_id/replies/:id/save",     SaveController, :save_reply
+    delete "/posts/:post_id/replies/:id/save",     SaveController, :unsave_reply
   end
 
   # API v1 — moderator actions

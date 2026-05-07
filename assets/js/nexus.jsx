@@ -503,6 +503,10 @@ select option{background:#1a1a2e;color:var(--t1);}
 .meta-l{font-size:10px;color:var(--t5);}
 .meta-div{width:0.5px;height:26px;background:rgba(255,255,255,0.06);}
 .thread-last{display:flex;flex-direction:column;align-items:center;gap:2px;width:52px;}
+.thread-save-btn{position:absolute;top:10px;left:12px;width:26px;height:26px;border-radius:50%;background:transparent;border:none;color:var(--t5);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;opacity:0;transition:opacity .15s;z-index:10;}
+.thread-save-btn.saved{color:var(--ac);opacity:1;}
+.thread:hover .thread-save-btn{opacity:1;}
+@media(max-width:767.99px){.thread-save-btn{opacity:1!important;}}
 .last-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;}
 .last-ago{font-size:10px;color:var(--t5);}
 
@@ -1087,6 +1091,7 @@ function urlToPage(pathname) {
   if (p === "/admin")                  return {page:"admin", props:{}};
   if (p === "/settings")               return {page:"settings", props:{}};
   if (p === "/members")                return {page:"members",     props:{}};
+  if (p === "/tags")                   return {page:"tags",        props:{}};
   if (p === "/badges")                 return {page:"badges",      props:{}};
   if (p === "/leaderboard")            return {page:"leaderboard", props:{}};
   if (p === "/saved")                  return {page:"saved", props:{}};
@@ -1115,6 +1120,7 @@ function pageToUrl(page, props={}) {
     case "admin":         return "/admin";
     case "settings":      return "/settings";
     case "members":       return "/members";
+    case "tags":          return "/tags";
     case "badges":        return "/badges";
     case "leaderboard":   return "/leaderboard";
     case "saved":         return "/saved";
@@ -1315,6 +1321,7 @@ const EXPLORE_ITEMS = [
   {id:"notifications",label:"Notifications",icon:"fa-bell",   authOnly:true},
   {id:"messages",   label:"Messages",     icon:"fa-message", authOnly:true},
   {id:"members",    label:"Members",      icon:"fa-users"},
+  {id:"tags",       label:"Tags",         icon:"fa-tag"},
   {id:"leaderboard",label:"Leaderboard",  icon:"fa-trophy"},
   {id:"badges",     label:"Badges",       icon:"fa-medal"},
 ];
@@ -1725,6 +1732,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
             notifications: currentUser&&<SbItem key="notifications" icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>,
             messages:   currentUser&&<SbItem key="messages" icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>,
             members:    <SbItem key="members" icon="fa-users" label="Members" targetPage="members"/>,
+            tags:       <SbItem key="tags" icon="fa-tag" label="Tags" targetPage="tags"/>,
             leaderboard:<SbItem key="leaderboard" icon="fa-trophy" label="Leaderboard" targetPage="leaderboard"/>,
             badges:     <SbItem key="badges" icon="fa-medal" label="Badges" targetPage="badges"/>,
           };
@@ -1951,6 +1959,17 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const [openPostMenu,setOpenPostMenu]=useState(null);
   const [subscribed,setSubscribed]=useState(false);
   const [subLoading,setSubLoading]=useState(false);
+  const [savedPostIds,setSavedPostIds]=useState(new Set());
+  useEffect(()=>{
+    if(currentUser) api.get("/saved").then(d=>{
+      const ids = new Set((d.saved||[]).filter(s=>s.type==="post").map(s=>s.post?.id).filter(Boolean));
+      setSavedPostIds(ids);
+    }).catch(()=>{});
+  },[currentUser]);
+  const toggleSavePost = async(e,postId)=>{ e.stopPropagation(); if(!currentUser){onAuthRequired?.("login");return;}
+    if(savedPostIds.has(postId)){ await api.delete(`/posts/${postId}/save`); setSavedPostIds(p=>{const n=new Set(p);n.delete(postId);return n;}); }
+    else { await api.post(`/posts/${postId}/save`,{}); setSavedPostIds(p=>new Set([...p,postId])); }
+  };
   useEffect(()=>{ if(livePosts.length>0) setLiveCount(livePosts.length); },[livePosts]);
   const activeSpace = spaces.find(s=>s.slug===spaceFilter);
 
@@ -2016,8 +2035,8 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             <div className="feed-title">{feedTitle}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               {spaceFilter && activeSpace && (
-                <button onClick={toggleSubscribe} disabled={subLoading} style={{fontSize:11,padding:"4px 12px",borderRadius:20,border:`0.5px solid ${subscribed?"rgba(255,255,255,0.15)":"var(--ac-border)"}`,background:subscribed?"rgba(255,255,255,0.05)":"var(--ac-bg)",color:subscribed?"var(--t3)":"var(--ac-text)",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}}>
-                  {subscribed ? "following" : "+ follow"}
+                <button onClick={toggleSubscribe} disabled={subLoading} style={{fontSize:13,padding:"6px 16px",borderRadius:20,border:`0.5px solid ${subscribed?"rgba(255,255,255,0.2)":"var(--ac-border)"}`,background:subscribed?"rgba(255,255,255,0.06)":"var(--ac-bg)",color:subscribed?"var(--t2)":"var(--ac-text)",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",fontWeight:500}}>
+                  {subscribed ? "✓ following" : "+ follow"}
                 </button>
               )}
               <div className="sort-pills">
@@ -2048,6 +2067,12 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     onMouseEnter={()=>setHoveredPost(p.id)}
                     onMouseLeave={()=>{setHoveredPost(null);if(openPostMenu===p.id)setOpenPostMenu(null);}}
                     onClick={e=>{if(e.target.closest(".feed-post-menu"))return;navigate("post",{id:p.id});}}>
+                    {/* Bookmark button */}
+                    <button className={`thread-save-btn${savedPostIds.has(p.id)?" saved":""}`}
+                      title={savedPostIds.has(p.id)?"Saved":"Save"}
+                      onClick={e=>toggleSavePost(e,p.id)}>
+                      <i className={`fa-${savedPostIds.has(p.id)?"solid":"regular"} fa-bookmark`}/>
+                    </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
                       <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
@@ -2309,6 +2334,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
+  const [postSaved, setPostSaved] = useState(false);
+  const [savedReplyIds, setSavedReplyIds] = useState(new Set());
   useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
 
   useEffect(()=>{
@@ -2372,6 +2399,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         setPost(pd.post); setReplies(rd.replies||[]);
         setUserReaction(pd.post?.user_reaction||null);
         if(rp.last_reply_id){setLastReadReplyId(rp.last_reply_id);setLastReadCount(rp.reply_count||0);}
+        if(currentUser){
+          api.get("/saved").then(d=>{
+            const saves = d.saved||[];
+            setPostSaved(saves.some(s=>s.type==="post"&&s.post?.id===pd.post?.id));
+            setSavedReplyIds(new Set(saves.filter(s=>s.type==="reply").map(s=>s.reply?.id).filter(Boolean)));
+          }).catch(()=>{});
+        }
       }
       finally { setLoading(false); }
     })();
@@ -2485,6 +2519,16 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
       composerRef.current?.querySelector("textarea")?.focus();
     }, 50);
   };
+  const toggleSavePost = async()=>{
+    if(!currentUser){onAuthRequired?.("login");return;}
+    if(postSaved){ await api.delete(`/posts/${post.id}/save`); setPostSaved(false); }
+    else { await api.post(`/posts/${post.id}/save`,{}); setPostSaved(true); }
+  };
+  const toggleSaveReply = async(replyId)=>{
+    if(!currentUser){onAuthRequired?.("login");return;}
+    if(savedReplyIds.has(replyId)){ await api.delete(`/posts/${post.id}/replies/${replyId}/save`); setSavedReplyIds(p=>{const n=new Set(p);n.delete(replyId);return n;}); }
+    else { await api.post(`/posts/${post.id}/replies/${replyId}/save`,{}); setSavedReplyIds(p=>new Set([...p,replyId])); }
+  };
   const modAction=async(action)=>{
     await api.post(`/posts/${post.id}/${action}`,{});
     setPost(p=>({...p, [action]:!p[action]}));
@@ -2546,7 +2590,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
           <RsAv user={post.user} size={56} color={col}/>
           <div style={{flex:1}}>
-            <div className="post-title">{post.title}</div>
+            <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+              <div className="post-title" style={{flex:1}}>{post.title}</div>
+              {currentUser&&<button title={postSaved?"Saved":"Save"} onClick={toggleSavePost}
+                style={{marginTop:3,background:"none",border:"none",cursor:"pointer",color:postSaved?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
+                <i className={`fa-${postSaved?"solid":"regular"} fa-bookmark`}/>
+              </button>}
+            </div>
             <div className="post-meta">
               {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
               {post.type&&post.type!=="discussion"&&<div className="thread-tag" style={{background:post.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:post.type==="announcement"?"var(--amber)":"var(--blue)"}}>{post.type}</div>}
@@ -2663,6 +2713,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                   </button>
                 )}
                 <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
+                {currentUser&&<button title={savedReplyIds.has(r.id)?"Saved":"Save"} onClick={()=>toggleSaveReply(r.id)}
+                  className="row-menu-btn"
+                  style={{color:savedReplyIds.has(r.id)?"var(--ac)":"var(--t4)",opacity:savedReplyIds.has(r.id)?1:undefined}}>
+                  <i className={`fa-${savedReplyIds.has(r.id)?"solid":"regular"} fa-bookmark`} style={{fontSize:11}}/>
+                </button>}
                 {currentUser&&(
                   <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
                     <button
@@ -6515,17 +6570,152 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   );
 }
 
-function SavedPage({navigate}) {
-  // Saved posts would require a bookmarks API — stub for now showing empty state
+function SavedPage({navigate, currentUser}) {
+  const [items, setItems] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    api.get("/saved").then(d=>{ setItems(d.saved||[]); setLoading(false); }).catch(()=>setLoading(false));
+  },[]);
+
+  const unsave = async(e, item)=>{
+    e.stopPropagation();
+    if(item.type==="post"){
+      await api.delete(`/posts/${item.post.id}/save`);
+      setItems(p=>p.filter(s=>!(s.type==="post"&&s.post?.id===item.post.id)));
+    } else {
+      await api.delete(`/posts/${item.reply.post?.id}/replies/${item.reply.id}/save`);
+      setItems(p=>p.filter(s=>!(s.type==="reply"&&s.reply?.id===item.reply.id)));
+    }
+  };
+
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Saved</span>
+        {items&&items.length>0&&<span style={{fontSize:12,color:"var(--t5)",marginLeft:8}}>{items.length} item{items.length===1?"":"s"}</span>}
       </div>
-      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:"var(--t5)"}}>
-        <i className="fa-solid fa-bookmark" style={{fontSize:28,opacity:.3}}></i>
-        <div style={{fontSize:13}}>No saved posts yet</div>
-        <div style={{fontSize:12,color:"var(--t5)"}}>Bookmark posts to find them here</div>
+      <div style={{flex:1,overflowY:"auto"}}>
+        {loading && <div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>}
+        {!loading && (!items||items.length===0) && (
+          <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:"var(--t5)",padding:"60px 0"}}>
+            <i className="fa-regular fa-bookmark" style={{fontSize:28,opacity:.3}}></i>
+            <div style={{fontSize:13}}>Nothing saved yet</div>
+            <div style={{fontSize:12,color:"var(--t5)"}}>Bookmark posts and replies to find them here</div>
+          </div>
+        )}
+        {items&&items.map((item,i)=>{
+          if(item.type==="post"&&item.post){
+            const p = item.post;
+            const col = spaceColor(p.space||{id:p.id});
+            return (
+              <div key={`post-${p.id}`} className="thread" style={{position:"relative"}} onClick={()=>navigate("post",{id:p.id})}>
+                <div className="thread-main">
+                  <div className="thread-accent" style={{background:col}}/>
+                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
+                  <div className="thread-body">
+                    <div className="thread-top">
+                      <div className="thread-title">{p.title}</div>
+                      {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
+                    </div>
+                    {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
+                    <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
+                  </div>
+                  <div className="thread-meta">
+                    <div className="meta-block"><div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div><div className="meta-l">hearts</div></div>
+                  </div>
+                </div>
+                <button onClick={e=>unsave(e,item)} title="Remove" style={{position:"absolute",top:10,right:12,background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:13,opacity:0,transition:"opacity .15s"}}
+                  className="thread-save-btn saved">
+                  <i className="fa-solid fa-bookmark"/>
+                </button>
+              </div>
+            );
+          }
+          if(item.type==="reply"&&item.reply){
+            const r = item.reply;
+            const col = r.post?.space ? spaceColor(r.post.space) : "var(--ac)";
+            return (
+              <div key={`reply-${r.id}`} className="p-reply-card" style={{padding:"14px 28px",cursor:"pointer",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}} onClick={()=>r.post&&navigate("post",{id:r.post.id})}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                  {r.user?.avatar_url
+                    ?<img src={r.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt=""/>
+                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${spaceColor({id:r.id})}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="p-reply-body"><Md text={r.body}/></div>
+                    <div className="p-reply-meta">
+                      {r.post&&<><i className="fa-solid fa-arrow-right" style={{fontSize:9}}/><span style={{color:col,fontWeight:500}}>{r.post.title}</span>{r.post.space&&<><span>·</span><span>{r.post.space.name}</span></>}</>}
+                      <span style={{marginLeft:"auto"}}>{ago(r.inserted_at)}</span>
+                    </div>
+                  </div>
+                  <button onClick={e=>unsave(e,item)} title="Remove" style={{background:"none",border:"none",color:"var(--ac)",cursor:"pointer",fontSize:13,flexShrink:0}}>
+                    <i className="fa-solid fa-bookmark"/>
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Tags ──────────────────────────────────────────────────────────────────────
+function TagsPage({navigate, currentUser}) {
+  const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => api.get("/tags").then(d=>{ setTags(d.tags||[]); setLoading(false); }).catch(()=>setLoading(false));
+  useEffect(()=>{ load(); },[]);
+
+  const toggleFollow = async(tag)=>{
+    if(!currentUser){ return; }
+    if(tag.subscribed){
+      await api.delete(`/tags/${tag.slug}/subscribe`);
+      setTags(p=>p.map(t=>t.id===tag.id?{...t,subscribed:false}:t));
+      toast(`Unfollowed #${tag.name}`);
+    } else {
+      await api.post(`/tags/${tag.slug}/subscribe`,{});
+      setTags(p=>p.map(t=>t.id===tag.id?{...t,subscribed:true}:t));
+      toast(`Following #${tag.name}`);
+    }
+  };
+
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"22px 28px 0",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:20,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,marginBottom:3}}>Tags</div>
+          <div style={{fontSize:13,color:"var(--t4)"}}>Follow tags to see related posts in your Following feed.</div>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+        {loading && <div style={{textAlign:"center",padding:"40px 0",color:"var(--t5)"}}>Loading…</div>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+          {tags.map(tag=>(
+            <div key={tag.id} style={{background:"var(--s1)",border:`0.5px solid ${tag.subscribed?"rgba(167,139,250,0.25)":"var(--b1)"}`,borderRadius:12,padding:"14px 16px",display:"flex",flexDirection:"column",gap:8,transition:"border-color .15s",cursor:"pointer"}}
+              onClick={()=>navigate("feed",{space:null,tag:tag.slug})}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=tag.subscribed?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.14)"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=tag.subscribed?"rgba(167,139,250,0.25)":"var(--b1)"}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                  <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{tag.name}</span>
+                </div>
+                {currentUser&&(
+                  <button onClick={e=>{e.stopPropagation();toggleFollow(tag);}}
+                    style={{fontSize:11,padding:"3px 10px",borderRadius:20,border:`0.5px solid ${tag.subscribed?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.12)"}`,background:tag.subscribed?"rgba(167,139,250,0.12)":"transparent",color:tag.subscribed?"#c4b5fd":"var(--t4)",cursor:"pointer",fontFamily:"inherit",fontWeight:500,transition:"all .15s",flexShrink:0}}>
+                    {tag.subscribed?"✓ following":"+ follow"}
+                  </button>
+                )}
+              </div>
+              <div style={{fontSize:12,color:"var(--t5)"}}>{tag.post_count} post{tag.post_count===1?"":"s"}</div>
+            </div>
+          ))}
+        </div>
+        {!loading&&tags.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"var(--t5)"}}>No tags yet</div>}
       </div>
     </div>
   );
@@ -7224,7 +7414,7 @@ function App() {
       case "feed":
         return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} onAuthRequired={m=>setAuthModal(m)}/>;
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
-      case "saved":       return requireAuth(<SavedPage navigate={navigate}/>);
+      case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate} onCountChange={setNotifCount}/>);
@@ -7232,6 +7422,7 @@ function App() {
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
+      case "tags":        return <TagsPage navigate={navigate} currentUser={currentUser}/>;
       case "badges":      return <BadgesPage currentUser={currentUser} navigate={navigate}/>;
       case "leaderboard": return <LeaderboardPage currentUser={currentUser} navigate={navigate}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply}/>;
