@@ -214,7 +214,7 @@ defmodule Nexus.Accounts do
     token = generate_raw_token()
 
     user
-    |> User.magic_token_changeset(token)
+    |> User.email_verify_token_changeset(token)
     |> Repo.update!()
 
     Nexus.Mailer.send_verification_email(user, token)

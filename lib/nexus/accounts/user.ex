@@ -107,6 +107,11 @@ defmodule Nexus.Accounts.User do
     |> change(magic_token: token, magic_token_sent_at: DateTime.utc_now() |> DateTime.truncate(:second))
   end
 
+  def email_verify_token_changeset(user, token) do
+    user
+    |> change(email_verify_token: token)
+  end
+
   defp validate_email(changeset) do
     changeset
     |> validate_required([:email])
