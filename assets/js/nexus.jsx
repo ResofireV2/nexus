@@ -1756,6 +1756,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [userReaction,setUserReaction]=useState(null);
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
+  const [reportNotes,setReportNotes]=useState("");
   const [reporting,setReporting]=useState(false);
   const [quoteTooltip,setQuoteTooltip]=useState(null);
   const [typingUsers,setTypingUsers]=useState([]); // usernames currently typing
@@ -1821,11 +1822,14 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const submitReport=async()=>{
     if(!reportReason.trim())return; setReporting(true);
     try {
+      const reasonMap = {"Spam":"spam","Harassment":"harassment","Misinformation":"misinformation","Off topic":"off_topic","Other":"other"};
+      const reasonValue = reasonMap[reportReason] || "other";
       const payload = reportTarget.type==="post"
-        ? {post_id:reportTarget.id, reason:reportReason}
-        : {reply_id:reportTarget.id, reason:reportReason};
-      await api.post("/reports", payload);
-      setReportTarget(null); setReportReason(""); toast("Report submitted");
+        ? {post_id:reportTarget.id, reason:reasonValue, notes:reportNotes||undefined}
+        : {reply_id:reportTarget.id, reason:reasonValue, notes:reportNotes||undefined};
+      const d = await api.post("/reports", payload);
+      if(d.ok){setReportTarget(null); setReportReason(""); setReportNotes(""); toast("Report submitted");}
+      else toast((d.errors&&JSON.stringify(d.errors))||d.error||"Failed to submit report","err");
     } finally { setReporting(false); }
   };
 
@@ -1911,7 +1915,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Report content</div>
             <div style={{fontSize:12,color:"var(--t4)",marginBottom:14}}>Select a reason — this will be sent to moderators for review.</div>
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
-              {["Spam","Harassment or abuse","Misinformation","Inappropriate content","Other"].map(r=>(
+              {["Spam","Harassment","Misinformation","Off topic","Other"].map(r=>(
                 <div key={r} onClick={()=>setReportReason(r)} style={{padding:"8px 12px",borderRadius:8,cursor:"pointer",fontSize:13,
                   background:reportReason===r?"var(--ac-bg)":"rgba(255,255,255,0.04)",
                   border:`0.5px solid ${reportReason===r?"var(--ac-border)":"rgba(255,255,255,0.08)"}`,
@@ -1922,7 +1926,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 </div>
               ))}
             </div>
-            <textarea className="fi" style={{resize:"vertical",minHeight:60,borderRadius:8,fontSize:12}} placeholder="Add more detail (optional)…" value={reportReason==="Spam"||reportReason==="Harassment or abuse"||reportReason==="Misinformation"||reportReason==="Inappropriate content"||reportReason==="Other"?"":reportReason} onChange={e=>setReportReason(e.target.value)}/>
+            <textarea className="fi" style={{resize:"vertical",minHeight:60,borderRadius:8,fontSize:12}} placeholder="Add more detail (optional)…" value={reportNotes} onChange={e=>setReportNotes(e.target.value)}/>
             <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
               <button className="btn-ghost" onClick={()=>setReportTarget(null)}>Cancel</button>
               <button className="btn-primary" onClick={submitReport} disabled={reporting||!reportReason.trim()}>{reporting?"Submitting…":"Submit report"}</button>
