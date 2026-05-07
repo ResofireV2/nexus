@@ -438,11 +438,20 @@ defmodule Nexus.Forum do
   defp filter_by_visibility(query, _user), do: query
 
   defp filter_by_following(query, user_id) do
-    query
-    |> join(:inner, [p], sub in Nexus.Forum.Subscription,
-        on: (sub.space_id == p.space_id or sub.tag_id in fragment("SELECT tag_id FROM post_tags WHERE post_id = ?", p.id))
-            and sub.user_id == ^user_id)
-    |> distinct([p], p.id)
+    # Posts in spaces the user follows
+    space_sub_query =
+      from p in Post,
+      join: ss in SpaceSubscription, on: ss.space_id == p.space_id and ss.user_id == ^user_id,
+      select: p.id
+
+    # Posts tagged with tags the user follows
+    tag_sub_query =
+      from p in Post,
+      join: pt in "post_tags",   on: pt.post_id == p.id,
+      join: ts in TagSubscription, on: ts.tag_id == pt.tag_id and ts.user_id == ^user_id,
+      select: p.id
+
+    where(query, [p], p.id in subquery(space_sub_query) or p.id in subquery(tag_sub_query))
   end
 
   defp filter_by_username(query, username) do
