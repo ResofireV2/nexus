@@ -4882,7 +4882,7 @@ function App() {
     <>
       <div className="app-root">
       <div className="app-shell">
-        <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} onAuthRequired={m=>setAuthModal(m)}/>
+        <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)}/>
         <div className="main-area">
           <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
