@@ -181,6 +181,8 @@ defmodule NexusWeb.Router do
     pipe_through [:api, :admin]
 
     get    "/dashboard",          AdminController,  :dashboard
+    get    "/queues",             AdminController,  :queues
+    get    "/system",             AdminController,  :system
     get    "/users",              AdminController,  :list_users
     get    "/users/:id",          AdminController,  :get_user
     patch  "/users/:id/role",     AdminController,  :update_role

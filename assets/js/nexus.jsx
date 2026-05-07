@@ -2997,6 +2997,16 @@ function SpacesAdmin({spaces, onRefresh}) {
   </>;
 }
 
+function formatUptime(seconds) {
+  if (!seconds) return "—";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 function ColorPicker({value, onChange}) {
   const inputRef = useRef();
   const isValid = /^#[0-9a-fA-F]{6}$/.test(value);
@@ -3018,6 +3028,8 @@ function ColorPicker({value, onChange}) {
 function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
+  const [queueStats,setQueueStats]=useState(null);
+  const [sysStats,setSysStats]=useState(null);
   const [spaces,setSpaces]=useState([]); const [tags,setTags]=useState([]);
   const [reports,setReports]=useState([]); const [modLogs,setModLogs]=useState([]);
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
@@ -3038,6 +3050,13 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   useEffect(()=>{
     if(currentUser?.role!=="admin")return;
     api.get("/admin/dashboard").then(d=>setStats(d.stats));
+    const fetchLive=()=>{
+      api.get("/admin/queues").then(d=>setQueueStats(d));
+      api.get("/admin/system").then(d=>setSysStats(d.system));
+    };
+    fetchLive();
+    const liveInterval=setInterval(fetchLive,10000);
+    return ()=>clearInterval(liveInterval);
     api.get("/admin/users").then(d=>setUsers(d.users||[]));
     api.get("/spaces").then(d=>setSpaces(d.spaces||[]));
     api.get("/tags").then(d=>setTags(d.tags||[]));
@@ -3125,20 +3144,157 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
 
           {sec==="overview"&&<>
             <div className="page-sub">A snapshot of your community's health and activity.</div>
+
+            {/* ── Top stat cards ── */}
             <div className="admin-stat-row">
               {[
-                {icon:"fa-users",color:"#a78bfa",n:stats?.users?.total??0,label:"total members",delta:"+0 this month"},
-                {icon:"fa-circle-dot",color:"#34d399",n:stats?.users?.active??1,label:"online right now",delta:`peak: ${stats?.users?.total??1}`},
-                {icon:"fa-comments",color:"#60a5fa",n:stats?.content?.posts??0,label:"threads total",delta:`+${stats?.content?.posts_today??0} today`},
-                {icon:"fa-heart",color:"#fbbf24",n:0,label:"hearts given",delta:"+0 this week"},
+                {icon:"fa-users",        color:"#a78bfa", n:stats?.users?.total??0,          label:"total members",    delta:`+${stats?.extended?.members?.new_month??0} this month`},
+                {icon:"fa-user-plus",    color:"#34d399", n:stats?.extended?.members?.new_week??0, label:"new this week",  delta:`+${stats?.extended?.members?.new_month??0} this month`},
+                {icon:"fa-pen-to-square",color:"#60a5fa", n:stats?.content?.posts??0,         label:"total posts",      delta:`+${stats?.extended?.content?.posts_week??0} this week`},
+                {icon:"fa-reply",        color:"#f472b6", n:stats?.content?.replies??0,       label:"total replies",    delta:`+${stats?.extended?.content?.replies_week??0} this week`},
+                {icon:"fa-eye-slash",    color:"#fbbf24", n:stats?.extended?.members?.lurkers??0, label:"lurkers",      delta:`${stats?.extended?.members?.active??0} have posted`},
+                {icon:"fa-flag",         color:"#f87171", n:stats?.moderation?.pending_reports??0, label:"pending reports", delta:`${stats?.extended?.pending?.posts??0} posts pending`},
               ].map((c,i)=>(
                 <div key={i} className="admin-stat-card">
-                  <div className="asc-icon" style={{background:`${c.color}18`}}><i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:15}}></i></div>
+                  <div className="asc-icon" style={{background:`${c.color}18`}}><i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:15}}/></div>
                   <div className="asc-n" style={{color:c.color}}>{c.n.toLocaleString()}</div>
                   <div className="asc-l">{c.label}</div>
                   <div className="asc-delta delta-up">{c.delta}</div>
                 </div>
               ))}
+            </div>
+
+            {/* ── Posts per day sparkline ── */}
+            <div className="fgt" style={{marginTop:24}}>Post activity — last 30 days</div>
+            <div style={{border:"0.5px solid var(--b1)",borderRadius:12,padding:"16px 20px",marginBottom:4}}>
+              {(()=>{
+                const data = stats?.extended?.content?.posts_per_day||[];
+                if(!data.length) return <div style={{color:"var(--t5)",fontSize:12,padding:"8px 0"}}>No post data yet</div>;
+                const max = Math.max(...data.map(d=>d.count),1);
+                const today = new Date().toISOString().slice(0,10);
+                // Build a full 30-day array filling missing dates with 0
+                const days = Array.from({length:30},(_,i)=>{
+                  const d = new Date(); d.setDate(d.getDate()-29+i);
+                  const key = d.toISOString().slice(0,10);
+                  const found = data.find(x=>String(x.date)===key);
+                  return {date:key, count:found?.count||0};
+                });
+                return (
+                  <div style={{display:"flex",alignItems:"flex-end",gap:3,height:60}}>
+                    {days.map((d,i)=>(
+                      <div key={i} title={`${d.date}: ${d.count} posts`} style={{flex:1,minWidth:0,
+                        height:`${Math.max((d.count/max)*100,2)}%`,
+                        background:d.date===today?"var(--ac)":"rgba(167,139,250,0.35)",
+                        borderRadius:"2px 2px 0 0",transition:"height .2s",cursor:"default"}}/>
+                    ))}
+                  </div>
+                );
+              })()}
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t5)",marginTop:6}}>
+                <span>30 days ago</span><span>today</span>
+              </div>
+            </div>
+
+            {/* ── Space activity + Top contributors ── */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginTop:20}}>
+              <div>
+                <div className="fgt" style={{marginBottom:10}}>Most active spaces (30 days)</div>
+                <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                  {(stats?.extended?.space_activity||[]).length===0
+                    ?<div style={{padding:"14px 16px",color:"var(--t5)",fontSize:12}}>No data yet</div>
+                    :(stats?.extended?.space_activity||[]).map((s,i,arr)=>{
+                      const max=arr[0]?.count||1;
+                      return (
+                        <div key={s.space_id} style={{padding:"9px 14px",borderBottom:i<arr.length-1?"0.5px solid var(--b1)":"none"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                            <span style={{fontSize:12,color:"var(--t2)",fontWeight:500}}>{s.name}</span>
+                            <span style={{fontSize:11,color:"var(--t4)"}}>{s.count} posts</span>
+                          </div>
+                          <div style={{height:3,background:"var(--b1)",borderRadius:2}}>
+                            <div style={{height:3,background:"var(--ac)",borderRadius:2,width:`${(s.count/max)*100}%`,transition:"width .3s"}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+              <div>
+                <div className="fgt" style={{marginBottom:10}}>Top contributors this week</div>
+                <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                  {(stats?.extended?.top_contributors||[]).length===0
+                    ?<div style={{padding:"14px 16px",color:"var(--t5)",fontSize:12}}>No posts this week</div>
+                    :(stats?.extended?.top_contributors||[]).map((u,i,arr)=>(
+                      <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderBottom:i<arr.length-1?"0.5px solid var(--b1)":"none"}}>
+                        <div style={{width:7,height:7,borderRadius:"50%",background:"var(--ac)",opacity:1-(i*0.15),flexShrink:0}}/>
+                        <div style={{width:28,height:28,borderRadius:`${22}%`,background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--ac-on)",fontWeight:600,flexShrink:0}}>
+                          {(u.username||"?").slice(0,2).toUpperCase()}
+                        </div>
+                        <span style={{flex:1,fontSize:12,color:"var(--t2)"}}>{u.username}</span>
+                        <span style={{fontSize:11,color:"var(--t4)"}}>{u.count} post{u.count!==1?"s":""}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Queue health ── */}
+            <div className="fgt" style={{marginTop:24}}>Job queue health</div>
+            <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:4}}>
+              <div style={{display:"grid",gridTemplateColumns:"1.2fr repeat(5,1fr)",padding:"8px 14px",borderBottom:"0.5px solid var(--b1)",fontSize:11,color:"var(--t5)",fontWeight:500}}>
+                <span>Queue</span><span>Available</span><span>Executing</span><span>Scheduled</span><span>Retrying</span><span>Discarded</span>
+              </div>
+              {queueStats?Object.entries(queueStats.queues||{}).map(([q,s])=>(
+                <div key={q} style={{display:"grid",gridTemplateColumns:"1.2fr repeat(5,1fr)",padding:"9px 14px",borderBottom:"0.5px solid var(--b1)",fontSize:12,alignItems:"center"}}>
+                  <span style={{color:"var(--t1)",fontWeight:500}}>{q}</span>
+                  <span style={{color:"var(--green)"}}>{s.available||0}</span>
+                  <span style={{color:s.executing>0?"var(--ac)":"var(--t4)"}}>{s.executing||0}</span>
+                  <span style={{color:"var(--t3)"}}>{s.scheduled||0}</span>
+                  <span style={{color:s.retryable>0?"var(--amber)":"var(--t4)"}}>{s.retryable||0}</span>
+                  <span style={{color:s.discarded>0?"var(--red)":"var(--t4)"}}>{s.discarded||0}</span>
+                </div>
+              )):<div style={{padding:"14px 16px",color:"var(--t5)",fontSize:12}}>Loading…</div>}
+            </div>
+
+            {/* ── System health ── */}
+            <div className="fgt" style={{marginTop:24}}>System health</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:4}}>
+              {[
+                {label:"Total memory",    value:sysStats?`${(sysStats.memory.total/1048576).toFixed(1)} MB`:"—",   color:"#60a5fa"},
+                {label:"Process memory",  value:sysStats?`${(sysStats.memory.processes/1048576).toFixed(1)} MB`:"—", color:"#a78bfa"},
+                {label:"Processes",       value:sysStats?`${sysStats.process_count} / ${sysStats.process_limit}`:"—", color:"#34d399"},
+                {label:"Uptime",          value:sysStats?formatUptime(sysStats.uptime_seconds):"—",                 color:"#fbbf24"},
+                {label:"Schedulers",      value:sysStats?`${sysStats.schedulers} online`:"—",                       color:"#f472b6"},
+                {label:"OTP release",     value:sysStats?`OTP ${sysStats.otp_release}`:"—",                        color:"#f87171"},
+                {label:"Binary memory",   value:sysStats?`${(sysStats.memory.binary/1048576).toFixed(1)} MB`:"—",  color:"#60a5fa"},
+                {label:"ETS memory",      value:sysStats?`${(sysStats.memory.ets/1048576).toFixed(1)} MB`:"—",     color:"#a78bfa"},
+              ].map((s,i)=>(
+                <div key={i} style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"12px 14px"}}>
+                  <div style={{fontSize:10,color:"var(--t5)",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{s.label}</div>
+                  <div style={{fontSize:14,fontWeight:600,color:s.color}}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Storage ── */}
+            <div className="fgt" style={{marginTop:24}}>Storage</div>
+            <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+              {uploadStats?<>
+                <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr",padding:"8px 14px",borderBottom:"0.5px solid var(--b1)",fontSize:11,color:"var(--t5)",fontWeight:500}}>
+                  <span>Type</span><span>Files</span><span>Size</span>
+                </div>
+                {Object.entries(uploadStats.by_type||{}).map(([type,data])=>(
+                  <div key={type} style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr",padding:"8px 14px",borderBottom:"0.5px solid var(--b1)",fontSize:12}}>
+                    <span style={{color:"var(--t2)"}}>{type.replace("_"," ")}</span>
+                    <span style={{color:"var(--t3)"}}>{data.count}</span>
+                    <span style={{color:"var(--t3)"}}>{(data.bytes/1048576).toFixed(1)} MB</span>
+                  </div>
+                ))}
+                <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr 1fr",padding:"9px 14px",fontSize:12,fontWeight:500}}>
+                  <span style={{color:"var(--t1)"}}>Total</span>
+                  <span style={{color:"var(--ac)"}}>{uploadStats.total_count}</span>
+                  <span style={{color:"var(--ac)"}}>{(uploadStats.total_bytes/1048576).toFixed(1)} MB</span>
+                </div>
+              </>:<div style={{padding:"14px 16px",color:"var(--t5)",fontSize:12}}>Loading…</div>}
             </div>
           </>}
 
