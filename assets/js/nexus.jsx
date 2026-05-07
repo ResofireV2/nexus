@@ -69,6 +69,9 @@ mdRenderer.link = function(href, title, text) {
   if (text && text.includes('<img ')) {
     return text.replace('<img ', `<img data-original="${href}" `);
   }
+  if (href && href.startsWith('#')) {
+    return `<a class="reply-ref-link" href="${href}">${text}</a>`;
+  }
   return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 };
 
@@ -689,6 +692,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
 .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
+.reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;}
 .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
 .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
 .yt-lite img,.yt-thumb{cursor:pointer!important;border:none!important;background:none!important;margin:0!important;border-radius:0!important;max-height:none!important;}
@@ -2268,7 +2272,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     }, 50);
   };
   const insertReply = (username, anchor)=>{
-    const link = `[@${username}](${anchor}) `;
+    const link = `[↩ ${username}](${anchor}) `;
     setReplyBody(prev => prev ? prev + link : link);
     setQuoteTooltip(null);
     setTimeout(()=>{
