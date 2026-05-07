@@ -3051,7 +3051,7 @@ function ColorPicker({value, onChange}) {
 }
 
 // ── Email verification page ─────────────────────────────────────────────────
-function VerifyEmailPage({token, navigate}) {
+function VerifyEmailPage({token, navigate, onVerified}) {
   const [status, setStatus] = useState("loading");
 
   useEffect(()=>{
@@ -3072,7 +3072,7 @@ function VerifyEmailPage({token, navigate}) {
           <i className="fa-solid fa-circle-check" style={{fontSize:40,color:"var(--green)",marginBottom:16,display:"block"}}/>
           <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",marginBottom:8}}>Email verified!</div>
           <div style={{fontSize:13,color:"var(--t3)",marginBottom:24}}>Your email has been confirmed. You can now fully participate in the forum.</div>
-          <button className="btn-primary" style={{padding:"10px 28px",borderRadius:20}} onClick={()=>navigate("feed")}>Go to forum</button>
+          <button className="btn-primary" style={{padding:"10px 28px",borderRadius:20}} onClick={()=>{onVerified?.();navigate("feed");}}>Go to forum</button>
         </>}
         {status==="error"&&<>
           <i className="fa-solid fa-circle-xmark" style={{fontSize:40,color:"var(--red)",marginBottom:16,display:"block"}}/>
@@ -4614,7 +4614,7 @@ function App() {
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
 
   // Admin gets its own full shell
-  if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate}/></div><Toasts/></>;
+  if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate} onVerified={()=>updateCurrentUser(u=>u?{...u,email_verified:true}:u)}/></div><Toasts/></>;
   if(page==="moderation"&&currentUser) return <><div className="app-root"><ModerationPage currentUser={currentUser} navigate={navigate}/></div><Toasts/></>;
   if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/></div><Toasts/></>;
 
