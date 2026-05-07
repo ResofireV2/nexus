@@ -679,10 +679,6 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-overlay-title{font-size:15px;font-weight:600;color:var(--t1);}
 .mob-overlay-body{flex:1;overflow-y:auto;}
 }
-
-@media(min-width:768px) and (max-width:1239.99px){
-  .right-panel{display:none!important;}
-}
 .mob-page-wrap{padding-top:52px;padding-bottom:calc(54px + env(safe-area-inset-bottom));flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .mob-user-overlay{position:fixed;inset:0;background:var(--bg);z-index:960;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
 .mob-user-overlay.open{transform:translateY(0);}
