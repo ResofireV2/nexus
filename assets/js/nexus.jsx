@@ -1561,6 +1561,8 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true);
   const [cursor,setCursor]=useState(null); const [hasMore,setHasMore]=useState(false);
   const [liveCount,setLiveCount]=useState(0);
+  const [hoveredPost,setHoveredPost]=useState(null);
+  const [openPostMenu,setOpenPostMenu]=useState(null);
   const [subscribed,setSubscribed]=useState(false);
   const [subLoading,setSubLoading]=useState(false);
   useEffect(()=>{ if(livePosts.length>0) setLiveCount(livePosts.length); },[livePosts]);
@@ -1656,7 +1658,10 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               :posts.map(p=>{
                 const col = spaceColor(p.space||{id:p.id});
                 return (
-                  <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
+                  <div key={p.id} className="thread" style={{position:"relative"}}
+                    onMouseEnter={()=>setHoveredPost(p.id)}
+                    onMouseLeave={()=>{setHoveredPost(null);if(openPostMenu===p.id)setOpenPostMenu(null);}}
+                    onClick={e=>{if(e.target.closest(".feed-post-menu"))return;navigate("post",{id:p.id});}}>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
                       <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
@@ -1691,6 +1696,37 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         </div>
                       </div>
                     </div>
+                    {/* 3-dot menu — visible on hover, author or mod only */}
+                    {currentUser&&(currentUser.id===p.user?.id||(currentUser.role==="admin"||currentUser.role==="moderator"))&&(
+                      <div className="feed-post-menu" style={{position:"absolute",top:10,right:12,zIndex:10}}
+                        onClick={e=>e.stopPropagation()}>
+                        <button
+                          style={{width:26,height:26,borderRadius:"50%",background:openPostMenu===p.id?"var(--s3)":"transparent",border:`0.5px solid ${openPostMenu===p.id?"var(--b2)":"transparent"}`,color:"var(--t4)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,opacity:hoveredPost===p.id||openPostMenu===p.id?1:0,transition:"opacity .15s"}}
+                          onClick={e=>{e.stopPropagation();setOpenPostMenu(v=>v===p.id?null:p.id);}}>
+                          <i className="fa-solid fa-ellipsis"/>
+                        </button>
+                        {openPostMenu===p.id&&(
+                          <div style={{position:"absolute",top:30,right:0,background:"var(--s3)",border:"0.5px solid var(--b2)",borderRadius:10,padding:"4px 0",minWidth:148,boxShadow:"0 4px 20px rgba(0,0,0,.4)",zIndex:20}}>
+                            {(currentUser.role==="admin"||currentUser.role==="moderator")&&(
+                              <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);await api.post(`/posts/${p.id}/hide`,{});setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post hidden");}}
+                                style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                                onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
+                                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                                <i className="fa-solid fa-eye-slash" style={{fontSize:11,width:14}}/>Hide post
+                              </button>
+                            )}
+                            {(currentUser.id===p.user?.id||(currentUser.role==="admin"||currentUser.role==="moderator"))&&(
+                              <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);if(!confirm(`Delete "${p.title}"?`))return;await api.delete(`/posts/${p.id}`);setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post deleted");}}
+                                style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                                onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
+                                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                                <i className="fa-solid fa-trash" style={{fontSize:11,width:14}}/>Delete post
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
