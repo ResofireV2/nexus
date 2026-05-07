@@ -24,7 +24,7 @@ defmodule NexusWeb.API.V1.ReplyController do
     user = conn.assigns.current_user
 
     # Check email verification requirement
-    if Nexus.Permissions.require_email_verification?() && !user.email_verified do
+    if Nexus.Permissions.require_email_verification?() && !user.email_verified && user.role == "member" do
       conn |> put_status(:forbidden) |> json(%{error: "Please verify your email address before posting"})
     else
       case Forum.get_post(post_id) do
