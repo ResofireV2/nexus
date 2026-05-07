@@ -1903,12 +1903,17 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
       <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
-      <div ref={trackRef} onClick={onTrackClick}
-        style={{flex:1,width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,position:"relative",cursor:"pointer",margin:"4px 0"}}>
+      {/* Full-width hit area — track is visual only, this div captures all clicks/drags */}
+      <div ref={trackRef}
+        onClick={onTrackClick}
+        onMouseDown={onThumbMouseDown}
+        style={{flex:1,width:"100%",position:"relative",cursor:"grab",margin:"4px 0",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        {/* Track background */}
+        <div style={{position:"absolute",top:0,bottom:0,left:"50%",transform:"translateX(-50%)",width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,pointerEvents:"none"}}/>
         {/* Read high-water fill */}
-        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"rgba(167,139,250,0.25)",height:readPct+"%"}}/>
+        <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"rgba(167,139,250,0.25)",height:readPct+"%",pointerEvents:"none"}}/>
         {/* Scroll position fill */}
-        <div style={{position:"absolute",top:0,left:0,width:4,borderRadius:2,background:"var(--ac)",height:scrollPct+"%"}}/>
+        <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"var(--ac)",height:scrollPct+"%",pointerEvents:"none"}}/>
         {/* Pip per reply */}
         {replies.map(function(r,i){
           var topPct = replies.length > 1 ? (i/(replies.length-1))*100 : 50;
@@ -1920,12 +1925,13 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
             pointerEvents:"none"
           }});
         })}
-        {/* Draggable thumb at exact scroll position */}
-        <div onMouseDown={onThumbMouseDown}
-          style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
-            top:scrollPct+"%",width:14,height:14,borderRadius:"50%",
-            background:"var(--ac)",border:"2px solid var(--s1)",
-            zIndex:3,cursor:"grab"}}/>
+        {/* Thumb */}
+        <div style={{
+          position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
+          top:scrollPct+"%",width:14,height:14,borderRadius:"50%",
+          background:"var(--ac)",border:"2px solid var(--s1)",
+          zIndex:3,pointerEvents:"none"
+        }}/>
       </div>
       <div style={{fontSize:10,color:"var(--t4)",marginTop:4}}>{displayIdx+1}/{replies.length}</div>
     </div>
@@ -2008,14 +2014,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
       // Returning to post — find the NEXT unread reply after last read position
       const lastReadIdx = replies.findIndex(r=>r.id===lastReadReplyId);
       const nextUnreadIdx = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
-      const targetReply = replies[nextUnreadIdx];
+      const targetReply = replies[nextUnreadIdx] || replies[replies.length - 1];
       if(targetReply){
         setTimeout(()=>{
           const el = document.getElementById(`reply-${targetReply.id}`);
           if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
         },150);
       }
-      // If nextUnreadIdx >= replies.length, they've read everything — no scroll needed
     }
   },[replies.length, scrollToReply, lastReadReplyId]);
 
