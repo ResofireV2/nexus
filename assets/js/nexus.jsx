@@ -4323,10 +4323,54 @@ function SavedPage({navigate}) {
 }
 
 // ── Members ───────────────────────────────────────────────────────────────────
+function MemberCard({m, navigate}) {
+  const col = spaceColor({id:m.id});
+  const ROLE_COLORS = {admin:"#fbbf24", moderator:"#a78bfa"};
+  const roleColor = ROLE_COLORS[m.role];
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div onClick={()=>navigate("profile",{username:m.username})}
+      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
+      style={{background:"var(--s2)",border:`0.5px solid ${hovered?"var(--b2)":"var(--b1)"}`,borderRadius:14,overflow:"hidden",cursor:"pointer",
+        transition:"border-color .15s, transform .15s, box-shadow .15s",
+        transform:hovered?"translateY(-2px)":"none",
+        boxShadow:hovered?"0 8px 24px rgba(0,0,0,.3)":"none"}}>
+      {/* Cover strip */}
+      <div style={{height:72,position:"relative",flexShrink:0,
+        backgroundImage:m.cover_url?`url(${m.cover_url})`:"none",
+        backgroundSize:"cover",backgroundPosition:"center",
+        background:m.cover_url?"none":`linear-gradient(135deg,${col}40,${col}15)`}}>
+        {/* Online indicator */}
+        {m.status==="active"&&<div style={{position:"absolute",top:10,right:10,
+          width:8,height:8,borderRadius:"50%",background:"var(--green)",
+          border:"2px solid var(--s2)",boxShadow:"0 0 0 1px rgba(52,211,153,0.3)"}}/>}
+      </div>
+      {/* Avatar overlapping cover */}
+      <div style={{position:"relative",padding:"0 16px 14px"}}>
+        <div style={{marginTop:-28,marginBottom:10}}>
+          {m.avatar_url
+            ?<img src={m.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover",display:"block"}} alt={m.username}/>
+            :<div style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:600,color:"#fff"}}>
+              {m.username.slice(0,2).toUpperCase()}
+            </div>}
+        </div>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:m.bio?6:0}}>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.username}</div>
+            <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>joined {fmtDate(m.inserted_at)}</div>
+          </div>
+          {roleColor&&<span style={{fontSize:9,fontWeight:500,padding:"2px 8px",borderRadius:20,background:`${roleColor}18`,color:roleColor,border:`0.5px solid ${roleColor}40`,textTransform:"uppercase",letterSpacing:".4px",flexShrink:0,marginTop:2}}>{m.role}</span>}
+        </div>
+        {m.bio&&<div style={{fontSize:12,color:"var(--t4)",lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{m.bio}</div>}
+      </div>
+    </div>
+  );
+}
+
 function MembersPage({navigate, currentUser}) {
   const [members,setMembers]=useState([]); const [loading,setLoading]=useState(true); const [q,setQ]=useState("");
   useEffect(()=>{
-    // Admins get full list with emails; regular users get the public list
     const endpoint = currentUser?.role === "admin" ? "/admin/users" : "/users";
     api.get(endpoint).then(d=>{
       setMembers(d.users || d.members || []);
@@ -4334,41 +4378,31 @@ function MembersPage({navigate, currentUser}) {
     }).catch(()=>setLoading(false));
   },[currentUser]);
   const filtered = members.filter(m=>!q||m.username?.toLowerCase().includes(q.toLowerCase()));
-  const ROLE_COLORS = {admin:"#fbbf24", moderator:"#a78bfa", member:null};
+
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",gap:12,flexShrink:0}}>
-        <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Members</span>
-        <span style={{fontSize:12,color:"var(--t5)"}}>{members.length} total</span>
-      </div>
-      <div style={{padding:"14px 24px 10px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
-        <div style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,display:"flex",alignItems:"center",padding:"7px 14px",gap:8,maxWidth:320}}>
-          <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)"}}></i>
+      {/* Header */}
+      <div style={{padding:"18px 24px 14px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3}}>Members</div>
+            <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>{members.length} total</div>
+          </div>
+        </div>
+        <div style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,display:"flex",alignItems:"center",padding:"7px 14px",gap:8,maxWidth:360}}>
+          <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)"}}/>
           <input style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}} placeholder="Search members…" value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:"8px 24px"}}>
-        {loading?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
-          :filtered.length===0?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>No members found</div>
-          :filtered.map(m=>{
-            const col = spaceColor({id:m.id});
-            const roleColor = ROLE_COLORS[m.role];
-            return (
-              <div key={m.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"0.5px solid rgba(255,255,255,0.04)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:m.username})}>
-                <div style={{width:38,height:38,borderRadius:"50%",background:`${col}33`,border:`0.5px solid ${col}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:500,color:col,flexShrink:0}}>
-                  {m.username.slice(0,2).toUpperCase()}
-                </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{m.username}</span>
-                    {roleColor&&<span style={{fontSize:9,fontWeight:500,padding:"2px 7px",borderRadius:20,background:`${roleColor}18`,color:roleColor,border:`0.5px solid ${roleColor}40`,textTransform:"uppercase",letterSpacing:".4px"}}>{m.role}</span>}
-                  </div>
-                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>joined {fmtDate(m.inserted_at)}</div>
-                </div>
-                <div style={{width:7,height:7,borderRadius:"50%",background:m.status==="active"?"var(--green)":"rgba(255,255,255,0.15)",flexShrink:0}}></div>
-              </div>
-            );
-          })}
+      {/* Grid */}
+      <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+        {loading
+          ?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
+          :filtered.length===0
+            ?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>No members found</div>
+            :<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
+              {filtered.map(m=><MemberCard key={m.id} m={m} navigate={navigate}/>)}
+            </div>}
       </div>
     </div>
   );

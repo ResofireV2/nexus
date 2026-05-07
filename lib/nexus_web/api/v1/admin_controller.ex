@@ -5,47 +5,10 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
-    stats    = Admin.dashboard_stats()
-    extended = Admin.extended_stats()
-    dau_7    = Nexus.Activity.daily_active_users(7)
-    dau_30   = Nexus.Activity.daily_active_users(30)
-    json(conn, %{stats: Map.merge(stats, %{dau_7: dau_7, dau_30: dau_30, extended: extended})})
-  end
-
-  def queues(conn, _params) do
-    json(conn, Admin.queue_stats())
-  end
-
-  def system(conn, _params) do
-    json(conn, %{system: Admin.system_stats()})
-  end
-
-  # GET /api/v1/admin/threads/:id — show single thread for DM page
-  def show_thread(conn, %{"id" => id}) do
-    user_id = conn.assigns.current_user.id
-    case Nexus.Messaging.get_thread_for_user(id, user_id) do
-      {:ok, thread} ->
-        member = Enum.find(thread.members, &(&1.user_id == user_id))
-        last_read = member && member.last_read_at
-        unread_count = if last_read && thread.last_message_at do
-          if DateTime.compare(thread.last_message_at, last_read) == :gt, do: 1, else: 0
-        else
-          if thread.last_message_at && is_nil(last_read), do: 1, else: 0
-        end
-        t = thread
-        json(conn, %{thread: %{
-          id: t.id, kind: t.kind, name: t.name, emoji: t.emoji,
-          image_url: Map.get(t, :image_url), creator_id: Map.get(t, :creator_id),
-          last_message_at: t.last_message_at, unread_count: unread_count,
-          members: Enum.map(t.members, fn m ->
-            u = m.user
-            %{user_id: m.user_id, muted: m.muted, last_read_at: m.last_read_at,
-              user: u && %{id: u.id, username: u.username, avatar_url: u.avatar_url}}
-          end)
-        }})
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
-    end
+    stats = Admin.dashboard_stats()
+    dau_7  = Nexus.Activity.daily_active_users(7)
+    dau_30 = Nexus.Activity.daily_active_users(30)
+    json(conn, %{stats: Map.merge(stats, %{dau_7: dau_7, dau_30: dau_30})})
   end
 
   # ---------------------------------------------------------------------------
@@ -247,6 +210,8 @@ defmodule NexusWeb.API.V1.AdminController do
       username: u.username,
       role: u.role,
       avatar_url: u.avatar_url,
+      cover_url: u.cover_url,
+      bio: u.bio,
       inserted_at: u.inserted_at,
       status: u.status
     } end)})
