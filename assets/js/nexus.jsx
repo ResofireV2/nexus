@@ -380,7 +380,16 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Post view */
 .post-shell{flex:1;display:flex;overflow:hidden;}
-@media(max-width:767.99px){.desk-scrubber{display:none!important;}}
+@media(max-width:767.99px){
+.desk-scrubber{display:none!important;}
+.thread-top{flex-wrap:wrap;}
+.thread-title{width:100%;flex-shrink:0;}
+.thread-tag{margin-top:2px;}
+.thread-body{min-width:0;}
+.thread-meta{flex-direction:column;align-items:flex-end;gap:4px;}
+.meta-div{display:none;}
+.thread-last{margin-top:0;}
+}
 .post-content-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
 .post-back{font-size:12px;color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:18px;transition:color .1s;}
 .post-back:hover{color:var(--t2);}
