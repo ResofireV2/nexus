@@ -444,6 +444,15 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-item:hover .reply-quote-btn{opacity:1;}
 .reply-item:hover .reply-menu-btn{opacity:1!important;border-color:var(--b1)!important;}
 .reply-quote-btn:hover{color:var(--ac-text);}
+.post-reply-btn{font-size:11px;color:var(--t5);cursor:pointer;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;background:none;border:none;font-family:inherit;}
+.post-reply-btn:hover{color:var(--ac-text);}
+.reply-item:hover .post-reply-btn{opacity:1;}
+.reaction-row:hover .post-reply-btn{opacity:1;}
+.row-menu-btn{width:26px;height:26px;border-radius:50%;background:transparent;border:0.5px solid transparent;color:var(--t4);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;opacity:0;transition:opacity .15s;flex-shrink:0;}
+.row-menu-btn:hover{background:rgba(255,255,255,0.06);}
+.reply-item:hover .row-menu-btn{opacity:1;border-color:var(--b1);}
+.reaction-row:hover .row-menu-btn{opacity:1;border-color:var(--b1);}
+@media(max-width:767.99px){.post-reply-btn{opacity:1!important;}.row-menu-btn{opacity:1!important;border-color:var(--b1)!important;}}
 .reply-author{font-size:13px;font-weight:500;color:var(--t2);}
 .reply-time{font-size:11px;color:var(--t5);}
 .reply-text{font-size:13px;color:var(--t3);line-height:1.65;}
@@ -2258,6 +2267,15 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
       composerRef.current?.querySelector("textarea")?.focus();
     }, 50);
   };
+  const insertReply = (username, anchor)=>{
+    const link = `[@${username}](${anchor}) `;
+    setReplyBody(prev => prev ? prev + link : link);
+    setQuoteTooltip(null);
+    setTimeout(()=>{
+      composerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
+      composerRef.current?.querySelector("textarea")?.focus();
+    }, 50);
+  };
   const modAction=async(action)=>{
     await api.post(`/posts/${post.id}/${action}`,{});
     setPost(p=>({...p, [action]:!p[action]}));
@@ -2273,6 +2291,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   },[openReport, post]);
   const [postMenuOpen, setPostMenuOpen] = useState(false);
   const [openReplyMenu, setOpenReplyMenu] = useState(null);
+  const [hoveredReply, setHoveredReply] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
@@ -2350,11 +2369,16 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               </div>
               :<div className="post-body"><Md text={post.body}/></div>}
             <div className="reaction-row" style={{justifyContent:"flex-end",position:"relative"}} onMouseEnter={()=>setShowPostMenu(true)} onMouseLeave={()=>setShowPostMenu(false)}>
+              {currentUser&&!post.locked&&(
+                <button className="post-reply-btn" style={{marginRight:"auto"}} onClick={()=>insertReply(post.user?.username,`#post-${post.id}`)}>
+                  <i className="fa-solid fa-reply" style={{fontSize:9,marginRight:4}}/>Reply
+                </button>
+              )}
               <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
               {currentUser&&(currentUser.id===post.user?.id||isMod||currentUser.id!==post.user?.id)&&(
                 <div style={{position:"relative"}}>
                   <button
-                    style={{width:30,height:30,borderRadius:"50%",background:"transparent",border:"0.5px solid var(--b1)",color:"var(--t4)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:showPostMenu?1:0,transition:"opacity .15s",fontSize:14}}
+                    className="row-menu-btn"
                     onClick={e=>{e.stopPropagation();setPostMenuOpen(p=>!p);}}>
                     <i className="fa-solid fa-ellipsis"/>
                   </button>
@@ -2410,7 +2434,9 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>oldest first</span>
         </div>
         {replies.map(r=>(
-          <div key={r.id} id={`reply-${r.id}`} className="reply-item">
+          <div key={r.id} id={`reply-${r.id}`} className="reply-item"
+            onMouseEnter={()=>setHoveredReply(r.id)}
+            onMouseLeave={()=>{setHoveredReply(null);if(openReplyMenu===r.id)setOpenReplyMenu(null);}}>
             {r.user?.avatar_url
               ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
               :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
@@ -2419,16 +2445,24 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
-                {currentUser&&(currentUser.id!==r.user?.id||currentUser.id===r.user?.id||isMod)&&(
-                  <div style={{position:"relative",marginLeft:"auto"}} onClick={e=>e.stopPropagation()}>
+              </div>
+              <div className="reply-text"><Md text={r.body}/></div>
+              <div className="reaction-row" style={{marginTop:6,justifyContent:"flex-end",position:"relative"}}>
+                {currentUser&&!post.locked&&(
+                  <button className="post-reply-btn" style={{marginRight:"auto"}} onClick={()=>insertReply(r.user?.username,`#reply-${r.id}`)}>
+                    <i className="fa-solid fa-reply" style={{fontSize:9,marginRight:4}}/>Reply
+                  </button>
+                )}
+                <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
+                {currentUser&&(
+                  <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
                     <button
-                      style={{width:24,height:24,borderRadius:"50%",background:"transparent",border:"0.5px solid transparent",color:"var(--t5)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,opacity:0,transition:"opacity .15s"}}
-                      className="reply-menu-btn"
+                      className="row-menu-btn"
                       onClick={e=>{e.stopPropagation();setOpenReplyMenu(v=>v===r.id?null:r.id);}}>
                       <i className="fa-solid fa-ellipsis"/>
                     </button>
                     {openReplyMenu===r.id&&(
-                      <div style={{position:"absolute",top:28,right:0,background:"var(--s3)",border:"0.5px solid var(--b2)",borderRadius:10,padding:"4px 0",minWidth:140,zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}}
+                      <div style={{position:"absolute",bottom:32,right:0,background:"var(--s3)",border:"0.5px solid var(--b2)",borderRadius:10,padding:"4px 0",minWidth:140,zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}}
                         onMouseLeave={()=>setOpenReplyMenu(null)}>
                         {currentUser.id!==r.user?.id&&<button onClick={()=>{setOpenReplyMenu(null);setReportTarget({type:"reply",id:r.id});setReportReason("");}}
                           style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
@@ -2451,14 +2485,19 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                             <i className="fa-solid fa-trash" style={{fontSize:11,color:"var(--red)",width:14}}/>Delete reply
                           </button>
                         </>}
+                        {isMod&&<>
+                          <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
+                          <button onClick={async()=>{setOpenReplyMenu(null);await api.post(`/posts/${postId}/replies/${r.id}/hide`,{});setReplies(p=>p.filter(x=>x.id!==r.id));toast("Reply hidden");}}
+                            style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                            <i className="fa-solid fa-eye-slash" style={{fontSize:11,color:"var(--red)",width:14}}/>Hide reply
+                          </button>
+                        </>}
                       </div>
                     )}
                   </div>
                 )}
-              </div>
-              <div className="reply-text"><Md text={r.body}/></div>
-              <div className="reaction-row" style={{marginTop:6,justifyContent:"flex-end"}}>
-                <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
               </div>
             </div>
           </div>
