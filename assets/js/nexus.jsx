@@ -611,7 +611,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
 .ucard-wrap.visible{pointer-events:auto;}
 .ucard{background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;width:320px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);animation:rxPop .15s ease;}
-.ucard-cover{height:80px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
+.ucard-cover{height:100px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
 .ucard-body{padding:16px 18px 18px;}
 .ucard-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 8px;text-align:center;flex:1;}
 .ucard-stat-n{font-size:18px;font-weight:500;color:var(--t1);}
@@ -719,7 +719,7 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
   const cardW = 320;
   const x = Math.min(card.x, window.innerWidth - cardW - 12);
   // Flip vertically if card would go off bottom
-  const cardH = 360;
+  const cardH = 420;
   const y = card.y + cardH > window.innerHeight ? card.y - cardH - 60 : card.y;
 
   return (
@@ -728,10 +728,10 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
         {/* Cover */}
         <div className="ucard-cover" style={{background: u?.cover_url ? `url(${u.cover_url}) center/cover` : "linear-gradient(135deg,#1e1c2e,#312e55)"}}>
           {/* Avatar overlapping cover */}
-          <div style={{position:"absolute",bottom:-20,left:14}}>
+          <div style={{position:"absolute",bottom:-36,left:16}}>
             {u?.avatar_url
-              ?<img src={u.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
-              :<div style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
+              ?<img src={u.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
+              :<div style={{width:96,height:96,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
           </div>
         </div>
         {/* Body */}
@@ -739,7 +739,7 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
           {card.loading&&!u
             ?<div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
             :<>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10,paddingTop:26}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10,paddingTop:66}}>
                 <div>
                   <div style={{fontSize:17,fontWeight:500,color:"var(--t1)",cursor:"pointer"}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>{u.username}</div>
                   <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>Joined {new Date(u.inserted_at).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
@@ -2242,9 +2242,9 @@ function ProfilePage({username, currentUser, navigate}) {
             {/* Avatar */}
             <div style={{position:"relative",display:"inline-block"}}>
               {user?.avatar_url
-                ?<img src={user.avatar_url} style={{width:64,height:64,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
+                ?<img src={user.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
                 :<div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>}
-              {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:12,background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
+              {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:"var(--av-radius)",background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
                 onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
                 <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleAvatarUpload(e.target.files[0])}/>
