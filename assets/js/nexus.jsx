@@ -417,18 +417,18 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-text{font-size:13px;color:var(--t3);line-height:1.65;}
 
 /* Composer */
-.composer-shell{flex:1;overflow-y:auto;padding:0;display:flex;flex-direction:column;}
-.composer-inner{width:100%;padding:32px 48px 40px;box-sizing:border-box;}
+.composer-shell{flex:1;padding:0;display:flex;flex-direction:column;overflow:hidden;}
+.composer-inner{width:100%;padding:32px 48px 0;box-sizing:border-box;display:flex;flex-direction:column;flex:1;overflow:hidden;}
 .comp-title-input{width:100%;background:transparent;border:none;outline:none;font-size:22px;font-weight:600;color:var(--t1);font-family:inherit;letter-spacing:-.3px;margin-bottom:8px;}
 .comp-title-input::placeholder{color:rgba(255,255,255,0.15);}
 .comp-meta-row{display:flex;align-items:center;gap:8px;padding:10px 0 16px;border-bottom:0.5px solid var(--b1);flex-wrap:wrap;margin-bottom:20px;}
 .comp-sel{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--t3);cursor:pointer;font-family:inherit;outline:none;}
 .comp-tag-pill{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);cursor:pointer;}
 .comp-tag-add{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);background:transparent;color:var(--t4);cursor:pointer;}
-.comp-body-area{position:relative;flex:1;min-height:240px;}
+.comp-body-area{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
 .comp-ta{width:100%;height:100%;background:transparent;border:none;outline:none;font-size:15px;color:var(--t3);line-height:1.75;font-family:inherit;resize:none;min-height:240px;caret-color:var(--ac);padding:0 16px;box-sizing:border-box;}
 .comp-ta::placeholder{color:rgba(255,255,255,0.12);}
-.comp-footer{display:flex;align-items:center;gap:10px;padding-top:16px;border-top:0.5px solid var(--b1);margin-top:16px;}
+.comp-footer{display:flex;align-items:center;gap:10px;padding:16px 0 24px;border-top:0.5px solid var(--b1);margin-top:16px;flex-shrink:0;}
 .comp-char{font-size:11px;color:var(--t5);}
 
 /* Buttons */
@@ -1212,7 +1212,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   };
 
   return (
-    <div ref={wrapRef} style={{position:"relative"}}>
+    <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Static toolbar */}
       <div className="comp-toolbar">
         {TB_BTNS.map((b,i)=> b.sep
@@ -1223,8 +1223,8 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
             </button>
         )}
         <div className="comp-tb-sep"/>
-        <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit"}}>
-          <i className="fa-solid fa-eye" style={{fontSize:11}}/>
+        <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
+          <i className="fa-regular fa-eye" style={{fontSize:12}}/>
         </button>
         <label className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
           {uploading
@@ -2369,7 +2369,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
           <i className="fa-solid fa-arrow-left"></i> back to feed
         </span>
       </div>
-      <div className="composer-inner" style={{display:"flex",flexDirection:"column",flex:1}}>
+      <div className="composer-inner">
         <input className="comp-title-input" placeholder="Thread title…" value={title} onChange={e=>setTitle(e.target.value)} autoFocus/>
         <div className="comp-meta-row">
           <select className="comp-sel" value={spaceId} onChange={e=>setSpaceId(e.target.value)}>
