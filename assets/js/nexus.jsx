@@ -1906,12 +1906,24 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   useEffect(()=>{
     if(!replies.length) return;
-    const targetId = scrollToReply || lastReadReplyId;
-    if(targetId){
+    if(scrollToReply){
+      // From notification — go directly to that specific reply
       setTimeout(()=>{
-        const el = document.getElementById(`reply-${targetId}`);
-        if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
+        const el = document.getElementById(`reply-${scrollToReply}`);
+        if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
       },150);
+    } else if(lastReadReplyId){
+      // Returning to post — find the NEXT unread reply after last read position
+      const lastReadIdx = replies.findIndex(r=>r.id===lastReadReplyId);
+      const nextUnreadIdx = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
+      const targetReply = replies[nextUnreadIdx];
+      if(targetReply){
+        setTimeout(()=>{
+          const el = document.getElementById(`reply-${targetReply.id}`);
+          if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
+        },150);
+      }
+      // If nextUnreadIdx >= replies.length, they've read everything — no scroll needed
     }
   },[replies.length, scrollToReply, lastReadReplyId]);
 
