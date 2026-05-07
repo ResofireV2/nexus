@@ -381,14 +381,36 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Post view */
 .post-shell{flex:1;display:flex;overflow:hidden;}
 @media(max-width:767.99px){
+/* Scrubber */
 .desk-scrubber{display:none!important;}
+
+/* Feed thread cards */
 .thread-top{flex-wrap:wrap;}
-.thread-title{width:100%;flex-shrink:0;}
-.thread-tag{margin-top:2px;}
+.thread-title{width:100%;flex-shrink:0;margin-bottom:2px;}
+.thread-tag{margin-top:0;}
 .thread-body{min-width:0;}
-.thread-meta{flex-direction:column;align-items:flex-end;gap:4px;}
+.thread-meta{flex-direction:column;align-items:flex-end;gap:2px;}
 .meta-div{display:none;}
+.meta-block .meta-l{display:none;}
 .thread-last{margin-top:0;}
+
+/* Hide hearts count on mobile feed */
+.thread-meta .meta-block{display:none;}
+
+/* Admin panel */
+.admin-content-header{padding:0 14px;height:52px;}
+.admin-content-title{font-size:16px;}
+.admin-content-body{padding:16px 14px;}
+.admin-stat-row{grid-template-columns:repeat(2,1fr);gap:10px;}
+.asc-title{font-size:18px!important;}
+.admin-content-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+
+/* Tables scroll horizontally */
+.atbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+/* Reduce form padding */
+.fi{font-size:14px;}
+.fgt{font-size:11px;}
 }
 .post-content-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
 .post-back{font-size:12px;color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:6px;margin-bottom:18px;transition:color .1s;}
@@ -4691,7 +4713,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} onClick={()=>{setNewUser({username:"",email:"",password:"",role:"member",skip_verification:false});setShowCreateUser(true);}}>+ New member</button>
             </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
-              <table className="atbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>{users.map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
@@ -4715,7 +4737,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                     </td>
                   </tr>
                 ))}</tbody>
-              </table>
+              </table></div>
             </div>
           </>}
 
