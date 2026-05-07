@@ -40,6 +40,7 @@ defmodule NexusWeb.API.V1.ReplyController do
               else
                 Nexus.Activity.increment_stat(user.id, :replies_count)
                 Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
+                %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
 
                 # Broadcast to every subscriber of this post's notification channel.
                 # Using "post_viewers:{post_id}" as a lightweight PubSub topic that

@@ -1018,6 +1018,7 @@ function urlToPage(pathname) {
   if (p === "/admin")                  return {page:"admin", props:{}};
   if (p === "/settings")               return {page:"settings", props:{}};
   if (p === "/members")                return {page:"members", props:{}};
+  if (p === "/badges")                 return {page:"badges",  props:{}};
   if (p === "/saved")                  return {page:"saved", props:{}};
   const postM    = p.match(/^\/post\/(.+)$/);
   if (postM)  return {page:"post",    props:{id: postM[1]}};
@@ -1044,6 +1045,7 @@ function pageToUrl(page, props={}) {
     case "admin":         return "/admin";
     case "settings":      return "/settings";
     case "members":       return "/members";
+    case "badges":        return "/badges";
     case "saved":         return "/saved";
     default:              return "/";
   }
@@ -1242,6 +1244,7 @@ const EXPLORE_ITEMS = [
   {id:"notifications",label:"Notifications",icon:"fa-bell",   authOnly:true},
   {id:"messages",   label:"Messages",     icon:"fa-message", authOnly:true},
   {id:"members",    label:"Members",      icon:"fa-users"},
+  {id:"badges",     label:"Badges",       icon:"fa-medal"},
 ];
 const RIGHT_WIDGETS = [
   {id:"live_activity",   label:"Live Activity"},
@@ -1650,6 +1653,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
             notifications: currentUser&&<SbItem key="notifications" icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>,
             messages:   currentUser&&<SbItem key="messages" icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>,
             members:    <SbItem key="members" icon="fa-users" label="Members" targetPage="members"/>,
+            badges:     <SbItem key="badges" icon="fa-medal" label="Badges" targetPage="badges"/>,
           };
 
           return sections.map(function(sec, si){
@@ -2835,12 +2839,13 @@ function NotificationsPage({navigate}) {
   const markRead=async n=>{
     if(!n.read){await api.patch(`/notifications/${n.id}/read`,{});setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x));}
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
+    else if(n.type==="badge") { /* badge notifications don't navigate — already marked read above */ }
     else if(n.post_id) navigate("post",{id:n.post_id, scrollToReply:n.reply_id||null});
     else if(n.reply_id) api.get(`/posts/by-reply/${n.reply_id}`).then(d=>{ if(d.post_id) navigate("post",{id:d.post_id, scrollToReply:n.reply_id}); }).catch(()=>{});
   };
-  const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement"};
-  const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn"};
-  const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)"};
+  const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement",badge:"you earned a badge"};
+  const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal"};
+  const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)"};
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0,borderBottom:"0.5px solid var(--b1)"}}>
@@ -2861,7 +2866,12 @@ function NotificationsPage({navigate}) {
                 <i className={`fa-solid ${ICON[n.type]||"fa-bell"}`} style={{fontSize:12,color:ICON_COLOR[n.type]||"var(--ac)"}}></i>
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:13}}><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></div>
+                <div style={{fontSize:13}}>
+                  {n.type==="badge"
+                    ? <><strong style={{color:"var(--t1)"}}>{n.data?.badge_name||"A badge"}</strong> <span style={{color:"var(--t3)"}}>was awarded to you</span></>
+                    : <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></>
+                  }
+                </div>
                 <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{ago(n.inserted_at)}</div>
               </div>
               <div onClick={e=>deleteOne(e,n.id)} title="Delete"
@@ -4459,7 +4469,414 @@ function ToolbarEditor({items, onChange}) {
   );
 }
 
-function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
+// ── Rarity helpers ────────────────────────────────────────────────────────────
+const RARITY_COLOR = {common:"var(--t5)", rare:"#93c5fd", epic:"#c4b5fd", legendary:"#fcd34d"};
+const RARITY_BG    = {common:"rgba(255,255,255,0.06)", rare:"rgba(96,165,250,0.1)", epic:"rgba(167,139,250,0.12)", legendary:"rgba(251,191,36,0.12)"};
+
+// ── Forum-facing BadgesPage ───────────────────────────────────────────────────
+function BadgesPage({currentUser, navigate}) {
+  const [data,   setData]   = useState(null);
+  const [filter, setFilter] = useState("all"); // all | earned | progress | locked
+  const [loading,setLoading]= useState(true);
+
+  useEffect(()=>{
+    if(currentUser) {
+      api.get("/badges/my").then(d=>{ setData(d); setLoading(false); });
+    } else {
+      api.get("/badges").then(d=>{ setData({badges: d.badges||[], earned:[], progress:[], total_badges: d.badges?.length||0, earned_count:0}); setLoading(false); });
+    }
+  },[currentUser]);
+
+  if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
+
+  const earnedIds   = new Set((data.earned||[]).map(ub=>ub.badge.id));
+  const progressMap = Object.fromEntries((data.progress||[]).map(p=>[p.badge.id, p]));
+  const allBadges   = currentUser
+    ? [...(data.earned||[]).map(ub=>ub.badge), ...(data.progress||[]).map(p=>p.badge)]
+    : (data.badges||[]);
+  // Dedupe — earned list and progress list cover distinct badges (earned excludes from progress)
+  const earnedBadges   = (data.earned||[]);
+  const progressBadges = (data.progress||[]).filter(p=>p.pct>0).sort((a,b)=>b.pct-a.pct);
+  const lockedBadges   = (data.progress||[]).filter(p=>p.pct===0);
+
+  const totalBadges  = data.total_badges||0;
+  const earnedCount  = data.earned_count||0;
+  const progressPct  = totalBadges>0 ? Math.round(earnedCount/totalBadges*100) : 0;
+
+  const showEarned   = filter==="all"||filter==="earned";
+  const showProgress = filter==="all"||filter==="progress";
+  const showLocked   = filter==="all"||filter==="locked";
+
+  const BadgeCard = ({badge, earnedAt, awardedBy, progressData}) => {
+    const isEarned   = !!earnedAt;
+    const inProgress = !isEarned && progressData && progressData.pct>0;
+    const isLocked   = !isEarned && (!progressData || progressData.pct===0);
+    const rc = RARITY_COLOR[badge.rarity]||"var(--t5)";
+    const rb = RARITY_BG[badge.rarity]||"rgba(255,255,255,0.06)";
+
+    return (
+      <div style={{borderRadius:14,border:`0.5px solid ${isEarned?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.08)"}`,padding:16,position:"relative",transition:"border-color .15s",background:isEarned?"rgba(167,139,250,0.04)":"transparent",opacity:isLocked?0.55:1,cursor:"default"}}
+        onMouseEnter={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.16)"}
+        onMouseLeave={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.08)"}>
+        {isEarned&&<div style={{position:"absolute",top:10,right:10,width:18,height:18,borderRadius:"50%",background:"#34d399",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <i className="fa-solid fa-check" style={{fontSize:8,color:"#0d0d14"}}/>
+        </div>}
+        <div style={{width:42,height:42,borderRadius:12,background:`${badge.color}22`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:11,fontSize:18}}>
+          <i className={`fa-solid ${badge.icon}`} style={{color:badge.color}}/>
+        </div>
+        <div style={{fontSize:13,fontWeight:500,color:isEarned?"var(--t1)":"rgba(255,255,255,0.55)",marginBottom:4}}>{badge.name}</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.32)",lineHeight:1.55,marginBottom:8}}>{badge.description}</div>
+        {isEarned&&(
+          <div style={{fontSize:11,color:"#34d399",display:"flex",alignItems:"center",gap:4}}>
+            <i className="fa-solid fa-circle-check" style={{fontSize:10}}/>
+            earned {new Date(earnedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+            {awardedBy&&<span style={{color:"var(--t5)",marginLeft:4}}>by {awardedBy.username}</span>}
+          </div>
+        )}
+        {inProgress&&(<>
+          <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden",marginBottom:4,marginTop:8}}>
+            <div style={{height:3,borderRadius:3,background:badge.color,width:progressData.pct+"%"}}/>
+          </div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.28)"}}>{progressData.current_value} / {badge.trigger_threshold} · {progressData.pct}%</div>
+        </>)}
+        {isLocked&&progressData&&progressData.current_value===0&&(
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",marginTop:8}}>0 / {badge.trigger_threshold}</div>
+        )}
+        <div style={{position:"absolute",bottom:10,right:10,fontSize:9,fontWeight:500,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.4px",background:rb,color:rc}}>
+          {badge.rarity}
+        </div>
+      </div>
+    );
+  };
+
+  const Section = ({label, items, renderItem}) => items.length===0?null:<>
+    <div style={{fontSize:11,fontWeight:500,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12,marginTop:20,display:"flex",alignItems:"center",gap:8}}>
+      {label}<div style={{flex:1,height:"0.5px",background:"rgba(255,255,255,0.06)"}}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+      {items.map(renderItem)}
+    </div>
+  </>;
+
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"22px 28px 0",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:20,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,marginBottom:3}}>Badges</div>
+          <div style={{fontSize:13,color:"var(--t4)"}}>Earn badges by participating, writing, and contributing to the community.</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+          {["all","earned","progress","locked"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)}
+              style={{fontSize:12,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${filter===f?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.1)"}`,background:filter===f?"rgba(167,139,250,0.1)":"transparent",color:filter===f?"#c4b5fd":"rgba(255,255,255,0.3)",cursor:"pointer",fontFamily:"inherit"}}>
+              {f==="all"?"all badges":f==="progress"?"in progress":f}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"0 28px 32px"}}>
+        {currentUser&&<div style={{background:"rgba(167,139,250,0.06)",border:"0.5px solid rgba(167,139,250,0.15)",borderRadius:14,padding:"16px 20px",margin:"20px 0 8px",display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:40,height:40,borderRadius:12,background:"rgba(167,139,250,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <i className="fa-solid fa-medal" style={{color:"var(--ac)",fontSize:18}}/>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:5}}>your badge collection</div>
+            <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden",marginBottom:4}}>
+              <div style={{height:4,background:"var(--ac)",borderRadius:4,width:progressPct+"%"}}/>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{earnedCount} earned · {progressBadges.length} in progress · {lockedBadges.length} locked</div>
+          </div>
+          <div style={{fontSize:22,fontWeight:600,color:"var(--ac)",letterSpacing:-0.5,lineHeight:1,flexShrink:0}}>
+            {earnedCount} <span style={{fontSize:13,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/ {totalBadges}</span>
+          </div>
+        </div>}
+
+        {showEarned&&<Section label="earned" items={earnedBadges} renderItem={ub=>(
+          <BadgeCard key={ub.badge.id} badge={ub.badge} earnedAt={ub.awarded_at} awardedBy={ub.awarded_by}/>
+        )}/>}
+        {showProgress&&<Section label="in progress" items={progressBadges} renderItem={p=>(
+          <BadgeCard key={p.badge.id} badge={p.badge} progressData={p}/>
+        )}/>}
+        {showLocked&&<Section label="locked" items={lockedBadges} renderItem={p=>(
+          <BadgeCard key={p.badge.id} badge={p.badge} progressData={p}/>
+        )}/>}
+        {!currentUser&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:20}}>
+          {(data.badges||[]).map(b=>(
+            <BadgeCard key={b.id} badge={b}/>
+          ))}
+        </div>}
+        {currentUser&&earnedBadges.length===0&&progressBadges.length===0&&lockedBadges.length===0&&(
+          <div style={{textAlign:"center",padding:"60px 0",color:"var(--t5)"}}>
+            <i className="fa-solid fa-medal" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}/>
+            No badges defined yet
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Admin badges panel ────────────────────────────────────────────────────────
+const TRIGGER_TYPE_LABELS = {
+  post_count:         "Posts created",
+  reply_count:        "Replies posted",
+  reactions_received: "Reactions received",
+  reactions_given:    "Reactions given",
+  streak_days:        "Consecutive login days",
+  account_age_days:   "Account age (days)",
+  spaces_covered:     "Distinct spaces posted in",
+};
+
+const BLANK_BADGE = {name:"",description:"",icon:"fa-medal",color:"#a78bfa",rarity:"common",award_type:"auto",trigger_type:"post_count",trigger_threshold:""};
+
+function AdminBadgesPanel() {
+  const [badges,  setBadges]  = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | "new" | badge object
+  const [form,    setForm]    = useState(BLANK_BADGE);
+  const [saving,  setSaving]  = useState(false);
+  const [holders, setHolders] = useState(null); // {badge, list} | null
+  const [awardTarget, setAwardTarget] = useState(null); // badge for manual award modal
+  const [awardUsername, setAwardUsername] = useState("");
+  const [awarding, setAwarding] = useState(false);
+  const [installing, setInstalling] = useState(false);
+
+  const load = () => api.get("/admin/badges").then(d=>{ setBadges(d.badges||[]); setLoading(false); });
+  useEffect(()=>{ load(); },[]);
+
+  const openNew  = ()=>{ setForm({...BLANK_BADGE}); setEditing("new"); };
+  const openEdit = b=>{ setForm({...b, trigger_threshold: b.trigger_threshold||""}); setEditing(b); };
+  const closeEdit= ()=>{ setEditing(null); };
+
+  const save = async()=>{
+    setSaving(true);
+    const attrs = {...form, trigger_threshold: form.trigger_threshold===""?null:parseInt(form.trigger_threshold)||null};
+    if(form.award_type==="manual"){attrs.trigger_type=null;attrs.trigger_threshold=null;}
+    const res = editing==="new"
+      ? await api.post("/admin/badges", attrs)
+      : await api.patch(`/admin/badges/${editing.id}`, attrs);
+    setSaving(false);
+    if(res.badge){ load(); closeEdit(); toast(editing==="new"?"Badge created":"Badge updated"); }
+    else toast(res.error||JSON.stringify(res.errors)||"Failed","err");
+  };
+
+  const del = async(b)=>{
+    if(!confirm(`Delete badge "${b.name}"? This will also remove it from all users.`))return;
+    await api.delete(`/admin/badges/${b.id}`);
+    load(); toast("Badge deleted");
+  };
+
+  const installPresets = async()=>{
+    setInstalling(true);
+    const res = await api.post("/admin/badges/install-presets",{});
+    setInstalling(false);
+    if(res.ok){ load(); toast(`${res.installed} preset${res.installed===1?"":"s"} installed`); }
+    else toast(res.error||"Failed","err");
+  };
+
+  const openHolders = async(b)=>{
+    const d = await api.get(`/admin/badges/${b.id}/holders`);
+    setHolders({badge:b, list:d.holders||[]});
+  };
+
+  const openAward = b=>{ setAwardTarget(b); setAwardUsername(""); };
+
+  const submitAward = async()=>{
+    if(!awardUsername.trim())return;
+    setAwarding(true);
+    const res = await api.post(`/admin/badges/${awardTarget.id}/award`,{username:awardUsername.trim()});
+    setAwarding(false);
+    if(res.ok){ setAwardTarget(null); load(); toast(`Badge awarded to ${awardUsername.trim()}`); }
+    else toast(res.error||"Failed","err");
+  };
+
+  const revoke = async(badgeId, userId, username)=>{
+    if(!confirm(`Revoke this badge from ${username}?`))return;
+    const res = await api.delete(`/admin/badges/${badgeId}/revoke/${userId}`);
+    if(res.ok){ openHolders({id:badgeId}); toast("Badge revoked"); }
+    else toast(res.error||"Failed","err");
+  };
+
+  const F = ({label,children})=>(
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>{label}</div>
+      {children}
+    </div>
+  );
+  const fi = {width:"100%",background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--t2)",fontFamily:"inherit",outline:"none",boxSizing:"border-box"};
+  const presetCount = badges.filter(b=>b.is_preset).length;
+  const totalPresets = 16;
+
+  if(loading) return <div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>Loading…</div>;
+
+  return (
+    <div>
+      {/* Header row */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3}}>Badges</div>
+          <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>{badges.length} badge{badges.length!==1?"s":""} defined</div>
+        </div>
+        {presetCount<totalPresets&&(
+          <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={installPresets} disabled={installing}>
+            <i className="fa-solid fa-download" style={{fontSize:11}}/>{installing?"Installing…":`Install presets (${totalPresets-presetCount} available)`}
+          </button>
+        )}
+        <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",display:"flex",alignItems:"center",gap:6}} onClick={openNew}>
+          <i className="fa-solid fa-plus" style={{fontSize:11}}/>New badge
+        </button>
+      </div>
+
+      {/* Badge list */}
+      {badges.length===0
+        ? <div style={{textAlign:"center",padding:"48px 0",color:"var(--t5)"}}>
+            <i className="fa-solid fa-medal" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}/>
+            No badges yet. Create one or install presets.
+          </div>
+        : <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {badges.map(b=>{
+              const rc=RARITY_COLOR[b.rarity]||"var(--t5)";
+              const rb=RARITY_BG[b.rarity]||"rgba(255,255,255,0.06)";
+              return (
+                <div key={b.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:`${b.color}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <i className={`fa-solid ${b.icon}`} style={{color:b.color,fontSize:16}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                      <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{b.name}</span>
+                      <span style={{fontSize:9,fontWeight:500,padding:"2px 7px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.4px",background:rb,color:rc}}>{b.rarity}</span>
+                      <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:b.award_type==="auto"?"rgba(52,211,153,0.1)":"rgba(96,165,250,0.1)",color:b.award_type==="auto"?"#34d399":"#93c5fd",border:`0.5px solid ${b.award_type==="auto"?"rgba(52,211,153,0.2)":"rgba(96,165,250,0.2)"}`}}>
+                        {b.award_type==="auto"?"auto":"manual"}
+                      </span>
+                      {b.is_preset&&<span style={{fontSize:10,color:"var(--t5)",opacity:0.6}}>preset</span>}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--t5)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      {b.award_type==="auto"
+                        ? `${TRIGGER_TYPE_LABELS[b.trigger_type]||b.trigger_type} ≥ ${b.trigger_threshold}`
+                        : "Manually awarded"}
+                      {" · "}{b.holder_count} holder{b.holder_count!==1?"s":""}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>openHolders(b)}>holders</button>
+                    {b.award_type==="manual"&&<button className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>openAward(b)}>award</button>}
+                    <button className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>openEdit(b)}>edit</button>
+                    <button className="btn-ghost" style={{fontSize:11,padding:"4px 10px",color:"var(--red)"}} onClick={()=>del(b)}>delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+      }
+
+      {/* Create/Edit modal */}
+      {editing&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&closeEdit()}>
+          <div style={{width:"100%",maxWidth:480,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:28,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontSize:16,fontWeight:600,color:"var(--t1)",marginBottom:20}}>{editing==="new"?"New badge":"Edit badge"}</div>
+
+            <F label="Name"><input style={fi} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="Badge name"/></F>
+            <F label="Description"><textarea style={{...fi,resize:"vertical",minHeight:72}} value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="What does a member need to do to earn this?"/></F>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <F label="Icon (Font Awesome class)">
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input style={{...fi,flex:1}} value={form.icon} onChange={e=>setForm(p=>({...p,icon:e.target.value.trim()}))} placeholder="fa-medal"/>
+                  <div style={{width:34,height:34,borderRadius:8,background:`${form.color}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <i className={`fa-solid ${form.icon||"fa-medal"}`} style={{color:form.color,fontSize:16}}/>
+                  </div>
+                </div>
+              </F>
+              <F label="Color">
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input type="color" value={form.color} onChange={e=>setForm(p=>({...p,color:e.target.value}))} style={{width:36,height:36,borderRadius:8,border:"0.5px solid var(--b2)",padding:2,background:"var(--s1)",cursor:"pointer",flexShrink:0}}/>
+                  <input style={{...fi,flex:1}} value={form.color} onChange={e=>setForm(p=>({...p,color:e.target.value}))} placeholder="#a78bfa"/>
+                </div>
+              </F>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <F label="Rarity">
+                <select style={fi} value={form.rarity} onChange={e=>setForm(p=>({...p,rarity:e.target.value}))}>
+                  {["common","rare","epic","legendary"].map(r=><option key={r} value={r}>{r}</option>)}
+                </select>
+              </F>
+              <F label="Award type">
+                <select style={fi} value={form.award_type} onChange={e=>setForm(p=>({...p,award_type:e.target.value}))}>
+                  <option value="auto">Automatic</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </F>
+            </div>
+
+            {form.award_type==="auto"&&<>
+              <F label="Trigger condition">
+                <select style={fi} value={form.trigger_type} onChange={e=>setForm(p=>({...p,trigger_type:e.target.value}))}>
+                  {Object.entries(TRIGGER_TYPE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                </select>
+              </F>
+              <F label="Threshold (must reach this value)">
+                <input style={fi} type="number" min="1" value={form.trigger_threshold} onChange={e=>setForm(p=>({...p,trigger_threshold:e.target.value}))} placeholder="e.g. 100"/>
+              </F>
+            </>}
+
+            <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}>
+              <button className="btn-ghost" onClick={closeEdit}>Cancel</button>
+              <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={save} disabled={saving}>{saving?"Saving…":"Save badge"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Holders modal */}
+      {holders&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setHolders(null)}>
+          <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,maxHeight:"80vh",overflowY:"auto"}}>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>{holders.badge.name}</div>
+            <div style={{fontSize:12,color:"var(--t5)",marginBottom:16}}>{holders.list.length} holder{holders.list.length!==1?"s":""}</div>
+            {holders.list.length===0
+              ? <div style={{textAlign:"center",padding:"24px 0",color:"var(--t5)",fontSize:13}}>No one has earned this badge yet.</div>
+              : holders.list.map((h,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"0.5px solid var(--b1)"}}>
+                    {h.user?.avatar_url
+                      ?<img src={h.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt=""/>
+                      :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${spaceColor({id:h.user?.id})}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,color:"#fff"}}>{(h.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,color:"var(--t2)"}}>{h.user?.username}</div>
+                      <div style={{fontSize:11,color:"var(--t5)"}}>
+                        {new Date(h.awarded_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                        {h.awarded_by&&<span> · by {h.awarded_by.username}</span>}
+                      </div>
+                    </div>
+                    <button className="btn-ghost" style={{fontSize:11,color:"var(--red)",padding:"3px 8px"}} onClick={()=>revoke(holders.badge.id,h.user.id,h.user.username)}>revoke</button>
+                  </div>
+                ))
+            }
+            <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
+              <button className="btn-ghost" onClick={()=>setHolders(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual award modal */}
+      {awardTarget&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAwardTarget(null)}>
+          <div style={{width:"100%",maxWidth:360,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24}}>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Award badge</div>
+            <div style={{fontSize:12,color:"var(--t5)",marginBottom:16}}>Manually award <strong style={{color:"var(--t3)"}}>{awardTarget.name}</strong> to a user.</div>
+            <input style={{...fi,marginBottom:16}} value={awardUsername} onChange={e=>setAwardUsername(e.target.value)} placeholder="Username" autoFocus onKeyDown={e=>e.key==="Enter"&&submitAward()}/>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+              <button className="btn-ghost" onClick={()=>setAwardTarget(null)}>Cancel</button>
+              <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={submitAward} disabled={awarding||!awardUsername.trim()}>{awarding?"Awarding…":"Award"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
   const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
   const [queueStats,setQueueStats]=useState(null);
@@ -4530,7 +4947,6 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       {k:"members",    icon:"fa-users",           label:"members"},
       {k:"spaces",     icon:"fa-layer-group",     label:"spaces"},
       {k:"tags",       icon:"fa-tag",             label:"tags"},
-      {k:"reports",    icon:"fa-flag",            label:"reports", badge:reports.filter(r=>r.status==="pending").length},
       {k:"badges",     icon:"fa-medal",           label:"badges"},
     ]},
     {label:"system", items:[
@@ -5047,10 +5463,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             </div>
           </>}
 
-          {sec==="badges"&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
-            <i className="fa-solid fa-medal" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}></i>
-            Badge system coming soon
-          </div>}
+          {sec==="badges"&&<AdminBadgesPanel/>}
 
           {sec==="storage"&&<>
             {/* Upload Settings */}
@@ -6002,6 +6415,7 @@ function App() {
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
+      case "badges":      return <BadgesPage currentUser={currentUser} navigate={navigate}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;

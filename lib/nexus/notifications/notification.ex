@@ -2,7 +2,7 @@ defmodule Nexus.Notifications.Notification do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @types ~w(reply mention reaction dm announcement)
+  @types ~w(reply mention reaction dm announcement badge)
 
   schema "notifications" do
     field :type,    :string

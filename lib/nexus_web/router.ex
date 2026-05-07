@@ -82,7 +82,9 @@ defmodule NexusWeb.Router do
     get "/stats",                  FeedController,   :stats
     get "/users",                  AdminController,  :list_users_public
     get "/users/:username",        AdminController,  :get_user_public
-    get "/branding",              AdminController,  :get_branding
+    get "/users/:username/badges", BadgeController,  :user_badges
+    get "/branding",               AdminController,  :get_branding
+    get "/badges",                 BadgeController,  :index
   end
 
   # API v1 — authenticated member actions
@@ -137,6 +139,9 @@ defmodule NexusWeb.Router do
     patch "/notifications/:id/read", NotificationController, :mark_read
     delete "/notifications/:id",    NotificationController, :delete
     delete "/notifications",        NotificationController, :delete_all
+
+    # Badges (authenticated)
+    get "/badges/my", BadgeController, :my_badges
   end
 
   # API v1 — moderator actions
@@ -209,6 +214,16 @@ defmodule NexusWeb.Router do
     post   "/extensions/:slug/toggle",   ExtensionController, :toggle
     patch  "/extensions/:slug/settings", ExtensionController, :update_settings
     delete "/extensions/:slug",          ExtensionController, :uninstall
+
+    # Badges (admin)
+    get    "/badges",                  BadgeController, :admin_index
+    post   "/badges",                  BadgeController, :create
+    post   "/badges/install-presets",  BadgeController, :install_presets
+    patch  "/badges/:id",              BadgeController, :update
+    delete "/badges/:id",              BadgeController, :delete
+    post   "/badges/:id/award",        BadgeController, :award
+    delete "/badges/:id/revoke/:user_id", BadgeController, :revoke
+    get    "/badges/:id/holders",      BadgeController, :holders
   end
 
   # Public slot endpoint
