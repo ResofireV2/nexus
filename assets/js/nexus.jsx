@@ -3056,13 +3056,14 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
     };
     fetchLive();
     const liveInterval=setInterval(fetchLive,10000);
-    return ()=>clearInterval(liveInterval);
+    api.get("/admin/uploads/stats").then(d=>setUploadStats(d.stats));
     api.get("/admin/users").then(d=>setUsers(d.users||[]));
     api.get("/spaces").then(d=>setSpaces(d.spaces||[]));
     api.get("/tags").then(d=>setTags(d.tags||[]));
     api.get("/reports").then(d=>setReports(d.reports||[]));
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
     api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});});
+    return ()=>clearInterval(liveInterval);
   },[currentUser]);
 
   useEffect(()=>{

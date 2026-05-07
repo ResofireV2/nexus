@@ -102,7 +102,7 @@ defmodule Nexus.Admin do
     # Space activity (post counts per space)
     space_activity = Repo.all(
       from p in Post,
-      join: s in Space, on: s.slug == p.space_slug,
+      join: s in Space, on: s.id == p.space_id,
       where: p.inserted_at >= ^month_ago,
       group_by: [s.id, s.name, s.slug],
       select: %{space_id: s.id, name: s.name, slug: s.slug, count: count(p.id)},
@@ -111,8 +111,8 @@ defmodule Nexus.Admin do
     )
 
     # Pending approvals
-    pending_posts   = Repo.aggregate(from(p in Post,  where: p.status == "pending"), :count)
-    pending_replies = Repo.aggregate(from(r in Reply, where: r.status == "pending"), :count)
+    pending_posts   = Repo.aggregate(from(p in Post,  where: p.pending_approval == true), :count)
+    pending_replies = Repo.aggregate(from(r in Reply, where: r.pending_approval == true), :count)
 
     %{
       content: %{
