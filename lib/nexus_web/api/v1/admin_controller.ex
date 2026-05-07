@@ -212,6 +212,7 @@ defmodule NexusWeb.API.V1.AdminController do
       avatar_url: u.avatar_url,
       cover_url: u.cover_url,
       bio: u.bio,
+      last_seen_at: u.last_seen_at,
       inserted_at: u.inserted_at,
       status: u.status
     } end)})

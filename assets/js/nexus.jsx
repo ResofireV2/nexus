@@ -4323,46 +4323,72 @@ function SavedPage({navigate}) {
 }
 
 // ── Members ───────────────────────────────────────────────────────────────────
-function MemberCard({m, navigate}) {
+function MemberCard({m, navigate, currentUser}) {
   const col = spaceColor({id:m.id});
-  const ROLE_COLORS = {admin:"#fbbf24", moderator:"#a78bfa"};
-  const roleColor = ROLE_COLORS[m.role];
-  const [hovered, setHovered] = useState(false);
+  const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
+  const ROLE_BG    = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
+  const [stats, setStats] = useState(null);
+
+  useEffect(()=>{
+    api.get(`/users/${m.username}`).then(d=>{
+      if(d.user) setStats({post_count:d.user.post_count||0,reply_count:d.user.reply_count||0,reactions_received:d.user.reactions_received||0});
+    });
+  },[m.username]);
+
+  const startDM = async e => {
+    e.stopPropagation();
+    const d = await api.post("/threads/direct",{username:m.username});
+    if(d.thread) navigate("dm",{threadId:d.thread.id,threadName:m.username});
+    else toast(d.error||"Could not start conversation","err");
+  };
 
   return (
-    <div onClick={()=>navigate("profile",{username:m.username})}
-      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}
-      style={{background:"var(--s2)",border:`0.5px solid ${hovered?"var(--b2)":"var(--b1)"}`,borderRadius:14,overflow:"hidden",cursor:"pointer",
-        transition:"border-color .15s, transform .15s, box-shadow .15s",
-        transform:hovered?"translateY(-2px)":"none",
-        boxShadow:hovered?"0 8px 24px rgba(0,0,0,.3)":"none"}}>
-      {/* Cover strip */}
-      <div style={{height:72,position:"relative",flexShrink:0,
-        backgroundImage:m.cover_url?`url(${m.cover_url})`:"none",
-        backgroundSize:"cover",backgroundPosition:"center",
-        background:m.cover_url?"none":`linear-gradient(135deg,${col}40,${col}15)`}}>
-        {/* Online indicator */}
-        {m.status==="active"&&<div style={{position:"absolute",top:10,right:10,
-          width:8,height:8,borderRadius:"50%",background:"var(--green)",
-          border:"2px solid var(--s2)",boxShadow:"0 0 0 1px rgba(52,211,153,0.3)"}}/>}
-      </div>
-      {/* Avatar overlapping cover */}
-      <div style={{position:"relative",padding:"0 16px 14px"}}>
-        <div style={{marginTop:-28,marginBottom:10}}>
+    <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:16,overflow:"hidden",
+      cursor:"pointer",transition:"border-color .15s, box-shadow .15s",boxShadow:"none"}}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--b2)";e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.3)";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--b1)";e.currentTarget.style.boxShadow="none";}}>
+      {/* Cover */}
+      <div style={{height:90,position:"relative",background:m.cover_url?`url(${m.cover_url}) center/cover`:`linear-gradient(135deg,#1e1c2e,#312e55)`}}>
+        <div style={{position:"absolute",bottom:-36,left:16}}>
           {m.avatar_url
-            ?<img src={m.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",objectFit:"cover",display:"block"}} alt={m.username}/>
-            :<div style={{width:56,height:56,borderRadius:"var(--av-radius)",border:"2.5px solid var(--s2)",background:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:600,color:"#fff"}}>
+            ?<img src={m.avatar_url} style={{width:72,height:72,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",objectFit:"cover"}} alt={m.username}/>
+            :<div style={{width:72,height:72,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",background:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:600,color:"#fff"}}>
               {m.username.slice(0,2).toUpperCase()}
             </div>}
         </div>
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:m.bio?6:0}}>
+      </div>
+      {/* Body */}
+      <div style={{padding:"10px 16px 16px",paddingTop:44}}>
+        {/* Name + role */}
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:4}}>
           <div style={{minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.username}</div>
-            <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>joined {fmtDate(m.inserted_at)}</div>
+            <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
+              onClick={()=>navigate("profile",{username:m.username})}>{m.username}</div>
+            <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>Joined {fmtDate(m.inserted_at)}</div>
           </div>
-          {roleColor&&<span style={{fontSize:9,fontWeight:500,padding:"2px 8px",borderRadius:20,background:`${roleColor}18`,color:roleColor,border:`0.5px solid ${roleColor}40`,textTransform:"uppercase",letterSpacing:".4px",flexShrink:0,marginTop:2}}>{m.role}</span>}
+          {m.role&&m.role!=="member"&&<div style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:ROLE_BG[m.role],color:ROLE_COLOR[m.role],border:`0.5px solid ${ROLE_COLOR[m.role]}44`,flexShrink:0}}>{m.role}</div>}
         </div>
-        {m.bio&&<div style={{fontSize:12,color:"var(--t4)",lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{m.bio}</div>}
+        {/* Bio */}
+        {m.bio&&<p style={{fontSize:13,color:"var(--t3)",margin:"0 0 10px",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{m.bio}</p>}
+        {/* Stats */}
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <div className="ucard-stat"><div className="ucard-stat-n">{stats?stats.post_count:"·"}</div><div className="ucard-stat-l">posts</div></div>
+          <div className="ucard-stat"><div className="ucard-stat-n">{stats?stats.reply_count:"·"}</div><div className="ucard-stat-l">replies</div></div>
+          <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{stats?stats.reactions_received:"·"}</div><div className="ucard-stat-l">reactions</div></div>
+        </div>
+        {/* Last seen */}
+        {m.last_seen_at&&<div style={{fontSize:12,color:"var(--t5)",marginBottom:10,display:"flex",alignItems:"center",gap:5}}>
+          <i className="fa-solid fa-clock" style={{fontSize:10}}/>Active {ago(m.last_seen_at)}
+        </div>}
+        {/* Actions */}
+        <div style={{display:"flex",gap:7}}>
+          {currentUser&&currentUser.username!==m.username&&<button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={startDM}>
+            <i className="fa-solid fa-message" style={{fontSize:11,marginRight:5}}/>Message
+          </button>}
+          <button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={()=>navigate("profile",{username:m.username})}>
+            <i className="fa-solid fa-user" style={{fontSize:11,marginRight:5}}/>Profile
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -4401,7 +4427,7 @@ function MembersPage({navigate, currentUser}) {
           :filtered.length===0
             ?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>No members found</div>
             :<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:14}}>
-              {filtered.map(m=><MemberCard key={m.id} m={m} navigate={navigate}/>)}
+              {filtered.map(m=><MemberCard key={m.id} m={m} navigate={navigate} currentUser={currentUser}/>)}
             </div>}
       </div>
     </div>
