@@ -2746,13 +2746,6 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
         </div>
 
       </div>
-    {replies.length>0&&currentUser&&<PostScrubber
-        replies={replies}
-        lastReadReplyId={lastReadReplyId}
-        postId={postId}
-        currentUser={currentUser}
-        onSavePosition={(replyId,count)=>{setLastReadReplyId(replyId);setLastReadCount(count);}}
-      />}
     </div>
   );
 }
