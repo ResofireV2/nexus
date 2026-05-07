@@ -668,6 +668,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 @media(min-width:768px){
 .mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
 .mob-admin-topbar{display:none;}
+.mob-admin-close{display:none;}
 }
 @media(max-width:767.99px){.desk-composer{display:none!important;}}
 @media(max-width:767.99px){
@@ -675,6 +676,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .admin-sidenav.mob-open{display:flex!important;position:fixed;inset:0;z-index:950;width:100%;background:var(--bg);}
 .admin-shell{flex-direction:column;}
 .mob-admin-topbar{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;background:var(--bg);}
+.mob-admin-close{height:52px;display:flex;align-items:center;justify-content:flex-end;padding:0 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .mob-admin-back{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ac-text);cursor:pointer;padding:6px 0;}
 .mob-admin-back i{font-size:15px;}
 }
@@ -5434,7 +5436,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
         </button>
       </div>
       <div className={`admin-sidenav${mobAdminNavOpen?" mob-open":""}`}>
-        <div style={{height:52,display:"flex",alignItems:"center",justifyContent:"flex-end",padding:"0 14px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+        <div className="mob-admin-close">
           <button className="mob-icon-btn" onClick={()=>setMobAdminNavOpen(false)}><i className="fa-solid fa-xmark"/></button>
         </div>
         <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)"}}>
