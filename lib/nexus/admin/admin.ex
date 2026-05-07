@@ -241,7 +241,8 @@ defmodule Nexus.Admin do
       "guest_browsing"             => true,
       "max_posts_per_hour"         => 0,
       "who_can_create_spaces"      => "admin",
-      "who_can_upload"             => "member"
+      "who_can_upload"             => "member",
+      "media_public"               => false
     },
     "appearance" => %{
       "accent_color"      => "#a78bfa",

@@ -81,8 +81,11 @@ defmodule NexusWeb.Router do
     get "/search",                 SearchController, :index
     get "/stats",                  FeedController,   :stats
     get "/users",                  AdminController,  :list_users_public
-    get "/users/:username",        AdminController,  :get_user_public
-    get "/users/:username/badges", BadgeController,  :user_badges
+    get "/users/:username",        AdminController,      :get_user_public
+    get "/users/:username/badges", BadgeController,      :user_badges
+    get "/users/:username/replies",    UserContentController, :replies
+    get "/users/:username/reactions",  UserContentController, :reactions
+    get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
     get "/badges",                 BadgeController,  :index
   end
@@ -142,6 +145,9 @@ defmodule NexusWeb.Router do
 
     # Badges (authenticated)
     get "/badges/my", BadgeController, :my_badges
+
+    # User profile media (auth required — access enforced in controller)
+    get "/users/:username/uploads", UserContentController, :uploads
   end
 
   # API v1 — moderator actions

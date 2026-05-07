@@ -815,13 +815,21 @@ select option{background:#1a1a2e;color:var(--t1);}
 .profile-name{font-size:18px;font-weight:600;color:var(--t1);letter-spacing:-.3px;}
 .profile-handle{font-size:13px;color:var(--t5);margin-bottom:10px;}
 .profile-bio{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:14px;}
-.profile-stats{display:flex;gap:24px;padding-top:14px;border-top:0.5px solid var(--b1);}
-.p-stat{text-align:center;}
-.p-stat-n{font-size:18px;font-weight:600;color:var(--t2);letter-spacing:-.5px;}
-.p-stat-l{font-size:11px;color:var(--t5);margin-top:2px;}
-.profile-tabs{display:flex;border-bottom:0.5px solid var(--b1);padding:0 28px;}
-.p-tab{font-size:13px;color:var(--t4);padding:12px 0;margin-right:24px;cursor:pointer;border-bottom:1.5px solid transparent;}
+.profile-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-top:14px;border-top:0.5px solid var(--b1);}
+.profile-stat-card{background:rgba(255,255,255,0.03);border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 14px;transition:border-color .1s;}
+.profile-stat-card:hover{border-color:rgba(255,255,255,0.12);}
+.psc-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+.psc-n{font-size:20px;font-weight:600;letter-spacing:-.5px;line-height:1;margin-bottom:3px;}
+.psc-l{font-size:11px;color:var(--t5);}
+.profile-tabs{display:flex;border-bottom:0.5px solid var(--b1);padding:0 28px;overflow-x:auto;scrollbar-width:none;}
+.profile-tabs::-webkit-scrollbar{display:none;}
+.p-tab{font-size:13px;color:var(--t4);padding:12px 0;margin-right:24px;cursor:pointer;border-bottom:1.5px solid transparent;white-space:nowrap;flex-shrink:0;}
 .p-tab.active{color:var(--t1);border-bottom-color:var(--ac);}
+.p-reply-card{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
+.p-reply-body{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.p-reply-meta{font-size:11px;color:var(--t5);display:flex;align-items:center;gap:6px;}
+.p-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:16px 0;}
+@media(max-width:767.99px){.profile-stat-grid{grid-template-columns:repeat(2,1fr);}.p-media-grid{grid-template-columns:repeat(2,1fr);}}
 
 /* Search */
 .search-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
@@ -2946,30 +2954,53 @@ function NotificationsPage({navigate}) {
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 function ProfilePage({username, currentUser, navigate}) {
-  const [posts,setPosts]=useState([]);
-  const [replies,setReplies]=useState([]);
-  const [user,setUser]=useState(null);
-  const [loading,setLoading]=useState(true);
-  const [tab,setTab]=useState("posts");
-  const [uploadingAvatar,setUploadingAvatar]=useState(false);
-  const [uploadingCover,setUploadingCover]=useState(false);
-  const [coverExpanded,setCoverExpanded]=useState(false);
-  const isOwn = currentUser?.username === username;
+  const [user,          setUser]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [tab,           setTab]           = useState("posts");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover,  setUploadingCover]  = useState(false);
+  const [coverExpanded,   setCoverExpanded]   = useState(false);
 
+  // Per-tab data — fetched lazily on first activation
+  const [posts,       setPosts]       = useState(null);
+  const [replies,     setReplies]     = useState(null);
+  const [reactions,   setReactions]   = useState(null);
+  const [media,       setMedia]       = useState(null);
+  const [mentions,    setMentions]    = useState(null);
+
+  // Per-tab loading state
+  const [tabLoading,  setTabLoading]  = useState({});
+
+  const isOwn  = currentUser?.username === username;
+  const isAdmin = currentUser?.role === "admin";
+
+  // Load user profile stats
   useEffect(()=>{
-    (async()=>{
-      setLoading(true);
-      try {
-        const [userData, feedData] = await Promise.all([
-          api.get(`/users/${username}`),
-          api.get(`/feed?sort=latest&user=${encodeURIComponent(username)}`)
-        ]);
-        setUser(userData.user || {username});
-        setPosts(feedData.posts || []);
-      } catch { setUser({username}); }
-      finally { setLoading(false); }
-    })();
+    setLoading(true);
+    setPosts(null); setReplies(null); setReactions(null); setMedia(null); setMentions(null);
+    setTab("posts");
+    api.get(`/users/${username}`).then(d=>{
+      setUser(d.user || {username});
+      setLoading(false);
+    }).catch(()=>{ setUser({username}); setLoading(false); });
   },[username]);
+
+  // Lazy-load tab data on first activation
+  useEffect(()=>{
+    if(!user) return;
+
+    const load = async (key, fetcher) => {
+      setTabLoading(p=>({...p,[key]:true}));
+      try { const d = await fetcher(); return d; }
+      finally { setTabLoading(p=>({...p,[key]:false})); }
+    };
+
+    if(tab==="posts"     && posts     === null) load("posts",     ()=>api.get(`/feed?sort=latest&user=${encodeURIComponent(username)}`)).then(d=>setPosts(d.posts||[]));
+    if(tab==="replies"   && replies   === null) load("replies",   ()=>api.get(`/users/${username}/replies`)).then(d=>setReplies(d.replies||[]));
+    if(tab==="reactions" && reactions === null) load("reactions", ()=>api.get(`/users/${username}/reactions`)).then(d=>setReactions(d.reactions||[]));
+    if(tab==="media"     && media     === null) load("media",     ()=>api.get(`/users/${username}/uploads`)).then(d=>setMedia(d.uploads||[]));
+    if(tab==="mentions"  && mentions  === null) load("mentions",  ()=>api.get(`/users/${username}/mentions`)).then(d=>setMentions(d.mentions||[]));
+  },[tab, user, username]);
 
   const col = spaceColor({id:user?.id||0});
 
@@ -3005,6 +3036,68 @@ function ProfilePage({username, currentUser, navigate}) {
     else toast(d.error||"Could not start conversation","err");
   };
 
+  const statCards = [
+    {icon:"fa-pen-to-square", color:"#a78bfa", n: user?.post_count    ?? 0, label:"Posts"},
+    {icon:"fa-reply",         color:"#60a5fa", n: user?.reply_count   ?? 0, label:"Replies"},
+    {icon:"fa-heart",         color:"#f472b6", n: user?.reactions_received ?? 0, label:"Reactions received"},
+    {icon:"fa-heart-circle-plus", color:"#34d399", n: user?.reactions_given ?? 0, label:"Reactions given"},
+  ];
+
+  // Tabs — media only shown to owner or admin (or if media_public is on,
+  // but we don't have that setting client-side, so we show it and let the
+  // API return 403 if needed; we hide the tab for non-owners unless admin)
+  const tabs = [
+    {id:"posts",     label:"Posts"},
+    {id:"replies",   label:"Replies"},
+    {id:"reactions", label:"Reactions"},
+    ...(isOwn||isAdmin ? [{id:"media", label:"Media"}] : []),
+    {id:"mentions",  label:"Mentions"},
+  ];
+
+  const TabEmpty = ({msg}) => (
+    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>{msg}</div>
+  );
+
+  const TabSpinner = () => (
+    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
+  );
+
+  const PostCard = ({p}) => {
+    const pc = spaceColor(p.space||{id:p.id});
+    return (
+      <div className="thread" onClick={()=>navigate("post",{id:p.id})}>
+        <div className="thread-main">
+          <div className="thread-accent" style={{background:pc}}/>
+          <RsAv user={p.user} size={34} color={pc}/>
+          <div className="thread-body">
+            <div className="thread-top">
+              <div className="thread-title">{p.title}</div>
+              {p.space&&<div className="thread-tag" style={{background:`${pc}20`,color:pc}}>{p.space.name}</div>}
+            </div>
+            {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
+            <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
+          </div>
+          <div className="thread-meta">
+            <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l">hearts</div></div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ReplyCard = ({r}) => {
+    const pc = r.post ? spaceColor(r.post.space||{id:r.post.id}) : "var(--ac)";
+    return (
+      <div className="p-reply-card" onClick={()=>r.post&&navigate("post",{id:r.post.id})} style={{cursor:r.post?"pointer":"default"}}>
+        <div className="p-reply-body"><Md text={r.body}/></div>
+        <div className="p-reply-meta">
+          {r.post&&<><i className="fa-solid fa-arrow-right" style={{fontSize:9}}/><span style={{color:pc,fontWeight:500}}>{r.post.title}</span>{r.post.space&&<><span>·</span><span>{r.post.space.name}</span></>}</>}
+          <span style={{marginLeft:"auto"}}>{ago(r.inserted_at)}</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{flex:1,overflowY:"auto"}}>
@@ -3032,9 +3125,9 @@ function ProfilePage({username, currentUser, navigate}) {
           </div>}
         </div>
 
+        {/* Info */}
         <div className="profile-info-wrap">
           <div className="profile-av-row">
-            {/* Avatar */}
             <div style={{position:"relative",display:"inline-block"}}>
               {user?.avatar_url
                 ?<img src={user.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
@@ -3057,38 +3150,91 @@ function ProfilePage({username, currentUser, navigate}) {
             {user?.role&&user.role!=="member"&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{user.role}</div>}
           </div>
           <div className="profile-handle">@{username?.toLowerCase()} · joined {fmtDate(user?.inserted_at)}</div>
-          {user?.bio&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,margin:"8px 0 2px",maxWidth:480}}>{user.bio}</div>}
-          <div className="profile-stats">
-            <div className="p-stat"><div className="p-stat-n">{posts.length}</div><div className="p-stat-l">Posts</div></div>
-            <div className="p-stat"><div className="p-stat-n">{posts.reduce((s,p)=>s+(p.reaction_count||0),0)}</div><div className="p-stat-l">Reactions</div></div>
-            <div className="p-stat"><div className="p-stat-n">{posts.reduce((s,p)=>s+(p.reply_count||0),0)}</div><div className="p-stat-l">Replies</div></div>
+          {user?.bio&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,margin:"8px 0 12px",maxWidth:480}}>{user.bio}</div>}
+
+          {/* Stat cards */}
+          <div className="profile-stat-grid">
+            {statCards.map(c=>(
+              <div key={c.label} className="profile-stat-card">
+                <div className="psc-icon" style={{background:`${c.color}18`}}>
+                  <i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:13}}/>
+                </div>
+                <div className="psc-n" style={{color:c.color}}>{Number(c.n).toLocaleString()}</div>
+                <div className="psc-l">{c.label}</div>
+              </div>
+            ))}
           </div>
         </div>
+
+        {/* Tabs */}
         <div className="profile-tabs">
-          {["posts"].map(t=><div key={t} className={`p-tab ${tab===t?"active":""}`} onClick={()=>setTab(t)}>{t}</div>)}
+          {tabs.map(t=>(
+            <div key={t.id} className={`p-tab${tab===t.id?" active":""}`} onClick={()=>setTab(t.id)}>{t.label}</div>
+          ))}
         </div>
+
+        {/* Tab content */}
         <div style={{padding:"0 28px"}}>
-          {loading?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
-            :posts.length===0?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>No posts yet</div>
-            :posts.map(p=>{
-              const pc=spaceColor(p.space||{id:p.id});
-              return (
-                <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
-                  <div className="thread-main">
-                    <div className="thread-accent" style={{background:pc}}/>
-                    <RsAv user={p.user} size={34} color={pc}/>
-                    <div className="thread-body">
-                      <div className="thread-top"><div className="thread-title">{p.title}</div>{p.space&&<div className="thread-tag" style={{background:`${pc}20`,color:pc}}>{p.space.name}</div>}</div>
-                      {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
-                      <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
-                    </div>
-                    <div className="thread-meta">
-                      <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l">hearts</div></div>
-                    </div>
+
+          {/* Posts */}
+          {tab==="posts"&&(
+            tabLoading.posts ? <TabSpinner/>
+            : !posts ? null
+            : posts.length===0 ? <TabEmpty msg="No posts yet"/>
+            : posts.map(p=><PostCard key={p.id} p={p}/>)
+          )}
+
+          {/* Replies */}
+          {tab==="replies"&&(
+            tabLoading.replies ? <TabSpinner/>
+            : !replies ? null
+            : replies.length===0 ? <TabEmpty msg="No replies yet"/>
+            : replies.map(r=><ReplyCard key={r.id} r={r}/>)
+          )}
+
+          {/* Reactions */}
+          {tab==="reactions"&&(
+            tabLoading.reactions ? <TabSpinner/>
+            : !reactions ? null
+            : reactions.length===0 ? <TabEmpty msg="No reactions yet"/>
+            : reactions.map(({emoji, reacted_at, post})=>(
+                <div key={post.id} style={{position:"relative"}}>
+                  <div style={{position:"absolute",top:18,left:0,fontSize:16,zIndex:1,userSelect:"none"}}>{emoji}</div>
+                  <div style={{paddingLeft:28}}>
+                    <PostCard p={post}/>
                   </div>
                 </div>
-              );
-            })}
+              ))
+          )}
+
+          {/* Media */}
+          {tab==="media"&&(
+            tabLoading.media ? <TabSpinner/>
+            : !media ? null
+            : media.length===0 ? <TabEmpty msg="No media uploaded yet"/>
+            : <div className="p-media-grid">
+                {media.map(u=>(
+                  <div key={u.id} style={{aspectRatio:"1",overflow:"hidden",borderRadius:8,background:"var(--s2)",cursor:"zoom-in"}}
+                    onClick={()=>{ if(window._lbSetState) window._lbSetState({src:u.url, originalSrc:u.original_url||u.url}); }}>
+                    <img src={u.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                      onError={e=>e.target.style.display="none"}/>
+                  </div>
+                ))}
+              </div>
+          )}
+
+          {/* Mentions */}
+          {tab==="mentions"&&(
+            tabLoading.mentions ? <TabSpinner/>
+            : !mentions ? null
+            : mentions.length===0 ? <TabEmpty msg={`No mentions of @${username} found`}/>
+            : mentions.map((item,i)=>(
+                item.type==="post"
+                  ? <PostCard key={`post-${item.post.id}`} p={item.post}/>
+                  : <ReplyCard key={`reply-${item.reply.id}`} r={item.reply}/>
+              ))
+          )}
+
         </div>
       </div>
     </div>
@@ -5439,6 +5585,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                 <span style={{fontSize:13,color:"var(--t4)"}}>hours</span>
               </div>
             </F>
+
+            <div className="fgt" style={{marginTop:20}}>Profiles</div>
+            <Tgl label="Public media tabs" desc="Allow anyone to view the Media tab on other users' profiles. Off by default — users can only see their own media." on={!!postCfg.media_public} onChange={v=>setPostCfg(p=>({...p,media_public:v}))}/>
 
             <div className="fgt" style={{marginTop:20}}>Posting</div>
             <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum. Disabling redirects guests to login." on={postCfg.guest_browsing!==false} onChange={v=>setPostCfg(p=>({...p,guest_browsing:v}))}/>

@@ -293,6 +293,10 @@ defmodule NexusWeb.API.V1.AdminController do
           where: s.user_id == ^user.id,
           select: sum(s.reactions_received)) || 0
 
+        reactions_given = Repo.one(from s in Nexus.Activity.UserDailyStat,
+          where: s.user_id == ^user.id,
+          select: sum(s.reactions_given)) || 0
+
         json(conn, %{
           user: %{
             id: user.id,
@@ -305,7 +309,8 @@ defmodule NexusWeb.API.V1.AdminController do
             inserted_at: user.inserted_at,
             post_count: post_count,
             reply_count: reply_count,
-            reactions_received: reactions_received
+            reactions_received: reactions_received,
+            reactions_given: reactions_given
           }
         })
     end
