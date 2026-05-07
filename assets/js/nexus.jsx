@@ -1802,7 +1802,8 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
       observers.push(obs);
     });
     return ()=>observers.forEach(o=>o.disconnect());
-  },[replies.length, postId, currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[replies.length, postId]);
 
   return (
     <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)"}}>
@@ -1912,7 +1913,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         if(el) el.scrollIntoView({behavior:"smooth",block:"center"});
       },150);
     }
-  },[replies.length>0, scrollToReply, lastReadReplyId]);
+  },[replies.length, scrollToReply, lastReadReplyId]);
 
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
@@ -2000,7 +2001,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
-  const [openReplyMenu2, _] = useState(null); // placeholder
   const [lastReadReplyId, setLastReadReplyId] = useState(null);
   const [lastReadCount, setLastReadCount] = useState(0);
   const repliesContainerRef = useRef(null);
