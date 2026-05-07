@@ -110,12 +110,58 @@ defmodule Nexus.Moderation do
 
   def list_reports(opts \\ []) do
     status = Keyword.get(opts, :status, "pending")
+    sort   = Keyword.get(opts, :sort, "newest")
+
+    order = case sort do
+      "oldest" -> [asc: :inserted_at]
+      _        -> [desc: :inserted_at]
+    end
 
     Report
     |> where([r], r.status == ^status)
-    |> order_by([r], [asc: r.inserted_at])
-    |> preload([:reporter, :reviewer, :post, :reply, :user])
+    |> order_by(^order)
+    |> preload([:reporter, :reviewer, :user, post: [:space, :user], reply: [:user]])
     |> Repo.all()
+  end
+
+  def list_hidden_posts(opts \\ []) do
+    alias Nexus.Forum.{Post, Reply}
+    import Ecto.Query
+    type = Keyword.get(opts, :type, "all")
+
+    posts = if type in ["all", "posts"] do
+      Nexus.Repo.all(
+        from p in Post,
+        where: p.hidden == true,
+        order_by: [desc: p.hidden_at],
+        preload: [:user, :space],
+        limit: 50
+      )
+      |> Enum.map(fn p -> %{
+        id: p.id, type: "post", body: String.slice(p.body || p.title || "", 0, 200),
+        title: p.title, space_name: p.space && p.space.name,
+        user: p.user && %{id: p.user.id, username: p.user.username},
+        hidden_at: p.hidden_at
+      } end)
+    else [] end
+
+    replies = if type in ["all", "replies"] do
+      Nexus.Repo.all(
+        from r in Reply,
+        where: r.hidden == true,
+        order_by: [desc: r.hidden_at],
+        preload: [:user],
+        limit: 50
+      )
+      |> Enum.map(fn r -> %{
+        id: r.id, type: "reply", body: String.slice(r.body || "", 0, 200),
+        title: nil, space_name: nil,
+        user: r.user && %{id: r.user.id, username: r.user.username},
+        hidden_at: r.hidden_at
+      } end)
+    else [] end
+
+    (posts ++ replies) |> Enum.sort_by(& &1.hidden_at, {:desc, DateTime})
   end
 
   def get_report(id), do: Repo.get(Report, id) |> Repo.preload([:reporter, :post, :reply, :user])

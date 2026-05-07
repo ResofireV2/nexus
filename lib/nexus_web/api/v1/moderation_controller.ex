@@ -123,4 +123,12 @@ defmodule NexusWeb.API.V1.ModerationController do
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
   end
+
+  # GET /api/v1/moderation/hidden
+  def hidden(conn, params) do
+    type = params["type"] || "all"
+    items = Nexus.Moderation.list_hidden_posts(type: type)
+    json(conn, %{items: items})
+  end
+
 end

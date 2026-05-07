@@ -1610,7 +1610,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   return (
     <div className="feed-wrap">
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-          {currentUser&&currentUser.email_verified===false&&(
+          {currentUser&&currentUser.email_verified===false&&currentUser.role==="member"&&(
             <div style={{background:"rgba(251,191,36,0.08)",borderBottom:"0.5px solid rgba(251,191,36,0.2)",padding:"9px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
               <i className="fa-solid fa-triangle-exclamation" style={{color:"#fbbf24",fontSize:12,flexShrink:0}}/>
               <span style={{fontSize:12,color:"rgba(251,191,36,0.85)",flex:1}}>
@@ -4615,7 +4615,7 @@ function App() {
 
   // Admin gets its own full shell
   if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate} onVerified={()=>updateCurrentUser(u=>u?{...u,email_verified:true}:u)}/></div><Toasts/></>;
-  if(page==="moderation"&&currentUser) return <><div className="app-root"><ModerationPage currentUser={currentUser} navigate={navigate}/></div><Toasts/></>;
+
   if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces}/></div><Toasts/></>;
 
   const renderPage=()=>{
@@ -4638,6 +4638,7 @@ function App() {
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
+      case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
       default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;
     }
   };
