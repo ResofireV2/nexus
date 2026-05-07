@@ -10,7 +10,7 @@ defmodule Nexus.Leaderboard do
   import Ecto.Query
   alias Nexus.Repo
   alias Nexus.Leaderboard.UserScore
-  alias Nexus.Activity.{UserDailyStat, LoginEvent}
+  alias Nexus.Activity.UserDailyStat
   alias Nexus.Accounts.User
   alias Nexus.Forum.{Post, Reply}
   alias Nexus.Badges.UserBadge

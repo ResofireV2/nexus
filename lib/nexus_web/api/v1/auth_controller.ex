@@ -206,30 +206,34 @@ defmodule NexusWeb.API.V1.AuthController do
   def update_me(conn, params) do
     user = conn.assigns.current_user
 
-    # Handle password change separately
-    if params["current_password"] && params["new_password"] do
-      case Accounts.change_password(user, params["current_password"], params["new_password"]) do
-        {:ok, _} -> json(conn, %{ok: true, message: "Password updated"})
-        {:error, :invalid_current_password} ->
-          conn |> put_status(:unprocessable_entity) |> json(%{error: "Current password is incorrect"})
-        {:error, changeset} ->
-          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
-      end
-    # Handle preferences update separately
-    elsif params["preferences"] do
-      merged = Map.merge(user.preferences || %{}, params["preferences"])
-      case Accounts.update_preferences(user, %{preferences: merged}) do
-        {:ok, updated} -> json(conn, %{user: user_json(updated)})
-        {:error, changeset} ->
-          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
-      end
-    else
-      case Accounts.update_profile(user, params) do
-        {:ok, updated} ->
-          json(conn, %{user: user_json(updated)})
-        {:error, changeset} ->
-          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
-      end
+    cond do
+      # Handle password change
+      params["current_password"] && params["new_password"] ->
+        case Accounts.change_password(user, params["current_password"], params["new_password"]) do
+          {:ok, _} -> json(conn, %{ok: true, message: "Password updated"})
+          {:error, :invalid_current_password} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: "Current password is incorrect"})
+          {:error, changeset} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+        end
+
+      # Handle preferences update
+      params["preferences"] ->
+        merged = Map.merge(user.preferences || %{}, params["preferences"])
+        case Accounts.update_preferences(user, %{preferences: merged}) do
+          {:ok, updated} -> json(conn, %{user: user_json(updated)})
+          {:error, changeset} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+        end
+
+      # Handle profile update
+      true ->
+        case Accounts.update_profile(user, params) do
+          {:ok, updated} ->
+            json(conn, %{user: user_json(updated)})
+          {:error, changeset} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+        end
     end
   end
 
