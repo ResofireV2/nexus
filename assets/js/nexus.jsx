@@ -90,10 +90,16 @@ marked.use({
   }]
 });
 
-function renderMd(t) { return t ? DOMPurify.sanitize(marked.parse(t), {
-  ADD_TAGS: ["iframe", "video", "source", "audio", "svg", "path"],
-  ADD_ATTR: ["data-original", "data-lightbox-link", "data-id", "allowfullscreen", "loading", "frameborder", "src", "controls", "preload", "viewBox", "d", "fill", "width", "height"]
-}) : ""; }
+function renderMd(t) {
+  if(!t) return "";
+  t = t.replace(/\|\|(.+?)\|\|/g, function(m, inner) {
+    return '<span class="spoiler" onclick="this.classList.toggle(\'revealed\')">' + inner + '</span>';
+  });
+  return DOMPurify.sanitize(marked.parse(t), {
+    ADD_TAGS: ["iframe","video","source","audio","svg","path","span"],
+    ADD_ATTR: ["data-original","data-lightbox-link","data-id","allowfullscreen","loading","frameborder","src","controls","preload","viewBox","d","fill","width","height","class","onclick"]
+  });
+}
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
@@ -439,6 +445,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-box{border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.02);overflow:hidden;margin-top:16px;}
 .reply-box-ta{width:100%;background:transparent;border:none;outline:none;font-size:13px;color:var(--t2);font-family:inherit;resize:none;min-height:72px;line-height:1.6;padding:14px 16px;caret-color:var(--ac);}
 .reply-box-ta::placeholder{color:rgba(255,255,255,0.15);}
+.spoiler{background:rgba(255,255,255,0.07);color:transparent;border-radius:3px;cursor:pointer;user-select:none;padding:0 3px;transition:color .2s,background .2s;}
+.spoiler.revealed{color:var(--t2);background:rgba(255,255,255,0.04);}
+.spoiler:hover{background:rgba(255,255,255,0.12);}
 .reply-box-foot{padding:8px 12px;border-top:0.5px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:10px;}
 
 
@@ -1027,6 +1036,8 @@ const TB_BTNS = [
   {type:"link",    label:"🔗",   tip:"Link",        style:{},                                  wrap:["[","](url)"]},
   {type:"quote",   label:"❝",    tip:"Blockquote",  style:{},                                  wrap:["> ",""]},
   {type:"divider", label:"—",    tip:"Divider",     style:{},                                  wrap:["\n---\n",""]},
+  {sep:true},
+  {type:"spoiler",  label:"👁",    tip:"Spoiler",     style:{},                                  wrap:["||","||"]},
 ];
 let _slashMenu=null, _activeTA=null, _slashIdx=0;
 function getSm() {
@@ -1078,7 +1089,8 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
   };
   // Mention state
   const [mentionDrop, setMentionDrop] = useState(null);
-  const [isFocused, setIsFocused] = useState(false); // {users, query, pos, x, y, selIdx}
+  const [isFocused, setIsFocused] = useState(false);
+  const [showPreview, setShowPreview] = useState(false); // {users, query, pos, x, y, selIdx}
   const mentionDebounce = useRef();
   const mentionSearch = async (q, caretPos, x, y) => {
     if (q.length === 0) { setMentionDrop(null); return; }
@@ -1211,6 +1223,9 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
             </button>
         )}
         <div className="comp-tb-sep"/>
+        <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit"}}>
+          <i className="fa-solid fa-eye" style={{fontSize:11}}/>
+        </button>
         <label className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
           {uploading
             ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
@@ -1232,6 +1247,23 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         onDragOver={e=>e.preventDefault()}
       />
       {/* Mention dropdown */}
+      {/* Preview modal */}
+      {showPreview&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}}
+          onClick={e=>{if(e.target===e.currentTarget)setShowPreview(false);}}>
+          <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:680,maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 8px 40px rgba(0,0,0,0.5)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+              <span style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>Preview</span>
+              <button onClick={()=>setShowPreview(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer",lineHeight:1}}>✕</button>
+            </div>
+            <div style={{overflowY:"auto",padding:"20px 24px",flex:1}}>
+              {value.trim()
+                ?<div className="md-body"><Md text={value}/></div>
+                :<div style={{color:"var(--t5)",fontSize:13,fontStyle:"italic"}}>Nothing to preview yet.</div>}
+            </div>
+          </div>
+        </div>
+      )}
       {mentionDrop&&(
         <div className="mention-drop" style={{left:mentionDrop.x, top:mentionDrop.y, transform:"translateY(-100%)"}}>
           {mentionDrop.users.map((u,i)=>(
