@@ -3068,7 +3068,7 @@ function ProfilePage({username, currentUser, navigate}) {
       <div className="thread" onClick={()=>navigate("post",{id:p.id})}>
         <div className="thread-main">
           <div className="thread-accent" style={{background:pc}}/>
-          <RsAv user={p.user} size={34} color={pc}/>
+          <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={pc}/></div>
           <div className="thread-body">
             <div className="thread-top">
               <div className="thread-title">{p.title}</div>
