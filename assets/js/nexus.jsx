@@ -489,9 +489,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
 }
 @media(max-width:767.99px){
-.admin-sidenav{display:none;}
+.admin-sidenav{display:none!important;}
+.admin-sidenav.mob-open{display:flex!important;position:fixed;inset:0;z-index:950;width:100%;background:var(--bg);}
 .admin-shell{flex-direction:column;}
-.mob-admin-nav-open .admin-sidenav{display:flex;position:fixed;inset:0;z-index:950;width:100%;background:var(--bg);}
 .mob-admin-topbar{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:0.5px solid var(--b1);flex-shrink:0;background:var(--bg);}
 .mob-admin-back{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ac-text);cursor:pointer;padding:6px 0;}
 .mob-admin-back i{font-size:15px;}
@@ -4358,7 +4358,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
   return (
     <>
-    <div className={`admin-shell${mobAdminNavOpen?" mob-admin-nav-open":""}`}>
+    <div className="admin-shell">
       <div className="mob-admin-topbar">
         <div className="mob-admin-back" onClick={()=>navigate("feed",{})}>
           <i className="fa-solid fa-arrow-left"/>Back to forum
@@ -4367,7 +4367,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           <i className="fa-solid fa-bars"/>
         </button>
       </div>
-      <div className="admin-sidenav">
+      <div className={`admin-sidenav${mobAdminNavOpen?" mob-open":""}`}>
         <div style={{height:52,display:"flex",alignItems:"center",justifyContent:"flex-end",padding:"0 14px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
           <button className="mob-icon-btn" onClick={()=>setMobAdminNavOpen(false)}><i className="fa-solid fa-xmark"/></button>
         </div>
