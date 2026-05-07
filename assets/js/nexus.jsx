@@ -2361,6 +2361,7 @@ function ProfilePage({username, currentUser, navigate}) {
             {user?.role&&user.role!=="member"&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{user.role}</div>}
           </div>
           <div className="profile-handle">@{username?.toLowerCase()} · joined {fmtDate(user?.inserted_at)}</div>
+          {user?.bio&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,margin:"8px 0 2px",maxWidth:480}}>{user.bio}</div>}
           <div className="profile-stats">
             <div className="p-stat"><div className="p-stat-n">{posts.length}</div><div className="p-stat-l">Posts</div></div>
             <div className="p-stat"><div className="p-stat-n">{posts.reduce((s,p)=>s+(p.reaction_count||0),0)}</div><div className="p-stat-l">Reactions</div></div>
@@ -4657,7 +4658,7 @@ function App() {
     if (user) localStorage.setItem("nexus_user", JSON.stringify(user));
     else localStorage.removeItem("nexus_user");
   };
-  const [authChecked,setAuthChecked]=useState(false);
+  const [authChecked,setAuthChecked]=useState(()=>!!(localStorage.getItem("nexus_token")&&localStorage.getItem("nexus_user")));
   const [spaces,setSpaces]=useState([]);
   const [tags,setTags]=useState([]);
   const initial = urlToPage(window.location.pathname);
