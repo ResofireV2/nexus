@@ -181,9 +181,7 @@ defmodule NexusWeb.Router do
     get    "/dashboard",          AdminController,  :dashboard
     get    "/users",              AdminController,  :list_users
     get    "/users/:id",          AdminController,  :get_user
-    post   "/users",              AdminController,  :create_user
     patch  "/users/:id/role",     AdminController,  :update_role
-    patch  "/users/:id/verify-email", AdminController, :verify_email
     delete "/users/:id",          AdminController,  :delete_user
     get    "/settings",           AdminController,  :get_settings
     patch  "/settings/:key",      AdminController,  :update_settings

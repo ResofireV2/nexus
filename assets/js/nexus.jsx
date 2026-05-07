@@ -1039,6 +1039,7 @@ const TB_BTNS = [
   {sep:true},
   {type:"spoiler",  label:"👁",    tip:"Spoiler",     style:{},                                  wrap:["||","||"]},
 ];
+let _activeToolbar = null; // set by App when layoutCfg loads
 let _slashMenu=null, _activeTA=null, _slashIdx=0;
 function getSm() {
   if (!_slashMenu) {
@@ -1069,7 +1070,8 @@ window._smHover = function(idx) {
   });
 };
 
-function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null}) {
+function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null}) {
+  toolbarItems = toolbarItems || _activeToolbar || null;
   const taRef = useRef(); const wrapRef = useRef();
   const imgInputRef = useRef();
   const [uploading, setUploading] = useState(false);
@@ -1215,7 +1217,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Static toolbar */}
       <div className="comp-toolbar">
-        {TB_BTNS.map((b,i)=> b.sep
+        {(toolbarItems||TB_BTNS).map((b,i)=> b.sep
           ? <div key={i} className="comp-tb-sep"/>
           : <button key={b.type} className="comp-tb-btn" title={b.tip}
               style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
@@ -3836,6 +3838,121 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
   );
 }
 
+function ToolbarEditor({items, onChange}) {
+  var [dragging, setDragging] = React.useState(null);
+  var [dragOver, setDragOver] = React.useState(null);
+  var list = items.map(function(item, i) {
+    return Object.assign({}, item, {_id: item.type || ('sep-'+i)});
+  });
+
+  function move(fromIdx, toIdx) {
+    if(fromIdx === toIdx) return;
+    var next = list.slice();
+    var item = next.splice(fromIdx, 1)[0];
+    next.splice(toIdx, 0, item);
+    onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
+  }
+
+  function toggle(idx) {
+    var next = list.map(function(x){return Object.assign({},x);});
+    next[idx].hidden = !next[idx].hidden;
+    onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
+  }
+
+  function removeItem(idx) {
+    var next = list.filter(function(_,i){return i!==idx;});
+    onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
+  }
+
+  function addSep() {
+    var next = list.concat([{sep:true}]);
+    onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
+  }
+
+  function reset() {
+    onChange(TB_BTNS);
+    _activeToolbar = null;
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
+        {list.map(function(item, idx){
+          var isSep = !!item.sep;
+          var isDraggingThis = dragging === idx;
+          var isOver = dragOver === idx;
+          return (
+            <div key={item._id+idx}
+              draggable={true}
+              onDragStart={function(e){e.dataTransfer.effectAllowed="move";setDragging(idx);}}
+              onDragOver={function(e){e.preventDefault();e.dataTransfer.dropEffect="move";setDragOver(idx);}}
+              onDragLeave={function(){setDragOver(null);}}
+              onDrop={function(e){e.preventDefault();if(dragging!==null)move(dragging,idx);setDragging(null);setDragOver(null);}}
+              onDragEnd={function(){setDragging(null);setDragOver(null);}}
+              style={{
+                display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+                borderRadius:10,border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
+                background:isDraggingThis?"rgba(255,255,255,0.02)":isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
+                cursor:"grab",opacity:item.hidden?0.45:1,transition:"border-color .1s,background .1s"
+              }}>
+              <i className="fa-solid fa-grip-vertical" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
+              {isSep
+                ? <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:24,height:16,borderRight:"1.5px solid var(--b2)",flexShrink:0}}/>
+                    <span style={{fontSize:12,color:"var(--t4)"}}>Separator</span>
+                  </div>
+                : <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{minWidth:28,height:28,borderRadius:6,border:"0.5px solid var(--b1)",background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--t3)",fontWeight:500,...(item.style||{})}}>
+                      {item.label}
+                    </div>
+                    <div>
+                      <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{item.tip}</div>
+                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
+                    </div>
+                  </div>}
+              {/* Toggle visible */}
+              <button onClick={function(){toggle(idx);}} title={item.hidden?"Show":"Hide"}
+                style={{background:"none",border:"none",cursor:"pointer",color:item.hidden?"var(--t5)":"var(--ac)",fontSize:14,padding:"2px 6px",borderRadius:6,flexShrink:0}}>
+                <i className={"fa-solid "+(item.hidden?"fa-toggle-off":"fa-toggle-on")}/>
+              </button>
+              {/* Remove */}
+              <button onClick={function(){removeItem(idx);}} title="Remove from toolbar"
+                style={{background:"none",border:"none",cursor:"pointer",color:"var(--t5)",fontSize:12,padding:"2px 6px",borderRadius:6,flexShrink:0}}
+                onMouseEnter={function(e){e.currentTarget.style.color="var(--red)";}}
+                onMouseLeave={function(e){e.currentTarget.style.color="var(--t5)";}}>
+                <i className="fa-solid fa-xmark"/>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn-ghost" style={{fontSize:12}} onClick={addSep}>
+          <i className="fa-solid fa-grip-lines" style={{marginRight:6}}/>Add separator
+        </button>
+        <button className="btn-ghost" style={{fontSize:12,marginLeft:"auto",color:"var(--t4)"}} onClick={reset}>
+          Reset to defaults
+        </button>
+      </div>
+      {/* Live preview */}
+      <div style={{marginTop:20}}>
+        <div style={{fontSize:12,color:"var(--t4)",marginBottom:8}}>Preview</div>
+        <div className="reply-box" style={{pointerEvents:"none",opacity:0.8}}>
+          <div className="comp-toolbar">
+            {list.filter(function(b){return !b.hidden;}).map(function(b,i){
+              return b.sep
+                ? React.createElement('div',{key:"sep"+i,className:"comp-tb-sep"})
+                : React.createElement('button',{key:b.type+i,className:"comp-tb-btn",style:b.style||{}},b.label);
+            })}
+            <div style={{flex:1}}/>
+            <button className="comp-tb-btn" style={{opacity:0.6}}><i className="fa-regular fa-eye" style={{fontSize:12}}/></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
@@ -3850,6 +3967,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
   const [uploadCfg,setUploadCfg]=useState({});
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
+  const [layoutCfg,setLayoutCfg]=useState({});
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -3877,7 +3995,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});const lc=s.layout||{}; setLayoutCfg(lc); if(lc.toolbar) _activeToolbar=lc.toolbar; });
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
 
@@ -3895,6 +4013,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
       {k:"overview",   icon:"fa-chart-line",     label:"overview"},
       {k:"forum-info", icon:"fa-circle-info",     label:"forum info"},
       {k:"appearance", icon:"fa-swatchbook",      label:"appearance"},
+      {k:"layout",     icon:"fa-table-columns",    label:"layout"},
       {k:"email",      icon:"fa-envelope",        label:"email"},
       {k:"permissions",icon:"fa-shield",          label:"permissions"},
       {k:"moderation", icon:"fa-lock",            label:"moderation"},
@@ -3951,6 +4070,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
           <button className="btn-primary" onClick={()=>{
             if(sec==="appearance") saveSection("appearance",branding);
             else if(sec==="email") saveSection("email",emailCfg);
+            else if(sec==="layout") saveSection("layout",layoutCfg);
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
             else if(sec==="moderation") saveSection("moderation",general);
@@ -4513,6 +4633,18 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
               </div>}
           </>}
 
+          {sec==="layout"&&<>
+            <div className="fgt">Composer toolbar</div>
+            <div className="page-sub">Drag to reorder. Toggle the switch to show or hide each item. Changes apply everywhere — post composer and reply box.</div>
+            <ToolbarEditor
+              items={layoutCfg.toolbar || TB_BTNS}
+              onChange={items=>{const next={...layoutCfg,toolbar:items};setLayoutCfg(next);_activeToolbar=items;}}
+            />
+            <div className="fgt" style={{marginTop:32}}>Future layout options</div>
+            <div style={{padding:"24px",background:"rgba(255,255,255,0.02)",border:"0.5px solid var(--b1)",borderRadius:10,color:"var(--t5)",fontSize:13}}>
+              More layout settings will appear here — feed density, sidebar widgets, and other structural options.
+            </div>
+          </>}
           {(sec==="logs"||sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
             <i className="fa-solid fa-tools" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}></i>
             This section is not yet available
