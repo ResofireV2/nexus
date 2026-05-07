@@ -3857,6 +3857,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated}) {
                         {u.status==="suspended"
                           ?<span style={{fontSize:11,color:"var(--green)",cursor:"pointer"}} onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}}>unsuspend</span>
                           :<span style={{fontSize:11,color:"var(--amber)",cursor:"pointer"}} onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}}>suspend</span>}
+                        <span style={{fontSize:11,color:"var(--red)",cursor:"pointer",marginLeft:8,opacity:0.7}} onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}}>delete</span>
                       </>}
                     </td>
                   </tr>

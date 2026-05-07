@@ -36,9 +36,140 @@ defmodule Nexus.Admin do
   end
 
   defp today do
-    DateTime.utc_now()
-    |> DateTime.to_date()
-    |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+    DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+  end
+  defp days_ago(n) do
+    DateTime.utc_now() |> DateTime.add(-n * 86400, :second) |> DateTime.truncate(:second)
+  end
+
+  def extended_stats do
+    alias Nexus.Forum.{Post, Reply, Space}
+    alias Nexus.Accounts.User
+    alias Nexus.Moderation.Report
+
+    # Time boundaries
+    week_ago  = days_ago(7)
+    month_ago = days_ago(30)
+
+    # Posts per day last 30 days
+    posts_per_day = Repo.all(
+      from p in Post,
+      where: p.inserted_at >= ^month_ago,
+      group_by: fragment("?::date", p.inserted_at),
+      select: %{date: fragment("?::date", p.inserted_at), count: count(p.id)},
+      order_by: fragment("?::date", p.inserted_at)
+    )
+
+    # Replies today
+    replies_today = Repo.aggregate(
+      from(r in Reply, where: r.inserted_at >= ^today()), :count)
+
+    # Replies this week
+    replies_week = Repo.aggregate(
+      from(r in Reply, where: r.inserted_at >= ^week_ago), :count)
+
+    # Posts this week/month
+    posts_week  = Repo.aggregate(from(p in Post, where: p.inserted_at >= ^week_ago), :count)
+    posts_month = Repo.aggregate(from(p in Post, where: p.inserted_at >= ^month_ago), :count)
+
+    # New members this week/month
+    members_week  = Repo.aggregate(from(u in User, where: u.inserted_at >= ^week_ago), :count)
+    members_month = Repo.aggregate(from(u in User, where: u.inserted_at >= ^month_ago), :count)
+
+    # Active (posted at least once) vs lurkers
+    active_member_ids = Repo.all(from p in Post, select: p.user_id, distinct: true)
+    active_count = length(active_member_ids)
+    total_members = Repo.aggregate(User, :count)
+    lurker_count = max(total_members - active_count, 0)
+
+    # Top contributors this week (by post + reply count)
+    top_posters = Repo.all(
+      from p in Post,
+      where: p.inserted_at >= ^week_ago,
+      group_by: p.user_id,
+      select: %{user_id: p.user_id, count: count(p.id)},
+      order_by: [desc: count(p.id)],
+      limit: 5
+    )
+    top_poster_ids = Enum.map(top_posters, & &1.user_id)
+    top_poster_users = Repo.all(from u in User, where: u.id in ^top_poster_ids, select: {u.id, u.username, u.avatar_url})
+    user_map = Map.new(top_poster_users, fn {id, uname, av} -> {id, %{username: uname, avatar_url: av}} end)
+    top_contributors = Enum.map(top_posters, fn p ->
+      u = Map.get(user_map, p.user_id, %{username: "Unknown", avatar_url: nil})
+      %{user_id: p.user_id, username: u.username, avatar_url: u.avatar_url, count: p.count}
+    end)
+
+    # Space activity (post counts per space)
+    space_activity = Repo.all(
+      from p in Post,
+      join: s in Space, on: s.id == p.space_id,
+      where: p.inserted_at >= ^month_ago,
+      group_by: [s.id, s.name, s.slug],
+      select: %{space_id: s.id, name: s.name, slug: s.slug, count: count(p.id)},
+      order_by: [desc: count(p.id)],
+      limit: 8
+    )
+
+    # Pending approvals
+    pending_posts   = Repo.aggregate(from(p in Post,  where: p.pending_approval == true), :count)
+    pending_replies = Repo.aggregate(from(r in Reply, where: r.pending_approval == true), :count)
+
+    %{
+      content: %{
+        posts_week: posts_week, posts_month: posts_month,
+        replies_today: replies_today, replies_week: replies_week,
+        posts_per_day: posts_per_day
+      },
+      members: %{
+        new_week: members_week, new_month: members_month,
+        active: active_count, lurkers: lurker_count
+      },
+      top_contributors: top_contributors,
+      space_activity: space_activity,
+      pending: %{posts: pending_posts, replies: pending_replies}
+    }
+  end
+
+  def queue_stats do
+    # Oban queue counts by state and queue name from oban_jobs table
+    rows = Repo.all(
+      from j in "oban_jobs",
+      group_by: [j.queue, j.state],
+      select: %{queue: j.queue, state: j.state, count: count(j.id)}
+    )
+
+    queues = ~w(default mailers media webhooks)
+    queue_map = Enum.reduce(rows, %{}, fn row, acc ->
+      q = row.queue
+      s = row.state
+      acc
+      |> Map.put_new(q, %{available: 0, executing: 0, retryable: 0, discarded: 0, completed: 0, scheduled: 0})
+      |> put_in([q, s], row.count)
+    end)
+
+    # Ensure all known queues appear even if empty
+    result = Enum.reduce(queues, queue_map, fn q, acc ->
+      Map.put_new(acc, q, %{available: 0, executing: 0, retryable: 0, discarded: 0, completed: 0, scheduled: 0})
+    end)
+
+    %{queues: result}
+  end
+
+  def system_stats do
+    mem = :erlang.memory()
+    %{
+      memory: %{
+        total:   mem[:total],
+        processes: mem[:processes],
+        binary:  mem[:binary],
+        ets:     mem[:ets]
+      },
+      process_count: :erlang.system_info(:process_count),
+      process_limit: :erlang.system_info(:process_limit),
+      uptime_seconds: :erlang.statistics(:wall_clock) |> elem(0) |> div(1000),
+      otp_release: to_string(:erlang.system_info(:otp_release)),
+      schedulers: :erlang.system_info(:schedulers_online)
+    }
   end
 
   # ---------------------------------------------------------------------------
@@ -94,10 +225,7 @@ defmodule Nexus.Admin do
       "site_name"        => "Nexus",
       "site_description" => "Ultra fast · Ultra lightweight · Ultra modern",
       "logo_url"         => nil,
-      "favicon_url"      => nil,
-      "hero_title"       => nil,
-      "hero_body"        => nil,
-      "hero_enabled"     => false
+      "favicon_url"      => nil
     },
     "registration" => %{
       "open"                       => true,
