@@ -666,6 +666,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 }
 @media(min-width:768px){
 .mob-topbar,.mob-tabbar,.mob-overlay,.mob-page-wrap,.mob-user-overlay,.mob-reply-bar,.mob-scrubber-bar,.mob-sheet{display:none!important;}
+.desk-composer{display:block;}
+@media(max-width:767.99px){.desk-composer{display:none!important;}}
 }
 @media(max-width:767.99px){
 .admin-sidenav{display:none!important;}
@@ -2701,7 +2703,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>
             {typingUsers.length===1?"Someone is":"Multiple people are"} typing…
           </div>}
-          <div style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
+          <div className="desk-composer" style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
               <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser}/>
               <div className="reply-box-foot">
