@@ -286,5 +286,216 @@ defmodule Nexus.Mailer do
     |> text_body(text)
     |> deliver_dynamic()
   end
+
+  # ---------------------------------------------------------------------------
+  # Digest email
+  # ---------------------------------------------------------------------------
+
+  def send_digest_email(user, digest) do
+    gen       = general_settings()
+    site_name = Map.get(gen, "site_name", "Nexus")
+    url       = base_url()
+    period    = digest.period_label
+    sections  = digest.sections
+    order     = digest.section_order
+
+    subject_line = "#{site_name} digest — #{period}"
+
+    # Build section HTML blocks in admin-configured order, skipping empty sections
+    sections_html =
+      order
+      |> Enum.map(fn key -> {key, Map.get(sections, key)} end)
+      |> Enum.reject(fn {_k, v} -> is_nil(v) || v == [] end)
+      |> Enum.map(fn {key, data} -> render_digest_section(key, data, url, site_name) end)
+      |> Enum.join("\n")
+
+    intro_html =
+      h1("#{site_name} digest") <>
+      p("Here's what happened in the community #{period}.") <>
+      divider()
+
+    content = intro_html <> sections_html <> button_html("View #{site_name}", url)
+
+    text = build_digest_text(user, digest, site_name, url)
+
+    new()
+    |> from(from_addr())
+    |> to({user.username, user.email})
+    |> subject(subject_line)
+    |> html_body(html_layout(content, preview: "Your #{site_name} digest for #{period}"))
+    |> text_body(text)
+    |> deliver_dynamic()
+  end
+
+  defp render_digest_section("posts", posts, url, _site_name) when is_list(posts) and posts != [] do
+    rows =
+      posts
+      |> Enum.with_index(1)
+      |> Enum.map(fn {p, i} ->
+        post_url = "#{url}/posts/#{p.id}"
+        """
+        <tr>
+          <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+            <table cellpadding="0" cellspacing="0" width="100%">
+              <tr>
+                <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{i}.</td>
+                <td>
+                  <a href="#{post_url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;display:block;margin-bottom:4px;">#{p.title}</a>
+                  <span style="font-size:11px;color:rgba(255,255,255,0.3);">#{p.space_name} &nbsp;·&nbsp; #{p.reply_count} replies &nbsp;·&nbsp; #{p.reaction_count} hearts &nbsp;·&nbsp; by #{p.author}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Top posts</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
+    #{divider()}
+    """
+  end
+
+  defp render_digest_section("leaderboard", %{top3: top3, points_name: points_name}, _url, _site_name) when top3 != [] do
+    medals = ["🥇", "🥈", "🥉"]
+    rows =
+      top3
+      |> Enum.with_index()
+      |> Enum.map(fn {u, i} ->
+        """
+        <tr>
+          <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="width:28px;font-size:16px;">#{Enum.at(medals, i, "")}</td>
+              <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;">#{u.username}</td>
+              <td style="text-align:right;font-size:13px;color:#a78bfa;font-weight:500;">#{u.score} #{points_name}</td>
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Leaderboard</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
+    #{divider()}
+    """
+  end
+
+  defp render_digest_section("badges", badges, _url, _site_name) when is_list(badges) and badges != [] do
+    rows =
+      Enum.map(badges, fn b ->
+        holders = Enum.join(b.holders, ", ")
+        """
+        <tr>
+          <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="width:28px;">
+                <div style="width:24px;height:24px;border-radius:6px;background:#{b.badge_color}22;display:inline-flex;align-items:center;justify-content:center;">
+                  <span style="font-size:11px;color:#{b.badge_color};">●</span>
+                </div>
+              </td>
+              <td>
+                <span style="font-size:13px;font-weight:500;color:#{b.badge_color};">#{b.badge_name}</span>
+                <span style="font-size:11px;color:rgba(255,255,255,0.35);margin-left:8px;">#{holders}</span>
+              </td>
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Badges awarded</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
+    #{divider()}
+    """
+  end
+
+  defp render_digest_section("members", members, _url, _site_name) when is_list(members) and members != [] do
+    names = members |> Enum.map(& &1.username) |> Enum.join(", ")
+    count = length(members)
+
+    """
+    <p style="margin:0 0 8px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">New members</p>
+    <p style="margin:0 0 24px;font-size:13px;color:rgba(255,255,255,0.55);">Welcome to #{count} new member#{if count == 1, do: "", else: "s"}: #{names}</p>
+    #{divider()}
+    """
+  end
+
+  defp render_digest_section("spaces", spaces, _url, _site_name) when is_list(spaces) and spaces != [] do
+    max_count = spaces |> Enum.map(& &1.post_count) |> Enum.max(fn -> 1 end)
+
+    rows =
+      Enum.map(spaces, fn s ->
+        pct = max(4, round(s.post_count / max_count * 100))
+        """
+        <tr>
+          <td style="padding:6px 0;">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="width:100px;font-size:12px;color:rgba(255,255,255,0.5);">#{s.name}</td>
+              <td>
+                <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);">
+                  <div style="height:4px;border-radius:2px;background:#{s.color};width:#{pct}%;"></div>
+                </div>
+              </td>
+              <td style="width:36px;text-align:right;font-size:11px;color:#{s.color};padding-left:8px;">#{s.post_count}</td>
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Trending spaces</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
+    #{divider()}
+    """
+  end
+
+  # Fallback for empty/nil sections
+  defp render_digest_section(_key, _data, _url, _site_name), do: ""
+
+  defp build_digest_text(user, digest, site_name, url) do
+    period = digest.period_label
+    order  = digest.section_order
+    sects  = digest.sections
+
+    lines = ["Hi #{user.username},", "", "Here's what happened in #{site_name} #{period}:", ""]
+
+    lines = lines ++ Enum.flat_map(order, fn key ->
+      case {key, Map.get(sects, key)} do
+        {"posts", posts} when is_list(posts) and posts != [] ->
+          ["TOP POSTS", ""] ++ Enum.with_index(posts, 1) |> Enum.map(fn {p, i} ->
+            "#{i}. #{p.title} (#{p.reply_count} replies, #{p.reaction_count} hearts) — #{url}/posts/#{p.id}"
+          end) ++ [""]
+        {"leaderboard", %{top3: top3, points_name: pn}} when top3 != [] ->
+          ["LEADERBOARD", ""] ++ Enum.with_index(top3, 1) |> Enum.map(fn {u, i} ->
+            "#{i}. #{u.username} — #{u.score} #{pn}"
+          end) ++ [""]
+        {"badges", badges} when is_list(badges) and badges != [] ->
+          ["BADGES AWARDED", ""] ++ Enum.map(badges, fn b ->
+            "#{b.badge_name}: #{Enum.join(b.holders, ", ")}"
+          end) ++ [""]
+        {"members", members} when is_list(members) and members != [] ->
+          names = Enum.map(members, & &1.username) |> Enum.join(", ")
+          ["NEW MEMBERS", names, ""]
+        {"spaces", spaces} when is_list(spaces) and spaces != [] ->
+          ["TRENDING SPACES", ""] ++ Enum.map(spaces, fn s ->
+            "#{s.name}: #{s.post_count} posts"
+          end) ++ [""]
+        _ -> []
+      end
+    end)
+
+    lines = lines ++ ["Visit #{site_name}: #{url}", ""]
+    Enum.join(lines, "\n")
+  end
 end
+
 

@@ -244,6 +244,11 @@ defmodule NexusWeb.Router do
     get    "/leaderboard/settings",    LeaderboardController, :get_settings
     patch  "/leaderboard/settings",    LeaderboardController, :update_settings
     post   "/leaderboard/recalculate", LeaderboardController, :recalculate
+
+    # Digest (admin)
+    get    "/digest/settings",         DigestController, :get_settings
+    patch  "/digest/settings",         DigestController, :update_settings
+    post   "/digest/test",             DigestController, :send_test
   end
 
   # Public slot endpoint

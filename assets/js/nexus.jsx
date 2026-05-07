@@ -4852,6 +4852,187 @@ function LeaderboardPage({currentUser, navigate}) {
   );
 }
 
+// ── AdminDigestPanel ──────────────────────────────────────────────────────────
+const DIGEST_SECTIONS = [
+  {id:"posts",       label:"Top posts",        icon:"fa-pen-to-square"},
+  {id:"leaderboard", label:"Leaderboard",      icon:"fa-trophy"},
+  {id:"badges",      label:"Badges awarded",   icon:"fa-medal"},
+  {id:"members",     label:"New members",      icon:"fa-users"},
+  {id:"spaces",      label:"Trending spaces",  icon:"fa-layer-group"},
+];
+const DIGEST_FREQUENCIES = ["daily","weekly","monthly"];
+const TIMEZONES = [
+  {group:"UTC",        zones:["UTC"]},
+  {group:"Americas",   zones:["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Anchorage","America/Halifax","America/Toronto","America/Vancouver","America/Sao_Paulo","America/Argentina/Buenos_Aires","America/Bogota","America/Lima","America/Mexico_City"]},
+  {group:"Europe",     zones:["Europe/London","Europe/Dublin","Europe/Paris","Europe/Berlin","Europe/Madrid","Europe/Rome","Europe/Amsterdam","Europe/Brussels","Europe/Zurich","Europe/Stockholm","Europe/Oslo","Europe/Helsinki","Europe/Warsaw","Europe/Prague","Europe/Budapest","Europe/Bucharest","Europe/Athens","Europe/Moscow"]},
+  {group:"Asia/Pacific", zones:["Asia/Dubai","Asia/Karachi","Asia/Kolkata","Asia/Dhaka","Asia/Bangkok","Asia/Singapore","Asia/Shanghai","Asia/Tokyo","Asia/Seoul","Australia/Sydney","Australia/Melbourne","Pacific/Auckland","Pacific/Honolulu"]},
+  {group:"Africa",     zones:["Africa/Johannesburg","Africa/Lagos","Africa/Nairobi","Africa/Cairo"]},
+];
+
+function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
+  const [sendingTest, setSendingTest] = useState(false);
+
+  const cfg = digestCfg;
+  const set = (k,v) => setDigestCfg(p=>({...p,[k]:v}));
+
+  const enabledFreqs = cfg.frequencies || ["weekly"];
+  const toggleFreq = (f) => {
+    const next = enabledFreqs.includes(f)
+      ? enabledFreqs.filter(x=>x!==f)
+      : [...enabledFreqs, f];
+    set("frequencies", next);
+  };
+
+  const sectionOrder = cfg.section_order || DIGEST_SECTIONS.map(s=>s.id);
+  const moveSection = (id, dir) => {
+    const idx = sectionOrder.indexOf(id);
+    if(idx === -1) return;
+    const next = [...sectionOrder];
+    const swap = idx + dir;
+    if(swap < 0 || swap >= next.length) return;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    set("section_order", next);
+  };
+
+  const sendTest = async () => {
+    const freq = enabledFreqs[0] || "weekly";
+    setSendingTest(true);
+    const d = await api.post("/admin/digest/test", {frequency: freq});
+    setSendingTest(false);
+    if(d.ok) toast(`Test digest sent (${freq})`);
+    else toast(d.error||"Failed","err");
+  };
+
+  const fi = {width:"100%",background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--t2)",fontFamily:"inherit",outline:"none",boxSizing:"border-box"};
+  const weekDays = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3}}>Digest email</div>
+          <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>Send periodic email roundups to subscribed members.</div>
+        </div>
+        <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={sendTest} disabled={sendingTest||!cfg.enabled}>
+          <i className="fa-solid fa-paper-plane" style={{fontSize:11}}/>{sendingTest?"Sending…":"Send test"}
+        </button>
+        <button className="btn-primary" style={{fontSize:12,padding:"7px 16px"}} onClick={()=>saveSection("digest",digestCfg)} disabled={saving}>
+          {saving?"Saving…":"Save"}
+        </button>
+      </div>
+
+      {/* Enable / disable */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>Enable digest emails</div>
+            <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>Members who opt in will receive digest emails at their chosen frequency.</div>
+          </div>
+          <div style={{position:"relative",width:40,height:22,borderRadius:11,background:cfg.enabled?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
+            onClick={()=>set("enabled",!cfg.enabled)}>
+            <div style={{position:"absolute",top:2,left:cfg.enabled?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+          </div>
+        </div>
+      </div>
+
+      {/* Available frequencies */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:12}}>Available frequencies</div>
+        <div style={{display:"flex",gap:8}}>
+          {DIGEST_FREQUENCIES.map(f=>(
+            <div key={f} onClick={()=>toggleFreq(f)}
+              style={{padding:"7px 18px",borderRadius:20,border:`0.5px solid ${enabledFreqs.includes(f)?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,background:enabledFreqs.includes(f)?"rgba(167,139,250,0.12)":"transparent",color:enabledFreqs.includes(f)?"#c4b5fd":"var(--t4)",cursor:"pointer",fontSize:13}}>
+              {f}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Send schedule */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:16}}>Send schedule</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Timezone</div>
+            <select style={fi} value={cfg.timezone||"UTC"} onChange={e=>set("timezone",e.target.value)}>
+              {TIMEZONES.map(g=>(
+                <optgroup key={g.group} label={g.group}>
+                  {g.zones.map(z=><option key={z} value={z}>{z.replace(/_/g," ")}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Send time</div>
+            <input style={{...fi,width:"100%"}} type="time" value={cfg.send_time||"08:00"} onChange={e=>set("send_time",e.target.value)}/>
+          </div>
+          {enabledFreqs.includes("weekly")&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Weekly send day</div>
+              <select style={fi} value={cfg.weekly_day||"monday"} onChange={e=>set("weekly_day",e.target.value)}>
+                {weekDays.map(d=><option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
+              </select>
+            </div>
+          )}
+          {enabledFreqs.includes("monthly")&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Monthly send day</div>
+              <select style={fi} value={cfg.monthly_day||1} onChange={e=>set("monthly_day",parseInt(e.target.value))}>
+                {Array.from({length:28},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Content sections */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:4}}>Content sections</div>
+        <div style={{fontSize:12,color:"var(--t4)",marginBottom:16}}>Toggle sections on/off and reorder them with the arrows.</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {sectionOrder.map((id,idx)=>{
+            const sec = DIGEST_SECTIONS.find(s=>s.id===id);
+            if(!sec) return null;
+            const includeKey = {leaderboard:"include_leaderboard",badges:"include_badges",members:"include_new_members",spaces:"include_trending_spaces"}[id];
+            const included = includeKey ? cfg[includeKey]!==false : true;
+            return (
+              <div key={id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8}}>
+                <i className={`fa-solid ${sec.icon}`} style={{fontSize:13,color:"var(--t4)",width:16,textAlign:"center"}}/>
+                <span style={{flex:1,fontSize:13,color:included?"var(--t2)":"var(--t5)"}}>{sec.label}</span>
+                {includeKey&&(
+                  <div style={{position:"relative",width:32,height:18,borderRadius:9,background:included?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
+                    onClick={()=>set(includeKey,!included)}>
+                    <div style={{position:"absolute",top:2,left:included?14:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+                  </div>
+                )}
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  <button onClick={()=>moveSection(id,-1)} disabled={idx===0}
+                    style={{background:"none",border:"none",color:idx===0?"var(--b2)":"var(--t4)",cursor:idx===0?"default":"pointer",padding:"2px 4px",lineHeight:1}}>
+                    <i className="fa-solid fa-chevron-up" style={{fontSize:9}}/>
+                  </button>
+                  <button onClick={()=>moveSection(id,1)} disabled={idx===sectionOrder.length-1}
+                    style={{background:"none",border:"none",color:idx===sectionOrder.length-1?"var(--b2)":"var(--t4)",cursor:idx===sectionOrder.length-1?"default":"pointer",padding:"2px 4px",lineHeight:1}}>
+                    <i className="fa-solid fa-chevron-down" style={{fontSize:9}}/>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Post count */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:12}}>Post count</div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <input style={{...fi,width:80}} type="number" min={1} max={20} value={cfg.top_posts_count||5} onChange={e=>set("top_posts_count",parseInt(e.target.value)||5)}/>
+          <span style={{fontSize:13,color:"var(--t4)"}}>top posts per digest</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── AdminLeaderboardPanel ─────────────────────────────────────────────────────
 function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
   const [recalculating, setRecalculating] = useState(false);
@@ -5358,6 +5539,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
   const [lbCfg,setLbCfg]=useState({});
+  const [digestCfg,setDigestCfg]=useState({});
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -5385,7 +5567,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});setLbCfg(s.leaderboard||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});});
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -5408,6 +5590,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       {k:"email",      icon:"fa-envelope",        label:"email"},
       {k:"permissions",icon:"fa-shield",          label:"permissions"},
       {k:"leaderboard",icon:"fa-trophy",          label:"leaderboard"},
+      {k:"digest",     icon:"fa-envelope-open-text",label:"digest"},
       {k:"moderation", icon:"fa-lock",            label:"moderation"},
       {k:"extensions", icon:"fa-plug",            label:"extensions", badge:0},
     ]},
@@ -5476,6 +5659,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
             else if(sec==="leaderboard") saveSection("leaderboard",lbCfg);
+            else if(sec==="digest") saveSection("digest",digestCfg);
             else if(sec==="moderation") saveSection("moderation",general);
             else toast("No changes to save for this section");
           }} disabled={saving}>{saving?"…":"Save changes"}</button>
@@ -5939,6 +6123,8 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
           {sec==="leaderboard"&&<AdminLeaderboardPanel lbCfg={lbCfg} setLbCfg={setLbCfg} saving={saving} saveSection={saveSection}/>}
 
+          {sec==="digest"&&<AdminDigestPanel digestCfg={digestCfg} setDigestCfg={setDigestCfg} saving={saving} saveSection={saveSection}/>}
+
           {sec==="storage"&&<>
             {/* Upload Settings */}
             <div className="fgt">Upload settings</div>
@@ -6267,6 +6453,27 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
               <div style={{fontSize:12,color:"var(--t5)"}}>Push notifications require the mobile app.</div>
               <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={saveNotifPrefs} disabled={notifSaving}>{notifSaving?"Saving…":"Save preferences"}</button>
             </div>
+
+            {/* Digest frequency */}
+            {window._digestFrequencies?.length > 0 && (
+              <div style={{marginTop:28,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
+                <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Digest email</div>
+                <div style={{fontSize:13,color:"var(--t4)",marginBottom:16}}>Receive a periodic roundup of top posts, badges, and community activity.</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {["off",...(window._digestFrequencies||[])].map(f=>(
+                    <div key={f} onClick={()=>{
+                      const prefs={...notifPrefs};
+                      const next={...currentUser?.preferences||{},digest_frequency:f==="off"?null:f};
+                      api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
+                      toast(f==="off"?"Digest unsubscribed":`Digest set to ${f}`);
+                    }}
+                      style={{padding:"7px 18px",borderRadius:20,border:`0.5px solid ${(currentUser?.preferences?.digest_frequency||"off")===f?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,background:(currentUser?.preferences?.digest_frequency||"off")===f?"rgba(167,139,250,0.12)":"transparent",color:(currentUser?.preferences?.digest_frequency||"off")===f?"#c4b5fd":"var(--t4)",cursor:"pointer",fontSize:13}}>
+                      {f}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>}
         </div>
       </div>
@@ -6931,6 +7138,12 @@ function App() {
     api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
+      const digest=s.digest||{};
+      if(digest.enabled && digest.frequencies?.length) {
+        window._digestFrequencies = digest.frequencies;
+      } else {
+        window._digestFrequencies = [];
+      }
       const lc=s.layout||{};
       if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();TB_BTNS.forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;_activeToolbar=merged;}
       setLayoutCfg(lc);

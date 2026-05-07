@@ -25,7 +25,14 @@ config :phoenix, :json_library, Jason
 # Oban background jobs
 config :nexus, Oban,
   repo: Nexus.Repo,
-  plugins: [Oban.Plugins.Pruner],
+  plugins: [
+    Oban.Plugins.Pruner,
+    {Oban.Plugins.Cron, crontab: [
+      {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "daily"},   max_attempts: 1},
+      {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "weekly"},  max_attempts: 1},
+      {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "monthly"}, max_attempts: 1}
+    ]}
+  ],
   queues: [
     default: 10,
     mailers: 20,

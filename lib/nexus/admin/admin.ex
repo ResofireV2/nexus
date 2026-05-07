@@ -279,6 +279,20 @@ defmodule Nexus.Admin do
       "badge_points"              => 5,
       "pin_points"                => 3,
       "mention_received_points"   => 1
+    },
+    "digest" => %{
+      "enabled"                  => false,
+      "frequencies"              => ["weekly"],
+      "top_posts_count"          => 5,
+      "include_leaderboard"      => true,
+      "include_badges"           => true,
+      "include_new_members"      => true,
+      "include_trending_spaces"  => true,
+      "section_order"            => ["posts","leaderboard","badges","members","spaces"],
+      "timezone"                 => "UTC",
+      "send_time"                => "08:00",
+      "weekly_day"               => "monday",
+      "monthly_day"              => 1
     }
   }
 
