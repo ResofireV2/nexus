@@ -1223,14 +1223,15 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
             </button>
         )}
         <div className="comp-tb-sep"/>
-        <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
-          <i className="fa-regular fa-eye" style={{fontSize:12}}/>
-        </button>
         <label className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
           {uploading
             ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
             : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
         </label>
+        <div style={{flex:1}}/>
+        <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
+          <i className="fa-regular fa-eye" style={{fontSize:12}}/>
+        </button>
       </div>
       {!value && !isFocused && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
