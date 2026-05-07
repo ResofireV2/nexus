@@ -404,6 +404,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
 .reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
 .reply-item:hover .reply-quote-btn{opacity:1;}
+.reply-item:hover .reply-menu-btn{opacity:1!important;border-color:var(--b1)!important;}
 .reply-quote-btn:hover{color:var(--ac-text);}
 .reply-author{font-size:13px;font-weight:500;color:var(--t2);}
 .reply-time{font-size:11px;color:var(--t5);}
@@ -1798,7 +1799,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     sendEvent?.(`post:${postId}`,"typing_stop",{});
     try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
       if(d.reply&&d.pending){setReplyBody("");toast("Your reply is pending moderator approval");}
-      else if(d.reply){setReplies(p=>[...p,d.reply]);setReplyBody("");setPost(p=>({...p,reply_count:p.reply_count+1}));}
+      else if(d.reply){
+        // Add optimistically but dedup against WS event which will also arrive
+        setReplies(p=>p.some(r=>r.id===d.reply.id)?p:[...p,d.reply]);
+        setReplyBody("");
+        setPost(p=>({...p,reply_count:(p.reply_count||0)+1}));
+      }
       else toast(d.error||"Failed","err"); }
     finally { setSubmitting(false); }
   };
@@ -1872,6 +1878,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
   const [postMenuOpen, setPostMenuOpen] = useState(false);
+  const [openReplyMenu, setOpenReplyMenu] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
@@ -2003,14 +2010,42 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
-                <span style={{marginLeft:"auto",display:"flex",gap:10,alignItems:"center"}}>
-                  {currentUser&&currentUser?.id!==r.user?.id&&(
-                    <span style={{fontSize:11,color:"var(--t4)",cursor:"pointer"}} onClick={()=>{setReportTarget({type:"reply",id:r.id});setReportReason("");}}>report</span>
-                  )}
-                  {(currentUser?.id===r.user?.id||isMod)&&(
-                    <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={async()=>{if(!confirm("Delete this reply?"))return;await api.delete(`/posts/${postId}/replies/${r.id}`);setReplies(p=>p.filter(x=>x.id!==r.id));setPost(p=>({...p,reply_count:p.reply_count-1}));toast("Reply deleted");}}>delete</span>
-                  )}
-                </span>
+                {currentUser&&(currentUser.id!==r.user?.id||currentUser.id===r.user?.id||isMod)&&(
+                  <div style={{position:"relative",marginLeft:"auto"}} onClick={e=>e.stopPropagation()}>
+                    <button
+                      style={{width:24,height:24,borderRadius:"50%",background:"transparent",border:"0.5px solid transparent",color:"var(--t5)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,opacity:0,transition:"opacity .15s"}}
+                      className="reply-menu-btn"
+                      onClick={e=>{e.stopPropagation();setOpenReplyMenu(v=>v===r.id?null:r.id);}}>
+                      <i className="fa-solid fa-ellipsis"/>
+                    </button>
+                    {openReplyMenu===r.id&&(
+                      <div style={{position:"absolute",top:28,right:0,background:"var(--s3)",border:"0.5px solid var(--b2)",borderRadius:10,padding:"4px 0",minWidth:140,zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}}
+                        onMouseLeave={()=>setOpenReplyMenu(null)}>
+                        {currentUser.id!==r.user?.id&&<button onClick={()=>{setOpenReplyMenu(null);setReportTarget({type:"reply",id:r.id});setReportReason("");}}
+                          style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                          onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                          <i className="fa-solid fa-flag" style={{fontSize:11,color:"var(--t4)",width:14}}/>Report
+                        </button>}
+                        {(currentUser.id===r.user?.id||isMod)&&<>
+                          {currentUser.id===r.user?.id&&<button onClick={()=>{setOpenReplyMenu(null);/* edit reply future */}}
+                            style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                            <i className="fa-solid fa-pen" style={{fontSize:11,color:"var(--t4)",width:14}}/>Edit reply
+                          </button>}
+                          <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
+                          <button onClick={async()=>{setOpenReplyMenu(null);if(!confirm("Delete this reply?"))return;await api.delete(`/posts/${postId}/replies/${r.id}`);setReplies(p=>p.filter(x=>x.id!==r.id));setPost(p=>({...p,reply_count:p.reply_count-1}));toast("Reply deleted");}}
+                            style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                            <i className="fa-solid fa-trash" style={{fontSize:11,color:"var(--red)",width:14}}/>Delete reply
+                          </button>
+                        </>}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="reply-text"><Md text={r.body}/></div>
               <div className="reaction-row" style={{marginTop:6,justifyContent:"flex-end"}}>
