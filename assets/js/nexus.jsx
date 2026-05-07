@@ -2049,6 +2049,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>
         </div>
       )}
+      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
       <div className="post-content-wrap" ref={repliesContainerRef}>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
@@ -2640,13 +2641,14 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
         </div>
 
       </div>
-    {replies.length>0&&currentUser&&<PostScrubber
+      {replies.length>0&&currentUser&&<PostScrubber
         replies={replies}
         lastReadReplyId={lastReadReplyId}
         postId={postId}
         currentUser={currentUser}
         onSavePosition={(replyId,count)=>{setLastReadReplyId(replyId);setLastReadCount(count);}}
       />}
+      </div>
     </div>
   );
 }
