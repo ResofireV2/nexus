@@ -173,6 +173,9 @@ const api = {
         if (!silentAuth) window.dispatchEvent(new Event("nexus:logout"));
         return {};
       }
+      // Guard against non-JSON responses (e.g. 502 Bad Gateway returns HTML)
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) return {};
       return res.json();
     } catch {
       return {};
