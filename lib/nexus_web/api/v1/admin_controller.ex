@@ -298,19 +298,24 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/users  (public — no admin auth required)
   def list_users_public(conn, params) do
-    q = params["q"]
+    q    = params["q"]
+    sort = params["sort"] || "newest"
     users = if q && String.length(q) > 0 do
-      Accounts.search_users(q)
+      Accounts.search_users(q, sort)
     else
-      Accounts.list_users_public()
+      Accounts.list_users_public(sort)
     end
     json(conn, %{members: Enum.map(users, fn u -> %{
-      id: u.id,
-      username: u.username,
-      role: u.role,
-      avatar_url: u.avatar_url,
-      inserted_at: u.inserted_at,
-      status: u.status
+      id:                 u.id,
+      username:           u.username,
+      role:               u.role,
+      bio:                Map.get(u, :bio),
+      avatar_url:         u.avatar_url,
+      inserted_at:        u.inserted_at,
+      status:             u.status,
+      post_count:         Map.get(u, :post_count, 0),
+      reply_count:        Map.get(u, :reply_count, 0),
+      reactions_received: Map.get(u, :reactions_received, 0)
     } end)})
   end
 

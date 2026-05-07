@@ -17,20 +17,74 @@ defmodule Nexus.Accounts do
 
   def get_user!(id), do: Repo.get!(User, id)
 
-  def list_users_public do
-    User
-    |> where([u], u.status != "banned")
-    |> order_by([u], [asc: u.username])
-    |> Repo.all()
+  def list_users_public(sort \\ "newest") do
+    import Ecto.Query
+    alias Nexus.Activity.UserDailyStat
+
+    base =
+      from u in User,
+      left_join: s in UserDailyStat, on: s.user_id == u.id,
+      where: u.status != "banned",
+      group_by: u.id,
+      select: %{
+        id:                  u.id,
+        username:            u.username,
+        role:                u.role,
+        bio:                 u.bio,
+        avatar_url:          u.avatar_url,
+        cover_url:           u.cover_url,
+        inserted_at:         u.inserted_at,
+        status:              u.status,
+        post_count:          coalesce(sum(s.posts_count), 0),
+        reply_count:         coalesce(sum(s.replies_count), 0),
+        reactions_received:  coalesce(sum(s.reactions_received), 0)
+      }
+
+    ordered = case sort do
+      "oldest"         -> order_by(base, [u], [asc:  u.inserted_at])
+      "most_posts"     -> order_by(base, [u, s], [desc: coalesce(sum(s.posts_count), 0),     asc: u.username])
+      "most_replies"   -> order_by(base, [u, s], [desc: coalesce(sum(s.replies_count), 0),   asc: u.username])
+      "most_reactions" -> order_by(base, [u, s], [desc: coalesce(sum(s.reactions_received), 0), asc: u.username])
+      _                -> order_by(base, [u], [desc: u.inserted_at])
+    end
+
+    Repo.all(ordered)
   end
 
-  def search_users(q) do
+  def search_users(q, sort \\ "newest") do
+    import Ecto.Query
+    alias Nexus.Activity.UserDailyStat
     pattern = "%#{q}%"
-    User
-    |> where([u], ilike(u.username, ^pattern) and u.status != "banned")
-    |> order_by([u], [asc: u.username])
-    |> limit(50)
-    |> Repo.all()
+
+    base =
+      from u in User,
+      left_join: s in UserDailyStat, on: s.user_id == u.id,
+      where: u.status != "banned" and ilike(u.username, ^pattern),
+      group_by: u.id,
+      limit: 50,
+      select: %{
+        id:                 u.id,
+        username:           u.username,
+        role:               u.role,
+        bio:                u.bio,
+        avatar_url:         u.avatar_url,
+        cover_url:          u.cover_url,
+        inserted_at:        u.inserted_at,
+        status:             u.status,
+        post_count:         coalesce(sum(s.posts_count), 0),
+        reply_count:        coalesce(sum(s.replies_count), 0),
+        reactions_received: coalesce(sum(s.reactions_received), 0)
+      }
+
+    ordered = case sort do
+      "oldest"         -> order_by(base, [u], [asc:  u.inserted_at])
+      "most_posts"     -> order_by(base, [u, s], [desc: coalesce(sum(s.posts_count), 0),     asc: u.username])
+      "most_replies"   -> order_by(base, [u, s], [desc: coalesce(sum(s.replies_count), 0),   asc: u.username])
+      "most_reactions" -> order_by(base, [u, s], [desc: coalesce(sum(s.reactions_received), 0), asc: u.username])
+      _                -> order_by(base, [u], [desc: u.inserted_at])
+    end
+
+    Repo.all(ordered)
   end
 
   def get_user_by_email(email) do

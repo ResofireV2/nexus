@@ -6906,14 +6906,28 @@ function MemberCard({m, navigate, currentUser}) {
 
 function MembersPage({navigate, currentUser}) {
   const [members,setMembers]=useState([]); const [loading,setLoading]=useState(true); const [q,setQ]=useState("");
+  const [sort,setSort]=useState("newest");
+
   useEffect(()=>{
-    const endpoint = currentUser?.role === "admin" ? "/admin/users" : "/users";
+    setLoading(true);
+    const endpoint = currentUser?.role === "admin" ? "/admin/users" : `/users?sort=${sort}`;
     api.get(endpoint).then(d=>{
       setMembers(d.users || d.members || []);
       setLoading(false);
     }).catch(()=>setLoading(false));
-  },[currentUser]);
+  },[currentUser, sort]);
+
   const filtered = members.filter(m=>!q||m.username?.toLowerCase().includes(q.toLowerCase()));
+
+  const SORTS = [
+    {v:"newest",        label:"Newest"},
+    {v:"oldest",        label:"Oldest"},
+    {v:"most_posts",    label:"Most posts"},
+    {v:"most_replies",  label:"Most replies"},
+    {v:"most_reactions",label:"Most reactions"},
+  ];
+
+  const fi = {background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"7px 14px",fontSize:13,color:"var(--t2)",fontFamily:"inherit",outline:"none",cursor:"pointer"};
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -6925,9 +6939,14 @@ function MembersPage({navigate, currentUser}) {
             <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>{members.length} total</div>
           </div>
         </div>
-        <div style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,display:"flex",alignItems:"center",padding:"7px 14px",gap:8,maxWidth:360}}>
-          <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)"}}/>
-          <input style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}} placeholder="Search members…" value={q} onChange={e=>setQ(e.target.value)}/>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,display:"flex",alignItems:"center",padding:"7px 14px",gap:8,flex:1,maxWidth:360}}>
+            <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)"}}/>
+            <input style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}} placeholder="Search members…" value={q} onChange={e=>setQ(e.target.value)}/>
+          </div>
+          <select style={fi} value={sort} onChange={e=>setSort(e.target.value)}>
+            {SORTS.map(s=><option key={s.v} value={s.v}>{s.label}</option>)}
+          </select>
         </div>
       </div>
       {/* Grid */}
