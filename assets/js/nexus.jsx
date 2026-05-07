@@ -2833,7 +2833,7 @@ function NotificationsPage({navigate}) {
   const markRead=async n=>{
     if(!n.read){await api.patch(`/notifications/${n.id}/read`,{});setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x));}
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
-    else if(n.type==="badge") { /* badge notifications don't navigate */ }
+    else if(n.type==="badge") { navigate("badges"); }
     else if(n.post_id) navigate("post",{id:n.post_id, scrollToReply:n.reply_id||null});
     else if(n.reply_id) api.get(`/posts/by-reply/${n.reply_id}`).then(d=>{ if(d.post_id) navigate("post",{id:d.post_id, scrollToReply:n.reply_id}); }).catch(()=>{});
   };
