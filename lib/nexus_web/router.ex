@@ -88,6 +88,7 @@ defmodule NexusWeb.Router do
     get "/users/:username/reactions",  UserContentController, :reactions
     get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
+    get "/pwa/vapid-public-key",   PwaController,    :vapid_public_key
     get "/badges",                 BadgeController,  :index
     get "/leaderboard",            LeaderboardController, :index
   end
@@ -139,10 +140,6 @@ defmodule NexusWeb.Router do
     # Push subscriptions
     post   "/push/subscribe",   PushController, :subscribe
     delete "/push/subscribe",   PushController, :unsubscribe
-
-    # PWA — VAPID public key (authenticated so we know the user exists,
-    # but not admin-only — needed when subscribing regular users)
-    get    "/pwa/vapid-public-key", PwaController, :vapid_public_key
 
     # Notifications
     get  "/notifications",          NotificationController, :index
