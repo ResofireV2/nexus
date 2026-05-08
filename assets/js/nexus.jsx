@@ -5058,6 +5058,15 @@ function ReportCard({r, onAction, isAdmin}) {
           </div>
         )}
 
+        {/* Reporter's additional notes */}
+        {r.notes&&(
+          <div style={{fontSize:12,color:"var(--t4)",lineHeight:1.55,marginBottom:8,
+            display:"flex",alignItems:"flex-start",gap:6}}>
+            <i className="fa-solid fa-comment-dots" style={{fontSize:10,color:"var(--t5)",marginTop:2,flexShrink:0}}/>
+            <span style={{fontStyle:"italic"}}>{r.notes}</span>
+          </div>
+        )}
+
         {/* Meta row — author, space, reporter, time */}
         <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t5)",flexWrap:"wrap"}}>
           {r.content_user&&<>
@@ -5123,7 +5132,7 @@ function ModerationPage({currentUser, navigate}) {
 
   const handleAction = async (action, r) => {
     if (action === "view") {
-      if (r.post_id) navigate("post", {postId: r.post_id});
+      if (r.post_id) navigate("post", {id: r.post_id});
       return;
     }
     const status = action === "remove" ? "actioned" : "dismissed";
@@ -5279,7 +5288,7 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
   const bannedUsers = users.filter(u=>u.status==="banned");
 
   const handleAction = async(action, r) => {
-    if(action==="view"){if(r.post_id)navigate("post",{postId:r.post_id});return;}
+    if(action==="view"){if(r.post_id)navigate("post",{id:r.post_id});return;}
     const status = action==="remove"?"actioned":"dismissed";
     if(action==="remove"){
       if(!confirm("Remove this content?"))return;
