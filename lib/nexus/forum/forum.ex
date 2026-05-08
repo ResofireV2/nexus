@@ -397,6 +397,15 @@ defmodule Nexus.Forum do
       Post
       |> where([p], p.hidden == false)
       |> preload([:user, :space, :tags])
+      |> join(:left_lateral, [p], lr in fragment("""
+           SELECT r.user_id
+           FROM   replies r
+           WHERE  r.post_id = ? AND r.hidden = false AND r.pending_approval = false
+           ORDER  BY r.inserted_at DESC
+           LIMIT  1
+         """, p.id), on: true, as: :last_reply)
+      |> join(:left, [p, lr: lr], u in Nexus.Accounts.User, on: u.id == lr.user_id, as: :last_reply_user)
+      |> select_merge([p, last_reply_user: u], %{last_reply_user: u})
 
     query = filter_by_space(query, space_slug)
     query = filter_by_tag(query, tag_slug)

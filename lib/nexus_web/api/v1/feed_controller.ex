@@ -60,7 +60,8 @@ defmodule NexusWeb.API.V1.FeedController do
       inserted_at: post.inserted_at,
       space: space_json(post.space),
       tags: Enum.map(post.tags, &tag_json/1),
-      user: user_json(post.user)
+      user: user_json(post.user),
+      last_reply_user: user_json(Map.get(post, :last_reply_user))
     }
   end
 

@@ -2590,9 +2590,12 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         </div>
                         <div className="meta-div"/>
                         <div className="thread-last">
-                          {p.user?.avatar_url
-                              ?<img src={p.user.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={p.user.username}/>
-                              :<div className="last-av" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                          {(()=>{
+                            const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
+                            return lastUser?.avatar_url
+                              ? <img src={lastUser.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={lastUser.username}/>
+                              : <div className="last-av" style={{background:col}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
+                          })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
                       </div>
