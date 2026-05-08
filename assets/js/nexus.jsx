@@ -381,6 +381,8 @@ const api = {
 window.NexusExtensions = {
   _slots: {},
   _listeners: [],
+  _toolbarButtons: [],
+  _toolbarListeners: [],
 
   registerSlot(slotName, component, priority = 50) {
     if (!this._slots[slotName]) this._slots[slotName] = [];
@@ -396,6 +398,23 @@ window.NexusExtensions = {
   onChange(fn) {
     this._listeners.push(fn);
     return () => { this._listeners = this._listeners.filter(f => f !== fn); };
+  },
+
+  // Register a toolbar button for the post composer.
+  // component receives {postId, linkedGames, setLinkedGames}
+  registerToolbarButton(component, priority = 50) {
+    this._toolbarButtons.push({component, priority});
+    this._toolbarButtons.sort((a, b) => a.priority - b.priority);
+    this._toolbarListeners.forEach(fn => fn());
+  },
+
+  getToolbarButtons() {
+    return this._toolbarButtons;
+  },
+
+  onToolbarChange(fn) {
+    this._toolbarListeners.push(fn);
+    return () => { this._toolbarListeners = this._toolbarListeners.filter(f => f !== fn); };
   }
 };
 
@@ -677,6 +696,14 @@ select option{background:#1a1a2e;color:var(--t1);}
 .rx-pill.mine{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
 .replies-count{font-size:12px;color:var(--t3);}
+/* Extension slots */
+.post-footer-slot{padding:12px 0 4px;}
+.comp-ext-toolbar{display:flex;align-items:center;gap:6px;padding:6px 0 2px;}
+.comp-game-chips{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;}
+.comp-game-chip{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:0.5px solid var(--b2);border-radius:20px;padding:4px 10px 4px 6px;font-size:12px;color:var(--t2);}
+.comp-game-chip img{width:20px;height:28px;object-fit:cover;border-radius:3px;}
+.comp-game-chip button{background:none;border:none;color:var(--t4);cursor:pointer;font-size:11px;padding:0 0 0 2px;line-height:1;}
+.comp-game-chip button:hover{color:var(--t1);}
 .reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);display:flex;gap:12px;}
 .reply-av{width:40px;height:40px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .reply-body-wrap{flex:1;}
@@ -2821,6 +2848,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             </div>
           </div>
         </div>
+        {/* post_footer slot — extension components rendered here */}
+        <PostFooterSlot postId={post.id} />
         <div className="replies-header">
           <span className="replies-count">{post.reply_count} {post.reply_count===1?"reply":"replies"}</span>
           <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>oldest first</span>
@@ -2950,6 +2979,46 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   );
 }
 
+// ── Extension slot components ────────────────────────────────────────────────
+
+// Renders all components registered for the post_footer slot.
+// Re-renders whenever an extension bundle registers a new component.
+function PostFooterSlot({postId}) {
+  const [, forceUpdate] = React.useReducer(x => x+1, 0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onChange(() => forceUpdate());
+    return unsub;
+  }, []);
+  const components = window.NexusExtensions.getSlot("post_footer");
+  if (!components.length) return null;
+  return (
+    <div className="post-footer-slot">
+      {components.map(({component: Comp, priority}, i) => (
+        <Comp key={i} postId={postId} />
+      ))}
+    </div>
+  );
+}
+
+// Renders extension toolbar buttons in the composer.
+// Each button receives {linkedGames, setLinkedGames}.
+function ExtensionToolbar({linkedGames, setLinkedGames, postId}) {
+  const [, forceUpdate] = React.useReducer(x => x+1, 0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onToolbarChange(() => forceUpdate());
+    return unsub;
+  }, []);
+  const buttons = window.NexusExtensions.getToolbarButtons();
+  if (!buttons.length) return null;
+  return (
+    <div className="comp-ext-toolbar">
+      {buttons.map(({component: Btn}, i) => (
+        <Btn key={i} linkedGames={linkedGames} setLinkedGames={setLinkedGames} postId={postId} />
+      ))}
+    </div>
+  );
+}
+
 // ── Composer ──────────────────────────────────────────────────────────────────
 function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
@@ -2957,6 +3026,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
   const [postType,setPostType]=useState("discussion");
   const [selTags,setSelTags]=useState([]); const [showTags,setShowTags]=useState(false);
   const [loading,setLoading]=useState(false);
+  const [linkedGames,setLinkedGames]=useState([]);
   const tagPickerRef=useRef();
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
@@ -2972,7 +3042,13 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     setLoading(true);
     try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
       if(d.post&&d.pending){toast("Your post is pending moderator approval","ok");navigate("feed");}
-      else if(d.post){toast("Post published!");navigate("post",{id:d.post.id});}
+      else if(d.post){
+        // Link any games selected via extension toolbar
+        if(linkedGames.length>0){
+          try{ await fetch(`/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
+        }
+        toast("Post published!");navigate("post",{id:d.post.id});
+      }
       else toast(d.error||"Failed","err"); }
     finally { setLoading(false); }
   };
@@ -3009,6 +3085,22 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
         <div className="comp-body-area">
           <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser}/>
         </div>
+        {/* Extension toolbar buttons (e.g. Gamepedia game picker) */}
+        <ExtensionToolbar linkedGames={linkedGames} setLinkedGames={setLinkedGames} postId={null} />
+        {/* Linked game chips */}
+        {linkedGames.length > 0 && (
+          <div className="comp-game-chips">
+            {linkedGames.map(g => (
+              <div key={g.id} className="comp-game-chip">
+                {g.cover_image_url
+                  ? <img src={g.cover_image_url} alt={g.name} />
+                  : <i className="fa-solid fa-gamepad" />}
+                <span>{g.name}</span>
+                <button onClick={() => setLinkedGames(p => p.filter(x => x.id !== g.id))} title="Remove">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="comp-footer">
           <span className="comp-char">{body.length} characters</span>
           <button className="btn-primary" style={{marginLeft:"auto"}} onClick={submit} disabled={loading||!title.trim()}>{loading?"Publishing…":"Publish"}</button>
