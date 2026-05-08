@@ -67,7 +67,17 @@ defmodule Nexus.Extensions do
 
   def install_extension(attrs) do
     Repo.transaction(fn ->
-      ext_attrs = Map.drop(attrs, ["hooks", "slots", "settings_schema", "settings_tabs"])
+      # Store settings_schema and settings_tabs inside the manifest field
+      # so extension_json can read them back when rendering the settings form.
+      manifest = %{
+        "settings_schema" => Map.get(attrs, "settings_schema", %{}),
+        "settings_tabs"   => Map.get(attrs, "settings_tabs", [])
+      }
+
+      ext_attrs =
+        attrs
+        |> Map.drop(["hooks", "slots", "settings_schema", "settings_tabs"])
+        |> Map.put("manifest", manifest)
 
       case %Extension{} |> Extension.changeset(ext_attrs) |> Repo.insert() do
         {:ok, ext} ->
