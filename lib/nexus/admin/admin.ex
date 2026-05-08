@@ -294,6 +294,24 @@ defmodule Nexus.Admin do
       "send_time"                => "08:00",
       "weekly_day"               => "monday",
       "monthly_day"              => 1
+    },
+    "pwa" => %{
+      "app_name"         => nil,
+      "short_name"       => nil,
+      "theme_color"      => nil,
+      "bg_color"         => nil,
+      "start_url"        => "/",
+      "force_portrait"   => false,
+      "vapid_public"     => nil,
+      "vapid_private"    => nil,
+      "badge_url"        => nil,
+      "icon_48_path"     => nil,
+      "icon_96_path"     => nil,
+      "icon_144_path"    => nil,
+      "icon_180_path"    => nil,
+      "icon_192_path"    => nil,
+      "icon_384_path"    => nil,
+      "icon_512_path"    => nil
     }
   }
 

@@ -140,6 +140,10 @@ defmodule NexusWeb.Router do
     post   "/push/subscribe",   PushController, :subscribe
     delete "/push/subscribe",   PushController, :unsubscribe
 
+    # PWA — VAPID public key (authenticated so we know the user exists,
+    # but not admin-only — needed when subscribing regular users)
+    get    "/pwa/vapid-public-key", PwaController, :vapid_public_key
+
     # Notifications
     get  "/notifications",          NotificationController, :index
     get  "/notifications/unread",   NotificationController, :unread
@@ -258,12 +262,27 @@ defmodule NexusWeb.Router do
     get    "/digest/settings",         DigestController, :get_settings
     patch  "/digest/settings",         DigestController, :update_settings
     post   "/digest/test",             DigestController, :send_test
+
+    # PWA (admin)
+    post   "/pwa/vapid",               PwaController, :generate_vapid
+    post   "/pwa/icons",               PwaController, :upload_icons
+    delete "/pwa/icons",               PwaController, :delete_icons
+    post   "/pwa/badge",               PwaController, :upload_badge
+    delete "/pwa/badge",               PwaController, :delete_badge
   end
 
   # Public slot endpoint
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through :api
     get "/slots/:slot", ExtensionController, :slots
+  end
+
+  # Dynamic web app manifest — served before the SPA catch-all.
+  # manifest.json has been removed from static_paths in nexus_web.ex so
+  # Plug.Static no longer intercepts it, allowing this route to serve it.
+  scope "/", NexusWeb.API.V1 do
+    pipe_through :api
+    get "/manifest.json", PwaController, :manifest
   end
 
   if Application.compile_env(:nexus, :dev_routes) do
