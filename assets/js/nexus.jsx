@@ -308,6 +308,27 @@ function RefPreviewPopup() {
 }
 
 // ── API ──────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// PWA install prompt
+// beforeinstallprompt fires before any React renders, so we capture it here
+// at module scope and expose it via window so Sidebar can read it reactively.
+// ---------------------------------------------------------------------------
+window._installPrompt = null;
+window._installPromptListeners = [];
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  window._installPrompt = e;
+  window._installPromptListeners.forEach(fn => fn(e));
+});
+window.addEventListener("appinstalled", () => {
+  window._installPrompt = null;
+  window._installPromptListeners.forEach(fn => fn(null));
+});
+window.onInstallPromptChange = function(fn) {
+  window._installPromptListeners.push(fn);
+  return () => { window._installPromptListeners = window._installPromptListeners.filter(f => f !== fn); };
+};
+
 const api = {
   token: localStorage.getItem("nexus_token"),
   refreshing: false,
