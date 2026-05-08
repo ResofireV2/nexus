@@ -2399,12 +2399,15 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
       <div className="rw-label">spaces by pulse</div>
         {sorted.slice(0,5).map(s=>{
           const col=spaceColor(s);
-          const w=Math.max(8, Math.round((s.post_count||0)/max*100));
+          const w=Math.max(4, Math.round((s.post_count||0)/max*100));
           return (
-            <div key={s.id} className="pulse-row">
-              <div className="p-name"><i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center"}}></i>{s.name.slice(0,7)}</div>
-              <div className="p-bar-wrap"><div className="p-bar" style={{width:`${w}%`,background:col}}></div></div>
-              <div className="p-count" style={{color:col}}>{s.post_count||0}</div>
+            <div key={s.id} style={{padding:"5px 0"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
+                <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+                <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
+              </div>
+              <div className="p-bar-wrap"><div className="p-bar" style={{width:`${w}%`,background:col}}/></div>
             </div>
           );
         })}
