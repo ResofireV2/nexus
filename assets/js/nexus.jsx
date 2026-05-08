@@ -2350,7 +2350,134 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
-function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate}) {
+// ── Post page contextual sidebar ──────────────────────────────────────────────
+function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWidget}) {
+  const [post,    setPost]    = useState(null);
+  const [author,  setAuthor]  = useState(null);
+  const [related, setRelated] = useState([]);
+  const [participants, setParticipants] = useState([]);
+
+  useEffect(()=>{
+    if(!postId) return;
+    setPost(null); setAuthor(null); setRelated([]); setParticipants([]);
+
+    // Load post for space + author info
+    api.get(`/posts/${postId}`).then(d=>{
+      const p = d.post;
+      if(!p) return;
+      setPost(p);
+
+      // Load author profile
+      if(p.user?.username) {
+        api.get(`/users/${p.user.username}`).then(ud=>{
+          if(ud.user) setAuthor(ud.user);
+        }).catch(()=>{});
+      }
+
+      // Load related posts in same space
+      if(p.space?.slug) {
+        api.get(`/feed?space=${p.space.slug}&sort=latest&limit=4`).then(fd=>{
+          const others = (fd.posts||[]).filter(r=>r.id!==postId).slice(0,4);
+          setRelated(others);
+        }).catch(()=>{});
+      }
+    }).catch(()=>{});
+
+    // Load replies for participants
+    api.get(`/posts/${postId}/replies`).then(d=>{
+      const replies = d.replies||[];
+      // Unique users who replied, excluding post author
+      const seen = new Set();
+      const people = [];
+      replies.forEach(r=>{
+        if(r.user && !seen.has(r.user.id)) {
+          seen.add(r.user.id);
+          people.push(r.user);
+        }
+      });
+      setParticipants(people.slice(0,12));
+    }).catch(()=>{});
+  },[postId]);
+
+  const col = post?.space ? spaceColor(post.space) : "var(--ac)";
+
+  return <>
+    {/* Author card */}
+    {author&&(
+      <div className="rw">
+        <div className="rw-label">posted by</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}
+          onClick={()=>navigate("profile",{username:author.username})}>
+          {author.avatar_url
+            ?<img src={author.avatar_url} style={{width:38,height:38,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={author.username}/>
+            :<div style={{width:38,height:38,borderRadius:"var(--av-radius)",background:spaceColor({id:author.id}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:500,color:"#fff",flexShrink:0}}>{(author.username||"?").slice(0,2).toUpperCase()}</div>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{author.username}</div>
+            {author.role&&author.role!=="member"&&<div style={{fontSize:10,color:"var(--ac)",textTransform:"capitalize"}}>{author.role}</div>}
+          </div>
+        </div>
+        {author.bio&&<div style={{fontSize:12,color:"var(--t4)",lineHeight:1.55,marginBottom:10}}>{author.bio.slice(0,120)}{author.bio.length>120?"…":""}</div>}
+        <div style={{display:"flex",gap:16}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:14,fontWeight:500,color:"var(--t2)"}}>{author.post_count||0}</div>
+            <div style={{fontSize:10,color:"var(--t5)"}}>posts</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:14,fontWeight:500,color:"var(--t2)"}}>{author.reply_count||0}</div>
+            <div style={{fontSize:10,color:"var(--t5)"}}>replies</div>
+          </div>
+          {author.reactions_received>0&&<div style={{textAlign:"center"}}>
+            <div style={{fontSize:14,fontWeight:500,color:"var(--ac)"}}>{author.reactions_received}</div>
+            <div style={{fontSize:10,color:"var(--t5)"}}>reactions</div>
+          </div>}
+        </div>
+      </div>
+    )}
+
+    {/* Participants */}
+    {participants.length>0&&(
+      <div className="rw">
+        <div className="rw-label">participants · {participants.length}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+          {participants.map(u=>(
+            <div key={u.id} title={u.username} style={{cursor:"pointer"}}
+              onClick={()=>navigate("profile",{username:u.username})}>
+              {u.avatar_url
+                ?<img src={u.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1px solid rgba(255,255,255,0.08)"}} alt={u.username}/>
+                :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:spaceColor({id:u.id}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:500,color:"#fff"}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Related posts in same space */}
+    {related.length>0&&post?.space&&(
+      <div className="rw">
+        <div className="rw-label">more in {post.space.name}</div>
+        {related.map(r=>(
+          <div key={r.id} onClick={()=>navigate("post",{id:r.id})}
+            style={{padding:"7px 0",borderBottom:"0.5px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:8}}>
+            <div style={{width:3,height:"100%",minHeight:32,borderRadius:2,background:col,flexShrink:0,alignSelf:"stretch"}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:500,color:"var(--t2)",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{r.title}</div>
+              <div style={{fontSize:10,color:"var(--t5)",marginTop:3,display:"flex",gap:6}}>
+                <span>{r.reply_count||0} replies</span>
+                <span>·</span>
+                <span>{ago(r.inserted_at)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* Live activity — from global widgets */}
+    {liveActivityWidget}
+  </>;
+}
+
+function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate, page, pageProps}) {
   const [stats, setStats] = useState({members:0, threads:0});
   const [myRank, setMyRank] = useState(null);
   const [, forceWidgetUpdate] = useState(0);
@@ -2425,6 +2552,17 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
     </div>
   );
   var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
+
+  // Post page gets its own contextual sidebar
+  if(page === "post" && pageProps?.id) {
+    return (
+      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
+        <PostSidebar postId={pageProps.id} currentUser={currentUser} navigate={navigate}
+          liveActivityWidget={liveActivityWidget} statsWidget={statsWidget}/>
+      </div>
+    );
+  }
+
   return (
     <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
       {widgets.map(function(w){
@@ -10065,7 +10203,7 @@ function App() {
             <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
-            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate}/>
+            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
           </div>
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
@@ -10080,7 +10218,7 @@ function App() {
             {renderPage()}
           </div>
         </div>
-        <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate}/>
+        <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
       </div>
       </div>
       {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
