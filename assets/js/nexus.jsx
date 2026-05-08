@@ -1494,8 +1494,15 @@ window._smHover = function(idx) {
   });
 };
 
-function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null}) {
+function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null}) {
   toolbarItems = toolbarItems || _activeToolbar || null;
+  const toolbarLinkedGames = linkedGames || [];
+  const toolbarSetLinkedGames = setLinkedGames || (() => {});
+  const [, forceUpdate] = React.useReducer(x => x+1, 0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onToolbarChange(() => forceUpdate());
+    return unsub;
+  }, []);
   const taRef = useRef(); const wrapRef = useRef();
   const imgInputRef = useRef();
   const [uploading, setUploading] = useState(false);
@@ -1655,6 +1662,10 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
               </button>
         )}
         <div style={{flex:1}}/>
+        {/* Extension toolbar buttons */}
+        {window.NexusExtensions && window.NexusExtensions.getToolbarButtons().map(({component: Btn}, i) => (
+          <Btn key={i} linkedGames={toolbarLinkedGames} setLinkedGames={toolbarSetLinkedGames} postId={null} />
+        ))}
         <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
           <i className="fa-regular fa-eye" style={{fontSize:12}}/>
         </button>
@@ -3083,7 +3094,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
           </div>
         </div>
         <div className="comp-body-area">
-          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser}/>
+          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames}/>
         </div>
         {/* Extension toolbar buttons (e.g. Gamepedia game picker) */}
         <ExtensionToolbar linkedGames={linkedGames} setLinkedGames={setLinkedGames} postId={null} />
