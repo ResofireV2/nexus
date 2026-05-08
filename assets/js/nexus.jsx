@@ -1735,6 +1735,10 @@ function AuthPage({onLogin}) {
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
   const [installPrompt, setInstallPrompt] = useState(window._installPrompt||null);
+  const [installDismissed, setInstallDismissed] = useState(false);
+  // Only show on mobile — beforeinstallprompt fires on desktop Chrome too
+  // but "Add to home screen" only makes sense on a mobile device.
+  const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   useEffect(()=>{
     setBranding({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name});
     onBrandingChange(b=>setBranding({logo_url:b.logo_url, site_name:b.site_name}));
@@ -1763,6 +1767,28 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           :<span className="logo-text">{branding.site_name||<>nexus<em>.</em></>}</span>}
       </div>
       <div className="sb-scroll">
+        {installPrompt&&isMobileDevice&&!installDismissed&&(
+          <div style={{margin:"8px 12px 4px",background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:10,padding:"9px 14px",display:"flex",alignItems:"center",gap:10}}>
+            <i className="fa-solid fa-mobile-screen" style={{fontSize:14,color:"var(--ac)",flexShrink:0}}/>
+            <button
+              style={{flex:1,background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,color:"var(--ac-text)",fontWeight:500,textAlign:"left",padding:0}}
+              onClick={async()=>{
+                if(!installPrompt) return;
+                installPrompt.prompt();
+                await installPrompt.userChoice;
+                setInstallPrompt(null);
+                window._installPrompt=null;
+              }}>
+              Add to home screen
+            </button>
+            <button
+              onClick={()=>setInstallDismissed(true)}
+              style={{background:"none",border:"none",cursor:"pointer",color:"var(--t4)",fontSize:15,padding:"0 2px",lineHeight:1,flexShrink:0,fontFamily:"inherit"}}
+              title="Dismiss">
+              ✕
+            </button>
+          </div>
+        )}
         {(()=>{
           // Ordered sections from layout config
           var savedSections = layoutCfg.sidebar_sections;
@@ -1833,22 +1859,6 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
         {currentUser?.role==="admin"&&<>
           <SbItem icon="fa-gear" label="Admin Panel" targetPage="admin"/>
         </>}
-        {installPrompt&&(
-          <div style={{padding:"8px 12px"}}>
-            <button
-              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderRadius:10,background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",cursor:"pointer",fontFamily:"inherit",fontSize:13,color:"var(--ac-text)",fontWeight:500}}
-              onClick={async()=>{
-                if(!installPrompt) return;
-                installPrompt.prompt();
-                await installPrompt.userChoice;
-                setInstallPrompt(null);
-                window._installPrompt=null;
-              }}>
-              <i className="fa-solid fa-mobile-screen" style={{fontSize:14,color:"var(--ac)",width:18,textAlign:"center"}}/>
-              Add to home screen
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
