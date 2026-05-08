@@ -8023,7 +8023,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           <button className="mob-icon-btn" onClick={()=>setMobAdminNavOpen(false)}><i className="fa-solid fa-xmark"/></button>
         </div>
         <div className="admin-topbar" style={{borderBottom:"0.5px solid var(--b1)"}}>
-          <span className="logo-text">nexus<em>.</em></span>
+          {_brandingState.logo_url
+            ? <img src={_brandingState.logo_url} style={{height:28,maxWidth:120,objectFit:"contain"}} alt={_brandingState.site_name||"nexus"}/>
+            : <span className="logo-text">{_brandingState.site_name||<>nexus<em>.</em></>}</span>}
           <div className="admin-badge"><i className="fa-solid fa-shield-halved" style={{fontSize:13}}></i>administration</div>
         </div>
         <div className="admin-sidenav-scroll">
