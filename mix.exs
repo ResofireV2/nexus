@@ -73,6 +73,7 @@ defmodule Nexus.MixProject do
       {:bandit, "~> 1.5"},
       {:swoosh, "~> 1.16"},
       {:gen_smtp, "~> 1.2"},
+      {:tzdata, "~> 1.1"},
 
       # Dev/test
       {:faker, "~> 0.18", only: [:dev, :test]},

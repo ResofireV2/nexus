@@ -60,8 +60,12 @@ defmodule Nexus.Digest do
     target_minute = String.to_integer(m_str)
 
     now_local =
-      DateTime.utc_now()
-      |> DateTime.shift_zone!(tz)
+      try do
+        DateTime.utc_now()
+        |> DateTime.shift_zone!(tz)
+      rescue
+        _ -> DateTime.utc_now()
+      end
 
     hour_match   = now_local.hour == target_hour && now_local.minute < 60
     minute_match = now_local.minute >= target_minute && now_local.minute < target_minute + 60

@@ -14,7 +14,9 @@ config :nexus, NexusWeb.Endpoint,
   pubsub_server: Nexus.PubSub,
   live_view: [signing_salt: "nexus_lv_salt"]
 
-config :nexus, Nexus.Mailer, adapter: Swoosh.Adapters.Local
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+
+
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
