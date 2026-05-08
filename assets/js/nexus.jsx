@@ -822,6 +822,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-tag{font-size:9px;font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px;}
 .thread-tags-row{display:none;}
 .thread-top-tags{display:contents;}
+.thread-preview{font-size:12px;color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;}
 .av-stack{display:flex;}
 .pav{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:500;color:#fff;margin-right:-6px;flex-shrink:0;}
 .pav-more{background:rgba(255,255,255,0.08);color:var(--t4);font-size:8px;}
