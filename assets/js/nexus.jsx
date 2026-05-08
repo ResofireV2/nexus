@@ -6594,6 +6594,33 @@ function AdminExtensionsPanel() {
   const [installUrl, setInstallUrl]     = useState("");
   const [installError, setInstallError] = useState(null);
   const [filter, setFilter]             = useState("");          // search/filter string
+  const [readme, setReadme]             = useState(null);        // { item, content, loading, error }
+
+  // Derive the raw README URL from a GitHub homepage URL.
+  // https://github.com/owner/repo  →  https://raw.githubusercontent.com/owner/repo/HEAD/README.md
+  // Also handles readme_url field if the extension supplies one directly.
+  const readmeUrl = (item) => {
+    if(item.readme_url) return item.readme_url;
+    if(!item.homepage) return null;
+    const m = item.homepage.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+?)(\/.*)?$/);
+    if(!m) return null;
+    return `https://raw.githubusercontent.com/${m[1]}/HEAD/README.md`;
+  };
+
+  const openReadme = async (item, e) => {
+    e.stopPropagation();
+    const url = readmeUrl(item);
+    if(!url) return;
+    setReadme({ item, content: null, loading: true, error: null });
+    try {
+      const r = await fetch(url);
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      const text = await r.text();
+      setReadme({ item, content: text, loading: false, error: null });
+    } catch(err) {
+      setReadme({ item, content: null, loading: false, error: "Could not load README." });
+    }
+  };
 
   useEffect(()=>{ loadExtensions(); loadStore(); },[]);
 
@@ -6869,22 +6896,34 @@ function AdminExtensionsPanel() {
 
                     {/* Action row */}
                     <div style={{display:"flex",gap:8,marginTop:"auto",paddingTop:12,
-                      borderTop:"0.5px solid var(--b1)"}}>
+                      borderTop:"0.5px solid var(--b1)",flexWrap:"wrap"}}>
+                      {/* GitHub button — always shown if homepage exists */}
                       {item.homepage&&(
                         <a href={item.homepage} target="_blank" rel="noopener"
-                          style={{fontSize:11,padding:"5px 10px",borderRadius:8,
-                            border:"0.5px solid var(--b1)",color:"var(--t4)",
-                            textDecoration:"none",display:"flex",alignItems:"center",gap:5,flexShrink:0}}
-                          onClick={e=>e.stopPropagation()}>
-                          <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:9}}/>
-                          Repo
+                          onClick={e=>e.stopPropagation()}
+                          style={{fontSize:12,padding:"6px 12px",borderRadius:8,
+                            border:"0.5px solid var(--b1)",color:"var(--t3)",
+                            textDecoration:"none",display:"flex",alignItems:"center",
+                            gap:6,flexShrink:0,fontFamily:"inherit",background:"none",
+                            cursor:"pointer"}}>
+                          <i className="fa-brands fa-github" style={{fontSize:13}}/>
+                          GitHub
                         </a>
+                      )}
+                      {/* View Readme button — shown if we can derive a README URL */}
+                      {readmeUrl(item)&&(
+                        <button
+                          onClick={e=>openReadme(item,e)}
+                          style={{fontSize:12,padding:"6px 12px",borderRadius:8,
+                            border:"0.5px solid var(--b1)",color:"var(--t3)",
+                            background:"none",cursor:"pointer",fontFamily:"inherit",
+                            display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                          <i className="fa-solid fa-file-lines" style={{fontSize:12}}/>
+                          View Readme
+                        </button>
                       )}
                       <div style={{flex:1}}/>
                       {isInstalled?(
-                        // Extension is self-contained — settings live in its own
-                        // admin panel registered via registerAdminPanel(), accessible
-                        // from the sidebar under "installed extensions".
                         window.NexusExtensions.getAdminPanels().some(p=>p.slug===item.slug)&&(
                           <span style={{fontSize:11,color:"var(--t5)",display:"flex",
                             alignItems:"center",gap:5}}>
@@ -6911,6 +6950,65 @@ function AdminExtensionsPanel() {
             })}
           </div>
         </>
+      )}
+
+      {/* README modal */}
+      {readme&&(
+        <div
+          onClick={()=>setReadme(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",
+            zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",
+            padding:24}}>
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{background:"var(--s2)",border:"0.5px solid var(--b2)",
+              borderRadius:16,width:"100%",maxWidth:760,
+              maxHeight:"85vh",display:"flex",flexDirection:"column",
+              overflow:"hidden"}}>
+            {/* Modal header */}
+            <div style={{display:"flex",alignItems:"center",gap:12,
+              padding:"16px 20px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+              {readme.item.logo_url&&(
+                <img src={readme.item.logo_url} alt=""
+                  style={{width:28,height:28,borderRadius:6,objectFit:"cover",flexShrink:0}}/>
+              )}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{readme.item.name}</div>
+                <div style={{fontSize:11,color:"var(--t5)"}}>README.md</div>
+              </div>
+              {readme.item.homepage&&(
+                <a href={readme.item.homepage} target="_blank" rel="noopener"
+                  style={{fontSize:11,padding:"4px 10px",borderRadius:7,
+                    border:"0.5px solid var(--b1)",color:"var(--t4)",
+                    textDecoration:"none",display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                  <i className="fa-brands fa-github" style={{fontSize:12}}/>
+                  GitHub
+                </a>
+              )}
+              <button onClick={()=>setReadme(null)}
+                style={{background:"none",border:"none",color:"var(--t4)",
+                  fontSize:18,cursor:"pointer",padding:"0 4px",lineHeight:1,flexShrink:0}}>
+                ✕
+              </button>
+            </div>
+            {/* Modal body */}
+            <div style={{flex:1,overflowY:"auto",padding:"24px 28px"}}>
+              {readme.loading&&(
+                <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+                  <i className="fa-solid fa-spinner fa-spin" style={{fontSize:20,marginBottom:10,display:"block"}}/>
+                  Loading README…
+                </div>
+              )}
+              {readme.error&&(
+                <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+                  <i className="fa-solid fa-triangle-exclamation" style={{fontSize:20,marginBottom:10,display:"block",color:"var(--amber)"}}/>
+                  {readme.error}
+                </div>
+              )}
+              {readme.content&&<Md text={readme.content}/>}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

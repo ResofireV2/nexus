@@ -73,6 +73,7 @@ my-extension/
 | `logo_url`   | Square icon shown on the extension card. Recommended 200×200px, PNG/WebP. Displayed at 48×48px with rounded corners. |
 | `banner_url` | Wide hero image shown at the top of the extension card. Recommended 800×400px, PNG/WebP/JPEG. Displayed at full card width, 120px tall, `object-fit: cover`. |
 | `categories` | Array of category strings shown as tags on the card, e.g. `["games", "integrations"]`. Keep to 1–4 short labels. |
+| `readme_url` | Direct URL to a raw README markdown file. If omitted, Nexus automatically derives it from `homepage` for GitHub repos. Only needed if your README lives at a non-standard path. |
 
 Both image URLs must be publicly accessible with no authentication. Host them alongside your JS bundle.
 
