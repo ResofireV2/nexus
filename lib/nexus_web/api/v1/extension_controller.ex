@@ -18,13 +18,47 @@ defmodule NexusWeb.API.V1.ExtensionController do
   end
 
   # POST /api/v1/admin/extensions
+  # Installs from a raw manifest map (used by the store one-click install)
   def install(conn, params) do
     case Extensions.install_extension(params) do
       {:ok, ext} ->
         conn |> put_status(:created) |> json(%{extension: extension_json(ext)})
 
-      {:error, changeset} ->
+      {:error, changeset} when is_struct(changeset, Ecto.Changeset) ->
         conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+
+      {:error, reason} when is_binary(reason) ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+    end
+  end
+
+  # POST /api/v1/admin/extensions/install-from-url
+  # Installs from a GitHub URL or any direct manifest.json URL
+  def install_from_url(conn, %{"url" => url}) do
+    case Extensions.install_from_url(url) do
+      {:ok, ext} ->
+        conn |> put_status(:created) |> json(%{extension: extension_json(ext)})
+
+      {:error, reason} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+    end
+  end
+
+  # GET /api/v1/admin/extensions/store
+  # Fetches the community extension registry
+  def store(conn, params) do
+    registry_url = params["registry_url"]
+
+    result =
+      if registry_url && registry_url != "" do
+        Extensions.fetch_store(registry_url)
+      else
+        Extensions.fetch_store()
+      end
+
+    case result do
+      {:ok, entries}  -> json(conn, %{extensions: entries})
+      {:error, reason} -> conn |> put_status(:bad_gateway) |> json(%{error: reason})
     end
   end
 
@@ -62,23 +96,46 @@ defmodule NexusWeb.API.V1.ExtensionController do
     end
   end
 
-  # GET /api/v1/slots/:slot
+  # GET /api/v1/slots/:slot  (public — no auth required)
   def slots(conn, %{"slot" => slot}) do
     components = Extensions.slots_for(slot)
     json(conn, %{slot: slot, components: components})
   end
 
+  # GET /api/v1/slots/all  (public — returns all unique JS bundle URLs for enabled extensions)
+  def slots_all(conn, _params) do
+    bundles =
+      Extensions.list_extensions()
+      |> Enum.filter(& &1.enabled && &1.js_bundle_url)
+      |> Enum.map(& &1.js_bundle_url)
+      |> Enum.uniq()
+
+    json(conn, %{bundles: bundles})
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------------------------
+
   defp extension_json(ext) do
+    manifest = ext.manifest || %{}
+
     %{
-      id: ext.id,
-      name: ext.name,
-      slug: ext.slug,
-      version: ext.version,
-      description: ext.description,
-      author: ext.author,
-      homepage: ext.homepage,
-      enabled: ext.enabled,
-      settings: ext.settings,
+      id:             ext.id,
+      name:           ext.name,
+      slug:           ext.slug,
+      version:        ext.version,
+      description:    ext.description,
+      author:         ext.author,
+      homepage:       ext.homepage,
+      enabled:        ext.enabled,
+      settings:       ext.settings,
+      webhook_url:    ext.webhook_url,
+      js_bundle_url:  ext.js_bundle_url,
+      manifest_url:   ext.manifest_url,
+      # Expose schema so admin UI can render settings forms automatically
+      settings_schema: manifest["settings_schema"] || %{},
+      settings_tabs:   manifest["settings_tabs"]   || [],
       hooks: Enum.map(ext.hooks, fn h ->
         %{id: h.id, event: h.event, handler: h.handler, priority: h.priority, enabled: h.enabled}
       end),

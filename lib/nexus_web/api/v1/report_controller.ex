@@ -8,7 +8,8 @@ defmodule NexusWeb.API.V1.ReportController do
     attrs = Map.put(params, "reporter_id", conn.assigns.current_user.id)
 
     case Moderation.create_report(attrs) do
-      {:ok, _report} ->
+      {:ok, report} ->
+        Task.start(fn -> Nexus.Extensions.fire("report_created", %{report_id: report.id}) end)
         conn |> put_status(:created) |> json(%{ok: true})
 
       {:error, changeset} ->

@@ -62,7 +62,9 @@ defmodule NexusWeb.API.V1.PostController do
         if can_edit?(user, post) do
           tag_ids = Map.get(params, "tag_ids")
           case Forum.update_post(post, params, tag_ids) do
-            {:ok, updated} -> json(conn, %{post: post_json(updated)})
+            {:ok, updated} ->
+              Task.start(fn -> Nexus.Extensions.fire("post_updated", %{post_id: updated.id}) end)
+              json(conn, %{post: post_json(updated)})
             {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
           end
         else
@@ -107,6 +109,7 @@ defmodule NexusWeb.API.V1.PostController do
       post ->
         if can_edit?(user, post) do
           {:ok, _} = Forum.delete_post(post)
+          Task.start(fn -> Nexus.Extensions.fire("post_deleted", %{post_id: post.id}) end)
           json(conn, %{ok: true})
         else
           conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})

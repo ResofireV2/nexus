@@ -1,12 +1,11 @@
 defmodule Nexus.Extensions do
   @moduledoc """
-  The Extensions context. Manages installed extensions, hooks, and slots.
+  The Extensions context. Manages installed extensions, webhooks, and UI slots.
 
-  Extensions are Elixir modules that implement the Nexus.Extensions.Extension behaviour.
-  They register themselves via the extension registry and can:
-    - Subscribe to hooks (events fired by core)
-    - Inject components into UI slots
-    - Register custom content blocks
+  Extensions are installed from a manifest.json hosted on GitHub or any URL.
+  Backend hooks fire as authenticated HTTP POST requests to the extension's
+  webhook_url. Frontend slots are loaded from the extension's js_bundle_url
+  at runtime in the browser — no recompile required.
   """
 
   import Ecto.Query
@@ -67,9 +66,41 @@ defmodule Nexus.Extensions do
   def get_extension_by_slug(slug), do: Repo.get_by(Extension, slug: slug) |> Repo.preload([:hooks, :slots])
 
   def install_extension(attrs) do
-    %Extension{}
-    |> Extension.changeset(attrs)
-    |> Repo.insert()
+    Repo.transaction(fn ->
+      ext_attrs = Map.drop(attrs, ["hooks", "slots", "settings_schema", "settings_tabs"])
+
+      case %Extension{} |> Extension.changeset(ext_attrs) |> Repo.insert() do
+        {:ok, ext} ->
+          # Register hooks
+          for hook <- Map.get(attrs, "hooks", []) do
+            %Hook{}
+            |> Hook.changeset(%{
+              extension_id: ext.id,
+              event:        hook["event"],
+              handler:      hook["event"],  # for webhook model handler == event name
+              priority:     hook["priority"] || 50
+            })
+            |> Repo.insert!()
+          end
+
+          # Register slots
+          for slot <- Map.get(attrs, "slots", []) do
+            %Slot{}
+            |> Slot.changeset(%{
+              extension_id: ext.id,
+              slot:         slot["slot"],
+              component:    slot["component"] || ext.slug,
+              priority:     slot["priority"] || 50
+            })
+            |> Repo.insert!()
+          end
+
+          Repo.preload(ext, [:hooks, :slots])
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
   def uninstall_extension(%Extension{} = ext) do
@@ -89,32 +120,103 @@ defmodule Nexus.Extensions do
   end
 
   # ---------------------------------------------------------------------------
-  # Hook system
+  # GitHub / URL install
+  #
+  # Fetches a manifest.json from a GitHub repo URL or any raw URL,
+  # parses it, and installs the extension.
+  #
+  # Accepts URLs in these forms:
+  #   https://github.com/owner/repo
+  #   https://github.com/owner/repo/tree/main
+  #   https://raw.githubusercontent.com/owner/repo/main/manifest.json
   # ---------------------------------------------------------------------------
 
-  @doc """
-  Fire a hook event. All enabled extensions subscribed to this event
-  will have their handler called with the payload.
-  """
+  def install_from_url(url) when is_binary(url) do
+    raw_url = to_raw_manifest_url(url)
+
+    with {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
+         {:ok, manifest} <- parse_manifest(body),
+         :ok             <- validate_manifest(manifest) do
+
+      attrs = Map.merge(manifest, %{"manifest_url" => url})
+      install_extension(attrs)
+    else
+      {:ok, %{status: status}} ->
+        {:error, "Could not fetch manifest (HTTP #{status}). Check the URL is correct and the repo is public."}
+
+      {:error, %{reason: reason}} ->
+        {:error, "Network error fetching manifest: #{inspect(reason)}"}
+
+      {:error, reason} when is_binary(reason) ->
+        {:error, reason}
+
+      {:error, reason} ->
+        {:error, "Failed to install extension: #{inspect(reason)}"}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Store — fetch the community registry
+  # ---------------------------------------------------------------------------
+
+  @registry_url "https://cdn.jsdelivr.net/gh/nexus-community/extensions@main/registry.json"
+
+  def fetch_store(registry_url \\ @registry_url) do
+    case Req.get(registry_url, receive_timeout: 15_000) do
+      {:ok, %{status: 200, body: body}} ->
+        entries = cond do
+          is_list(body)              -> body
+          is_map(body)               -> Map.get(body, "extensions", [])
+          is_binary(body)            ->
+            case Jason.decode(body) do
+              {:ok, %{"extensions" => list}} -> list
+              {:ok, list} when is_list(list) -> list
+              _                              -> []
+            end
+          true -> []
+        end
+
+        # Mark which extensions are already installed
+        installed_slugs =
+          Repo.all(from e in Extension, select: e.slug)
+          |> MapSet.new()
+
+        enriched =
+          Enum.map(entries, fn entry ->
+            Map.put(entry, "installed", MapSet.member?(installed_slugs, entry["slug"]))
+          end)
+
+        {:ok, enriched}
+
+      {:ok, %{status: status}} ->
+        {:error, "Registry returned HTTP #{status}"}
+
+      {:error, reason} ->
+        {:error, "Could not fetch store: #{inspect(reason)}"}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Hook system — webhook delivery
+  #
+  # Fires an event to all enabled extensions subscribed to it.
+  # Each delivery is a signed HTTP POST to the extension's webhook_url.
+  # Failures are non-fatal and logged as warnings.
+  # ---------------------------------------------------------------------------
+
   def fire(event, payload \\ %{}) when event in @hook_events do
     hooks =
       from(h in Hook,
         join: e in Extension, on: h.extension_id == e.id,
-        where: h.event == ^event and h.enabled == true and e.enabled == true,
+        where: h.event == ^event and h.enabled == true and e.enabled == true
+              and not is_nil(e.webhook_url),
         order_by: [asc: h.priority],
         preload: :extension
       )
       |> Repo.all()
 
     for hook <- hooks do
-      Task.start(fn ->
-        try do
-          module = String.to_existing_atom(hook.handler)
-          apply(module, :handle, [event, payload, hook.extension])
-        rescue
-          e -> require Logger; Logger.warning("Extension hook error: #{inspect(e)}")
-        end
-      end)
+      Task.start(fn -> deliver_webhook(hook.extension, event, payload) end)
     end
 
     :ok
@@ -126,10 +228,6 @@ defmodule Nexus.Extensions do
   # Slot system
   # ---------------------------------------------------------------------------
 
-  @doc """
-  Get all enabled components registered for a UI slot,
-  ordered by priority. Used by the frontend layout engine.
-  """
   def slots_for(slot_name) when slot_name in @ui_slots do
     from(s in Slot,
       join: e in Extension, on: s.extension_id == e.id,
@@ -140,7 +238,8 @@ defmodule Nexus.Extensions do
         slot: s.slot,
         component: s.component,
         priority: s.priority,
-        extension_slug: e.slug
+        extension_slug: e.slug,
+        js_bundle_url: e.js_bundle_url
       }
     )
     |> Repo.all()
@@ -148,10 +247,6 @@ defmodule Nexus.Extensions do
 
   def slots_for(_), do: []
 
-  @doc """
-  Get all slot assignments across all slots.
-  Used by the admin panel to show what extensions are doing.
-  """
   def all_slot_assignments do
     from(s in Slot,
       join: e in Extension, on: s.extension_id == e.id,
@@ -170,28 +265,111 @@ defmodule Nexus.Extensions do
   end
 
   # ---------------------------------------------------------------------------
-  # Hook registration helpers (called during extension install)
+  # Legacy hook registration helpers (kept for compatibility)
   # ---------------------------------------------------------------------------
 
   def register_hook(extension_id, event, handler, priority \\ 50) do
     %Hook{}
-    |> Hook.changeset(%{
-      extension_id: extension_id,
-      event: event,
-      handler: handler,
-      priority: priority
-    })
+    |> Hook.changeset(%{extension_id: extension_id, event: event,
+                        handler: handler, priority: priority})
     |> Repo.insert()
   end
 
   def register_slot(extension_id, slot, component, priority \\ 50) do
     %Slot{}
-    |> Slot.changeset(%{
-      extension_id: extension_id,
-      slot: slot,
-      component: component,
-      priority: priority
-    })
+    |> Slot.changeset(%{extension_id: extension_id, slot: slot,
+                        component: component, priority: priority})
     |> Repo.insert()
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private — webhook delivery
+  # ---------------------------------------------------------------------------
+
+  defp deliver_webhook(extension, event, payload) do
+    body = %{
+      event:      event,
+      payload:    payload,
+      settings:   extension.settings,
+      extension:  extension.slug,
+      timestamp:  DateTime.utc_now() |> DateTime.to_unix()
+    }
+
+    secret    = extension.settings["webhook_secret"]
+    body_json = Jason.encode!(body)
+
+    headers = [
+      {"Content-Type", "application/json"},
+      {"X-Nexus-Event", event},
+      {"X-Nexus-Extension", extension.slug}
+    ]
+
+    headers =
+      if secret do
+        sig = :crypto.mac(:hmac, :sha256, secret, body_json) |> Base.encode16(case: :lower)
+        [{"X-Nexus-Signature", "sha256=#{sig}"} | headers]
+      else
+        headers
+      end
+
+    case Req.post(extension.webhook_url,
+           body: body_json,
+           headers: headers,
+           receive_timeout: 10_000) do
+      {:ok, %{status: status}} when status in 200..299 ->
+        :ok
+
+      {:ok, %{status: status}} ->
+        require Logger
+        Logger.warning("Webhook for #{extension.slug} returned HTTP #{status} on event #{event}")
+
+      {:error, reason} ->
+        require Logger
+        Logger.warning("Webhook delivery failed for #{extension.slug} on event #{event}: #{inspect(reason)}")
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private — manifest helpers
+  # ---------------------------------------------------------------------------
+
+  defp to_raw_manifest_url(url) do
+    cond do
+      # Already a raw githubusercontent URL
+      String.contains?(url, "raw.githubusercontent.com") ->
+        url
+
+      # GitHub repo URL — convert to raw manifest URL
+      String.contains?(url, "github.com") ->
+        url
+        |> String.replace("https://github.com/", "https://raw.githubusercontent.com/")
+        |> String.replace("/tree/", "/")
+        |> String.trim_trailing("/")
+        |> Kernel.<>("/manifest.json")
+
+      # Assume direct URL to manifest.json
+      true ->
+        url
+    end
+  end
+
+  defp parse_manifest(body) when is_map(body), do: {:ok, body}
+  defp parse_manifest(body) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, map} -> {:ok, map}
+      {:error, _} -> {:error, "manifest.json is not valid JSON"}
+    end
+  end
+  defp parse_manifest(_), do: {:error, "Unexpected manifest format"}
+
+  defp validate_manifest(manifest) do
+    required = ["name", "slug", "version"]
+    missing  = Enum.filter(required, &(not Map.has_key?(manifest, &1)))
+
+    if missing == [] do
+      :ok
+    else
+      {:error, "manifest.json is missing required fields: #{Enum.join(missing, ", ")}"}
+    end
   end
 end

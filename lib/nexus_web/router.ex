@@ -8,7 +8,6 @@ defmodule NexusWeb.Router do
     plug :put_root_layout, html: {NexusWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug NexusWeb.Plugs.PwaSettings
   end
 
   pipeline :api do
@@ -89,7 +88,6 @@ defmodule NexusWeb.Router do
     get "/users/:username/reactions",  UserContentController, :reactions
     get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
-    get "/pwa/vapid-public-key",   PwaController,    :vapid_public_key
     get "/badges",                 BadgeController,  :index
     get "/leaderboard",            LeaderboardController, :index
   end
@@ -233,12 +231,15 @@ defmodule NexusWeb.Router do
     delete "/spaces/:slug",       SpaceController, :delete
 
     # Extensions
-    get    "/extensions",                ExtensionController, :index
-    get    "/extensions/:slug",          ExtensionController, :show
-    post   "/extensions",                ExtensionController, :install
-    post   "/extensions/:slug/toggle",   ExtensionController, :toggle
-    patch  "/extensions/:slug/settings", ExtensionController, :update_settings
-    delete "/extensions/:slug",          ExtensionController, :uninstall
+    get    "/extensions",                    ExtensionController, :index
+    get    "/extensions/store",              ExtensionController, :store
+    get    "/slots/all",                     ExtensionController, :slots_all
+    get    "/extensions/:slug",              ExtensionController, :show
+    post   "/extensions",                    ExtensionController, :install
+    post   "/extensions/install-from-url",   ExtensionController, :install_from_url
+    post   "/extensions/:slug/toggle",       ExtensionController, :toggle
+    patch  "/extensions/:slug/settings",     ExtensionController, :update_settings
+    delete "/extensions/:slug",              ExtensionController, :uninstall
 
     # Badges (admin)
     get    "/badges",                  BadgeController, :admin_index
@@ -260,27 +261,12 @@ defmodule NexusWeb.Router do
     get    "/digest/settings",         DigestController, :get_settings
     patch  "/digest/settings",         DigestController, :update_settings
     post   "/digest/test",             DigestController, :send_test
-
-    # PWA (admin)
-    post   "/pwa/vapid",               PwaController, :generate_vapid
-    post   "/pwa/icons",               PwaController, :upload_icons
-    delete "/pwa/icons",               PwaController, :delete_icons
-    post   "/pwa/badge",               PwaController, :upload_badge
-    delete "/pwa/badge",               PwaController, :delete_badge
   end
 
   # Public slot endpoint
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through :api
     get "/slots/:slot", ExtensionController, :slots
-  end
-
-  # Dynamic web app manifest — served before the SPA catch-all.
-  # manifest.json has been removed from static_paths in nexus_web.ex so
-  # Plug.Static no longer intercepts it, allowing this route to serve it.
-  scope "/", NexusWeb.API.V1 do
-    pipe_through :api
-    get "/manifest.json", PwaController, :manifest
   end
 
   if Application.compile_env(:nexus, :dev_routes) do

@@ -374,6 +374,51 @@ const api = {
   delete: (p,b) => api.request("DELETE", p, b),
 };
 
+// ── Extension slot registry ──────────────────────────────────────────────────
+// Extensions register UI slot components here at runtime via their JS bundle.
+// Usage from extension bundle:
+//   window.NexusExtensions.registerSlot("feed_sidebar", MyComponent, 50);
+window.NexusExtensions = {
+  _slots: {},
+  _listeners: [],
+
+  registerSlot(slotName, component, priority = 50) {
+    if (!this._slots[slotName]) this._slots[slotName] = [];
+    this._slots[slotName].push({component, priority});
+    this._slots[slotName].sort((a, b) => a.priority - b.priority);
+    this._listeners.forEach(fn => fn(slotName));
+  },
+
+  getSlot(slotName) {
+    return this._slots[slotName] || [];
+  },
+
+  onChange(fn) {
+    this._listeners.push(fn);
+    return () => { this._listeners = this._listeners.filter(f => f !== fn); };
+  }
+};
+
+// Load all enabled extension JS bundles declared in slot assignments.
+// Each bundle is a plain ES module that calls NexusExtensions.registerSlot().
+async function loadExtensionBundles() {
+  try {
+    const d = await fetch("/api/v1/slots/all");
+    if (!d.ok) return;
+    const {bundles} = await d.json();
+    for (const url of (bundles || [])) {
+      try {
+        await import(/* @vite-ignore */ url);
+      } catch (e) {
+        console.warn("Failed to load extension bundle:", url, e);
+      }
+    }
+  } catch {}
+}
+
+// Run after initial render so it doesn't block the app
+setTimeout(loadExtensionBundles, 500);
+
 // ── Global CSS ───────────────────────────────────────────────────────────────
 const S = document.createElement("style");
 S.textContent = `
@@ -5792,6 +5837,538 @@ function AdminBadgesPanel() {
     </div>
   );
 }
+
+// ── Extension Settings Form ───────────────────────────────────────────────────
+// Renders a settings form from settings_schema + settings_tabs declared in manifest.
+// No template = "No settings" message.
+// Has schema but no tabs = simple single-page form.
+// Has settings_tabs = tabbed form matching the PWA admin panel style.
+function ExtensionSettingsForm({ext, onSaved}) {
+  const schema = ext.settings_schema || {};
+  const tabs   = ext.settings_tabs   || [];
+  const [vals, setVals] = useState({...ext.settings});
+  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState(tabs[0]?.key || null);
+
+  const hasSchema = Object.keys(schema).length > 0;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const d = await api.patch(`/admin/extensions/${ext.slug}/settings`, {settings: vals});
+      if(d.extension) { onSaved(d.extension); toast("Settings saved"); }
+      else toast(d.error || "Failed to save", "err");
+    } finally { setSaving(false); }
+  };
+
+  const renderField = (key) => {
+    const field = schema[key];
+    if(!field) return null;
+    const val = vals[key] ?? field.default ?? "";
+    const set = v => setVals(p => ({...p, [key]: v}));
+
+    return (
+      <F key={key} label={field.label || key} hint={field.hint}>
+        {field.type === "boolean" && (
+          <div className="toggle-row" style={{marginBottom:0}}>
+            <div/>
+            <div className="tgl" style={{background:val?"var(--ac)":"rgba(255,255,255,0.1)"}}
+              onClick={()=>set(!val)}>
+              <div className="tgl-knob" style={{left:val?23:3,background:val?"#fff":"rgba(255,255,255,0.4)"}}/>
+            </div>
+          </div>
+        )}
+        {field.type === "select" && (
+          <select className="fi" value={val} onChange={e=>set(e.target.value)}>
+            {(field.options||[]).map(o=>(
+              <option key={o.value??o} value={o.value??o}>{o.label??o}</option>
+            ))}
+          </select>
+        )}
+        {field.type === "text" && (
+          <textarea className="fi" rows={4} value={val}
+            onChange={e=>set(e.target.value)}
+            placeholder={field.placeholder||""}/>
+        )}
+        {field.type === "number" && (
+          <input className="fi" type="number" style={{maxWidth:160}} value={val}
+            onChange={e=>set(Number(e.target.value))}
+            placeholder={field.placeholder||""}/>
+        )}
+        {field.type === "color" && (
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <input className="fi" value={val} onChange={e=>set(e.target.value)}
+              placeholder="#000000" style={{maxWidth:140}}/>
+            <input type="color" value={val||"#000000"} onChange={e=>set(e.target.value)}
+              style={{width:36,height:36,border:"none",borderRadius:6,cursor:"pointer",background:"none"}}/>
+          </div>
+        )}
+        {(!field.type || field.type === "string") && (
+          <input className="fi" type={field.secret?"password":"text"} value={val}
+            onChange={e=>set(e.target.value)}
+            placeholder={field.placeholder||""}
+            required={field.required}/>
+        )}
+      </F>
+    );
+  };
+
+  if(!hasSchema) return (
+    <div style={{padding:"32px 0",textAlign:"center",color:"var(--t5)"}}>
+      <i className="fa-solid fa-sliders" style={{fontSize:24,opacity:.3,marginBottom:10,display:"block"}}/>
+      This extension has no configurable settings.
+    </div>
+  );
+
+  if(tabs.length > 0) return (
+    <div>
+      <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:"0.5px solid var(--b1)",paddingBottom:0}}>
+        {tabs.map(t=>(
+          <button key={t.key} onClick={()=>setActiveTab(t.key)}
+            style={{display:"flex",alignItems:"center",gap:7,padding:"8px 14px",borderRadius:"8px 8px 0 0",
+              background:activeTab===t.key?"var(--s3)":"transparent",
+              border:activeTab===t.key?"0.5px solid var(--b1)":"0.5px solid transparent",
+              borderBottom:activeTab===t.key?"0.5px solid var(--s3)":"none",
+              color:activeTab===t.key?"var(--t1)":"var(--t4)",
+              cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500,marginBottom:-1}}>
+            {t.icon&&<i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>}
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tabs.map(t=>activeTab===t.key&&(
+        <div key={t.key}>
+          {(t.fields||[]).map(key=>renderField(key))}
+        </div>
+      ))}
+      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
+          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {Object.keys(schema).map(key=>renderField(key))}
+      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
+          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Extension Detail Panel ────────────────────────────────────────────────────
+function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
+  const [ext, setExt] = useState(initialExt);
+  const [confirmUninstall, setConfirmUninstall] = useState(false);
+
+  const toggle = async () => {
+    const d = await api.post(`/admin/extensions/${ext.slug}/toggle`);
+    if(d.extension) { setExt(d.extension); onToggle(d.extension); }
+  };
+
+  const uninstall = async () => {
+    const d = await api.delete(`/admin/extensions/${ext.slug}`);
+    if(d.ok) { toast(`${ext.name} uninstalled`); onUninstall(ext.slug); }
+    else toast(d.error||"Failed","err");
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+        <button onClick={onBack}
+          style={{background:"none",border:"none",cursor:"pointer",color:"var(--t4)",
+            fontSize:18,padding:"0 4px",display:"flex",alignItems:"center"}}>
+          <i className="fa-solid fa-arrow-left"/>
+        </button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:17,fontWeight:600,color:"var(--t1)"}}>{ext.name}</div>
+          <div style={{fontSize:12,color:"var(--t5)"}}>v{ext.version} by {ext.author}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {ext.homepage&&(
+            <a href={ext.homepage} target="_blank" rel="noopener"
+              style={{fontSize:12,color:"var(--t4)",textDecoration:"none",display:"flex",
+                alignItems:"center",gap:5,padding:"5px 10px",border:"0.5px solid var(--b1)",
+                borderRadius:8}}>
+              <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:10}}/>
+              Repo
+            </a>
+          )}
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",
+            background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:8}}>
+            <span style={{fontSize:12,color:"var(--t4)"}}>
+              {ext.enabled?"Enabled":"Disabled"}
+            </span>
+            <div className="tgl" style={{background:ext.enabled?"var(--ac)":"rgba(255,255,255,0.1)"}}
+              onClick={toggle}>
+              <div className="tgl-knob" style={{left:ext.enabled?23:3,
+                background:ext.enabled?"#fff":"rgba(255,255,255,0.4)"}}/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      {ext.description&&(
+        <div style={{fontSize:13,color:"var(--t3)",marginBottom:20,lineHeight:1.6}}>
+          {ext.description}
+        </div>
+      )}
+
+      {/* Hook + slot summary */}
+      {(ext.hooks?.length > 0 || ext.slots?.length > 0) && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
+          {ext.hooks?.map(h=>(
+            <div key={h.id} style={{fontSize:11,padding:"3px 10px",borderRadius:20,
+              background:"rgba(167,139,250,0.08)",border:"0.5px solid rgba(167,139,250,0.2)",
+              color:"#c4b5fd"}}>
+              <i className="fa-solid fa-bolt" style={{fontSize:9,marginRight:5}}/>
+              {h.event}
+            </div>
+          ))}
+          {ext.slots?.map(s=>(
+            <div key={s.id} style={{fontSize:11,padding:"3px 10px",borderRadius:20,
+              background:"rgba(52,211,153,0.08)",border:"0.5px solid rgba(52,211,153,0.2)",
+              color:"#6ee7b7"}}>
+              <i className="fa-solid fa-puzzle-piece" style={{fontSize:9,marginRight:5}}/>
+              {s.slot}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Settings form */}
+      <div className="fgt" style={{marginBottom:16}}>Settings</div>
+      <ExtensionSettingsForm ext={ext} onSaved={updated=>setExt(updated)}/>
+
+      {/* Danger zone */}
+      <div style={{marginTop:32,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--red)",marginBottom:12}}>Danger zone</div>
+        {!confirmUninstall
+          ? <button onClick={()=>setConfirmUninstall(true)}
+              style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(239,68,68,0.08)",
+                border:"0.5px solid rgba(239,68,68,0.3)",color:"var(--red)",cursor:"pointer",
+                fontFamily:"inherit"}}>
+              Uninstall extension
+            </button>
+          : <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:13,color:"var(--t3)"}}>
+                Remove {ext.name} and all its settings?
+              </span>
+              <button onClick={uninstall}
+                style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                  background:"var(--red)",border:"none",color:"#fff",
+                  cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                Confirm uninstall
+              </button>
+              <button onClick={()=>setConfirmUninstall(false)}
+                style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                  background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
+                  cursor:"pointer",fontFamily:"inherit"}}>
+                Cancel
+              </button>
+            </div>}
+      </div>
+    </div>
+  );
+}
+
+// ── Admin Extensions Panel ────────────────────────────────────────────────────
+function AdminExtensionsPanel() {
+  const [view, setView]               = useState("list"); // list | detail | install | store
+  const [extensions, setExtensions]   = useState(null);
+  const [selected, setSelected]       = useState(null);
+  const [storeItems, setStoreItems]   = useState(null);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeError, setStoreError]   = useState(null);
+  const [installUrl, setInstallUrl]   = useState("");
+  const [installing, setInstalling]   = useState(false);
+  const [installError, setInstallError] = useState(null);
+  const [storeInstalling, setStoreInstalling] = useState(null);
+
+  useEffect(()=>{ loadExtensions(); },[]);
+
+  const loadExtensions = () => {
+    api.get("/admin/extensions").then(d=>{
+      setExtensions(d.extensions||[]);
+    });
+  };
+
+  const loadStore = () => {
+    setStoreLoading(true); setStoreError(null);
+    api.get("/admin/extensions/store").then(d=>{
+      if(d.extensions) setStoreItems(d.extensions);
+      else setStoreError(d.error||"Failed to load store");
+    }).catch(()=>setStoreError("Network error"))
+    .finally(()=>setStoreLoading(false));
+  };
+
+  const installFromUrl = async () => {
+    if(!installUrl.trim()) return;
+    setInstalling(true); setInstallError(null);
+    const d = await api.post("/admin/extensions/install-from-url", {url: installUrl.trim()});
+    if(d.extension) {
+      toast(`${d.extension.name} installed`);
+      setInstallUrl("");
+      loadExtensions();
+      setView("list");
+    } else {
+      setInstallError(d.error||"Installation failed");
+    }
+    setInstalling(false);
+  };
+
+  const installFromStore = async (item) => {
+    setStoreInstalling(item.slug);
+    const d = await api.post("/admin/extensions/install-from-url",
+      {url: item.manifest_url});
+    if(d.extension) {
+      toast(`${d.extension.name} installed`);
+      loadExtensions();
+      setStoreItems(prev=>prev.map(s=>
+        s.slug===item.slug ? {...s, installed:true} : s
+      ));
+    } else {
+      toast(d.error||"Installation failed","err");
+    }
+    setStoreInstalling(null);
+  };
+
+  if(view==="detail"&&selected) return (
+    <ExtensionDetail
+      ext={selected}
+      onBack={()=>{setSelected(null);setView("list");}}
+      onToggle={updated=>setExtensions(prev=>
+        prev.map(e=>e.slug===updated.slug?updated:e)
+      )}
+      onUninstall={slug=>{
+        setExtensions(prev=>prev.filter(e=>e.slug!==slug));
+        setView("list");
+      }}
+    />
+  );
+
+  return (
+    <div>
+      {/* Top bar */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
+        <div>
+          <div style={{fontSize:17,fontWeight:600,color:"var(--t1)"}}>Extensions</div>
+          <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>
+            {extensions===null?"Loading…":`${extensions.length} installed`}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setView("install");setInstallError(null);}}
+            style={{fontSize:12,padding:"7px 14px",borderRadius:8,
+              background:"var(--s3)",border:"0.5px solid var(--b1)",
+              color:"var(--t2)",cursor:"pointer",fontFamily:"inherit",
+              display:"flex",alignItems:"center",gap:6}}>
+            <i className="fa-solid fa-link" style={{fontSize:11}}/>
+            Install from URL
+          </button>
+          <button onClick={()=>{setView("store");if(!storeItems)loadStore();}}
+            style={{fontSize:12,padding:"7px 14px",borderRadius:8,
+              background:"var(--ac)",border:"none",
+              color:"#fff",cursor:"pointer",fontFamily:"inherit",
+              display:"flex",alignItems:"center",gap:6}}>
+            <i className="fa-solid fa-store" style={{fontSize:11}}/>
+            Browse store
+          </button>
+        </div>
+      </div>
+
+      {/* Install from URL */}
+      {view==="install"&&(
+        <div style={{marginBottom:24,padding:20,background:"var(--s3)",
+          border:"0.5px solid var(--b1)",borderRadius:12}}>
+          <div style={{fontSize:14,fontWeight:500,color:"var(--t1)",marginBottom:4}}>
+            Install from GitHub or URL
+          </div>
+          <div style={{fontSize:12,color:"var(--t5)",marginBottom:14}}>
+            Paste a GitHub repo URL or a direct link to a manifest.json file.
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <input className="fi" style={{flex:1}} value={installUrl}
+              onChange={e=>setInstallUrl(e.target.value)}
+              placeholder="https://github.com/someone/nexus-my-extension"
+              onKeyDown={e=>e.key==="Enter"&&installFromUrl()}/>
+            <button className="btn-primary" style={{fontSize:13,padding:"7px 18px",flexShrink:0}}
+              onClick={installFromUrl} disabled={installing||!installUrl.trim()}>
+              {installing?"Installing…":"Install"}
+            </button>
+            <button onClick={()=>{setView("list");setInstallError(null);}}
+              style={{fontSize:12,padding:"7px 12px",borderRadius:8,background:"none",
+                border:"0.5px solid var(--b1)",color:"var(--t4)",cursor:"pointer",
+                fontFamily:"inherit",flexShrink:0}}>
+              Cancel
+            </button>
+          </div>
+          {installError&&(
+            <div style={{fontSize:12,color:"var(--red)",marginTop:10}}>{installError}</div>
+          )}
+        </div>
+      )}
+
+      {/* Store browse */}
+      {view==="store"&&(
+        <div style={{marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <button onClick={()=>setView("list")}
+              style={{background:"none",border:"none",cursor:"pointer",color:"var(--t4)",
+                fontSize:16,padding:"0 4px"}}>
+              <i className="fa-solid fa-arrow-left"/>
+            </button>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Extension store</div>
+            <button onClick={loadStore}
+              style={{marginLeft:"auto",fontSize:11,padding:"4px 10px",borderRadius:6,
+                background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
+                cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5}}>
+              <i className="fa-solid fa-rotate-right" style={{fontSize:10}}/>
+              Refresh
+            </button>
+          </div>
+          {storeLoading&&(
+            <div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
+              <i className="fa-solid fa-spinner fa-spin" style={{fontSize:20,marginBottom:10,display:"block"}}/>
+              Loading store…
+            </div>
+          )}
+          {storeError&&(
+            <div style={{padding:16,background:"rgba(239,68,68,0.06)",border:"0.5px solid rgba(239,68,68,0.2)",
+              borderRadius:10,fontSize:13,color:"var(--red)"}}>
+              {storeError}
+            </div>
+          )}
+          {storeItems&&storeItems.length===0&&(
+            <div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
+              No extensions in the store yet.
+            </div>
+          )}
+          {storeItems&&storeItems.length>0&&(
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {storeItems.map(item=>(
+                <div key={item.slug}
+                  style={{padding:"14px 16px",background:"var(--s3)",
+                    border:"0.5px solid var(--b1)",borderRadius:12,
+                    display:"flex",alignItems:"center",gap:14}}>
+                  <div style={{width:40,height:40,borderRadius:10,
+                    background:"linear-gradient(135deg,rgba(167,139,250,0.15),rgba(52,211,153,0.1))",
+                    border:"0.5px solid var(--b1)",display:"flex",alignItems:"center",
+                    justifyContent:"center",flexShrink:0}}>
+                    <i className="fa-solid fa-puzzle-piece" style={{fontSize:16,color:"var(--ac)"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:500,color:"var(--t1)",marginBottom:2}}>
+                      {item.name}
+                    </div>
+                    <div style={{fontSize:12,color:"var(--t5)",
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {item.description}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--t5)",marginTop:3}}>
+                      by {item.author}
+                      {item.installs&&<> · {item.installs} installs</>}
+                    </div>
+                  </div>
+                  {item.installed
+                    ? <div style={{fontSize:12,color:"var(--green)",display:"flex",
+                        alignItems:"center",gap:5,flexShrink:0}}>
+                        <i className="fa-solid fa-circle-check"/>Installed
+                      </div>
+                    : <button
+                        onClick={()=>installFromStore(item)}
+                        disabled={storeInstalling===item.slug}
+                        style={{fontSize:12,padding:"6px 16px",borderRadius:8,
+                          background:"var(--ac)",border:"none",color:"#fff",
+                          cursor:"pointer",fontFamily:"inherit",fontWeight:500,
+                          flexShrink:0,opacity:storeInstalling===item.slug?0.6:1}}>
+                        {storeInstalling===item.slug?"Installing…":"Install"}
+                      </button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Installed extensions list */}
+      {(view==="list"||view==="install")&&(
+        <>
+          {extensions===null&&(
+            <div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
+              <i className="fa-solid fa-spinner fa-spin" style={{fontSize:20}}/>
+            </div>
+          )}
+          {extensions&&extensions.length===0&&(
+            <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+              <i className="fa-solid fa-puzzle-piece"
+                style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}/>
+              <div style={{fontSize:14,marginBottom:6}}>No extensions installed</div>
+              <div style={{fontSize:12}}>
+                Browse the store or install from a GitHub URL to get started.
+              </div>
+            </div>
+          )}
+          {extensions&&extensions.length>0&&(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {extensions.map(ext=>(
+                <div key={ext.slug}
+                  style={{padding:"12px 16px",background:"var(--s3)",
+                    border:"0.5px solid var(--b1)",borderRadius:12,
+                    display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}
+                  onClick={()=>{setSelected(ext);setView("detail");}}>
+                  <div style={{width:36,height:36,borderRadius:8,
+                    background:"linear-gradient(135deg,rgba(167,139,250,0.12),rgba(52,211,153,0.08))",
+                    border:"0.5px solid var(--b1)",display:"flex",alignItems:"center",
+                    justifyContent:"center",flexShrink:0}}>
+                    <i className="fa-solid fa-puzzle-piece"
+                      style={{fontSize:14,color:ext.enabled?"var(--ac)":"var(--t5)"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>
+                      {ext.name}
+                      <span style={{fontSize:11,color:"var(--t5)",fontWeight:400,marginLeft:8}}>
+                        v{ext.version}
+                      </span>
+                    </div>
+                    <div style={{fontSize:12,color:"var(--t5)",
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {ext.description||"No description"}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                    {ext.hooks?.length>0&&(
+                      <span style={{fontSize:11,color:"var(--t5)"}}>
+                        <i className="fa-solid fa-bolt" style={{fontSize:9,marginRight:3}}/>
+                        {ext.hooks.length}
+                      </span>
+                    )}
+                    {ext.slots?.length>0&&(
+                      <span style={{fontSize:11,color:"var(--t5)"}}>
+                        <i className="fa-solid fa-puzzle-piece" style={{fontSize:9,marginRight:3}}/>
+                        {ext.slots.length}
+                      </span>
+                    )}
+                    <div style={{width:8,height:8,borderRadius:"50%",
+                      background:ext.enabled?"var(--green)":"rgba(255,255,255,0.2)"}}/>
+                    <i className="fa-solid fa-chevron-right"
+                      style={{fontSize:11,color:"var(--t5)"}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── iOS Install Prompt ───────────────────────────────────────────────────────
 // Shows a sticky footer on Safari/iOS guiding users through the manual
 // Add to Home Screen flow. Controlled by site_settings["pwa"].
@@ -6882,6 +7459,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
           {sec==="layout"&&<LayoutAdmin layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
           {(sec==="logs")&&<AdminLogsPanel/>}
+          {(sec==="extensions")&&<AdminExtensionsPanel/>}
 
           {(sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
             <i className="fa-solid fa-tools" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}></i>

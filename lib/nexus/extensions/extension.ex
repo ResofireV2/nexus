@@ -3,15 +3,21 @@ defmodule Nexus.Extensions.Extension do
   import Ecto.Changeset
 
   schema "extensions" do
-    field :name,        :string
-    field :slug,        :string
-    field :version,     :string
-    field :description, :string
-    field :author,      :string
-    field :homepage,    :string
-    field :enabled,     :boolean, default: true
-    field :settings,    :map, default: %{}
-    field :manifest,    :map, default: %{}
+    field :name,          :string
+    field :slug,          :string
+    field :version,       :string
+    field :description,   :string
+    field :author,        :string
+    field :homepage,      :string
+    field :enabled,       :boolean, default: true
+    field :settings,      :map, default: %{}
+    field :manifest,      :map, default: %{}
+
+    # Webhook + JS bundle — the core of the new extensibility model
+    field :webhook_url,   :string
+    field :js_bundle_url, :string
+    field :manifest_url,  :string
+    field :install_count, :integer, default: 0
 
     has_many :hooks, Nexus.Extensions.Hook
     has_many :slots, Nexus.Extensions.Slot
@@ -21,9 +27,14 @@ defmodule Nexus.Extensions.Extension do
 
   def changeset(ext, attrs) do
     ext
-    |> cast(attrs, [:name, :slug, :version, :description, :author, :homepage, :enabled, :settings, :manifest])
+    |> cast(attrs, [:name, :slug, :version, :description, :author, :homepage,
+                    :enabled, :settings, :manifest, :webhook_url, :js_bundle_url,
+                    :manifest_url, :install_count])
     |> validate_required([:name, :slug, :version])
     |> validate_format(:slug, ~r/^[a-z0-9\-]+$/, message: "only lowercase letters, numbers, and hyphens")
+    |> validate_format(:webhook_url,   ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
+    |> validate_format(:js_bundle_url, ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
+    |> validate_format(:manifest_url,  ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> unique_constraint(:slug)
   end
 

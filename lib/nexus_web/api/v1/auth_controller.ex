@@ -15,6 +15,7 @@ defmodule NexusWeb.API.V1.AuthController do
       {:ok, user} ->
         # Send verification email (non-blocking — failure doesn't stop registration)
         Task.start(fn -> Accounts.send_verification_email(user) end)
+        Task.start(fn -> Nexus.Extensions.fire("user_registered", %{user_id: user.id}) end)
 
         opts = [
           user_agent: get_req_header(conn, "user-agent") |> List.first(),
@@ -63,6 +64,7 @@ defmodule NexusWeb.API.V1.AuthController do
 
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
         %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+        Task.start(fn -> Nexus.Extensions.fire("user_login", %{user_id: user.id}) end)
 
         conn
         |> put_refresh_cookie(tokens.refresh_token, remember_me)
@@ -342,8 +344,7 @@ defmodule NexusWeb.API.V1.AuthController do
       cover_url: user.cover_url,
       email_verified: user.email_verified,
       inserted_at: user.inserted_at,
-      preferences: user.preferences || %{},
-      has_push_subscription: not is_nil(user.push_subscription)
+      preferences: user.preferences || %{}
     }
   end
 

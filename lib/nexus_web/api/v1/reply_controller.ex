@@ -40,6 +40,7 @@ defmodule NexusWeb.API.V1.ReplyController do
               else
                 Nexus.Activity.increment_stat(user.id, :replies_count)
                 Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
+                Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
                 %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
                 %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
 

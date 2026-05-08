@@ -25,6 +25,14 @@ defmodule NexusWeb.API.V1.ReactionController do
           end
           if target, do: Nexus.Notifications.notify_reaction(target, user, params["emoji"])
         end)
+        Task.start(fn ->
+          Nexus.Extensions.fire("reaction_added", %{
+            emoji:    params["emoji"],
+            user_id:  user.id,
+            post_id:  reaction.post_id,
+            reply_id: reaction.reply_id
+          })
+        end)
 
         # Return updated counts and user's current reaction
         reactions = if reaction.post_id do
