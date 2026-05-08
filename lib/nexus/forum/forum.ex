@@ -397,15 +397,6 @@ defmodule Nexus.Forum do
       Post
       |> where([p], p.hidden == false)
       |> preload([:user, :space, :tags])
-      |> join(:left_lateral, [p], lr in fragment("""
-           SELECT r.user_id
-           FROM   replies r
-           WHERE  r.post_id = ? AND r.hidden = false AND r.pending_approval = false
-           ORDER  BY r.inserted_at DESC
-           LIMIT  1
-         """, p.id), on: true, as: :last_reply)
-      |> join(:left, [p, lr: lr], u in Nexus.Accounts.User, on: u.id == lr.user_id, as: :last_reply_user)
-      |> select_merge([p, last_reply_user: u], %{last_reply_user: u})
 
     query = filter_by_space(query, space_slug)
     query = filter_by_tag(query, tag_slug)
@@ -625,5 +616,35 @@ defmodule Nexus.Forum do
         reply_avatar_url:  ru.avatar_url
       }
     )
+  end
+
+  @doc """
+  Returns a map of %{post_id => user} for the most recent non-hidden reply
+  on each of the given post IDs. Fetched in a single query.
+  """
+  def last_reply_users(post_ids) when post_ids == [], do: %{}
+  def last_reply_users(post_ids) do
+    # Rank replies per post by inserted_at DESC, then keep rank = 1
+    ranked =
+      from r in Reply,
+        where: r.post_id in ^post_ids and r.hidden == false and r.pending_approval == false,
+        select: %{
+          post_id: r.post_id,
+          user_id: r.user_id,
+          row_num: fragment(
+            "ROW_NUMBER() OVER (PARTITION BY ? ORDER BY ? DESC)",
+            r.post_id, r.inserted_at
+          )
+        }
+
+    results =
+      from(sub in subquery(ranked),
+        where: sub.row_num == 1,
+        join: u in Nexus.Accounts.User, on: u.id == sub.user_id,
+        select: {sub.post_id, %{id: u.id, username: u.username, avatar_url: u.avatar_url}}
+      )
+      |> Repo.all()
+
+    Map.new(results)
   end
 end
