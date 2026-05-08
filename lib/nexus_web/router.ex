@@ -38,6 +38,13 @@ defmodule NexusWeb.Router do
     get "/", PageController, :home
   end
 
+  # PWA manifest — served dynamically from admin settings
+  scope "/", NexusWeb.API.V1 do
+    pipe_through :api
+    get "/manifest.json", PwaController, :manifest
+    get "/pwa/vapid-public-key", PwaController, :vapid_public_key
+  end
+
   # Setup wizard (public - runs before any auth exists)
   scope "/api/v1/setup", NexusWeb.API.V1 do
     pipe_through :api
