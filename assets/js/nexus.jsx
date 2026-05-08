@@ -5864,7 +5864,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
     {k:"general", icon:"fa-cog",          label:"General"},
     {k:"icons",   icon:"fa-image",         label:"Icons"},
     {k:"push",    icon:"fa-bell",          label:"Push"},
-    {k:"apple",   icon:"fa-apple",         label:"Apple"},
+    {k:"apple",   icon:"fa-mobile-screen-button", label:"Apple"},
     {k:"status",  icon:"fa-circle-check",  label:"Status"},
   ];
 
