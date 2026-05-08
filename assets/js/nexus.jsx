@@ -3620,7 +3620,12 @@ function NotificationsPage({navigate, onCountChange}) {
     toast("All marked as read");
   };
   const deleteAll=async()=>{if(!confirm("Delete all notifications?"))return;await api.delete("/notifications");setNotifs([]);onCountChange?.(0);toast("Notifications cleared");};
-  const deleteOne=async(e,id)=>{e.stopPropagation();await api.delete(`/notifications/${id}`);setNotifs(p=>{const next=p.filter(n=>n.id!==id);updateCount(next);return next;});};
+  const deleteOne=async(e,id)=>{
+    e.stopPropagation();
+    // Remove optimistically so the badge updates immediately
+    setNotifs(p=>{const next=p.filter(n=>n.id!==id);updateCount(next);return next;});
+    api.delete(`/notifications/${id}`).catch(()=>{});
+  };
   const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement",badge:"you earned a badge"};
   const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal"};
   const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)"};
@@ -3635,8 +3640,11 @@ function NotificationsPage({navigate, onCountChange}) {
   };
   const handleClick  = async n => {
     if(!n.read){
-      await api.patch(`/notifications/${n.id}/read`,{});
+      // Update count and mark as read optimistically — before the API call
+      // and before navigating away, so the badge decrements immediately.
       setNotifs(p=>{const next=p.map(x=>x.id===n.id?{...x,read:true}:x);updateCount(next);return next;});
+      // Fire-and-forget — we don't need to wait for this
+      api.patch(`/notifications/${n.id}/read`,{}).catch(()=>{});
     }
     const extType = window.NexusExtensions.getNotifType(n.type);
     if (extType?.onClick) { extType.onClick({ n, navigate }); return; }
