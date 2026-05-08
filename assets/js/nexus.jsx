@@ -820,7 +820,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-top{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
 .thread-title{font-size:14px;font-weight:500;color:#e8e4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 .thread-tag{font-size:9px;font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px;}
-.thread-preview{font-size:12px;color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;}
+.thread-tags-row{display:none;}
+.thread-top-tags{display:contents;}
 .av-stack{display:flex;}
 .pav{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:500;color:#fff;margin-right:-6px;flex-shrink:0;}
 .pav-more{background:rgba(255,255,255,0.08);color:var(--t4);font-size:8px;}
@@ -867,8 +868,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Feed thread cards */
 .thread-top{flex-wrap:wrap;}
-.thread-title{width:100%;flex-shrink:0;margin-bottom:2px;}
-.thread-tag{margin-top:0;}
+.thread-title{width:100%;flex-shrink:0;white-space:normal;overflow:visible;text-overflow:unset;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px;}
+.thread-top-tags{display:none;}
+.thread-tags-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;}
 .thread-body{min-width:0;}
 .thread-meta{flex-direction:column;align-items:flex-end;gap:2px;}
 .meta-div{display:none;}
@@ -2568,6 +2570,12 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
+                          <div className="thread-top-tags">
+                            {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
+                            {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
+                          </div>
+                        </div>
+                        <div className="thread-tags-row">
                           {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
