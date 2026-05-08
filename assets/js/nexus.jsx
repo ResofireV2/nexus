@@ -378,11 +378,14 @@ const api = {
 // Extensions register UI slot components here at runtime via their JS bundle.
 // Usage from extension bundle:
 //   window.NexusExtensions.registerSlot("feed_sidebar", MyComponent, 50);
+//   window.NexusExtensions.registerRoute("/my-ext/users/:username", MyPage);
 window.NexusExtensions = {
   _slots: {},
   _listeners: [],
   _toolbarButtons: [],
   _toolbarListeners: [],
+  _routes: [],
+  _routeListeners: [],
 
   registerSlot(slotName, component, priority = 50) {
     if (!this._slots[slotName]) this._slots[slotName] = [];
@@ -415,7 +418,54 @@ window.NexusExtensions = {
   onToolbarChange(fn) {
     this._toolbarListeners.push(fn);
     return () => { this._toolbarListeners = this._toolbarListeners.filter(f => f !== fn); };
-  }
+  },
+
+  // Register a full-page route for the SPA.
+  // pattern: string like "/my-ext/users/:username" — colon-prefixed segments
+  //          become named params passed as props to the component.
+  // component: React component receiving ({ navigate, currentUser, ...params })
+  // options: { title } — optional page title shown in the back-header
+  // Usage from extension bundle:
+  //   window.NexusExtensions.registerRoute("/gamepedia/users/:username", GamelogPage, { title: "Gamelog" });
+  registerRoute(pattern, component, options = {}) {
+    // Convert "/foo/:bar/:baz" → a regex that captures named groups
+    const keys = [];
+    const regexStr = pattern.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) => {
+      keys.push(k);
+      return "([^/]+)";
+    });
+    const regex = new RegExp("^" + regexStr + "$");
+    this._routes.push({ pattern, regex, keys, component, options });
+    this._routeListeners.forEach(fn => fn());
+  },
+
+  // Match a pathname against registered extension routes.
+  // Returns { component, params, options } or null.
+  matchRoute(pathname) {
+    for (const route of this._routes) {
+      const m = pathname.match(route.regex);
+      if (m) {
+        const params = {};
+        route.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
+        return { component: route.component, params, options: route.options, pattern: route.pattern };
+      }
+    }
+    return null;
+  },
+
+  // Reconstruct a URL for a registered route by filling in param values.
+  // window.NexusExtensions.routeUrl("/gamepedia/users/:username", { username: "alice" })
+  // → "/gamepedia/users/alice"
+  routeUrl(pattern, params = {}) {
+    return pattern.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) =>
+      params[k] !== undefined ? encodeURIComponent(params[k]) : `:${k}`
+    );
+  },
+
+  onRouteChange(fn) {
+    this._routeListeners.push(fn);
+    return () => { this._routeListeners = this._routeListeners.filter(f => f !== fn); };
+  },
 };
 
 // Load all enabled extension JS bundles declared in slot assignments.
@@ -1231,10 +1281,19 @@ function urlToPage(pathname) {
   if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
   const dmM      = p.match(/^\/messages\/(.+)$/);
   if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
+  // Extension-registered routes — checked last so core routes always win
+  const extRoute = window.NexusExtensions.matchRoute(p);
+  if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
   return {page:"feed", props:{}};
 }
 
 function pageToUrl(page, props={}) {
+  if (page === "ext-route") {
+    // props._match.pattern + props (params) → reconstruct the URL
+    const match = props._match;
+    if (match) return window.NexusExtensions.routeUrl(match.pattern, props);
+    return "/";
+  }
   switch(page) {
     case "feed":          return props.space ? `/space/${props.space}` : "/";
     case "post":          return props.id ? `/post/${props.id}` : "/";
@@ -3550,6 +3609,55 @@ function ProfilePage({username, currentUser, navigate}) {
           )}
 
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Extension route page ──────────────────────────────────────────────────────
+// Generic wrapper rendered when the SPA lands on an extension-registered route.
+// Extensions call:
+//   window.NexusExtensions.registerRoute("/my-ext/users/:username", MyPage, { title: "My Page" });
+// MyPage receives ({ navigate, currentUser, ...params }) where params are the
+// named segments extracted from the URL (e.g. { username: "alice" }).
+//
+// The wrapper provides a standard back-button header using the optional title
+// from the route's options. If the extension bundle hasn't loaded yet it polls
+// briefly and shows a spinner in the meantime.
+function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
+  const [, forceUpdate] = React.useState(0);
+
+  // Re-check once the bundle registers its component (handles race where the
+  // page is navigated to before the bundle finishes loading).
+  React.useEffect(() => {
+    if (_match?.component) return;
+    const id = setInterval(() => {
+      if (window.NexusExtensions.matchRoute(window.location.pathname)?.component) {
+        clearInterval(id);
+        forceUpdate(n => n + 1);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  const Component = _match?.component;
+  const title     = _match?.options?.title || "";
+
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
+        <button className="mob-icon-btn" onClick={()=>window.history.back()} style={{marginRight:8}}>
+          <i className="fa-solid fa-arrow-left"/>
+        </button>
+        {title && <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{title}</span>}
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"0 28px"}}>
+        {Component
+          ? <Component {...params} currentUser={currentUser} navigate={navigate}/>
+          : <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
+              <i className="fa-solid fa-spinner fa-spin" style={{marginRight:6}}/>Loading…
+            </div>
+        }
       </div>
     </div>
   );
@@ -8822,6 +8930,7 @@ function App() {
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
+      case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
       default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;
     }
