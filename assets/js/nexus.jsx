@@ -386,6 +386,8 @@ window.NexusExtensions = {
   _toolbarListeners: [],
   _routes: [],
   _routeListeners: [],
+  _adminPanels: [],
+  _adminPanelListeners: [],
 
   registerSlot(slotName, component, priority = 50) {
     if (!this._slots[slotName]) this._slots[slotName] = [];
@@ -465,6 +467,36 @@ window.NexusExtensions = {
   onRouteChange(fn) {
     this._routeListeners.push(fn);
     return () => { this._routeListeners = this._routeListeners.filter(f => f !== fn); };
+  },
+
+  // Register a custom panel in the admin sidebar under an "extensions" section.
+  // Extensions call this from their bundle:
+  //
+  //   window.NexusExtensions.registerAdminPanel("gamepedia", {
+  //     label: "Gamepedia",
+  //     icon:  "fa-gamepad",          // any FA solid icon class
+  //     component: MyAdminPanel,      // React component — receives no required props
+  //   });
+  //
+  // The panel appears as a nav item in the admin sidebar under a dedicated
+  // "installed extensions" section, below Forum Settings / Manage / System.
+  // Clicking it renders the component in the admin content area.
+  //
+  // For the component, use one of the pre-built templates exposed on
+  // window.NexusExtensionTemplates, or supply a fully custom component.
+  registerAdminPanel(slug, { label, icon = "fa-puzzle-piece", component }) {
+    this._adminPanels = this._adminPanels.filter(p => p.slug !== slug);
+    this._adminPanels.push({ slug, label, icon, component });
+    this._adminPanelListeners.forEach(fn => fn());
+  },
+
+  getAdminPanels() {
+    return this._adminPanels;
+  },
+
+  onAdminPanelChange(fn) {
+    this._adminPanelListeners.push(fn);
+    return () => { this._adminPanelListeners = this._adminPanelListeners.filter(f => f !== fn); };
   },
 };
 
@@ -6272,6 +6304,276 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
   );
 }
 
+// ── Extension admin panel templates ──────────────────────────────────────────
+// Ready-made panel components extension developers can use as-is or compose.
+// Exposed globally on window.NexusExtensionTemplates so bundles can import them
+// without bundling React or any Nexus internals.
+//
+// Usage from an extension bundle:
+//
+//   const { InfoPanel, SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
+//
+//   // No-settings extension — just show name, version, description
+//   window.NexusExtensions.registerAdminPanel("my-ext", {
+//     label: "My Extension", icon: "fa-star",
+//     component: () => React.createElement(InfoPanel, {
+//       name: "My Extension", version: "1.0.0",
+//       description: "Does something useful.",
+//       status: "active",               // "active" | "inactive" | "error"
+//       statusLabel: "Running",
+//       links: [{ label: "Docs", href: "https://..." }],
+//     }),
+//   });
+//
+//   // Simple flat settings — no tabs
+//   window.NexusExtensions.registerAdminPanel("my-ext", {
+//     label: "My Extension", icon: "fa-star",
+//     component: () => React.createElement(SimpleSettingsPanel, {
+//       slug: "my-ext",
+//       fields: [
+//         { key: "api_key",  label: "API Key",  type: "string", secret: true },
+//         { key: "enabled",  label: "Enabled",  type: "boolean" },
+//         { key: "mode",     label: "Mode",     type: "select",
+//           options: [{ value: "fast", label: "Fast" }, { value: "slow", label: "Slow" }] },
+//       ],
+//     }),
+//   });
+//
+//   // Tabbed panel — like the PWA panel
+//   window.NexusExtensions.registerAdminPanel("my-ext", {
+//     label: "My Extension", icon: "fa-star",
+//     component: () => React.createElement(TabbedPanel, {
+//       slug: "my-ext",
+//       tabs: [
+//         { key: "general", label: "General", icon: "fa-gear",
+//           fields: [{ key: "api_key", label: "API Key", type: "string", secret: true }] },
+//         { key: "advanced", label: "Advanced", icon: "fa-sliders",
+//           fields: [{ key: "timeout", label: "Timeout (ms)", type: "number" }] },
+//       ],
+//     }),
+//   });
+
+// InfoPanel — read-only summary card. No settings, no save button.
+// Props: name, version, description, author, status ("active"|"inactive"|"error"),
+//        statusLabel, links [{ label, href }]
+function ExtensionInfoPanel({ name, version, description, author, status="active", statusLabel, links=[] }) {
+  const statusColor = status==="active" ? "var(--green)" : status==="error" ? "var(--red)" : "var(--t5)";
+  const statusDot   = { width:8, height:8, borderRadius:"50%", background:statusColor, flexShrink:0 };
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"flex-start",gap:14,padding:"18px 20px",
+        background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:12,marginBottom:20}}>
+        <div style={{width:44,height:44,borderRadius:10,background:"rgba(167,139,250,0.1)",
+          border:"0.5px solid rgba(167,139,250,0.2)",display:"flex",alignItems:"center",
+          justifyContent:"center",flexShrink:0}}>
+          <i className="fa-solid fa-puzzle-piece" style={{fontSize:18,color:"var(--ac)"}}/>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+            <div style={{fontSize:15,fontWeight:500,color:"var(--t1)"}}>{name}</div>
+            {version&&<div style={{fontSize:11,color:"var(--t5)"}}>v{version}</div>}
+            <div style={{display:"flex",alignItems:"center",gap:5,marginLeft:"auto"}}>
+              <div style={statusDot}/>
+              <span style={{fontSize:12,color:statusColor}}>{statusLabel||status}</span>
+            </div>
+          </div>
+          {author&&<div style={{fontSize:12,color:"var(--t5)",marginBottom:6}}>by {author}</div>}
+          {description&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6}}>{description}</div>}
+        </div>
+      </div>
+      {links.length>0&&(
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {links.map((l,i)=>(
+            <a key={i} href={l.href} target="_blank" rel="noopener"
+              style={{fontSize:12,padding:"5px 12px",borderRadius:8,
+                border:"0.5px solid var(--b1)",color:"var(--t3)",textDecoration:"none",
+                display:"flex",alignItems:"center",gap:5}}>
+              <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:9}}/>
+              {l.label}
+            </a>
+          ))}
+        </div>
+      )}
+      <div style={{marginTop:32,padding:"16px 20px",background:"var(--s3)",
+        border:"0.5px solid var(--b1)",borderRadius:12,
+        fontSize:13,color:"var(--t5)",textAlign:"center"}}>
+        This extension has no configurable settings.
+      </div>
+    </div>
+  );
+}
+
+// Shared field renderer used by both SimpleSettingsPanel and TabbedPanel.
+// Reads/writes from a values object via getValue / setValue callbacks.
+function ExtensionFieldRenderer({ field, value, onChange }) {
+  const { key, label, hint, type, secret, placeholder, options=[], required } = field;
+  const id = `epf-${key}`;
+  return (
+    <div style={{marginBottom:18}}>
+      <label htmlFor={id} style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6,fontWeight:500}}>
+        {label||key}
+        {required&&<span style={{color:"var(--red)",marginLeft:3}}>*</span>}
+      </label>
+      {type==="boolean"&&(
+        <div className="toggle-row" style={{marginBottom:0}}>
+          <div/>
+          <div className="tgl" style={{background:value?"var(--ac)":"rgba(255,255,255,0.1)"}}
+            onClick={()=>onChange(!value)}>
+            <div className="tgl-knob" style={{left:value?23:3,background:value?"#fff":"rgba(255,255,255,0.4)"}}/>
+          </div>
+        </div>
+      )}
+      {type==="select"&&(
+        <select id={id} className="fi" value={value??""} onChange={e=>onChange(e.target.value)}>
+          {options.map(o=>(
+            <option key={o.value??o} value={o.value??o}>{o.label??o}</option>
+          ))}
+        </select>
+      )}
+      {type==="text"&&(
+        <textarea id={id} className="fi" rows={4} value={value??""} placeholder={placeholder||""}
+          onChange={e=>onChange(e.target.value)}/>
+      )}
+      {type==="number"&&(
+        <input id={id} className="fi" type="number" style={{maxWidth:160}} value={value??""}
+          placeholder={placeholder||""} onChange={e=>onChange(Number(e.target.value))}/>
+      )}
+      {type==="color"&&(
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <input id={id} className="fi" value={value??""} placeholder="#000000" style={{maxWidth:140}}
+            onChange={e=>onChange(e.target.value)}/>
+          <input type="color" value={value||"#000000"} onChange={e=>onChange(e.target.value)}
+            style={{width:36,height:36,border:"none",borderRadius:6,cursor:"pointer",background:"none"}}/>
+        </div>
+      )}
+      {(!type||type==="string")&&(
+        <input id={id} className="fi" type={secret?"password":"text"} value={value??""}
+          placeholder={placeholder||""} required={required}
+          onChange={e=>onChange(e.target.value)}/>
+      )}
+      {hint&&<div style={{fontSize:11,color:"var(--t5)",marginTop:5}}>{hint}</div>}
+    </div>
+  );
+}
+
+// Shared save logic for SimpleSettingsPanel and TabbedPanel.
+// POSTs to /api/v1/admin/extensions/:slug/settings.
+function useExtensionSettings(slug, fields) {
+  const allKeys = fields.map(f=>f.key);
+  const [vals, setVals] = React.useState({});
+  const [loaded, setLoaded] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(()=>{
+    if(!slug) return;
+    api.get(`/admin/extensions/${slug}`).then(d=>{
+      const s = d.extension?.settings || {};
+      const init = {};
+      allKeys.forEach(k=>{ init[k] = s[k]??null; });
+      setVals(init);
+      setLoaded(true);
+    }).catch(()=>setLoaded(true));
+  },[slug]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const d = await api.patch(`/admin/extensions/${slug}/settings`, { settings: vals });
+      if(d.extension) toast("Settings saved");
+      else toast(d.error||"Failed to save","err");
+    } finally { setSaving(false); }
+  };
+
+  return { vals, setVals, loaded, saving, save };
+}
+
+// SimpleSettingsPanel — flat list of fields with a single Save button.
+// Props: slug (string), fields (array of field descriptors)
+// Field descriptor: { key, label, type, hint, placeholder, secret, required, options }
+// Supported types: "string" (default), "boolean", "select", "text", "number", "color"
+function SimpleSettingsPanel({ slug, fields=[] }) {
+  const { vals, setVals, loaded, saving, save } = useExtensionSettings(slug, fields);
+
+  if(!loaded) return (
+    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+      <i className="fa-solid fa-spinner fa-spin"/>
+    </div>
+  );
+  if(!fields.length) return (
+    <div style={{padding:"32px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
+      No settings defined for this extension.
+    </div>
+  );
+  return (
+    <div>
+      {fields.map(f=>(
+        <ExtensionFieldRenderer key={f.key} field={f} value={vals[f.key]}
+          onChange={v=>setVals(p=>({...p,[f.key]:v}))}/>
+      ))}
+      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
+          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
+      </div>
+    </div>
+  );
+}
+
+// TabbedPanel — settings split across tabs, like the PWA panel.
+// Props: slug (string), tabs (array of tab descriptors)
+// Tab descriptor: { key, label, icon (FA class, optional), fields[] }
+function TabbedPanel({ slug, tabs=[] }) {
+  const allFields = tabs.flatMap(t=>t.fields||[]);
+  const { vals, setVals, loaded, saving, save } = useExtensionSettings(slug, allFields);
+  const [activeTab, setActiveTab] = React.useState(tabs[0]?.key||"");
+
+  if(!loaded) return (
+    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+      <i className="fa-solid fa-spinner fa-spin"/>
+    </div>
+  );
+  if(!tabs.length) return (
+    <div style={{padding:"32px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
+      No tabs defined for this panel.
+    </div>
+  );
+  const currentTab = tabs.find(t=>t.key===activeTab)||tabs[0];
+  return (
+    <div>
+      <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:"0.5px solid var(--b1)",paddingBottom:0}}>
+        {tabs.map(t=>(
+          <button key={t.key} onClick={()=>setActiveTab(t.key)}
+            style={{display:"flex",alignItems:"center",gap:7,padding:"8px 14px",
+              borderRadius:"8px 8px 0 0",
+              background:activeTab===t.key?"var(--s3)":"transparent",
+              border:activeTab===t.key?"0.5px solid var(--b1)":"0.5px solid transparent",
+              borderBottom:activeTab===t.key?"0.5px solid var(--s3)":"none",
+              color:activeTab===t.key?"var(--t1)":"var(--t4)",
+              cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500,marginBottom:-1}}>
+            {t.icon&&<i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>}
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {(currentTab.fields||[]).map(f=>(
+        <ExtensionFieldRenderer key={f.key} field={f} value={vals[f.key]}
+          onChange={v=>setVals(p=>({...p,[f.key]:v}))}/>
+      ))}
+      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
+          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
+      </div>
+    </div>
+  );
+}
+
+// Expose templates globally so extension bundles can use them without
+// importing React or any Nexus internals directly.
+window.NexusExtensionTemplates = {
+  InfoPanel: ExtensionInfoPanel,
+  SimpleSettingsPanel,
+  TabbedPanel,
+};
+
 // ── Admin Extensions Panel ────────────────────────────────────────────────────
 function AdminExtensionsPanel() {
   const [view, setView]               = useState("list"); // list | detail | install | store
@@ -7002,31 +7304,50 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
   const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");if(key==="appearance")applyBranding(value,general);}finally{setSaving(false);}};
 
+  // Re-render when extension bundles register new admin panels at runtime
+  const [, forceAdminUpdate] = React.useState(0);
+  React.useEffect(()=>{
+    const unsub = window.NexusExtensions.onAdminPanelChange(()=>forceAdminUpdate(n=>n+1));
+    return unsub;
+  },[]);
+
+  const extPanels = window.NexusExtensions.getAdminPanels();
+
   const NAV_SECTIONS = [
     {label:"forum settings", items:[
-      {k:"overview",   icon:"fa-chart-line",     label:"overview"},
-      {k:"forum-info", icon:"fa-circle-info",     label:"forum info"},
-      {k:"appearance", icon:"fa-swatchbook",      label:"appearance"},
-      {k:"layout",     icon:"fa-table-columns",    label:"layout"},
-      {k:"email",      icon:"fa-envelope",        label:"email"},
-      {k:"permissions",icon:"fa-shield",          label:"permissions"},
-      {k:"leaderboard",icon:"fa-trophy",          label:"leaderboard"},
-      {k:"digest",     icon:"fa-envelope-open-text",label:"digest"},
-      {k:"moderation", icon:"fa-lock",            label:"moderation"},
-      {k:"extensions", icon:"fa-plug",            label:"extensions", badge:0},
-      {k:"pwa",        icon:"fa-mobile-screen",    label:"pwa"},
+      {k:"overview",   icon:"fa-chart-line",          label:"overview"},
+      {k:"forum-info", icon:"fa-circle-info",          label:"forum info"},
+      {k:"appearance", icon:"fa-swatchbook",           label:"appearance"},
+      {k:"layout",     icon:"fa-table-columns",         label:"layout"},
+      {k:"email",      icon:"fa-envelope",             label:"email"},
+      {k:"permissions",icon:"fa-shield",               label:"permissions"},
+      {k:"leaderboard",icon:"fa-trophy",               label:"leaderboard"},
+      {k:"digest",     icon:"fa-envelope-open-text",   label:"digest"},
+      {k:"moderation", icon:"fa-lock",                 label:"moderation"},
+      {k:"extensions", icon:"fa-plug",                 label:"extensions", badge:0},
+      {k:"pwa",        icon:"fa-mobile-screen",         label:"pwa"},
     ]},
     {label:"manage", items:[
-      {k:"members",    icon:"fa-users",           label:"members"},
-      {k:"spaces",     icon:"fa-layer-group",     label:"spaces"},
-      {k:"tags",       icon:"fa-tag",             label:"tags"},
-      {k:"badges",     icon:"fa-medal",           label:"badges"},
+      {k:"members",    icon:"fa-users",                label:"members"},
+      {k:"spaces",     icon:"fa-layer-group",          label:"spaces"},
+      {k:"tags",       icon:"fa-tag",                  label:"tags"},
+      {k:"badges",     icon:"fa-medal",                label:"badges"},
     ]},
     {label:"system", items:[
-      {k:"storage",    icon:"fa-database",        label:"storage"},
-      {k:"logs",       icon:"fa-file-lines",      label:"logs"},
-      {k:"updates",    icon:"fa-rotate",          label:"updates"},
+      {k:"storage",    icon:"fa-database",             label:"storage"},
+      {k:"logs",       icon:"fa-file-lines",           label:"logs"},
+      {k:"updates",    icon:"fa-rotate",               label:"updates"},
     ]},
+    // Populated at runtime by extension bundles via:
+    // window.NexusExtensions.registerAdminPanel(slug, { label, icon, component })
+    ...(extPanels.length > 0 ? [{
+      label: "installed extensions",
+      items: extPanels.map(p => ({
+        k:     `ext-panel-${p.slug}`,
+        icon:  p.icon,
+        label: p.label,
+      })),
+    }] : []),
   ];
 
 
@@ -7655,6 +7976,18 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           {sec==="layout"&&<LayoutAdmin layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
           {(sec==="logs")&&<AdminLogsPanel/>}
           {(sec==="extensions")&&<AdminExtensionsPanel/>}
+
+          {/* Extension-registered admin panels — rendered when sec matches ext-panel-{slug} */}
+          {sec.startsWith("ext-panel-")&&(()=>{
+            const slug = sec.slice("ext-panel-".length);
+            const panel = window.NexusExtensions.getAdminPanels().find(p=>p.slug===slug);
+            if(!panel) return (
+              <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
+                Extension panel not found. The bundle may still be loading.
+              </div>
+            );
+            return React.createElement(panel.component, null);
+          })()}
 
           {(sec==="updates")&&<div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>
             <i className="fa-solid fa-tools" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}></i>
