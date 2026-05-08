@@ -183,9 +183,11 @@ defmodule NexusWeb.API.V1.PwaController do
 
   @icon_sizes [512, 384, 192, 180, 144, 96, 48]
 
-  defp generate_icons(%Plug.Upload{path: tmp_path}) do
+  defp generate_icons(%Plug.Upload{path: tmp_path, content_type: content_type}) do
     allowed = ~w(image/jpeg image/png image/webp)
-    mime    = MIME.from_path(tmp_path)
+    # Use content_type from the upload struct — Plug writes temp files without
+    # extensions so MIME.from_path always returns application/octet-stream.
+    mime = content_type || "application/octet-stream"
 
     if mime not in allowed do
       {:error, "Source must be JPEG, PNG, or WebP. Received: #{mime}"}
