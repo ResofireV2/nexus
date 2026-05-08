@@ -2819,7 +2819,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [reporting,setReporting]=useState(false);
   const [quoteTooltip,setQuoteTooltip]=useState(null);
   const [typingUsers,setTypingUsers]=useState([]);
-  const [lastReadReplyId, setLastReadReplyId] = useState(null);
+  const [lastReadReplyId, setLastReadReplyId] = useState(undefined); // undefined = not yet fetched
   const [lastReadCount, setLastReadCount] = useState(0);
   const repliesContainerRef = useRef(null);
   const [mobSheetOpen, setMobSheetOpen] = useState(false);
@@ -2884,6 +2884,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   useEffect(()=>{
     (async()=>{ setLoading(true);
+      setLastReadReplyId(undefined); // reset to "not yet fetched" for new post
       try { const [pd,rd,rp]=await Promise.all([
           api.get(`/posts/${postId}`),
           api.get(`/posts/${postId}/replies`),
@@ -2891,7 +2892,9 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         ]);
         setPost(pd.post); setReplies(rd.replies||[]);
         setUserReaction(pd.post?.user_reaction||null);
-        if(rp.last_reply_id){setLastReadReplyId(rp.last_reply_id);setLastReadCount(rp.reply_count||0);}
+        // Set to the saved reply ID if present, or null (= fetched, no position)
+        setLastReadReplyId(rp.last_reply_id || null);
+        if(rp.last_reply_id) setLastReadCount(rp.reply_count||0);
         if(currentUser){
           api.get("/saved").then(d=>{
             const saves = d.saved||[];
@@ -2904,25 +2907,48 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     })();
   },[postId]);
 
+  // Track whether we've done the initial position restore for this post.
+  // Prevents re-running when replies update after new replies arrive via WS.
+  const didInitialScroll = useRef(false);
+
   useEffect(()=>{
     if(!replies.length) return;
+    // Reset when navigating to a different post
+    didInitialScroll.current = false;
+  },[postId]);
+
+  useEffect(()=>{
+    if(!replies.length) return;
+    if(didInitialScroll.current) return;
+
     if(scrollToReply){
-      // From notification — go directly to that specific reply
-      setTimeout(()=>{
-        const el = document.getElementById(`reply-${scrollToReply}`);
-        if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
-      },150);
-    } else if(lastReadReplyId){
-      // Returning to post — find the NEXT unread reply after last read position
+      // From notification — instant jump to that specific reply, no animation
+      const el = document.getElementById(`reply-${scrollToReply}`);
+      if(el){
+        didInitialScroll.current = true;
+        const container = repliesContainerRef.current;
+        if(container) container.scrollTop = el.offsetTop - 20;
+      }
+    } else if(lastReadReplyId !== null){
+      // Returning to a post with a saved read position.
+      // Jump instantly to the first unread reply (the one after last read).
       const lastReadIdx = replies.findIndex(r=>r.id===lastReadReplyId);
       const nextUnreadIdx = lastReadIdx >= 0 ? lastReadIdx + 1 : 0;
       const targetReply = replies[nextUnreadIdx] || replies[replies.length - 1];
       if(targetReply){
-        setTimeout(()=>{
-          const el = document.getElementById(`reply-${targetReply.id}`);
-          if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
-        },150);
+        const el = document.getElementById(`reply-${targetReply.id}`);
+        if(el){
+          didInitialScroll.current = true;
+          const container = repliesContainerRef.current;
+          if(container) container.scrollTop = el.offsetTop - 20;
+        }
       }
+    } else if(lastReadReplyId === undefined){
+      // Still waiting for the read-position API response — don't scroll yet
+      return;
+    } else {
+      // Fetched — no saved position (lastReadReplyId is null). Stay at top.
+      didInitialScroll.current = true;
     }
   },[replies.length, scrollToReply, lastReadReplyId]);
 
