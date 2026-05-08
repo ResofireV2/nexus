@@ -20,6 +20,7 @@ defmodule Nexus.Workers.DeliverNotification do
         notification = Nexus.Repo.preload(notification, [:actor, :post, :reply])
         broadcast_notification(notification)
         maybe_send_push(notification)
+        maybe_send_email(notification)
         :ok
 
       {:error, changeset} ->
@@ -187,6 +188,39 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp push_content(_, site_name) do
     {"#{site_name}", "You have a new notification", "/"}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Email notifications
+  # ---------------------------------------------------------------------------
+
+  # Send an email notification if the user has email enabled for this type
+  # and the notification is not a DM (those use the DM-specific mailer path).
+  defp maybe_send_email(notification) do
+    # Don't email for DMs — they have their own dedicated email path
+    if notification.type == "dm", do: :ok, else: do_maybe_send_email(notification)
+  end
+
+  defp do_maybe_send_email(notification) do
+    user = Nexus.Accounts.get_user(notification.user_id)
+
+    with true <- email_enabled_for?(user, notification.type),
+         actor_name <- actor_display(notification.actor) do
+      Task.start(fn ->
+        Nexus.Mailer.send_notification_email(user, %{
+          type:  notification.type,
+          actor: actor_name
+        })
+      end)
+    end
+
+    :ok
+  end
+
+  defp email_enabled_for?(nil, _type), do: false
+  defp email_enabled_for?(user, type) do
+    prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
+    Map.get(prefs, "email", false) == true
   end
 
   defp actor_display(nil),    do: "Someone"

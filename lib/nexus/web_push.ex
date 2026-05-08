@@ -114,7 +114,15 @@ defmodule Nexus.WebPush do
     audience = "#{uri.scheme}://#{uri.host}"
     exp      = System.system_time(:second) + 12 * 3600
 
-    claims = %{"aud" => audience, "exp" => exp, "sub" => "mailto:admin@nexus"}
+    # Use the configured from_address as the VAPID contact — push services
+    # use this to contact the server operator if there's a problem.
+    # Falls back to a generic address if not configured.
+    contact = case Nexus.Admin.get_setting("email") do
+      %{"from_address" => addr} when is_binary(addr) and addr != "" -> "mailto:#{addr}"
+      _ -> "mailto:admin@#{uri.host}"
+    end
+
+    claims = %{"aud" => audience, "exp" => exp, "sub" => contact}
 
     # Decode raw private key bytes
     private_bytes = Base.url_decode64!(vapid_private_b64, padding: false)
