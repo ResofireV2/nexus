@@ -28,6 +28,46 @@ defmodule Nexus.Workers.DeliverNotification do
   end
 
   # ---------------------------------------------------------------------------
+  # Public helper called by Nexus.Notifications for DM push
+  # DMs bypass the Oban worker, so notifications_context calls this directly.
+  # ---------------------------------------------------------------------------
+
+  def maybe_send_push_for_dm(user_id, actor, thread_id) do
+    user = Nexus.Accounts.get_user(user_id)
+
+    with %{"endpoint" => endpoint, "keys" => %{"p256dh" => p256dh, "auth" => auth}} <-
+           user && user.push_subscription,
+         true <- push_enabled_for?(user, "dm"),
+         pwa = Nexus.Admin.get_setting("pwa"),
+         vapid_public  when not is_nil(vapid_public)  <- pwa["vapid_public"],
+         vapid_private when not is_nil(vapid_private) <- pwa["vapid_private"] do
+
+      site_name = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
+      icon      = pwa["icon_192_path"] || "/images/icon-192.png"
+      badge     = pwa["badge_url"]     || icon
+      actor_name = actor_display(actor)
+
+      payload = Jason.encode!(%{
+        title: site_name,
+        body:  "#{actor_name} sent you a message",
+        icon:  icon,
+        badge: badge,
+        url:   thread_url(thread_id)
+      })
+
+      case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
+        :ok -> :ok
+        {:error, reason} ->
+          require Logger
+          Logger.warning("DM web push failed for user #{user_id}: #{inspect(reason)}")
+          :ok
+      end
+    else
+      _ -> :ok
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Phoenix PubSub broadcast (existing behaviour — unchanged)
   # ---------------------------------------------------------------------------
 
@@ -67,6 +107,8 @@ defmodule Nexus.Workers.DeliverNotification do
 
     with %{"endpoint" => endpoint, "keys" => %{"p256dh" => p256dh, "auth" => auth}} <-
            user && user.push_subscription,
+         # Check per-type push preference — default true if not explicitly set to false
+         true <- push_enabled_for?(user, notification.type),
          pwa = Nexus.Admin.get_setting("pwa"),
          vapid_public  when not is_nil(vapid_public)  <- pwa["vapid_public"],
          vapid_private when not is_nil(vapid_private) <- pwa["vapid_private"] do
@@ -138,4 +180,12 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp thread_url(nil),       do: "/messages"
   defp thread_url(thread_id), do: "/messages/#{thread_id}"
+
+  # Check whether the user has push enabled for this notification type.
+  # Preferences are stored as: preferences["notifications"][type]["push"] = true/false
+  # Default is true — only skip if explicitly set to false.
+  defp push_enabled_for?(user, type) do
+    prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
+    Map.get(prefs, "push", true) != false
+  end
 end

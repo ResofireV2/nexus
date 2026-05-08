@@ -90,6 +90,12 @@ defmodule Nexus.Notifications do
           actor: %{id: actor_id, username: actor.username},
           inserted_at: notification.inserted_at
         }})
+
+        # Also send a web push — DMs bypass the Oban worker so we handle push here
+        Task.start(fn ->
+          Nexus.Workers.DeliverNotification.maybe_send_push_for_dm(user_id, actor, thread_id)
+        end)
+
       _ -> :ok
     end
   end

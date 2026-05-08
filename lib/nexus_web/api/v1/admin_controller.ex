@@ -153,7 +153,13 @@ defmodule NexusWeb.API.V1.AdminController do
         appearance:   Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css"]),
         registration: Map.take(s["registration"]||%{}, ["open", "require_email_verification"]),
         layout:       s["layout"] || %{},
-        digest:       Map.take(s["digest"]||%{}, ["enabled","frequencies"])
+        digest:       Map.take(s["digest"]||%{}, ["enabled","frequencies"]),
+        pwa:          Map.take(s["pwa"]||%{}, [
+                        "app_name","short_name","theme_color","bg_color","start_url",
+                        "force_portrait","ios_prompt_enabled","ios_prompt_text",
+                        "ios_prompt_delay","ios_auto_detect_orientation","ios_pad_always_up",
+                        "icon_192_path","icon_512_path","badge_url"
+                      ])
       }
     })
   end

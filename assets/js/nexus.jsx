@@ -5792,6 +5792,54 @@ function AdminBadgesPanel() {
     </div>
   );
 }
+// ── iOS Install Prompt ───────────────────────────────────────────────────────
+// Shows a sticky footer on Safari/iOS guiding users through the manual
+// Add to Home Screen flow. Controlled by site_settings["pwa"].
+function IosInstallPrompt({onDismiss, pwaCfg={}}) {
+  const [visible, setVisible] = React.useState(false);
+  const [arrowDir, setArrowDir] = React.useState("down");
+
+  React.useEffect(()=>{
+    const delay = pwaCfg.ios_prompt_delay ?? 10000;
+    const timer = setTimeout(()=>{ setVisible(true); updateArrow(); }, delay);
+    const handler = ()=>updateArrow();
+    window.addEventListener("orientationchange", handler);
+    window.addEventListener("resize", handler);
+    return ()=>{ clearTimeout(timer); window.removeEventListener("orientationchange",handler); window.removeEventListener("resize",handler); };
+  },[]);
+
+  function updateArrow() {
+    const isPad = /iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    const padAlwaysUp = pwaCfg.ios_pad_always_up !== false;
+    if(isPad && padAlwaysUp){ setArrowDir("up"); return; }
+    const autoDetect = pwaCfg.ios_auto_detect_orientation !== false;
+    if(!autoDetect){ setArrowDir("down"); return; }
+    setArrowDir(window.innerHeight > window.innerWidth ? "down" : "up");
+  }
+
+  if(!visible) return null;
+
+  const appName = pwaCfg.app_name || "Nexus";
+  const text = pwaCfg.ios_prompt_text
+    ? pwaCfg.ios_prompt_text.replace("{appName}", appName)
+    : `Install ${appName} — tap the Share button then "Add to Home Screen".`;
+
+  const isUp = arrowDir === "up";
+
+  return (
+    <div style={{position:"fixed",left:0,right:0,[isUp?"top":"bottom"]:0,zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",pointerEvents:"none"}}>
+      {/* Arrow pointing toward share button */}
+      {isUp&&<div style={{width:0,height:0,borderLeft:"10px solid transparent",borderRight:"10px solid transparent",borderBottom:"10px solid var(--s2)",pointerEvents:"none"}}/>}
+      <div style={{width:"100%",maxWidth:480,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:isUp?"0 0 14px 14px":"14px 14px 0 0",padding:"14px 18px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",pointerEvents:"all"}}>
+        <i className="fa-solid fa-share-from-square" style={{fontSize:20,color:"var(--ac)",flexShrink:0}}/>
+        <span style={{flex:1,fontSize:13,color:"var(--t2)",lineHeight:1.5}}>{text}</span>
+        <button onClick={()=>{setVisible(false);onDismiss?.();}} style={{background:"none",border:"none",color:"var(--t4)",fontSize:18,cursor:"pointer",padding:"0 4px",flexShrink:0,lineHeight:1}}>✕</button>
+      </div>
+      {!isUp&&<div style={{width:0,height:0,borderLeft:"10px solid transparent",borderRight:"10px solid transparent",borderTop:"10px solid var(--s2)",pointerEvents:"none"}}/>}
+    </div>
+  );
+}
+
 // ── PWA Admin Panel ───────────────────────────────────────────────────────────
 function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
   const [pwaTab,setPwaTab]=useState("general");
@@ -5816,6 +5864,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
     {k:"general", icon:"fa-cog",          label:"General"},
     {k:"icons",   icon:"fa-image",         label:"Icons"},
     {k:"push",    icon:"fa-bell",          label:"Push"},
+    {k:"apple",   icon:"fa-apple",         label:"Apple"},
     {k:"status",  icon:"fa-circle-check",  label:"Status"},
   ];
 
@@ -6045,6 +6094,62 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
               :<><i className="fa-solid fa-arrow-up-from-bracket" style={{fontSize:11}}/>{pwaCfg.badge_url?"Replace badge":"Upload badge image"}</>}
           </span>
         </label>
+      </>}
+
+      {/* ── Apple / iOS tab ── */}
+      {pwaTab==="apple"&&<>
+        <div className="fgt">iOS install prompt</div>
+        <div style={{fontSize:13,color:"var(--t4)",marginBottom:16}}>Safari on iPhone and iPad does not support the standard install prompt. This shows a sticky footer guiding users through the manual Add to Home Screen flow.</div>
+
+        <div style={{marginBottom:20}}>
+          <div className="toggle-row">
+            <div>
+              <div style={{fontSize:15,color:"var(--t2)"}}>Show iOS install prompt</div>
+              <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Shown only in Safari on iOS/iPadOS. Not shown when the app is already installed.</div>
+            </div>
+            <div className="tgl" style={{background:pwaCfg.ios_prompt_enabled?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>setPwaCfg(p=>({...p,ios_prompt_enabled:!p.ios_prompt_enabled}))}>
+              <div className="tgl-knob" style={{left:pwaCfg.ios_prompt_enabled?23:3,background:pwaCfg.ios_prompt_enabled?"#fff":"rgba(255,255,255,0.4)"}}/>
+            </div>
+          </div>
+        </div>
+
+        {pwaCfg.ios_prompt_enabled&&<>
+          <F label="Prompt text" hint="Shown in the sticky footer. Use {appName} to insert your app name.">
+            <input className="fi" value={pwaCfg.ios_prompt_text||""} onChange={e=>setPwaCfg(p=>({...p,ios_prompt_text:e.target.value}))}
+              placeholder={`Install ${pwaCfg.app_name||"Nexus"} — tap the Share button then "Add to Home Screen".`}/>
+          </F>
+          <F label="Delay before showing (ms)" hint="How long after page load before the prompt slides up.">
+            <input className="fi" type="number" min="0" style={{maxWidth:120}} value={pwaCfg.ios_prompt_delay??10000} onChange={e=>setPwaCfg(p=>({...p,ios_prompt_delay:parseInt(e.target.value)||0}))}/>
+          </F>
+          <div className="toggle-row" style={{marginBottom:14}}>
+            <div>
+              <div style={{fontSize:15,color:"var(--t2)"}}>Auto-detect share button position</div>
+              <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Points the arrow toward Safari's share button based on device and orientation.</div>
+            </div>
+            <div className="tgl" style={{background:pwaCfg.ios_auto_detect_orientation!==false?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>setPwaCfg(p=>({...p,ios_auto_detect_orientation:p.ios_auto_detect_orientation===false}))}>
+              <div className="tgl-knob" style={{left:pwaCfg.ios_auto_detect_orientation!==false?23:3,background:pwaCfg.ios_auto_detect_orientation!==false?"#fff":"rgba(255,255,255,0.4)"}}/>
+            </div>
+          </div>
+          <div className="toggle-row" style={{marginBottom:14}}>
+            <div>
+              <div style={{fontSize:15,color:"var(--t2)"}}>Always point up on iPad</div>
+              <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Safari's share button is always in the top bar on iPad.</div>
+            </div>
+            <div className="tgl" style={{background:pwaCfg.ios_pad_always_up!==false?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>setPwaCfg(p=>({...p,ios_pad_always_up:p.ios_pad_always_up===false}))}>
+              <div className="tgl-knob" style={{left:pwaCfg.ios_pad_always_up!==false?23:3,background:pwaCfg.ios_pad_always_up!==false?"#fff":"rgba(255,255,255,0.4)"}}/>
+            </div>
+          </div>
+        </>}
+
+        <div className="fgt" style={{marginTop:20}}>Status bar</div>
+        <F label="Status bar style" hint="Controls iOS status bar appearance when running in standalone mode.">
+          <select className="fi" style={{maxWidth:260}} value={pwaCfg.status_bar_style||"black-translucent"} onChange={e=>setPwaCfg(p=>({...p,status_bar_style:e.target.value}))}>
+            <option value="default">Default</option>
+            <option value="black">Black</option>
+            <option value="black-translucent">Black translucent</option>
+          </select>
+        </F>
+        <div style={{fontSize:12,color:"var(--t5)",marginTop:-8,marginBottom:14}}>Requires a redeploy to take effect — the value is written into the HTML head.</div>
       </>}
 
       {/* ── Status tab ── */}
@@ -7898,6 +8003,19 @@ function App() {
   const [liveEvents,setLiveEvents]=useState([]);
   const [authModal,setAuthModal]=useState(null); // null | "login" | "register"
   const [registrationOpen,setRegistrationOpen]=useState(true);
+  const [iosPromptDismissed,setIosPromptDismissed]=useState(()=>{
+    try { return localStorage.getItem("pwa.ios_prompt.dismissed")==="1"; } catch { return false; }
+  });
+  const [pwaCfgPublic,setPwaCfgPublic]=useState({});
+
+  // Detect iOS Safari (not already installed, not already dismissed)
+  const isIosSafari = (()=>{
+    const ua = navigator.userAgent;
+    const isIos = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || !!(navigator.standalone);
+    return isIos && isSafari && !isStandalone;
+  })();
 
   const navigate=useCallback((p,props={})=>{
     const url = pageToUrl(p, props);
@@ -7975,7 +8093,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
       const digest=s.digest||{};
@@ -8110,6 +8228,15 @@ function App() {
             <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           </div>
         </div>
+      )}
+      {isIosSafari&&!iosPromptDismissed&&pwaCfgPublic.ios_prompt_enabled&&(
+        <IosInstallPrompt
+          pwaCfg={pwaCfgPublic}
+          onDismiss={()=>{
+            setIosPromptDismissed(true);
+            try { localStorage.setItem("pwa.ios_prompt.dismissed","1"); } catch {}
+          }}
+        />
       )}
       <Toasts/>
     </>

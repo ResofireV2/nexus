@@ -8,6 +8,7 @@ defmodule NexusWeb.Router do
     plug :put_root_layout, html: {NexusWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug NexusWeb.Plugs.PwaSettings
   end
 
   pipeline :api do

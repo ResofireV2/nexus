@@ -7,12 +7,12 @@
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#5B4EF5" />
+    <meta name="theme-color" content={@pwa_theme_color} />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Nexus" />
-    <link rel="apple-touch-icon" href="/images/icon-192.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content={@pwa_status_bar_style} />
+    <meta name="apple-mobile-web-app-title" content={@pwa_app_name} />
+    <link rel="apple-touch-icon" href={@pwa_icon_path} />
 
     <.live_title suffix=" · Nexus">
       <%= assigns[:page_title] || "Forum" %>

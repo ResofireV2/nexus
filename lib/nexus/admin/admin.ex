@@ -311,7 +311,13 @@ defmodule Nexus.Admin do
       "icon_180_path"    => nil,
       "icon_192_path"    => nil,
       "icon_384_path"    => nil,
-      "icon_512_path"    => nil
+      "icon_512_path"    => nil,
+      "status_bar_style"          => "black-translucent",
+      "ios_prompt_enabled"        => false,
+      "ios_prompt_text"           => nil,
+      "ios_prompt_delay"          => 10000,
+      "ios_auto_detect_orientation" => true,
+      "ios_pad_always_up"         => true
     }
   }
 
