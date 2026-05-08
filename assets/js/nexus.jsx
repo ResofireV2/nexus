@@ -9006,7 +9006,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   const emailLocked = window._requireEmailVerification===true && !currentUser?.email_verified && currentUser?.role !== "admin";
 
   const NOTIF_ROWS = [
-    {k:"reply",         label:"Replies to your posts",   desc:"Someone replied to a thread you started"},
+    {k:"reply",         label:"Followed post replies",   desc:"New replies on posts you follow"},
     {k:"followed_post", label:"Followed posts",          desc:"Someone replies to a post you're following"},
     {k:"mention",       label:"Mentions",                desc:"Someone @mentioned you in a post or reply"},
     {k:"reaction",      label:"Reactions",               desc:"Someone reacted to your content"},

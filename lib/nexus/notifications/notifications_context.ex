@@ -101,18 +101,9 @@ defmodule Nexus.Notifications do
   end
 
   def notify_reply(post, reply, actor) do
-    # Notify post author when someone replies (but not if they reply to themselves)
-    if post.user_id && post.user_id != actor.id do
-      enqueue_notification(%{
-        type: "reply",
-        user_id: post.user_id,
-        actor_id: actor.id,
-        post_id: post.id,
-        reply_id: reply.id
-      })
-    end
-
-    # Notify anyone mentioned in the reply body
+    # No blanket "someone replied to your post" notification —
+    # post authors get notified via the follow system instead.
+    # Only notify @mentioned users.
     notify_mentions(reply.body, actor, post_id: post.id, reply_id: reply.id)
   end
 
