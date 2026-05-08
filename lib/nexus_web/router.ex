@@ -38,13 +38,6 @@ defmodule NexusWeb.Router do
     get "/", PageController, :home
   end
 
-  # PWA manifest — served dynamically from admin settings
-  scope "/", NexusWeb.API.V1 do
-    pipe_through :api
-    get "/manifest.json", PwaController, :manifest
-    get "/pwa/vapid-public-key", PwaController, :vapid_public_key
-  end
-
   # Setup wizard (public - runs before any auth exists)
   scope "/api/v1/setup", NexusWeb.API.V1 do
     pipe_through :api
@@ -98,6 +91,7 @@ defmodule NexusWeb.Router do
     get "/branding",               AdminController,  :get_branding
     get "/badges",                 BadgeController,  :index
     get "/leaderboard",            LeaderboardController, :index
+    get "/slots/all",              ExtensionController,  :slots_all
   end
 
   # API v1 — authenticated member actions
@@ -241,7 +235,6 @@ defmodule NexusWeb.Router do
     # Extensions
     get    "/extensions",                    ExtensionController, :index
     get    "/extensions/store",              ExtensionController, :store
-    get    "/slots/all",                     ExtensionController, :slots_all
     get    "/extensions/:slug",              ExtensionController, :show
     post   "/extensions",                    ExtensionController, :install
     post   "/extensions/install-from-url",   ExtensionController, :install_from_url
