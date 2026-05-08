@@ -63,7 +63,7 @@ defmodule NexusWeb.API.V1.AuthController do
         {:ok, tokens} = Accounts.issue_tokens(user, opts)
 
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
         Task.start(fn -> Nexus.Extensions.fire("user_login", %{user_id: user.id}) end)
 
         conn

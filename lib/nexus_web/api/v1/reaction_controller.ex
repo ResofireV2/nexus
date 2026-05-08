@@ -53,11 +53,11 @@ defmodule NexusWeb.API.V1.ReactionController do
           if target && target.user_id && target.user_id != user.id do
             Nexus.Activity.increment_stat(target.user_id, :reactions_received)
             %{"user_id" => target.user_id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-            %{"user_id" => target.user_id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+            %{"user_id" => target.user_id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
           end
         end)
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
 
         conn |> put_status(:created) |> json(%{ok: true, reactions: reactions, user_reaction: reaction.emoji})
 
