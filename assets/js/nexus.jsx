@@ -392,6 +392,12 @@ window.NexusExtensions = {
   _exploreListeners: [],
   _rightWidgets: [],
   _rightWidgetListeners: [],
+  _userActions: [],
+  _userActionListeners: [],
+  _postActions: [],
+  _postActionListeners: [],
+  _notifTypes: {},
+  _notifTypeListeners: [],
 
   registerSlot(slotName, component, priority = 50) {
     if (!this._slots[slotName]) this._slots[slotName] = [];
@@ -558,6 +564,101 @@ window.NexusExtensions = {
   onRightWidgetChange(fn) {
     this._rightWidgetListeners.push(fn);
     return () => { this._rightWidgetListeners = this._rightWidgetListeners.filter(f => f !== fn); };
+  },
+
+  // Register an action button in the user card popover and mobile user menu.
+  // Extensions call this from their bundle:
+  //
+  //   window.NexusExtensions.registerUserAction({
+  //     id:       "gamepedia-view-log",
+  //     label:    "View Gamelog",
+  //     icon:     "fa-gamepad",          // FA solid icon class
+  //     onClick({ user, currentUser, navigate, closeCard }) {
+  //       closeCard();
+  //       navigate("ext-route", window.NexusExtensions.matchRoute(
+  //         `/gamepedia/users/${user.username}`
+  //       ) || {});
+  //     },
+  //     authOnly: false,   // hide when viewer is not logged in (optional)
+  //     priority: 50,      // lower = rendered earlier (optional)
+  //   });
+  //
+  // onClick receives { user, currentUser, navigate, closeCard }.
+  // Call closeCard() to dismiss the popover before navigating.
+  registerUserAction({ id, label, icon="fa-puzzle-piece", onClick, authOnly=false, priority=50 }) {
+    this._userActions = this._userActions.filter(a => a.id !== id);
+    this._userActions.push({ id, label, icon, onClick, authOnly, priority });
+    this._userActions.sort((a, b) => (a.priority||50) - (b.priority||50));
+    this._userActionListeners.forEach(fn => fn());
+  },
+
+  getUserActions() { return this._userActions; },
+
+  onUserActionChange(fn) {
+    this._userActionListeners.push(fn);
+    return () => { this._userActionListeners = this._userActionListeners.filter(f => f !== fn); };
+  },
+
+  // Register an item in the post … dropdown menu.
+  // Extensions call this from their bundle:
+  //
+  //   window.NexusExtensions.registerPostAction({
+  //     id:    "gamepedia-link-game",
+  //     label: "Link a Game",
+  //     icon:  "fa-gamepad",
+  //     onClick({ post, currentUser, navigate, closeMenu }) {
+  //       closeMenu();
+  //       // open a modal, navigate, etc.
+  //     },
+  //     // Optional visibility filter — return false to hide the item for a
+  //     // given post/user combination.
+  //     visible({ post, currentUser }) { return true; },
+  //     priority: 50,
+  //   });
+  //
+  // onClick receives { post, currentUser, navigate, closeMenu }.
+  registerPostAction({ id, label, icon="fa-puzzle-piece", onClick, visible, priority=50 }) {
+    this._postActions = this._postActions.filter(a => a.id !== id);
+    this._postActions.push({ id, label, icon, onClick, visible, priority });
+    this._postActions.sort((a, b) => (a.priority||50) - (b.priority||50));
+    this._postActionListeners.forEach(fn => fn());
+  },
+
+  getPostActions() { return this._postActions; },
+
+  onPostActionChange(fn) {
+    this._postActionListeners.push(fn);
+    return () => { this._postActionListeners = this._postActionListeners.filter(f => f !== fn); };
+  },
+
+  // Register a custom notification type.
+  // Extensions call this from their bundle:
+  //
+  //   window.NexusExtensions.registerNotificationType("gamepedia_new_game", {
+  //     icon:       "fa-gamepad",
+  //     iconColor:  "var(--ac)",
+  //     // renderBody receives the notification object and returns a React node.
+  //     renderBody(n) {
+  //       return React.createElement(React.Fragment, null,
+  //         React.createElement("strong", {style:{color:"var(--t1)"}}, n.data?.game_name||"A game"),
+  //         React.createElement("span",  {style:{color:"var(--t3)"}}, " was added to the library")
+  //       );
+  //     },
+  //     // onClick receives { n, navigate } — handle navigation for this type.
+  //     onClick({ n, navigate }) {
+  //       navigate("ext-route", window.NexusExtensions.matchRoute("/gamepedia") || {});
+  //     },
+  //   });
+  registerNotificationType(type, { icon, iconColor, renderBody, onClick }) {
+    this._notifTypes[type] = { icon, iconColor, renderBody, onClick };
+    this._notifTypeListeners.forEach(fn => fn());
+  },
+
+  getNotifType(type) { return this._notifTypes[type] || null; },
+
+  onNotifTypeChange(fn) {
+    this._notifTypeListeners.push(fn);
+    return () => { this._notifTypeListeners = this._notifTypeListeners.filter(f => f !== fn); };
   },
 };
 
@@ -1244,12 +1345,17 @@ function openUserCard(username, anchorEl) {
 
 function UserCardPopover({card, setCard, currentUser, navigate}) {
   const ref = useRef();
+  const [, forceUpdate] = useState(0);
   useEffect(()=>{
     if (!card) return;
     const fn = e => { if (ref.current && !ref.current.contains(e.target)) setCard(null); };
     setTimeout(()=>document.addEventListener("mousedown", fn), 0);
     return ()=>document.removeEventListener("mousedown", fn);
   },[card]);
+  useEffect(()=>{
+    const unsub = window.NexusExtensions.onUserActionChange(()=>forceUpdate(n=>n+1));
+    return unsub;
+  },[]);
 
   if (!card) return null;
 
@@ -1308,13 +1414,24 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
                 Active {ago(u.last_seen_at)}
               </div>}
               {/* Actions */}
-              <div style={{display:"flex",gap:7}}>
+              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
                 {currentUser&&currentUser.username!==u.username&&<button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={startDM}>
                   <i className="fa-solid fa-message" style={{fontSize:11,marginRight:5}}></i>Message
                 </button>}
                 <button className="btn-ghost" style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}} onClick={()=>{setCard(null);navigate("profile",{username:u.username});}}>
                   <i className="fa-solid fa-user" style={{fontSize:11,marginRight:5}}></i>Profile
                 </button>
+                {window.NexusExtensions.getUserActions()
+                  .filter(a => !a.authOnly || currentUser)
+                  .map(a => (
+                    <button key={a.id} className="btn-ghost"
+                      style={{flex:1,fontSize:13,padding:"8px 0",borderRadius:8}}
+                      onClick={()=>a.onClick({ user:u, currentUser, navigate, closeCard:()=>setCard(null) })}>
+                      <i className={`fa-solid ${a.icon}`} style={{fontSize:11,marginRight:5}}/>
+                      {a.label}
+                    </button>
+                  ))
+                }
               </div>
             </>}
         </div>
@@ -2911,6 +3028,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
+  // Re-render when extension bundles register new post actions
+  const [, forcePostActionUpdate] = useState(0);
+  useEffect(()=>{
+    const unsub = window.NexusExtensions.onPostActionChange(()=>forcePostActionUpdate(n=>n+1));
+    return unsub;
+  },[]);
   // Auto-open report modal if navigated here with openReport flag
   useEffect(()=>{
     if(openReport&&post) { setReportTarget({type:"post",id:post.id}); setReportReason(""); }
@@ -3046,6 +3169,20 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       <i className="fa-solid fa-pen" style={{fontSize:11,color:"var(--t4)",width:14}}/>Edit post
                     </button>}
+                    {/* Extension-registered post actions */}
+                    {window.NexusExtensions.getPostActions()
+                      .filter(a => !a.visible || a.visible({ post, currentUser }))
+                      .map(a => (
+                        <button key={a.id}
+                          onClick={()=>a.onClick({ post, currentUser, navigate, closeMenu:()=>setPostMenuOpen(false) })}
+                          style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                          onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                          <i className={`fa-solid ${a.icon}`} style={{fontSize:11,color:"var(--t4)",width:14}}/>
+                          {a.label}
+                        </button>
+                      ))
+                    }
                     {/* Delete */}
                     {(currentUser.id===post.user?.id||isMod)&&<>
                       <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
@@ -3409,19 +3546,30 @@ function NotificationsPage({navigate, onCountChange}) {
   };
   const deleteAll=async()=>{if(!confirm("Delete all notifications?"))return;await api.delete("/notifications");setNotifs([]);onCountChange?.(0);toast("Notifications cleared");};
   const deleteOne=async(e,id)=>{e.stopPropagation();await api.delete(`/notifications/${id}`);setNotifs(p=>{const next=p.filter(n=>n.id!==id);updateCount(next);return next;});};
-  const markRead=async n=>{
+  const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement",badge:"you earned a badge"};
+  const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal"};
+  const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)"};
+
+  const getIcon      = n => window.NexusExtensions.getNotifType(n.type)?.icon      || ICON[n.type]      || "fa-bell";
+  const getIconColor = n => window.NexusExtensions.getNotifType(n.type)?.iconColor || ICON_COLOR[n.type]|| "var(--ac)";
+  const renderBody   = n => {
+    const extType = window.NexusExtensions.getNotifType(n.type);
+    if (extType?.renderBody) return extType.renderBody(n);
+    if (n.type==="badge") return <><strong style={{color:"var(--t1)"}}>{n.data?.badge_name||"A badge"}</strong> <span style={{color:"var(--t3)"}}>was awarded to you</span></>;
+    return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></>;
+  };
+  const handleClick  = async n => {
     if(!n.read){
       await api.patch(`/notifications/${n.id}/read`,{});
       setNotifs(p=>{const next=p.map(x=>x.id===n.id?{...x,read:true}:x);updateCount(next);return next;});
     }
+    const extType = window.NexusExtensions.getNotifType(n.type);
+    if (extType?.onClick) { extType.onClick({ n, navigate }); return; }
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
     else if(n.type==="badge") { navigate("badges"); }
     else if(n.post_id) navigate("post",{id:n.post_id, scrollToReply:n.reply_id||null});
     else if(n.reply_id) api.get(`/posts/by-reply/${n.reply_id}`).then(d=>{ if(d.post_id) navigate("post",{id:d.post_id, scrollToReply:n.reply_id}); }).catch(()=>{});
   };
-  const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement",badge:"you earned a badge"};
-  const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal"};
-  const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)"};
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0,borderBottom:"0.5px solid var(--b1)"}}>
@@ -3436,18 +3584,13 @@ function NotificationsPage({navigate, onCountChange}) {
         {loading?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
           :notifs.length===0?<div style={{padding:"60px",textAlign:"center",color:"var(--t5)"}}>No notifications yet</div>
           :notifs.map(n=>(
-            <div key={n.id} className={`notif-item ${n.read?"":"unread"}`} onClick={()=>markRead(n)} style={{position:"relative"}}>
+            <div key={n.id} className={`notif-item ${n.read?"":"unread"}`} onClick={()=>handleClick(n)} style={{position:"relative"}}>
               <div className="notif-pip" style={{background:n.read?"transparent":"var(--ac)"}}/>
-              <div style={{width:32,height:32,borderRadius:"50%",background:`${ICON_COLOR[n.type]||"var(--ac)"}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <i className={`fa-solid ${ICON[n.type]||"fa-bell"}`} style={{fontSize:12,color:ICON_COLOR[n.type]||"var(--ac)"}}></i>
+              <div style={{width:32,height:32,borderRadius:"50%",background:`${getIconColor(n)}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <i className={`fa-solid ${getIcon(n)}`} style={{fontSize:12,color:getIconColor(n)}}></i>
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:13}}>
-                  {n.type==="badge"
-                    ? <><strong style={{color:"var(--t1)"}}>{n.data?.badge_name||"A badge"}</strong> <span style={{color:"var(--t3)"}}>was awarded to you</span></>
-                    : <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></>
-                  }
-                </div>
+                <div style={{fontSize:13}}>{renderBody(n)}</div>
                 <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>{ago(n.inserted_at)}</div>
               </div>
               <div onClick={e=>deleteOne(e,n.id)} title="Delete"
@@ -9071,6 +9214,13 @@ function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
         {icon:"fa-user",label:"Profile",action:()=>{navigate("profile",{username:user.username});onClose();}},
         {icon:"fa-gear",label:"Settings",action:()=>{navigate("settings");onClose();}},
         ...(user.role==="admin"?[{icon:"fa-shield-halved",label:"Admin Panel",action:()=>{navigate("admin");onClose();}}]:[]),
+        ...window.NexusExtensions.getUserActions()
+          .filter(a => !a.authOnly)
+          .map(a => ({
+            icon: a.icon,
+            label: a.label,
+            action: () => a.onClick({ user, currentUser: user, navigate, closeCard: onClose }),
+          })),
       ].map(item=>(
         <div key={item.label} onClick={item.action}
           style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"0.5px solid var(--b1)",cursor:"pointer",fontSize:15,color:"var(--t2)"}}>
