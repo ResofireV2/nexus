@@ -20,6 +20,10 @@ billyrayfoss.com {
     header @static Cache-Control "public, max-age=31536000, immutable"
 
     encode gzip
+
+    # Extensions — each drops a Caddyfile snippet in its repo.
+    # Add an import line here when installing a new extension.
+    import /opt/gamepedia/Caddyfile
 }
 
 www.billyrayfoss.com {
