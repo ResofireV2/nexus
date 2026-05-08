@@ -5873,6 +5873,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             else if(sec==="email") saveSection("email",emailCfg);
             else if(sec==="layout") saveSection("layout",layoutCfg);
             else if(sec==="forum-info") saveSection("general",general);
+            else if(sec==="storage") saveSection("uploads",uploadCfg);
             else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
             else if(sec==="leaderboard") saveSection("leaderboard",lbCfg);
             else if(sec==="digest") saveSection("digest",digestCfg);
