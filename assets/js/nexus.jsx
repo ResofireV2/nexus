@@ -1693,8 +1693,8 @@ function AuthPage({onLogin}) {
     e.preventDefault(); setLoading(true); setErr(null);
     try {
       const body = mode==="login"
-        ? {email: form.login, password: form.password}  // backend handles email or username
-        : {email: form.email, username: form.username, password: form.password};
+        ? {email: form.login.trim(), password: form.password}  // backend handles email or username
+        : {email: form.email.trim(), username: form.username.trim(), password: form.password};
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
       else setErr(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Something went wrong");
@@ -7733,8 +7733,8 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true}) {
     e.preventDefault(); setLoading(true); setErr(null);
     try {
       const body = mode==="login"
-        ? {email: form.login, password: form.password, remember_me: remember}
-        : {email: form.email, username: form.username, password: form.password};
+        ? {email: form.login.trim(), password: form.password, remember_me: remember}
+        : {email: form.email.trim(), username: form.username.trim(), password: form.password};
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
       else setErr(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Something went wrong");
@@ -7826,15 +7826,10 @@ function MobileTabBar({currentUser, navigate, page, notifCount, msgCount, onComp
         <span className="mob-tab-label">Search</span>
       </button>
       <button className="mob-tab-compose" onClick={()=>onAuthRequired?.("login")} aria-label="Write">+</button>
-      {registrationOpen
-        ? <button className="mob-tab" onClick={()=>onAuthRequired?.("register")}>
-            <i className="fa-solid fa-user-plus"/>
-            <span className="mob-tab-label">Sign up</span>
-          </button>
-        : <button className="mob-tab" onClick={()=>onAuthRequired?.("login")}>
-            <i className="fa-solid fa-arrow-right-to-bracket"/>
-            <span className="mob-tab-label">Login</span>
-          </button>}
+      <button className="mob-tab" onClick={()=>onAuthRequired?.("login")}>
+        <i className="fa-solid fa-arrow-right-to-bracket"/>
+        <span className="mob-tab-label">Login</span>
+      </button>
     </div>
   );
 }
