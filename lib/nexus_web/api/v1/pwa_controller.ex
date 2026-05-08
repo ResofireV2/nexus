@@ -195,11 +195,13 @@ defmodule NexusWeb.API.V1.PwaController do
       dir = icons_dir()
       File.mkdir_p!(dir)
 
+      serve_base = icons_serve_base()
+
       with {:ok, src} <- Image.open(tmp_path),
            {:ok, src} <- autorotate(src) do
         Enum.reduce_while(@icon_sizes, {:ok, %{}}, fn size, {:ok, acc} ->
           abs_path  = Path.join(dir, "icon-#{size}.png")
-          serve_url = "/images/pwa/icon-#{size}.png"
+          serve_url = "#{serve_base}/icon-#{size}.png"
 
           case resize_square(src, size, abs_path) do
             :ok ->
@@ -235,7 +237,7 @@ defmodule NexusWeb.API.V1.PwaController do
     with {:ok, img}     <- Image.open(tmp_path),
          {:ok, resized} <- Image.thumbnail(img, 96, fit: :cover),
          {:ok, _}       <- Image.write(resized, Path.join(dir, "badge.png"), suffix: ".png") do
-      {:ok, "/images/pwa/badge.png"}
+      {:ok, "#{icons_serve_base()}/badge.png"}
     else
       {:error, reason} -> {:error, "Badge processing failed: #{inspect(reason)}"}
     end
@@ -245,14 +247,19 @@ defmodule NexusWeb.API.V1.PwaController do
   # Private — helpers
   # ---------------------------------------------------------------------------
 
-  # Dev: priv/static/images/pwa/ (served by the existing Plug.Static at "/")
-  # Prod: /app/uploads/pwa-icons/ (bind-mounted volume, survives container rebuilds)
-  # The prod path is served by the second Plug.Static plug in endpoint.ex at "/uploads"
-  # so we set the serve URL accordingly in generate_icons/save_badge.
+  # Dev: priv/static/images/pwa/ — served by Plug.Static at "/" → URL prefix /images/pwa
+  # Prod: /app/uploads/pwa-icons/ — served by Plug.Static at "/uploads" → URL prefix /uploads/pwa-icons
   defp icons_dir do
     case Application.get_env(:nexus, :env) do
       :prod -> "/app/uploads/pwa-icons"
       _     -> Path.join([:code.priv_dir(:nexus), "static", "images", "pwa"])
+    end
+  end
+
+  defp icons_serve_base do
+    case Application.get_env(:nexus, :env) do
+      :prod -> "/uploads/pwa-icons"
+      _     -> "/images/pwa"
     end
   end
 
