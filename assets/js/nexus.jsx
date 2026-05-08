@@ -8182,7 +8182,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
             {/* ── System health ── */}
             <div className="fgt" style={{marginTop:24}}>System health</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:4}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:12,marginBottom:4}}>
               {[
                 {label:"Total memory",    value:sysStats?`${(sysStats.memory.total/1048576).toFixed(1)} MB`:"—",   color:"#60a5fa"},
                 {label:"Process memory",  value:sysStats?`${(sysStats.memory.processes/1048576).toFixed(1)} MB`:"—", color:"#a78bfa"},
