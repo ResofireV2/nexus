@@ -2828,6 +2828,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
   const [postSaved, setPostSaved] = useState(false);
+  const [postFollowed, setPostFollowed] = useState(false);
   const [savedReplyIds, setSavedReplyIds] = useState(new Set());
   useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
 
@@ -2901,6 +2902,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             setPostSaved(saves.some(s=>s.type==="post"&&s.post?.id===pd.post?.id));
             setSavedReplyIds(new Set(saves.filter(s=>s.type==="reply").map(s=>s.reply?.id).filter(Boolean)));
           }).catch(()=>{});
+          // Load follow state — placeholder until backend is built;
+          // reads from a post_follow endpoint when available
+          api.get(`/posts/${postId}/follow`).then(d=>{
+            if(d.followed !== undefined) setPostFollowed(d.followed);
+          }).catch(()=>{}); // silently ignore until endpoint exists
         }
       }
       finally { setLoading(false); }
@@ -3043,6 +3049,18 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     if(postSaved){ await api.delete(`/posts/${post.id}/save`); setPostSaved(false); }
     else { await api.post(`/posts/${post.id}/save`,{}); setPostSaved(true); }
   };
+  const toggleFollowPost = async()=>{
+    if(!currentUser){onAuthRequired?.("login");return;}
+    if(postFollowed){
+      await api.delete(`/posts/${post.id}/follow`).catch(()=>{});
+      setPostFollowed(false);
+      toast("Unfollowed");
+    } else {
+      await api.post(`/posts/${post.id}/follow`,{}).catch(()=>{});
+      setPostFollowed(true);
+      toast("Following — you'll be notified of new replies");
+    }
+  };
   const toggleSaveReply = async(replyId)=>{
     if(!currentUser){onAuthRequired?.("login");return;}
     if(savedReplyIds.has(replyId)){ await api.delete(`/posts/${post.id}/replies/${replyId}/save`); setSavedReplyIds(p=>{const n=new Set(p);n.delete(replyId);return n;}); }
@@ -3117,6 +3135,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
               <div className="post-title" style={{flex:1}}>{post.title}</div>
+              {currentUser&&<button title={postFollowed?"Unfollow":"Follow"}
+                onClick={toggleFollowPost}
+                style={{marginTop:3,background:"none",border:"none",cursor:"pointer",
+                  color:postFollowed?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,
+                  padding:"2px 4px",transition:"color .15s"}}>
+                <i className={`fa-${postFollowed?"solid":"regular"} fa-bell`}/>
+              </button>}
               {currentUser&&<button title={postSaved?"Saved":"Save"} onClick={toggleSavePost}
                 style={{marginTop:3,background:"none",border:"none",cursor:"pointer",color:postSaved?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
                 <i className={`fa-${postSaved?"solid":"regular"} fa-bookmark`}/>
@@ -8690,12 +8715,13 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
 
   // Notification preferences — loaded from currentUser.preferences
   const DEFAULT_NOTIF_PREFS = {
-    reply:        {web:true,  email:false, push:true},
-    mention:      {web:true,  email:false, push:true},
-    reaction:     {web:false, email:false, push:false},
-    dm:           {web:true,  email:true,  push:true},
-    badge:        {web:true,  email:false, push:false},
-    announcement: {web:true,  email:true,  push:true},
+    reply:         {web:true,  email:false, push:true},
+    followed_post: {web:true,  email:false, push:true},
+    mention:       {web:true,  email:false, push:true},
+    reaction:      {web:false, email:false, push:false},
+    dm:            {web:true,  email:true,  push:true},
+    badge:         {web:true,  email:false, push:false},
+    announcement:  {web:true,  email:true,  push:true},
   };
   const savedPrefs = currentUser?.preferences?.notifications || {};
   const [notifPrefs, setNotifPrefs] = useState(()=>{
@@ -8799,12 +8825,13 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   const emailLocked = window._requireEmailVerification===true && !currentUser?.email_verified && currentUser?.role !== "admin";
 
   const NOTIF_ROWS = [
-    {k:"reply",        label:"Replies to your posts",  desc:"Someone replied to a thread you started"},
-    {k:"mention",      label:"Mentions",               desc:"Someone @mentioned you in a post or reply"},
-    {k:"reaction",     label:"Reactions",              desc:"Someone reacted to your content"},
-    {k:"dm",           label:"Direct messages",        desc:"A new message in your conversations"},
-    {k:"badge",        label:"Badge awarded",          desc:"You earned a new badge"},
-    {k:"announcement", label:"Announcements",          desc:"Site-wide announcements from moderators"},
+    {k:"reply",         label:"Replies to your posts",   desc:"Someone replied to a thread you started"},
+    {k:"followed_post", label:"Followed posts",          desc:"Someone replies to a post you're following"},
+    {k:"mention",       label:"Mentions",                desc:"Someone @mentioned you in a post or reply"},
+    {k:"reaction",      label:"Reactions",               desc:"Someone reacted to your content"},
+    {k:"dm",            label:"Direct messages",         desc:"A new message in your conversations"},
+    {k:"badge",         label:"Badge awarded",           desc:"You earned a new badge"},
+    {k:"announcement",  label:"Announcements",           desc:"Site-wide announcements from moderators"},
   ];
 
   const saveProfile=async()=>{
@@ -8852,19 +8879,27 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
-        <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
-      </div>
-      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
-        {/* Settings sidenav */}
-        <div style={{width:180,borderRight:"0.5px solid var(--b1)",padding:"12px 0",flexShrink:0}}>
+      {/* Header + horizontal tabs */}
+      <div style={{borderBottom:"0.5px solid var(--b1)",padding:"0 24px",flexShrink:0}}>
+        <div style={{height:48,display:"flex",alignItems:"center"}}>
+          <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
+        </div>
+        <div style={{display:"flex",gap:0,marginBottom:-1}}>
           {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"}].map(s=>(
-            <div key={s.k} className={`sb-item ${tab===s.k?"active":""}`} onClick={()=>setTab(s.k)}>
-              <i className={`fa-solid ${s.icon}`}></i>
-              <span className="sb-item-name">{s.label}</span>
-            </div>
+            <button key={s.k} onClick={()=>setTab(s.k)}
+              style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
+                background:"none",border:"none",
+                borderBottom:tab===s.k?"2px solid var(--ac)":"2px solid transparent",
+                color:tab===s.k?"var(--ac-text)":"var(--t4)",
+                fontWeight:tab===s.k?500:400,fontSize:13,cursor:"pointer",
+                fontFamily:"inherit",marginBottom:-1,transition:"color .1s"}}>
+              <i className={`fa-solid ${s.icon}`} style={{fontSize:12}}/>
+              {s.label}
+            </button>
           ))}
         </div>
+      </div>
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* Settings content */}
         <div style={{flex:1,overflow:"auto",padding:"24px 32px",maxWidth:600}}>
           {tab==="profile"&&<>
@@ -8969,6 +9004,48 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
               )}
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={saveNotifPrefs} disabled={notifSaving}>{notifSaving?"Saving…":"Save preferences"}</button>
+              </div>
+            </div>
+
+            {/* Following */}
+            <div style={{marginTop:28,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
+              <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Following</div>
+              <div style={{fontSize:13,color:"var(--t4)",marginBottom:16}}>
+                Control when you automatically follow posts and get notified about new replies.
+              </div>
+              <div className="toggle-row" style={{marginBottom:0}}>
+                <div>
+                  <div style={{fontSize:14,color:"var(--t2)"}}>Auto-follow posts I create</div>
+                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>
+                    You'll be notified when others reply to threads you start.
+                  </div>
+                </div>
+                <div className="tgl"
+                  style={{background:(currentUser?.preferences?.auto_follow_own_posts!==false)?"var(--ac)":"rgba(255,255,255,0.1)"}}
+                  onClick={()=>{
+                    const next={...currentUser?.preferences||{},auto_follow_own_posts:currentUser?.preferences?.auto_follow_own_posts===false?true:false};
+                    api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
+                    toast("Preference saved");
+                  }}>
+                  <div className="tgl-knob" style={{left:(currentUser?.preferences?.auto_follow_own_posts!==false)?23:3,background:"#fff"}}/>
+                </div>
+              </div>
+              <div className="toggle-row" style={{marginTop:16,marginBottom:0}}>
+                <div>
+                  <div style={{fontSize:14,color:"var(--t2)"}}>Auto-follow posts I reply to</div>
+                  <div style={{fontSize:12,color:"var(--t5)",marginTop:3}}>
+                    You'll be notified of further replies on any thread you engage with.
+                  </div>
+                </div>
+                <div className="tgl"
+                  style={{background:(currentUser?.preferences?.auto_follow_replied_posts!==false)?"var(--ac)":"rgba(255,255,255,0.1)"}}
+                  onClick={()=>{
+                    const next={...currentUser?.preferences||{},auto_follow_replied_posts:currentUser?.preferences?.auto_follow_replied_posts===false?true:false};
+                    api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
+                    toast("Preference saved");
+                  }}>
+                  <div className="tgl-knob" style={{left:(currentUser?.preferences?.auto_follow_replied_posts!==false)?23:3,background:"#fff"}}/>
+                </div>
               </div>
             </div>
 
