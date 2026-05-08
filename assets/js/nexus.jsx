@@ -1442,6 +1442,8 @@ const TB_BTNS = [
   {type:"spoiler",  label:"👁",    tip:"Spoiler",     style:{},                                  wrap:["||","||"]},
   {sep:true},
   {type:"image",    label:"🖼",    tip:"Upload image", style:{},                                  wrap:null},
+  {sep:true},
+  {type:"gamepedia", label:"GP",  tip:"Link a game",   style:{color:"rgba(167,139,250,0.9)"},    wrap:null, ext:true},
 ];
 const EXPLORE_ITEMS = [
   {id:"everything", label:"Everything",   icon:"fa-border-all"},
@@ -1656,6 +1658,12 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
                   ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
                   : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
               </label>
+            : b.type==="gamepedia"
+            ? <button key="gamepedia" className="comp-tb-btn" title="Link a game"
+                style={{color:"rgba(167,139,250,0.9)"}}
+                onMouseDown={e=>{e.preventDefault(); window._gpOpenPicker && window._gpOpenPicker(toolbarLinkedGames, toolbarSetLinkedGames);}}>
+                <i className="fa-solid fa-gamepad" style={{fontSize:13}}/>
+              </button>
             : <button key={b.type} className="comp-tb-btn" title={b.tip}
                 style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
                 {b.label}
