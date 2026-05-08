@@ -41,18 +41,46 @@ defmodule NexusWeb.API.V1.ReportController do
   end
 
   defp report_json(report) do
+    # Derive content context from the associated post or reply
+    {content_type, excerpt, post_id, post_title, space_name, content_user} =
+      cond do
+        report.post != nil ->
+          post = report.post
+          body = post.body || ""
+          excerpt = body |> String.replace(~r/[#*`>\[\]!]/, "") |> String.slice(0, 280)
+          {"post", excerpt, post.id, post.title, post.space && post.space.name, post.user}
+
+        report.reply != nil ->
+          reply = report.reply
+          body  = reply.body || ""
+          excerpt = body |> String.replace(~r/[#*`>\[\]!]/, "") |> String.slice(0, 280)
+          {"reply", excerpt, report.post_id, nil, nil, reply.user}
+
+        report.user != nil ->
+          {"user", nil, nil, nil, nil, report.user}
+
+        true ->
+          {"unknown", nil, report.post_id, nil, nil, nil}
+      end
+
     %{
-      id: report.id,
-      reason: report.reason,
-      notes: report.notes,
-      status: report.status,
-      reviewed_at: report.reviewed_at,
-      reporter: user_json(report.reporter),
-      reviewer: user_json(report.reviewer),
-      post_id: report.post_id,
-      reply_id: report.reply_id,
-      user_id: report.user_id,
-      inserted_at: report.inserted_at
+      id:           report.id,
+      reason:       report.reason,
+      notes:        report.notes,
+      status:       report.status,
+      reviewed_at:  report.reviewed_at,
+      reporter:     user_json(report.reporter),
+      reviewer:     user_json(report.reviewer),
+      post_id:      post_id,
+      reply_id:     report.reply_id,
+      user_id:      report.user_id,
+      inserted_at:  report.inserted_at,
+      # Content context — gives moderators what they need without navigating away
+      content_type: content_type,
+      post_title:   post_title,
+      excerpt:      excerpt,
+      space_name:   space_name,
+      content_user: user_json(content_user)
     }
   end
 

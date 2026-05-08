@@ -5033,6 +5033,7 @@ function ReportCard({r, onAction, isAdmin}) {
       borderRadius:12,padding:"14px 16px",marginBottom:10,display:"flex",gap:14,
       alignItems:"flex-start",opacity:resolved?0.55:1}}>
       <div style={{flex:1,minWidth:0}}>
+        {/* Header row — type badge + reason */}
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
           {resolved
             ? <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:"rgba(52,211,153,0.1)",color:"#34d399",textTransform:"uppercase",letterSpacing:"0.4px"}}>resolved</span>
@@ -5040,9 +5041,24 @@ function ReportCard({r, onAction, isAdmin}) {
           }
           <span style={{fontSize:13,fontWeight:500,color:"rgba(255,255,255,0.75)"}}>{r.reason}</span>
         </div>
-        {r.excerpt&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,marginBottom:8,fontStyle:"italic",borderLeft:"2px solid rgba(255,255,255,0.1)",paddingLeft:10}}>
-          "{r.excerpt.length > 140 ? r.excerpt.slice(0,140)+"…" : r.excerpt}"
-        </div>}
+
+        {/* Post title if available */}
+        {r.post_title&&(
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:6}}>
+            {r.post_title}
+          </div>
+        )}
+
+        {/* Content excerpt — the actual text being reported */}
+        {r.excerpt&&(
+          <div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,marginBottom:8,
+            background:"rgba(255,255,255,0.03)",border:"0.5px solid rgba(255,255,255,0.07)",
+            borderRadius:8,padding:"8px 12px",fontStyle:"italic"}}>
+            {r.excerpt.length > 240 ? r.excerpt.slice(0,240)+"…" : r.excerpt}
+          </div>
+        )}
+
+        {/* Meta row — author, space, reporter, time */}
         <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t5)",flexWrap:"wrap"}}>
           {r.content_user&&<>
             <div style={{width:18,height:18,borderRadius:5,background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,fontWeight:500,color:"var(--ac-on)",flexShrink:0}}>
