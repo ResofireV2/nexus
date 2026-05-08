@@ -17,6 +17,10 @@ defmodule NexusWeb.API.V1.AuthController do
         Task.start(fn -> Accounts.send_verification_email(user) end)
         Task.start(fn -> Nexus.Extensions.fire("user_registered", %{user_id: user.id}) end)
 
+        # Create an initial score row so the user appears on the leaderboard immediately
+        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+        %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
+
         opts = [
           user_agent: get_req_header(conn, "user-agent") |> List.first(),
           ip_address: to_string(:inet.ntoa(conn.remote_ip))
