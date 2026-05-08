@@ -159,7 +159,7 @@ defmodule Nexus.Extensions do
   # Store — fetch the community registry
   # ---------------------------------------------------------------------------
 
-  @registry_url "https://cdn.jsdelivr.net/gh/nexus-community/extensions@main/registry.json"
+  @registry_url "https://cdn.jsdelivr.net/gh/ResofireV2/nexus-extensions@main/registry.json"
 
   def fetch_store(registry_url \\ @registry_url) do
     case Req.get(registry_url, receive_timeout: 15_000) do
