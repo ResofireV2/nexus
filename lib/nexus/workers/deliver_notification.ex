@@ -56,7 +56,15 @@ defmodule Nexus.Workers.DeliverNotification do
       })
 
       case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
-        :ok -> :ok
+        :ok ->
+          :ok
+
+        {:error, :subscription_expired} ->
+          clear_subscription(user)
+
+        {:error, :subscription_not_found} ->
+          clear_subscription(user)
+
         {:error, reason} ->
           require Logger
           Logger.warning("DM web push failed for user #{user_id}: #{inspect(reason)}")
@@ -116,8 +124,17 @@ defmodule Nexus.Workers.DeliverNotification do
       payload = build_push_payload(notification, pwa)
 
       case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
-        :ok -> :ok
-        # Push delivery failures are non-fatal — log and continue
+        :ok ->
+          :ok
+
+        {:error, :subscription_expired} ->
+          # 410 Gone — browser has invalidated this subscription permanently. Clear it.
+          clear_subscription(user)
+
+        {:error, :subscription_not_found} ->
+          # 404 — endpoint no longer exists. Clear it.
+          clear_subscription(user)
+
         {:error, reason} ->
           require Logger
           Logger.warning("Web push failed for user #{notification.user_id}: #{inspect(reason)}")
@@ -180,6 +197,17 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp thread_url(nil),       do: "/messages"
   defp thread_url(thread_id), do: "/messages/#{thread_id}"
+
+  # Clear a stale push subscription from the user record.
+  # Called when the push endpoint returns 410 (expired) or 404 (not found).
+  # Silently succeeds — if the update fails the subscription will be retried
+  # on the next notification and cleaned up then.
+  defp clear_subscription(user) do
+    require Logger
+    Logger.info("Clearing stale push subscription for user #{user.id}")
+    Nexus.Accounts.update_preferences(user, %{push_subscription: nil})
+    :ok
+  end
 
   # Check whether the user has push enabled for this notification type.
   # Preferences are stored as: preferences["notifications"][type]["push"] = true/false
