@@ -179,6 +179,7 @@ defmodule Nexus.Uploads do
 
   defp do_convert(abs_src, original_path, convert?, quality, max_w) do
     with {:ok, image} <- Image.open(abs_src),
+         {:ok, image} <- autorotate(image),
          {orig_w, orig_h, _} <- Image.shape(image),
          {:ok, resized} <- maybe_resize(image, orig_w, max_w),
          {final_w, final_h, _} <- Image.shape(resized) do
@@ -215,6 +216,10 @@ defmodule Nexus.Uploads do
   defp safe_dims(path) do
     case Image.open(path) do
       {:ok, img} ->
+        img = case Image.autorotate(img) do
+          {:ok, rotated} -> rotated
+          _ -> img
+        end
         {w, h, _} = Image.shape(img)
         %{width: w, height: h}
       _ ->
@@ -286,5 +291,16 @@ defmodule Nexus.Uploads do
     File.rm(path)
   rescue
     _ -> :ok
+  end
+
+  # Rotate image pixels to match EXIF orientation tag, then strip the tag.
+  # This ensures phone photos display correctly after WebP conversion strips EXIF.
+  # Image.autorotate/1 is a no-op (returns {:ok, image}) if no rotation is needed.
+  defp autorotate(image) do
+    case Image.autorotate(image) do
+      {:ok, rotated} -> {:ok, rotated}
+      # If autorotate isn't available or fails, continue with original
+      _ -> {:ok, image}
+    end
   end
 end
