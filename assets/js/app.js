@@ -92,3 +92,31 @@ const NexusSocket = {
 
 window.NexusSocket = NexusSocket;
 export default NexusSocket;
+
+// ---------------------------------------------------------------------------
+// PWA install prompt
+// Capture the browser's beforeinstallprompt event so we can trigger it
+// from the React app at a moment of our choosing instead of the default
+// browser timing. Stored on window so nexus.jsx can read it.
+// ---------------------------------------------------------------------------
+window._installPrompt = null;
+window._installPromptListeners = [];
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  window._installPrompt = e;
+  window._installPromptListeners.forEach(fn => fn(e));
+});
+
+window.addEventListener("appinstalled", () => {
+  window._installPrompt = null;
+  window._installPromptListeners.forEach(fn => fn(null));
+});
+
+window.onInstallPromptChange = function(fn) {
+  window._installPromptListeners.push(fn);
+  return () => {
+    window._installPromptListeners =
+      window._installPromptListeners.filter(f => f !== fn);
+  };
+};

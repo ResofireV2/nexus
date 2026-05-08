@@ -342,7 +342,8 @@ defmodule NexusWeb.API.V1.AuthController do
       cover_url: user.cover_url,
       email_verified: user.email_verified,
       inserted_at: user.inserted_at,
-      preferences: user.preferences || %{}
+      preferences: user.preferences || %{},
+      has_push_subscription: not is_nil(user.push_subscription)
     }
   end
 

@@ -1713,9 +1713,15 @@ function AuthPage({onLogin}) {
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
+  const [installPrompt, setInstallPrompt] = useState(window._installPrompt||null);
   useEffect(()=>{
     setBranding({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name});
     onBrandingChange(b=>setBranding({logo_url:b.logo_url, site_name:b.site_name}));
+  },[]);
+  useEffect(()=>{
+    setInstallPrompt(window._installPrompt||null);
+    const unsub = window.onInstallPromptChange?.(p=>setInstallPrompt(p||null));
+    return ()=>unsub?.();
   },[]);
   const SbItem = ({icon, label, count, badge, targetPage, targetProps={}}) => {
     const active = page===targetPage && JSON.stringify(pageProps)===JSON.stringify(targetProps);
@@ -1806,6 +1812,22 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
         {currentUser?.role==="admin"&&<>
           <SbItem icon="fa-gear" label="Admin Panel" targetPage="admin"/>
         </>}
+        {installPrompt&&(
+          <div style={{padding:"8px 12px"}}>
+            <button
+              style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderRadius:10,background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",cursor:"pointer",fontFamily:"inherit",fontSize:13,color:"var(--ac-text)",fontWeight:500}}
+              onClick={async()=>{
+                if(!installPrompt) return;
+                installPrompt.prompt();
+                await installPrompt.userChoice;
+                setInstallPrompt(null);
+                window._installPrompt=null;
+              }}>
+              <i className="fa-solid fa-mobile-screen" style={{fontSize:14,color:"var(--ac)",width:18,textAlign:"center"}}/>
+              Add to home screen
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -6805,12 +6827,12 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
 
   // Notification preferences — loaded from currentUser.preferences
   const DEFAULT_NOTIF_PREFS = {
-    reply:        {web:true,  email:false},
-    mention:      {web:true,  email:false},
-    reaction:     {web:false, email:false},
-    dm:           {web:true,  email:true},
-    badge:        {web:true,  email:false},
-    announcement: {web:true,  email:true},
+    reply:        {web:true,  email:false, push:true},
+    mention:      {web:true,  email:false, push:true},
+    reaction:     {web:false, email:false, push:false},
+    dm:           {web:true,  email:true,  push:true},
+    badge:        {web:true,  email:false, push:false},
+    announcement: {web:true,  email:true,  push:true},
   };
   const savedPrefs = currentUser?.preferences?.notifications || {};
   const [notifPrefs, setNotifPrefs] = useState(()=>{
@@ -6821,6 +6843,95 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
     return merged;
   });
   const [notifSaving, setNotifSaving] = useState(false);
+
+  // Push subscription state
+  const [pushSubscribed, setPushSubscribed] = useState(!!currentUser?.has_push_subscription);
+  const [pushLoading, setPushLoading]       = useState(false);
+  const [pushError, setPushError]           = useState(null);
+  const [vapidReady, setVapidReady]         = useState(false);
+  const pushSupported = "serviceWorker" in navigator && "PushManager" in window;
+
+  // Check VAPID config and current subscription state on mount
+  useEffect(()=>{
+    if(!pushSupported) return;
+    // Check if VAPID is configured
+    fetch("/api/v1/pwa/vapid-public-key")
+      .then(r=>r.ok?r.json():null)
+      .then(d=>{ if(d?.public_key) setVapidReady(true); })
+      .catch(()=>{});
+    // Check if we have an active SW registration + subscription
+    navigator.serviceWorker.ready.then(reg=>
+      reg.pushManager.getSubscription()
+    ).then(sub=>{
+      setPushSubscribed(!!sub);
+    }).catch(()=>{});
+  },[pushSupported]);
+
+  const subscribePush = async () => {
+    setPushLoading(true); setPushError(null);
+    try {
+      // Fetch VAPID public key
+      const kr = await fetch("/api/v1/pwa/vapid-public-key");
+      if(!kr.ok) { setPushError("Push notifications are not configured. Contact an admin."); return; }
+      const {public_key} = await kr.json();
+
+      // Convert base64url key to Uint8Array for applicationServerKey
+      const padding = "=".repeat((4 - public_key.length % 4) % 4);
+      const base64  = (public_key + padding).replace(/-/g,"+").replace(/_/g,"/");
+      const raw     = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
+      // Subscribe via PushManager
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: raw
+      });
+
+      // POST subscription to server
+      const subJson = sub.toJSON();
+      const d = await api.post("/push/subscribe", {subscription: subJson});
+      if(d.ok) {
+        setPushSubscribed(true);
+        // Enable push for all notification types by default
+        setNotifPrefs(p=>{
+          const next={...p};
+          Object.keys(next).forEach(k=>{ next[k]={...next[k],push:true}; });
+          return next;
+        });
+        toast("Push notifications enabled");
+      } else {
+        setPushError(d.error||"Failed to save subscription");
+        await sub.unsubscribe();
+      }
+    } catch(e) {
+      if(e.name==="NotAllowedError") setPushError("Permission denied. Allow notifications in your browser settings.");
+      else setPushError("Failed to enable push notifications.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const unsubscribePush = async () => {
+    setPushLoading(true); setPushError(null);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if(sub) await sub.unsubscribe();
+      await api.delete("/push/subscribe");
+      setPushSubscribed(false);
+      // Disable push for all notification types
+      setNotifPrefs(p=>{
+        const next={...p};
+        Object.keys(next).forEach(k=>{ next[k]={...next[k],push:false}; });
+        return next;
+      });
+      toast("Push notifications disabled");
+    } catch {
+      setPushError("Failed to disable push notifications.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const emailLocked = window._requireEmailVerification===true && !currentUser?.email_verified && currentUser?.role !== "admin";
 
@@ -6865,6 +6976,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
 
   const toggleNotif=(key,channel)=>{
     if(channel==="email"&&emailLocked) return;
+    if(channel==="push"&&!pushSubscribed) return;
     setNotifPrefs(p=>({...p,[key]:{...p[key],[channel]:!p[key][channel]}}));
   };
 
@@ -6955,14 +7067,46 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                   <Toggle on={notifPrefs[row.k]?.email&&!emailLocked} onClick={()=>toggleNotif(row.k,"email")} disabled={emailLocked}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
-                  <div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>soon</div>
+                  {pushSubscribed
+                    ?<Toggle on={notifPrefs[row.k]?.push} onClick={()=>toggleNotif(row.k,"push")}/>
+                    :<div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>off</div>}
                 </div>
               </div>
             ))}
 
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,paddingTop:16,borderTop:"0.5px solid var(--b1)"}}>
-              <div style={{fontSize:12,color:"var(--t5)"}}>Push notifications require the mobile app.</div>
-              <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={saveNotifPrefs} disabled={notifSaving}>{notifSaving?"Saving…":"Save preferences"}</button>
+            {/* Push subscription control */}
+            <div style={{marginTop:20,paddingTop:16,borderTop:"0.5px solid var(--b1)"}}>
+              {!pushSupported&&(
+                <div style={{fontSize:12,color:"var(--t5)",marginBottom:12}}>Push notifications are not supported in this browser.</div>
+              )}
+              {pushSupported&&!vapidReady&&(
+                <div style={{fontSize:12,color:"var(--t5)",marginBottom:12}}>Push notifications have not been configured yet. An admin needs to generate VAPID keys in the PWA settings.</div>
+              )}
+              {pushSupported&&vapidReady&&(
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+                  {pushSubscribed
+                    ?<>
+                      <div style={{display:"flex",alignItems:"center",gap:6,fontSize:13,color:"var(--green)"}}>
+                        <i className="fa-solid fa-circle-check" style={{fontSize:12}}/>Push notifications enabled
+                      </div>
+                      <button className="btn-ghost" style={{fontSize:12,padding:"5px 14px",color:"var(--t4)"}}
+                        disabled={pushLoading} onClick={unsubscribePush}>
+                        {pushLoading?"…":"Disable"}
+                      </button>
+                    </>
+                    :<>
+                      <div style={{fontSize:13,color:"var(--t4)"}}>Enable push notifications to get notified even when the tab is closed.</div>
+                      <button className="btn-primary" style={{fontSize:12,padding:"5px 14px"}}
+                        disabled={pushLoading} onClick={subscribePush}>
+                        {pushLoading?"Enabling…":"Enable push notifications"}
+                      </button>
+                    </>}
+                  {pushError&&<div style={{fontSize:12,color:"var(--red)",width:"100%"}}>{pushError}</div>}
+                </div>
+              )}
+              <div style={{display:"flex",justifyContent:"flex-end"}}>
+                <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={saveNotifPrefs} disabled={notifSaving}>{notifSaving?"Saving…":"Save preferences"}</button>
+              </div>
             </div>
 
             {/* Digest frequency */}
