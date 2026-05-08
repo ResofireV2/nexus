@@ -882,7 +882,6 @@ select option{background:#1a1a2e;color:var(--t1);}
 .admin-content-header{padding:0 14px;height:52px;}
 .admin-content-title{font-size:16px;}
 .admin-content-body{padding:16px 14px;}
-.admin-stat-row{grid-template-columns:repeat(2,1fr);gap:10px;}
 .asc-title{font-size:18px!important;}
 .admin-content-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;}
 
@@ -1131,7 +1130,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Admin content bits */
 .page-sub{font-size:14px;color:var(--t4);margin-bottom:20px;}
-.admin-stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.admin-stat-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:28px;}
 .admin-stat-card{background:rgba(255,255,255,0.03);border:0.5px solid rgba(255,255,255,0.08);border-radius:14px;padding:18px 20px;transition:border-color .1s;}
 .admin-stat-card:hover{border-color:rgba(255,255,255,0.14);}
 .asc-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
