@@ -341,11 +341,16 @@ defmodule Nexus.Extensions do
 
       # GitHub repo URL — convert to raw manifest URL
       String.contains?(url, "github.com") ->
-        url
-        |> String.replace("https://github.com/", "https://raw.githubusercontent.com/")
-        |> String.replace("/tree/", "/")
-        |> String.trim_trailing("/")
-        |> Kernel.<>("/manifest.json")
+        path =
+          url
+          |> String.replace("https://github.com/", "")
+          |> String.replace("/tree/", "/")
+          |> String.trim_trailing("/")
+
+        # If only owner/repo with no branch, append /main
+        path = if length(String.split(path, "/")) == 2, do: path <> "/main", else: path
+
+        "https://raw.githubusercontent.com/#{path}/manifest.json"
 
       # Assume direct URL to manifest.json
       true ->
