@@ -388,6 +388,10 @@ window.NexusExtensions = {
   _routeListeners: [],
   _adminPanels: [],
   _adminPanelListeners: [],
+  _exploreItems: [],
+  _exploreListeners: [],
+  _rightWidgets: [],
+  _rightWidgetListeners: [],
 
   registerSlot(slotName, component, priority = 50) {
     if (!this._slots[slotName]) this._slots[slotName] = [];
@@ -497,6 +501,63 @@ window.NexusExtensions = {
   onAdminPanelChange(fn) {
     this._adminPanelListeners.push(fn);
     return () => { this._adminPanelListeners = this._adminPanelListeners.filter(f => f !== fn); };
+  },
+
+  // Register an item in the Explore section of the left sidebar.
+  // Extensions call this from their bundle:
+  //
+  //   window.NexusExtensions.registerExploreItem({
+  //     id:       "gamepedia",          // unique — used for layout save/restore
+  //     label:    "Games",
+  //     icon:     "fa-gamepad",         // any FA solid class
+  //     page:     "ext-route",          // use "ext-route" for extension SPA routes
+  //     props:    { _match: ..., ... }, // passed straight to navigate()
+  //     authOnly: false,                // hide when not logged in (optional)
+  //     priority: 50,                   // lower = higher up (optional, default 50)
+  //   });
+  //
+  // For linking to a registered route the easiest pattern is:
+  //   page: "ext-route",
+  //   props: window.NexusExtensions.matchRoute("/gamepedia") || {}
+  //
+  // The item appears in Explore and in the Layout admin drag-to-reorder list.
+  registerExploreItem({ id, label, icon="fa-puzzle-piece", page, props={}, authOnly=false, priority=50 }) {
+    this._exploreItems = this._exploreItems.filter(i => i.id !== id);
+    this._exploreItems.push({ id, label, icon, page, props, authOnly, priority, _ext: true });
+    this._exploreItems.sort((a, b) => (a.priority||50) - (b.priority||50));
+    this._exploreListeners.forEach(fn => fn());
+  },
+
+  getExploreItems() { return this._exploreItems; },
+
+  onExploreChange(fn) {
+    this._exploreListeners.push(fn);
+    return () => { this._exploreListeners = this._exploreListeners.filter(f => f !== fn); };
+  },
+
+  // Register a widget in the right sidebar.
+  // Extensions call this from their bundle:
+  //
+  //   window.NexusExtensions.registerRightWidget({
+  //     id:        "gamepedia-recent",      // unique
+  //     label:     "Recent Games",          // shown in Layout admin drag list
+  //     component: MyWidget,               // React component, receives ({ navigate, currentUser })
+  //     priority:  50,                     // lower = higher up (optional, default 50)
+  //   });
+  //
+  // The widget appears in the right panel and in the Layout admin drag-to-reorder list.
+  registerRightWidget({ id, label, component, priority=50 }) {
+    this._rightWidgets = this._rightWidgets.filter(w => w.id !== id);
+    this._rightWidgets.push({ id, label, component, priority, _ext: true });
+    this._rightWidgets.sort((a, b) => (a.priority||50) - (b.priority||50));
+    this._rightWidgetListeners.forEach(fn => fn());
+  },
+
+  getRightWidgets() { return this._rightWidgets; },
+
+  onRightWidgetChange(fn) {
+    this._rightWidgetListeners.push(fn);
+    return () => { this._rightWidgetListeners = this._rightWidgetListeners.filter(f => f !== fn); };
   },
 };
 
@@ -1915,6 +1976,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
   const [installPrompt, setInstallPrompt] = useState(window._installPrompt||null);
   const [installDismissed, setInstallDismissed] = useState(false);
+  const [, forceExploreUpdate] = useState(0);
   // Only show on mobile — beforeinstallprompt fires on desktop Chrome too
   // but "Add to home screen" only makes sense on a mobile device.
   const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -1926,6 +1988,10 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
     setInstallPrompt(window._installPrompt||null);
     const unsub = window.onInstallPromptChange?.(p=>setInstallPrompt(p||null));
     return ()=>unsub?.();
+  },[]);
+  useEffect(()=>{
+    const unsub = window.NexusExtensions.onExploreChange(()=>forceExploreUpdate(n=>n+1));
+    return unsub;
   },[]);
   const SbItem = ({icon, label, count, badge, targetPage, targetProps={}}) => {
     const active = page===targetPage && JSON.stringify(pageProps)===JSON.stringify(targetProps);
@@ -1982,6 +2048,10 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
             ? savedExplore.map(function(s){return EXPLORE_ITEMS.find(function(d){return d.id===s.id;})||s;})
             : EXPLORE_ITEMS.slice();
           EXPLORE_ITEMS.forEach(function(d){if(!exploreItems.find(function(s){return s.id===d.id;}))exploreItems.push(d);});
+          // Append extension-registered explore items (not yet in the saved list)
+          window.NexusExtensions.getExploreItems().forEach(function(d){
+            if(!exploreItems.find(function(s){return s.id===d.id;}))exploreItems.push(d);
+          });
 
           // Ordered spaces from layout config
           var savedSpaceOrder = layoutCfg.spaces_order;
@@ -2006,9 +2076,22 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 
           return sections.map(function(sec, si){
             var divider = si > 0 ? <div key={"div"+si} className="sb-divider"/> : null;
-            if(sec.id === "explore") return <React.Fragment key="explore">
+          if(sec.id === "explore") return <React.Fragment key="explore">
               {divider}<div className="sb-label">Explore</div>
-              {exploreItems.map(function(item){return exploreMap[item.id]||null;})}
+              {exploreItems.map(function(item){
+                if(exploreMap[item.id]) return exploreMap[item.id];
+                // Extension-registered item — render generically using page/props
+                if(item._ext) {
+                  if(item.authOnly && !currentUser) return null;
+                  const extActive = page===item.page && JSON.stringify(pageProps)===JSON.stringify(item.props);
+                  return <div key={item.id} className={`sb-item ${extActive?"active":""}`}
+                    onClick={()=>navigate(item.page, item.props)}>
+                    <i className={`fa-solid ${item.icon}`}/>
+                    <span className="sb-item-name">{item.label}</span>
+                  </div>;
+                }
+                return null;
+              })}
             </React.Fragment>;
             if(sec.id === "spaces") return <React.Fragment key="spaces">
               {divider}<div className="sb-label">Spaces</div>
@@ -2150,21 +2233,32 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate}) {
   const [stats, setStats] = useState({members:0, threads:0});
   const [myRank, setMyRank] = useState(null);
+  const [, forceWidgetUpdate] = useState(0);
   useEffect(()=>{ api.get("/stats").then(d=>setStats(d)).catch(()=>{}); },[]);
   useEffect(()=>{
     if(currentUser) {
       api.get("/leaderboard/me?period=all").then(d=>{ if(d.rank) setMyRank(d.rank); }).catch(()=>{});
     }
   },[currentUser]);
+  useEffect(()=>{
+    const unsub = window.NexusExtensions.onRightWidgetChange(()=>forceWidgetUpdate(n=>n+1));
+    return unsub;
+  },[]);
 
   const sorted = [...spaces].sort((a,b)=>(b.post_count||0)-(a.post_count||0));
   const max = sorted[0]?.post_count||1;
 
+  // Merge saved layout order with built-in defaults, then append any extension
+  // widgets not yet in the saved list so they always appear even before the
+  // admin has touched the layout settings.
   var savedWidgets = layoutCfg.right_widgets;
   var widgets = savedWidgets && savedWidgets.length
     ? savedWidgets.map(function(w){return RIGHT_WIDGETS.find(function(d){return d.id===w.id;})||w;})
     : RIGHT_WIDGETS.slice();
   RIGHT_WIDGETS.forEach(function(d){if(!widgets.find(function(w){return w.id===d.id;}))widgets.push(d);});
+  window.NexusExtensions.getRightWidgets().forEach(function(d){
+    if(!widgets.find(function(w){return w.id===d.id;}))widgets.push(d);
+  });
 
   var liveActivityWidget = (
     <div className="rw" key="live_activity">
@@ -2210,7 +2304,19 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
   var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
   return (
     <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-      {widgets.map(function(w){return widgetMap[w.id]||null;})}
+      {widgets.map(function(w){
+        if(widgetMap[w.id]) return widgetMap[w.id];
+        // Extension-registered widget — render its component inside the standard rw card
+        if(w._ext && w.component) {
+          return (
+            <div className="rw" key={w.id}>
+              <div className="rw-label">{w.label.toLowerCase()}</div>
+              {React.createElement(w.component, { navigate, currentUser })}
+            </div>
+          );
+        }
+        return null;
+      })}
     </div>
   );
 }
@@ -4985,13 +5091,14 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
       React.createElement('div', {className:"fgt", style:{marginTop:28}}, "Explore items"),
       React.createElement('div', {className:"page-sub"}, "Drag to reorder the items within the Explore section."),
       React.createElement(DragList, {
-        items: orderedList("explore_items", EXPLORE_ITEMS),
+        items: orderedList("explore_items", [...EXPLORE_ITEMS, ...window.NexusExtensions.getExploreItems()]),
         onChange: function(items){update("explore_items", items);},
         renderItem: function(item) {
           return React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10,flex:1}},
             React.createElement('i', {className:"fa-solid "+item.icon, style:{fontSize:13,color:"var(--t4)",width:16,textAlign:"center"}}),
             React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label),
-            item.authOnly && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(255,255,255,0.05)",padding:"1px 7px",borderRadius:20,border:"0.5px solid var(--b1)"}}, "logged in only")
+            item.authOnly && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(255,255,255,0.05)",padding:"1px 7px",borderRadius:20,border:"0.5px solid var(--b1)"}}, "logged in only"),
+            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension")
           );
         }
       })
@@ -5002,10 +5109,13 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
       React.createElement('div', {className:"fgt"}, "Widget order"),
       React.createElement('div', {className:"page-sub"}, "Drag to reorder the widgets in the right sidebar."),
       React.createElement(DragList, {
-        items: orderedList("right_widgets", RIGHT_WIDGETS),
+        items: orderedList("right_widgets", [...RIGHT_WIDGETS, ...window.NexusExtensions.getRightWidgets()]),
         onChange: function(items){update("right_widgets", items);},
         renderItem: function(item) {
-          return React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label);
+          return React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10,flex:1}},
+            React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label),
+            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension")
+          );
         }
       })
     )
