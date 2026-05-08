@@ -813,9 +813,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Thread rows */
 .thread{border-bottom:0.5px solid rgba(255,255,255,0.05);cursor:pointer;display:flex;flex-direction:column;transition:background .1s;}
 .thread:hover{background:rgba(255,255,255,0.02);}
-.thread-main{display:flex;align-items:center;}
+.thread-main{display:flex;align-items:stretch;}
 .thread-accent{width:3px;align-self:stretch;flex-shrink:0;border-radius:0 2px 2px 0;}
-.thread-av{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin:0 14px 0 18px;}
+.thread-av{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin:0 14px 0 18px;align-self:center;}
 .thread-body{flex:1;min-width:0;padding:12px 0 8px;}
 .thread-top{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
 .thread-title{font-size:14px;font-weight:500;color:#e8e4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
@@ -828,7 +828,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .pav-more{background:rgba(255,255,255,0.08);color:var(--t4);font-size:8px;}
 .part-label{font-size:10px;color:var(--t5);margin-left:14px;}
 .participants-row{display:flex;align-items:center;padding:0 0 11px;}
-.thread-meta{display:flex;align-items:center;padding:12px 14px 12px 0;flex-shrink:0;}
+.thread-meta{display:flex;align-items:center;justify-content:center;padding:0 14px 0 0;flex-shrink:0;}
 .meta-block{display:flex;flex-direction:column;align-items:center;gap:1px;width:48px;}
 .meta-n{font-size:13px;font-weight:500;color:var(--t3);}
 .meta-l{font-size:10px;color:var(--t5);}
@@ -2594,7 +2594,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                       <div className="thread-meta">
                         <div className="meta-block">
                           <div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div>
-                          <div className="meta-l">hearts</div>
+                          <div className="meta-l"><i className="fa-solid fa-face-smile" style={{fontSize:9}}/></div>
                         </div>
                         <div className="meta-div"/>
                         <div className="thread-last">
@@ -3823,7 +3823,7 @@ function ProfilePage({username, currentUser, navigate}) {
             <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
           </div>
           <div className="thread-meta">
-            <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l">hearts</div></div>
+            <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-face-smile" style={{fontSize:9}}/></div></div>
           </div>
         </div>
       </div>
@@ -9171,7 +9171,7 @@ function SavedPage({navigate, currentUser}) {
                     <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
                   </div>
                   <div className="thread-meta">
-                    <div className="meta-block"><div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div><div className="meta-l">hearts</div></div>
+                    <div className="meta-block"><div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-face-smile" style={{fontSize:9}}/></div></div>
                   </div>
                 </div>
                 <button onClick={e=>unsave(e,item)} title="Remove" style={{position:"absolute",top:10,right:12,background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:13,opacity:0,transition:"opacity .15s"}}
