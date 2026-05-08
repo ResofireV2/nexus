@@ -1,12 +1,5 @@
 billyrayfoss.com {
-    reverse_proxy localhost:4000
-
-    @websockets {
-        header Connection *Upgrade*
-        header Upgrade websocket
-    }
-    reverse_proxy @websockets localhost:4000
-
+    # Security headers for all responses
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
@@ -21,9 +14,22 @@ billyrayfoss.com {
 
     encode gzip
 
-    # Extensions — each drops a Caddyfile snippet in its repo.
-    # Add an import line here when installing a new extension.
+    # Extensions — imported snippets must come BEFORE the Nexus catch-all
+    # so their path matchers take priority.
     import /opt/gamepedia/Caddyfile
+
+    # Nexus catch-all — must be last so extension paths are matched first
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websockets {
+        reverse_proxy localhost:4000
+    }
+
+    handle {
+        reverse_proxy localhost:4000
+    }
 }
 
 www.billyrayfoss.com {
