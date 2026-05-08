@@ -3350,6 +3350,27 @@ function PostFooterSlot({postId}) {
   );
 }
 
+// Renders all components registered for the profile_sidebar slot.
+// Extensions register via:
+//   window.NexusExtensions.registerSlot("profile_sidebar", MyComponent, 50)
+// Each component receives { username, currentUser, navigate }.
+function ProfileSidebarSlot({username, currentUser, navigate}) {
+  const [, forceUpdate] = React.useReducer(x => x+1, 0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onChange(() => forceUpdate());
+    return unsub;
+  }, []);
+  const components = window.NexusExtensions.getSlot("profile_sidebar");
+  if (!components.length) return null;
+  return (
+    <div style={{padding:"12px 28px 0",display:"flex",flexDirection:"column",gap:4}}>
+      {components.map(({component: Comp}, i) => (
+        <Comp key={i} username={username} currentUser={currentUser} navigate={navigate}/>
+      ))}
+    </div>
+  );
+}
+
 // ── Composer ──────────────────────────────────────────────────────────────────
 function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
@@ -3819,6 +3840,9 @@ function ProfilePage({username, currentUser, navigate}) {
             ))}
           </div>
         </div>
+
+        {/* profile_sidebar slot — extension components rendered here */}
+        <ProfileSidebarSlot username={username} currentUser={currentUser} navigate={navigate}/>
 
         {/* Tabs */}
         <div className="profile-tabs">
