@@ -217,7 +217,7 @@ defmodule Nexus.Uploads do
     case Image.open(path) do
       {:ok, img} ->
         img = case Image.autorotate(img) do
-          {:ok, rotated} -> rotated
+          {:ok, {rotated, _keywords}} -> rotated
           _ -> img
         end
         {w, h, _} = Image.shape(img)
@@ -294,13 +294,12 @@ defmodule Nexus.Uploads do
   end
 
   # Rotate image pixels to match EXIF orientation tag, then strip the tag.
-  # This ensures phone photos display correctly after WebP conversion strips EXIF.
-  # Image.autorotate/1 is a no-op (returns {:ok, image}) if no rotation is needed.
+  # Image.autorotate/1 returns {:ok, {rotated_image, keywords}} — note the
+  # nested tuple. We extract just the image.
   defp autorotate(image) do
     case Image.autorotate(image) do
-      {:ok, rotated} -> {:ok, rotated}
-      # If autorotate isn't available or fails, continue with original
-      _ -> {:ok, image}
+      {:ok, {rotated, _keywords}} -> {:ok, rotated}
+      {:error, _}                 -> {:ok, image}
     end
   end
 end
