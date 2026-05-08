@@ -248,6 +248,10 @@ defmodule NexusWeb.Router do
     patch  "/extensions/:slug/settings",     ExtensionController, :update_settings
     delete "/extensions/:slug",              ExtensionController, :uninstall
 
+    # Updates
+    get    "/updates/check",           AdminController,  :check_update
+    post   "/updates/apply",           AdminController,  :apply_update
+
     # Badges (admin)
     get    "/badges",                  BadgeController, :admin_index
     post   "/badges",                  BadgeController, :create

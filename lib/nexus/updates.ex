@@ -1,0 +1,232 @@
+defmodule Nexus.Updates do
+  @moduledoc """
+  Handles Nexus version checks and in-place updates from GitHub releases.
+
+  Version check hits the GitHub Releases API and compares against the running
+  application version declared in mix.exs.
+
+  Update applies the latest tagged release by:
+    1. Downloading the release tarball from GitHub
+    2. Extracting it over /opt/nexus (preserving .env and data)
+    3. Rebuilding and restarting via docker compose
+  """
+
+  @github_repo "ResofireV2/nexus"
+  @install_dir "/opt/nexus"
+
+  # ── Version check ────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the current running version and the latest GitHub release.
+
+  Result map:
+    %{
+      current:    "0.1.0",
+      latest:     "0.2.0",
+      up_to_date: false,
+      release:    %{
+        tag:         "v0.2.0",
+        name:        "Nexus 0.2.0",
+        body:        "## What's new\n...",
+        published_at: "2026-05-01T12:00:00Z",
+        tarball_url: "https://api.github.com/repos/.../tarball/v0.2.0",
+        html_url:    "https://github.com/ResofireV2/nexus/releases/tag/v0.2.0"
+      }
+    }
+  """
+  def check_for_update do
+    current = current_version()
+
+    case fetch_latest_release() do
+      {:ok, release} ->
+        latest = strip_v(release["tag_name"] || "")
+        {:ok, %{
+          current:    current,
+          latest:     latest,
+          up_to_date: version_gte?(current, latest),
+          release:    %{
+            tag:          release["tag_name"],
+            name:         release["name"],
+            body:         release["body"],
+            published_at: release["published_at"],
+            tarball_url:  release["tarball_url"],
+            html_url:     release["html_url"]
+          }
+        }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # ── Apply update ─────────────────────────────────────────────────────────────
+
+  @doc """
+  Downloads the latest tagged release, extracts it over the install directory,
+  and rebuilds the Docker container.
+
+  Returns {:ok, log} or {:error, reason}.
+  The log is a list of status strings shown to the admin in real time.
+  """
+  def apply_update do
+    with {:ok, %{up_to_date: false, release: release}} <- check_for_update(),
+         {:ok, log} <- do_apply(release) do
+      {:ok, log}
+    else
+      {:ok, %{up_to_date: true}} -> {:error, "Already on the latest version."}
+      {:error, reason}           -> {:error, reason}
+    end
+  end
+
+  # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp current_version do
+    Application.spec(:nexus, :vsn) |> to_string()
+  rescue
+    _ -> Mix.Project.config()[:version] || "unknown"
+  end
+
+  defp fetch_latest_release do
+    url     = "https://api.github.com/repos/#{@github_repo}/releases/latest"
+    headers = [{"User-Agent", "Nexus/#{current_version()}"}, {"Accept", "application/vnd.github+json"}]
+
+    case Req.get(url, headers: headers, receive_timeout: 10_000) do
+      {:ok, %{status: 200, body: body}} when is_map(body) ->
+        {:ok, body}
+
+      {:ok, %{status: 200, body: body}} when is_binary(body) ->
+        case Jason.decode(body) do
+          {:ok, release} -> {:ok, release}
+          _              -> {:error, "Could not parse GitHub response"}
+        end
+
+      {:ok, %{status: 404}} ->
+        {:error, "No releases found on GitHub"}
+
+      {:ok, %{status: status}} ->
+        {:error, "GitHub API returned HTTP #{status}"}
+
+      {:error, reason} ->
+        {:error, "Could not reach GitHub: #{inspect(reason)}"}
+    end
+  end
+
+  defp do_apply(release) do
+    tag         = release.tag
+    tarball_url = release.tarball_url
+    tmp_archive = "/tmp/nexus-release-#{tag}.tar.gz"
+    tmp_extract = "/tmp/nexus-release-#{tag}"
+
+    log = []
+
+    with {:step, log, :ok} <- step(log, "Downloading release #{tag}…", fn ->
+           download_tarball(tarball_url, tmp_archive)
+         end),
+         {:step, log, :ok} <- step(log, "Extracting archive…", fn ->
+           extract_tarball(tmp_archive, tmp_extract)
+         end),
+         {:step, log, :ok} <- step(log, "Applying files to #{@install_dir}…", fn ->
+           apply_files(tmp_extract)
+         end),
+         {:step, log, :ok} <- step(log, "Rebuilding container (this takes a few minutes)…", fn ->
+           rebuild_container()
+         end) do
+      cleanup(tmp_archive, tmp_extract)
+      {:ok, log ++ ["Update complete — Nexus is now running #{tag}."]}
+    else
+      {:step, log, {:error, reason}} ->
+        cleanup(tmp_archive, tmp_extract)
+        {:error, {reason, log}}
+    end
+  end
+
+  defp step(log, message, fun) do
+    result = fun.()
+    entry  = if result == :ok, do: "✓ #{message}", else: "✗ #{message}"
+    {:step, log ++ [entry], result}
+  end
+
+  defp download_tarball(url, dest) do
+    case Req.get(url,
+           headers: [{"User-Agent", "Nexus-Updater"}, {"Accept", "application/vnd.github+json"}],
+           receive_timeout: 60_000,
+           redirect: true) do
+      {:ok, %{status: 200, body: body}} when is_binary(body) ->
+        File.write(dest, body)
+        :ok
+      {:ok, %{status: status}} ->
+        {:error, "Download failed: HTTP #{status}"}
+      {:error, reason} ->
+        {:error, "Download error: #{inspect(reason)}"}
+    end
+  end
+
+  defp extract_tarball(archive, dest) do
+    File.mkdir_p!(dest)
+    case System.cmd("tar", ["--strip-components=1", "-xzf", archive, "-C", dest],
+                    stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {out, code} -> {:error, "tar failed (exit #{code}): #{out}"}
+    end
+  end
+
+  defp apply_files(src) do
+    # Copy everything EXCEPT .env and docker-compose files —
+    # those are instance-specific and must never be overwritten.
+    protected = [".env", "docker-compose.yml", "docker-compose.prod.yml"]
+
+    case System.cmd("bash", ["-c", """
+      rsync -a --exclude='.env' \
+               --exclude='docker-compose.yml' \
+               --exclude='docker-compose.prod.yml' \
+               #{src}/ #{@install_dir}/
+    """], stderr_to_stdout: true) do
+      {_, 0} ->
+        :ok
+      {_out, _} ->
+        # rsync may not be installed — fall back to cp with manual exclusion
+        Enum.each(File.ls!(src), fn file ->
+          unless file in protected do
+            src_path  = Path.join(src, file)
+            dest_path = Path.join(@install_dir, file)
+            File.cp_r!(src_path, dest_path)
+          end
+        end)
+        :ok
+    end
+  end
+
+  defp rebuild_container do
+    case System.cmd("docker", ["compose", "-f", "#{@install_dir}/docker-compose.prod.yml",
+                               "up", "-d", "--build"],
+                    cd: @install_dir, stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {out, code} -> {:error, "docker compose failed (exit #{code}): #{String.slice(out, 0, 300)}"}
+    end
+  end
+
+  defp cleanup(archive, extract_dir) do
+    File.rm(archive)
+    File.rm_rf(extract_dir)
+  rescue
+    _ -> :ok
+  end
+
+  # Simple semver comparison — returns true if a >= b.
+  # Only handles MAJOR.MINOR.PATCH, ignores pre-release suffixes.
+  defp version_gte?(a, b) do
+    parse_ver(a) >= parse_ver(b)
+  end
+
+  defp parse_ver(v) do
+    v
+    |> String.trim_leading("v")
+    |> String.split(".")
+    |> Enum.take(3)
+    |> Enum.map(&(Integer.parse(&1) |> elem(0)))
+  rescue
+    _ -> [0, 0, 0]
+  end
+
+  defp strip_v(tag), do: String.trim_leading(tag, "v")
+end
