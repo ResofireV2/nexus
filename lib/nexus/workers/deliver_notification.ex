@@ -12,24 +12,30 @@ defmodule Nexus.Workers.DeliverNotification do
 
   alias Nexus.Notifications
   alias Nexus.Notifications.Notification
+  import Ecto.Query, only: [from: 2]
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"attrs" => attrs}}) do
     # Atomize keys for Ecto
     attrs = for {k, v} <- attrs, into: %{}, do: {String.to_existing_atom(k), v}
 
-    # Idempotency guard — if a notification with the same user/actor/type/post/reply
-    # already exists (from a previous attempt), skip creation but still return :ok
-    # so Oban marks the job complete rather than retrying endlessly.
+    # Idempotency guard — bind optional fields to variables first
+    # since ^Map.get() cannot be used directly inside a query macro.
+    user_id  = attrs.user_id
+    actor_id = attrs.actor_id
+    type     = attrs.type
+    post_id  = Map.get(attrs, :post_id)
+    reply_id = Map.get(attrs, :reply_id)
+
     existing =
       Nexus.Repo.one(
         from n in Notification,
           where:
-            n.user_id  == ^attrs.user_id and
-            n.actor_id == ^attrs.actor_id and
-            n.type     == ^attrs.type and
-            n.post_id  == ^Map.get(attrs, :post_id) and
-            n.reply_id == ^Map.get(attrs, :reply_id),
+            n.user_id  == ^user_id and
+            n.actor_id == ^actor_id and
+            n.type     == ^type and
+            n.post_id  == ^post_id and
+            n.reply_id == ^reply_id,
           limit: 1
       )
 
@@ -48,6 +54,34 @@ defmodule Nexus.Workers.DeliverNotification do
           {:error, changeset}
       end
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Email notifications
+  # ---------------------------------------------------------------------------
+
+  defp maybe_send_email(notification) do
+    if notification.type == "dm", do: :ok, else: do_maybe_send_email(notification)
+  end
+
+  defp do_maybe_send_email(notification) do
+    user = Nexus.Accounts.get_user(notification.user_id)
+    with true <- email_enabled_for?(user, notification.type),
+         actor_name <- actor_display(notification.actor) do
+      Task.start(fn ->
+        Nexus.Mailer.send_notification_email(user, %{
+          type:  notification.type,
+          actor: actor_name
+        })
+      end)
+    end
+    :ok
+  end
+
+  defp email_enabled_for?(nil, _type), do: false
+  defp email_enabled_for?(user, type) do
+    prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
+    Map.get(prefs, "email", false) == true
   end
 
   # ---------------------------------------------------------------------------
