@@ -169,7 +169,13 @@ defmodule Nexus.Accounts do
       token ->
         if RefreshToken.valid?(token) do
           user = get_user!(token.user_id)
-          JWT.generate_access_token(user)
+
+          # Rotate: revoke old token and issue a new one
+          Repo.update!(RefreshToken.revoke_changeset(token))
+          {:ok, new_refresh} = create_refresh_token(user, [remember_me: token.remember_me || true])
+
+          {:ok, access_token} = JWT.generate_access_token(user)
+          {:ok, %{access_token: access_token, refresh_token: new_refresh.token_hash, remember_me: token.remember_me || true}}
         else
           {:error, :token_expired}
         end
@@ -194,16 +200,18 @@ defmodule Nexus.Accounts do
   end
 
   defp create_refresh_token(user, opts) do
-    raw_token = generate_raw_token()
+    raw_token  = generate_raw_token()
     expires_at = DateTime.utc_now() |> DateTime.add(30 * 24 * 60 * 60, :second) |> DateTime.truncate(:second)
+    remember_me = Keyword.get(opts, :remember_me, true)
 
     %RefreshToken{}
     |> RefreshToken.changeset(%{
-      user_id: user.id,
-      token_hash: hash_token(raw_token),
-      expires_at: expires_at,
-      user_agent: Keyword.get(opts, :user_agent),
-      ip_address: Keyword.get(opts, :ip_address)
+      user_id:     user.id,
+      token_hash:  hash_token(raw_token),
+      expires_at:  expires_at,
+      user_agent:  Keyword.get(opts, :user_agent),
+      ip_address:  Keyword.get(opts, :ip_address),
+      remember_me: remember_me
     })
     |> Repo.insert()
     |> case do

@@ -17,10 +17,6 @@ defmodule NexusWeb.API.V1.AuthController do
         Task.start(fn -> Accounts.send_verification_email(user) end)
         Task.start(fn -> Nexus.Extensions.fire("user_registered", %{user_id: user.id}) end)
 
-        # Create an initial score row so the user appears on the leaderboard immediately
-        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-        %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-
         opts = [
           user_agent: get_req_header(conn, "user-agent") |> List.first(),
           ip_address: to_string(:inet.ntoa(conn.remote_ip))
@@ -60,14 +56,15 @@ defmodule NexusWeb.API.V1.AuthController do
     case Accounts.authenticate_user(email, password) do
       {:ok, user} ->
         opts = [
-          user_agent: get_req_header(conn, "user-agent") |> List.first(),
-          ip_address: to_string(:inet.ntoa(conn.remote_ip))
+          user_agent:  get_req_header(conn, "user-agent") |> List.first(),
+          ip_address:  to_string(:inet.ntoa(conn.remote_ip)),
+          remember_me: remember_me
         ]
 
         {:ok, tokens} = Accounts.issue_tokens(user, opts)
 
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+        %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
         Task.start(fn -> Nexus.Extensions.fire("user_login", %{user_id: user.id}) end)
 
         conn
@@ -130,8 +127,11 @@ defmodule NexusWeb.API.V1.AuthController do
       true ->
         try do
           case Accounts.refresh_access_token(raw_token) do
-            {:ok, access_token} ->
-              json(conn, %{access_token: access_token})
+            {:ok, %{access_token: access_token, refresh_token: new_refresh, remember_me: remember_me}} ->
+              # Reissue a rolling cookie with the new rotated refresh token
+              conn
+              |> put_refresh_cookie(new_refresh, remember_me)
+              |> json(%{access_token: access_token})
 
             {:error, _} ->
               conn

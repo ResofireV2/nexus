@@ -9862,13 +9862,42 @@ function App() {
   );
 
   useEffect(()=>{
-    if(api.token) api.request("GET", "/auth/me", null, true, true).then(d=>{
-      if(d.user) updateCurrentUser(d.user);
-      else if(d.error) { api.setToken(null); updateCurrentUser(null); }
-      // If d is empty (network hiccup), keep existing cached user
+    const init = async () => {
+      if (!api.token) { setAuthChecked(true); return; }
+
+      // On cold load (especially PWA/mobile), the access token may have expired
+      // while the app was closed. Proactively attempt a refresh before hitting
+      // /auth/me so we never encounter a 401 that clears credentials.
+      // If the refresh cookie is present this is transparent; if not, we fall
+      // through to the normal /auth/me check which will handle it.
+      const tokenPayload = (() => {
+        try { return JSON.parse(atob(api.token.split(".")[1])); } catch { return null; }
+      })();
+      const expiresAt = tokenPayload?.exp ?? 0;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const expiresSoon = expiresAt - nowSec < 120; // refresh if < 2 min remaining
+
+      if (expiresSoon) {
+        // Token is expired or about to — try refresh before /auth/me
+        await api.tryRefresh();
+        // If refresh failed, api.token is still set (tryRefresh doesn't clear it)
+        // so /auth/me below will return 401 and handle it normally
+      }
+
+      const d = await api.request("GET", "/auth/me", null, true, true).catch(()=>({}));
+      if (d.user) {
+        updateCurrentUser(d.user);
+      } else if (d.error) {
+        // Genuine auth failure — clear everything
+        api.setToken(null);
+        updateCurrentUser(null);
+      }
+      // Empty response (network hiccup or 401 already handled by request()) —
+      // keep cached user visible; they'll be asked to log in on next API call
+      // if the token is truly gone.
       setAuthChecked(true);
-    }).catch(()=>setAuthChecked(true));
-    else setAuthChecked(true);
+    };
+    init();
   },[]);
 
   // Proactively refresh the session when the user returns to the tab.
