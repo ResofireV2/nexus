@@ -401,9 +401,9 @@ window.NexusExtensions = {
   },
 
   // Register a toolbar button for the post composer.
-  // component receives {postId, linkedGames, setLinkedGames}
-  registerToolbarButton(component, priority = 50) {
-    this._toolbarButtons.push({component, priority});
+  // config: { icon (FA class), tip (tooltip), color (optional CSS color), onClick(linkedGames, setLinkedGames) }
+  registerToolbarButton(config, priority = 50) {
+    this._toolbarButtons.push({config, priority});
     this._toolbarButtons.sort((a, b) => a.priority - b.priority);
     this._toolbarListeners.forEach(fn => fn());
   },
@@ -1443,7 +1443,6 @@ const TB_BTNS = [
   {sep:true},
   {type:"image",    label:"🖼",    tip:"Upload image", style:{},                                  wrap:null},
   {sep:true},
-  {type:"gamepedia", label:"GP",  tip:"Link a game",   style:{color:"rgba(167,139,250,0.9)"},    wrap:null, ext:true},
 ];
 const EXPLORE_ITEMS = [
   {id:"everything", label:"Everything",   icon:"fa-border-all"},
@@ -1658,12 +1657,6 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
                   ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
                   : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
               </label>
-            : b.type==="gamepedia"
-            ? <button key="gamepedia" className="comp-tb-btn" title="Link a game"
-                style={{color:"rgba(167,139,250,0.9)"}}
-                onMouseDown={e=>{e.preventDefault(); window._gpOpenPicker && window._gpOpenPicker(toolbarLinkedGames, toolbarSetLinkedGames);}}>
-                <i className="fa-solid fa-gamepad" style={{fontSize:13}}/>
-              </button>
             : <button key={b.type} className="comp-tb-btn" title={b.tip}
                 style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
                 {b.label}
@@ -1671,8 +1664,12 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
         )}
         <div style={{flex:1}}/>
         {/* Extension toolbar buttons */}
-        {window.NexusExtensions && window.NexusExtensions.getToolbarButtons().map(({component: Btn}, i) => (
-          <Btn key={i} linkedGames={toolbarLinkedGames} setLinkedGames={toolbarSetLinkedGames} postId={null} />
+        {window.NexusExtensions && window.NexusExtensions.getToolbarButtons().map(({config}, i) => (
+          <button key={i} className="comp-tb-btn" title={config.tip||""}
+            style={{color: config.color||"inherit"}}
+            onMouseDown={e=>{e.preventDefault(); config.onClick && config.onClick(toolbarLinkedGames, toolbarSetLinkedGames);}}>
+            <i className={config.icon} style={{fontSize:13}}/>
+          </button>
         ))}
         <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
           <i className="fa-regular fa-eye" style={{fontSize:12}}/>
@@ -3019,25 +3016,6 @@ function PostFooterSlot({postId}) {
   );
 }
 
-// Renders extension toolbar buttons in the composer.
-// Each button receives {linkedGames, setLinkedGames}.
-function ExtensionToolbar({linkedGames, setLinkedGames, postId}) {
-  const [, forceUpdate] = React.useReducer(x => x+1, 0);
-  useEffect(() => {
-    const unsub = window.NexusExtensions.onToolbarChange(() => forceUpdate());
-    return unsub;
-  }, []);
-  const buttons = window.NexusExtensions.getToolbarButtons();
-  if (!buttons.length) return null;
-  return (
-    <div className="comp-ext-toolbar">
-      {buttons.map(({component: Btn}, i) => (
-        <Btn key={i} linkedGames={linkedGames} setLinkedGames={setLinkedGames} postId={postId} />
-      ))}
-    </div>
-  );
-}
-
 // ── Composer ──────────────────────────────────────────────────────────────────
 function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
@@ -3104,8 +3082,6 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
         <div className="comp-body-area">
           <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames}/>
         </div>
-        {/* Extension toolbar buttons (e.g. Gamepedia game picker) */}
-        <ExtensionToolbar linkedGames={linkedGames} setLinkedGames={setLinkedGames} postId={null} />
         {/* Linked game chips */}
         {linkedGames.length > 0 && (
           <div className="comp-game-chips">
