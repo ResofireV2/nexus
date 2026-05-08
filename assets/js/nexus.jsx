@@ -2574,7 +2574,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="thread-title">{p.title}</div>
                         </div>
                         <div className="thread-tags-row">
-                          {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
+                          
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
                         {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
@@ -2590,7 +2590,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                       </div>
                       {/* Tags column — centered vertically, desktop only */}
                       <div className="thread-tags-col">
-                        {p.type&&p.type!=="discussion"&&<div className="thread-tag" style={{background:p.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:p.type==="announcement"?"var(--amber)":"var(--blue)"}}>{p.type}</div>}
+                        
                         {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                       </div>
                       <div className="thread-meta">
@@ -3159,7 +3159,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             </div>
             <div className="post-meta">
               {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
-              {post.type&&post.type!=="discussion"&&<div className="thread-tag" style={{background:post.type==="announcement"?"rgba(251,191,36,0.15)":"rgba(96,165,250,0.15)",color:post.type==="announcement"?"var(--amber)":"var(--blue)"}}>{post.type}</div>}
+              
               {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
               <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
               <span style={{fontSize:11,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
@@ -3439,7 +3439,7 @@ function ProfileSidebarSlot({username, currentUser, navigate}) {
 function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
   const [spaceId,setSpaceId]=useState(spaces[0]?.id||"");
-  const [postType,setPostType]=useState("discussion");
+  const [postBody,setPostBody]=useState("");
   const [selTags,setSelTags]=useState([]); const [showTags,setShowTags]=useState(false);
   const [loading,setLoading]=useState(false);
   const [linkedGames,setLinkedGames]=useState([]);
@@ -3456,7 +3456,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     if(!title.trim()){toast("Title required","err");return;}
     if(!spaceId){toast("Select a space","err");return;}
     setLoading(true);
-    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
+    try { const d=await api.post("/posts",{title,body,space_id:parseInt(spaceId),tag_ids:selTags});
       if(d.post&&d.pending){toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
         // Link any games selected via extension toolbar
@@ -3481,11 +3481,6 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
           <select className="comp-sel" value={spaceId} onChange={e=>setSpaceId(e.target.value)}>
             <option value="">Select space…</option>
             {spaces.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <select className="comp-sel" value={postType} onChange={e=>setPostType(e.target.value)}>
-            <option value="discussion">Discussion</option>
-            <option value="question">Question</option>
-            <option value="announcement">Announcement</option>
           </select>
           {selTags.map(id=>{const t=tags.find(x=>x.id===id);return t?<span key={id} className="comp-tag-pill" onClick={()=>toggleTag(id)}>#{t.name} ✕</span>:null;})}
           <div ref={tagPickerRef} style={{position:"relative"}}>
