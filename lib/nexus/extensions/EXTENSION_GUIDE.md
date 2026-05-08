@@ -30,6 +30,9 @@ my-extension/
   "description":    "Does something cool.",
   "author":         "your-github-username",
   "homepage":       "https://github.com/you/my-extension",
+  "logo_url":       "https://my-extension.example.com/assets/logo.png",
+  "banner_url":     "https://my-extension.example.com/assets/banner.png",
+  "categories":     ["games", "integrations"],
   "webhook_url":    "https://my-extension.example.com/webhook",
   "js_bundle_url":  "https://my-extension.example.com/assets/my-extension.js",
   "hooks": [
@@ -62,6 +65,16 @@ my-extension/
   ]
 }
 ```
+
+### Branding fields
+
+| Field        | Description                                                              |
+|--------------|--------------------------------------------------------------------------|
+| `logo_url`   | Square icon shown on the extension card. Recommended 200×200px, PNG/WebP. Displayed at 48×48px with rounded corners. |
+| `banner_url` | Wide hero image shown at the top of the extension card. Recommended 800×400px, PNG/WebP/JPEG. Displayed at full card width, 120px tall, `object-fit: cover`. |
+| `categories` | Array of category strings shown as tags on the card, e.g. `["games", "integrations"]`. Keep to 1–4 short labels. |
+
+Both image URLs must be publicly accessible with no authentication. Host them alongside your JS bundle.
 
 ### Settings field types
 

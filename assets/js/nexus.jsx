@@ -6581,7 +6581,356 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
   );
 }
 
-// ── Extension admin panel templates ──────────────────────────────────────────
+// ── Admin Extensions Panel ────────────────────────────────────────────────────
+// Unified extensions page — store, installed state, and install-from-URL
+// all live on one screen. No separate "browse store" view.
+function AdminExtensionsPanel() {
+  const [tab, setTab]                   = useState("all");       // "all" | "installed" | "url"
+  const [extensions, setExtensions]     = useState(null);        // installed extensions
+  const [storeItems, setStoreItems]     = useState(null);        // registry entries
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeError, setStoreError]     = useState(null);
+  const [installing, setInstalling]     = useState(null);        // slug being installed
+  const [installUrl, setInstallUrl]     = useState("");
+  const [installError, setInstallError] = useState(null);
+  const [selected, setSelected]         = useState(null);        // ext open in detail view
+  const [filter, setFilter]             = useState("");          // search/filter string
+
+  useEffect(()=>{ loadExtensions(); loadStore(); },[]);
+
+  const loadExtensions = () =>
+    api.get("/admin/extensions").then(d=>setExtensions(d.extensions||[]));
+
+  const loadStore = () => {
+    setStoreLoading(true); setStoreError(null);
+    api.get("/admin/extensions/store")
+      .then(d=>{ if(d.extensions) setStoreItems(d.extensions); else setStoreError(d.error||"Failed to load store"); })
+      .catch(()=>setStoreError("Network error"))
+      .finally(()=>setStoreLoading(false));
+  };
+
+  const installFromUrl = async () => {
+    if(!installUrl.trim()) return;
+    setInstalling("__url__"); setInstallError(null);
+    const d = await api.post("/admin/extensions/install-from-url", {url: installUrl.trim()});
+    if(d.extension) {
+      toast(`${d.extension.name} installed`);
+      setInstallUrl(""); loadExtensions(); loadStore(); setTab("installed");
+    } else {
+      setInstallError(d.error||"Installation failed");
+    }
+    setInstalling(null);
+  };
+
+  const installFromStore = async (item) => {
+    setInstalling(item.slug);
+    const d = await api.post("/admin/extensions/install-from-url", {url: item.manifest_url});
+    if(d.extension) {
+      toast(`${d.extension.name} installed`);
+      loadExtensions();
+      setStoreItems(prev=>prev.map(s=>s.slug===item.slug?{...s,installed:true}:s));
+    } else {
+      toast(d.error||"Installation failed","err");
+    }
+    setInstalling(null);
+  };
+
+  // Extension detail view — reuses ExtensionDetail component
+  if(selected) return (
+    <ExtensionDetail
+      ext={selected}
+      onBack={()=>setSelected(null)}
+      onToggle={updated=>{
+        setExtensions(prev=>prev.map(e=>e.slug===updated.slug?updated:e));
+        setSelected(updated);
+      }}
+      onUninstall={slug=>{
+        setExtensions(prev=>prev.filter(e=>e.slug!==slug));
+        setStoreItems(prev=>prev?.map(s=>s.slug===slug?{...s,installed:false}:s)||prev);
+        setSelected(null);
+      }}
+    />
+  );
+
+  // Merge store + installed into a unified list
+  const installedSlugs = new Set((extensions||[]).map(e=>e.slug));
+
+  // Build full item list from store + any installed-but-not-in-store
+  const allItems = (() => {
+    const store = storeItems || [];
+    const storeSlugs = new Set(store.map(i=>i.slug));
+    const installedOnly = (extensions||[])
+      .filter(e=>!storeSlugs.has(e.slug))
+      .map(e=>({
+        slug: e.slug, name: e.name, description: e.description,
+        author: e.author, version: e.version, homepage: e.homepage,
+        logo_url: e.logo_url, banner_url: e.banner_url,
+        categories: e.categories||[], installs: null,
+        manifest_url: e.manifest_url, installed: true,
+      }));
+    return [...store, ...installedOnly];
+  })();
+
+  const q = filter.trim().toLowerCase();
+  const visibleItems = allItems.filter(item=>{
+    if(tab==="installed" && !installedSlugs.has(item.slug)) return false;
+    if(q) return (
+      item.name?.toLowerCase().includes(q) ||
+      item.description?.toLowerCase().includes(q) ||
+      item.author?.toLowerCase().includes(q) ||
+      (item.categories||[]).some(c=>c.toLowerCase().includes(q))
+    );
+    return true;
+  });
+
+  // Accent colour derived from slug for fallback icon background
+  const slugColor = slug => {
+    const palette = ["#a78bfa","#60a5fa","#34d399","#f472b6","#fb923c","#facc15","#38bdf8"];
+    let h = 0; for(const c of (slug||"")) h = (h*31 + c.charCodeAt(0)) & 0xffffffff;
+    return palette[Math.abs(h) % palette.length];
+  };
+
+  const TABS = [
+    {id:"all",       label:"All extensions"},
+    {id:"installed", label:`Installed${extensions?.length?` · ${extensions.length}`:""}` },
+    {id:"url",       label:"Install from URL"},
+  ];
+
+  return (
+    <div>
+      {/* Tab bar + search */}
+      <div style={{display:"flex",alignItems:"center",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:24}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{padding:"10px 18px",background:"none",border:"none",
+              borderBottom:tab===t.id?"2px solid var(--ac)":"2px solid transparent",
+              color:tab===t.id?"var(--ac-text)":"var(--t4)",
+              fontWeight:tab===t.id?500:400,fontSize:13,cursor:"pointer",
+              fontFamily:"inherit",marginBottom:-1,transition:"color .1s",whiteSpace:"nowrap"}}>
+            {t.label}
+          </button>
+        ))}
+        {tab!=="url"&&(
+          <div style={{marginLeft:"auto",position:"relative",flexShrink:0}}>
+            <i className="fa-solid fa-magnifying-glass" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--t5)",pointerEvents:"none"}}/>
+            <input value={filter} onChange={e=>setFilter(e.target.value)}
+              placeholder="Search…"
+              style={{paddingLeft:28,paddingRight:10,height:30,fontSize:12,background:"var(--s3)",
+                border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",
+                fontFamily:"inherit",outline:"none",width:160}}/>
+          </div>
+        )}
+        <button onClick={()=>{loadStore();loadExtensions();}}
+          style={{marginLeft:tab==="url"?"auto":8,background:"none",border:"none",
+            color:"var(--t5)",cursor:"pointer",padding:"4px 8px",fontSize:13,flexShrink:0}}
+          title="Refresh">
+          <i className="fa-solid fa-rotate-right"/>
+        </button>
+      </div>
+
+      {/* Install from URL tab */}
+      {tab==="url"&&(
+        <div style={{maxWidth:560}}>
+          <div style={{fontSize:14,fontWeight:500,color:"var(--t1)",marginBottom:4}}>Install from GitHub or URL</div>
+          <div style={{fontSize:12,color:"var(--t5)",marginBottom:16}}>
+            Paste a GitHub repo URL or a direct link to a <code style={{fontSize:11}}>manifest.json</code> file.
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <input className="fi" style={{flex:1}} value={installUrl}
+              onChange={e=>setInstallUrl(e.target.value)}
+              placeholder="https://github.com/someone/nexus-my-extension"
+              onKeyDown={e=>e.key==="Enter"&&installFromUrl()}/>
+            <button className="btn-primary" style={{fontSize:13,padding:"7px 20px",flexShrink:0}}
+              onClick={installFromUrl} disabled={installing==="__url__"||!installUrl.trim()}>
+              {installing==="__url__"?"Installing…":"Install"}
+            </button>
+          </div>
+          {installError&&<div style={{fontSize:12,color:"var(--red)",marginTop:10}}>{installError}</div>}
+        </div>
+      )}
+
+      {/* Loading / error states */}
+      {tab!=="url"&&storeLoading&&!storeItems&&(
+        <div style={{padding:"60px 0",textAlign:"center",color:"var(--t5)"}}>
+          <i className="fa-solid fa-spinner fa-spin" style={{fontSize:20,marginBottom:10,display:"block"}}/>
+          Loading extensions…
+        </div>
+      )}
+      {tab!=="url"&&storeError&&!storeItems&&(
+        <div style={{padding:16,background:"rgba(239,68,68,0.06)",border:"0.5px solid rgba(239,68,68,0.2)",borderRadius:10,fontSize:13,color:"var(--red)"}}>
+          {storeError}
+        </div>
+      )}
+
+      {/* Extension cards grid */}
+      {tab!=="url"&&(storeItems||extensions)&&(
+        <>
+          {visibleItems.length===0&&(
+            <div style={{padding:"60px 0",textAlign:"center",color:"var(--t5)"}}>
+              <i className="fa-solid fa-puzzle-piece" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}/>
+              <div style={{fontSize:14,marginBottom:4}}>
+                {tab==="installed"?"No extensions installed yet":"No extensions found"}
+              </div>
+              {tab==="installed"&&<div style={{fontSize:12}}>Switch to All extensions to browse the store.</div>}
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
+            {visibleItems.map(item=>{
+              const isInstalled = installedSlugs.has(item.slug);
+              const isBusy      = installing===item.slug;
+              const accentColor = slugColor(item.slug);
+              const installedExt = (extensions||[]).find(e=>e.slug===item.slug);
+
+              return (
+                <div key={item.slug} style={{
+                  background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:14,
+                  overflow:"hidden",display:"flex",flexDirection:"column",
+                  transition:"border-color .15s",cursor:"default"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(255,255,255,0.15)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--b1)"}>
+
+                  {/* Banner / hero image */}
+                  <div style={{height:120,position:"relative",flexShrink:0,overflow:"hidden",
+                    background:item.banner_url?"transparent":`linear-gradient(135deg,${accentColor}22,${accentColor}08)`}}>
+                    {item.banner_url&&(
+                      <img src={item.banner_url} alt=""
+                        style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                        onError={e=>{e.target.style.display="none";}}/>
+                    )}
+                    {/* Logo overlapping the banner */}
+                    <div style={{position:"absolute",bottom:-20,left:16,
+                      width:48,height:48,borderRadius:12,
+                      background:item.logo_url?"var(--bg)":accentColor+"18",
+                      border:`2px solid var(--s3)`,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      overflow:"hidden",flexShrink:0}}>
+                      {item.logo_url
+                        ?<img src={item.logo_url} alt={item.name}
+                            style={{width:"100%",height:"100%",objectFit:"cover"}}
+                            onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+                        :null}
+                      <i className="fa-solid fa-puzzle-piece"
+                        style={{fontSize:20,color:accentColor,
+                          display:item.logo_url?"none":"flex"}}/>
+                    </div>
+                    {/* Installed badge */}
+                    {isInstalled&&(
+                      <div style={{position:"absolute",top:10,right:10,
+                        fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                        background:"rgba(52,211,153,0.15)",border:"0.5px solid rgba(52,211,153,0.3)",
+                        color:"#34d399",display:"flex",alignItems:"center",gap:4}}>
+                        <i className="fa-solid fa-circle-check" style={{fontSize:9}}/>
+                        Installed
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card body */}
+                  <div style={{padding:"28px 16px 16px",flex:1,display:"flex",flexDirection:"column",gap:8}}>
+                    {/* Name + version */}
+                    <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                      <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",lineHeight:1.2}}>{item.name}</div>
+                      {item.version&&<div style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>v{item.version}</div>}
+                    </div>
+
+                    {/* Author + installs */}
+                    <div style={{fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:8}}>
+                      <span>by {item.author||"unknown"}</span>
+                      {item.installs!=null&&<>
+                        <span style={{opacity:.4}}>·</span>
+                        <span><i className="fa-solid fa-download" style={{fontSize:9,marginRight:3}}/>{Number(item.installs).toLocaleString()}</span>
+                      </>}
+                    </div>
+
+                    {/* Description */}
+                    {item.description&&(
+                      <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.55,
+                        display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",
+                        overflow:"hidden"}}>
+                        {item.description}
+                      </div>
+                    )}
+
+                    {/* Category tags */}
+                    {item.categories?.length>0&&(
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:2}}>
+                        {item.categories.slice(0,4).map(c=>(
+                          <span key={c} style={{fontSize:10,padding:"2px 8px",borderRadius:20,
+                            background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",
+                            color:"var(--t4)"}}>
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Hooks + slots summary */}
+                    {(item.hooks?.length>0||item.slots?.length>0)&&(
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:2}}>
+                        {item.hooks?.length>0&&(
+                          <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,
+                            background:"rgba(167,139,250,0.08)",border:"0.5px solid rgba(167,139,250,0.2)",
+                            color:"#c4b5fd",display:"flex",alignItems:"center",gap:4}}>
+                            <i className="fa-solid fa-bolt" style={{fontSize:8}}/>
+                            {item.hooks.length} hook{item.hooks.length!==1?"s":""}
+                          </span>
+                        )}
+                        {item.slots?.length>0&&(
+                          <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,
+                            background:"rgba(52,211,153,0.08)",border:"0.5px solid rgba(52,211,153,0.2)",
+                            color:"#6ee7b7",display:"flex",alignItems:"center",gap:4}}>
+                            <i className="fa-solid fa-puzzle-piece" style={{fontSize:8}}/>
+                            {item.slots.length} slot{item.slots.length!==1?"s":""}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action row */}
+                    <div style={{display:"flex",gap:8,marginTop:"auto",paddingTop:12,
+                      borderTop:"0.5px solid var(--b1)"}}>
+                      {item.homepage&&(
+                        <a href={item.homepage} target="_blank" rel="noopener"
+                          style={{fontSize:11,padding:"5px 10px",borderRadius:8,
+                            border:"0.5px solid var(--b1)",color:"var(--t4)",
+                            textDecoration:"none",display:"flex",alignItems:"center",gap:5,flexShrink:0}}
+                          onClick={e=>e.stopPropagation()}>
+                          <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:9}}/>
+                          Repo
+                        </a>
+                      )}
+                      <div style={{flex:1}}/>
+                      {isInstalled?(
+                        <button
+                          onClick={()=>setSelected(installedExt)}
+                          style={{fontSize:12,padding:"6px 16px",borderRadius:8,
+                            background:"var(--s2)",border:"0.5px solid var(--b1)",
+                            color:"var(--t2)",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                          Manage
+                        </button>
+                      ):(
+                        <button
+                          onClick={()=>installFromStore(item)}
+                          disabled={isBusy||!item.manifest_url}
+                          style={{fontSize:12,padding:"6px 16px",borderRadius:8,
+                            background:"var(--ac)",border:"none",color:"#fff",
+                            cursor:item.manifest_url?"pointer":"default",
+                            fontFamily:"inherit",fontWeight:500,
+                            opacity:(isBusy||!item.manifest_url)?0.6:1}}>
+                          {isBusy?"Installing…":"Install"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 // Ready-made panel components extension developers can use as-is or compose.
 // Exposed globally on window.NexusExtensionTemplates so bundles can import them
 // without bundling React or any Nexus internals.
