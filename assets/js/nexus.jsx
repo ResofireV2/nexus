@@ -6593,7 +6593,6 @@ function AdminExtensionsPanel() {
   const [installing, setInstalling]     = useState(null);        // slug being installed
   const [installUrl, setInstallUrl]     = useState("");
   const [installError, setInstallError] = useState(null);
-  const [selected, setSelected]         = useState(null);        // ext open in detail view
   const [filter, setFilter]             = useState("");          // search/filter string
 
   useEffect(()=>{ loadExtensions(); loadStore(); },[]);
@@ -6634,23 +6633,6 @@ function AdminExtensionsPanel() {
     }
     setInstalling(null);
   };
-
-  // Extension detail view — reuses ExtensionDetail component
-  if(selected) return (
-    <ExtensionDetail
-      ext={selected}
-      onBack={()=>setSelected(null)}
-      onToggle={updated=>{
-        setExtensions(prev=>prev.map(e=>e.slug===updated.slug?updated:e));
-        setSelected(updated);
-      }}
-      onUninstall={slug=>{
-        setExtensions(prev=>prev.filter(e=>e.slug!==slug));
-        setStoreItems(prev=>prev?.map(s=>s.slug===slug?{...s,installed:false}:s)||prev);
-        setSelected(null);
-      }}
-    />
-  );
 
   // Merge store + installed into a unified list
   const installedSlugs = new Set((extensions||[]).map(e=>e.slug));
@@ -6779,7 +6761,6 @@ function AdminExtensionsPanel() {
               const isInstalled = installedSlugs.has(item.slug);
               const isBusy      = installing===item.slug;
               const accentColor = slugColor(item.slug);
-              const installedExt = (extensions||[]).find(e=>e.slug===item.slug);
 
               return (
                 <div key={item.slug} style={{
@@ -6901,13 +6882,16 @@ function AdminExtensionsPanel() {
                       )}
                       <div style={{flex:1}}/>
                       {isInstalled?(
-                        <button
-                          onClick={()=>setSelected(installedExt)}
-                          style={{fontSize:12,padding:"6px 16px",borderRadius:8,
-                            background:"var(--s2)",border:"0.5px solid var(--b1)",
-                            color:"var(--t2)",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
-                          Manage
-                        </button>
+                        // Extension is self-contained — settings live in its own
+                        // admin panel registered via registerAdminPanel(), accessible
+                        // from the sidebar under "installed extensions".
+                        window.NexusExtensions.getAdminPanels().some(p=>p.slug===item.slug)&&(
+                          <span style={{fontSize:11,color:"var(--t5)",display:"flex",
+                            alignItems:"center",gap:5}}>
+                            <i className="fa-solid fa-sidebar" style={{fontSize:10}}/>
+                            Settings in sidebar
+                          </span>
+                        )
                       ):(
                         <button
                           onClick={()=>installFromStore(item)}
