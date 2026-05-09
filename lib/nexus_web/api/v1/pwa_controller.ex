@@ -292,14 +292,9 @@ defmodule NexusWeb.API.V1.PwaController do
   defp clear_push_subscriptions do
     import Ecto.Query
     alias Nexus.Repo
-    alias Nexus.Accounts.User
+    alias Nexus.Accounts.PushSubscription
 
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: not is_nil(u.push_subscription)),
-        set: [push_subscription: nil]
-      )
-
+    {count, _} = Repo.delete_all(PushSubscription)
     count
   end
 end

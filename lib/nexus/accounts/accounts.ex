@@ -6,7 +6,7 @@ defmodule Nexus.Accounts do
 
   import Ecto.Query
   alias Nexus.Repo
-  alias Nexus.Accounts.{User, RefreshToken}
+  alias Nexus.Accounts.{User, RefreshToken, PushSubscription}
   alias Nexus.Auth.JWT
 
   # ---------------------------------------------------------------------------
@@ -196,6 +196,62 @@ defmodule Nexus.Accounts do
         |> RefreshToken.revoke_changeset()
         |> Repo.update()
     end
+  end
+
+  # ── Push subscriptions ──────────────────────────────────────────────────────
+
+  @max_subscriptions_per_user 20
+
+  def add_push_subscription(user_id, endpoint, p256dh, auth, vapid_public_key) do
+    # Return existing subscription silently if same endpoint re-registers
+    case Repo.get_by(PushSubscription, endpoint: endpoint) do
+      %PushSubscription{} = existing ->
+        {:ok, existing}
+
+      nil ->
+        # Enforce per-user limit — drop oldest if over limit
+        count = Repo.aggregate(from(s in PushSubscription, where: s.user_id == ^user_id), :count)
+
+        if count >= @max_subscriptions_per_user do
+          oldest =
+            Repo.all(
+              from s in PushSubscription,
+                where: s.user_id == ^user_id,
+                order_by: [asc: s.inserted_at],
+                limit: ^(count - @max_subscriptions_per_user + 1)
+            )
+          Enum.each(oldest, &Repo.delete/1)
+        end
+
+        %PushSubscription{}
+        |> PushSubscription.changeset(%{
+          user_id:          user_id,
+          endpoint:         endpoint,
+          p256dh:           p256dh,
+          auth:             auth,
+          vapid_public_key: vapid_public_key
+        })
+        |> Repo.insert()
+    end
+  end
+
+  def remove_push_subscription(endpoint) do
+    case Repo.get_by(PushSubscription, endpoint: endpoint) do
+      nil -> :ok
+      sub -> Repo.delete(sub)
+    end
+  end
+
+  def get_push_subscriptions(user_id) do
+    Repo.all(from s in PushSubscription, where: s.user_id == ^user_id)
+  end
+
+  def has_push_subscription?(user_id) do
+    Repo.exists?(from s in PushSubscription, where: s.user_id == ^user_id)
+  end
+
+  def clear_push_subscription_by_endpoint(endpoint) do
+    Repo.delete_all(from s in PushSubscription, where: s.endpoint == ^endpoint)
   end
 
   def revoke_all_user_tokens(user_id) do

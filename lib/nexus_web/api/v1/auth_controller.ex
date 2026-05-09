@@ -351,7 +351,7 @@ defmodule NexusWeb.API.V1.AuthController do
       email_verified: user.email_verified,
       inserted_at: user.inserted_at,
       preferences: user.preferences || %{},
-      has_push_subscription: not is_nil(user.push_subscription)
+      has_push_subscription: Nexus.Accounts.has_push_subscription?(user.id)
     }
   end
 

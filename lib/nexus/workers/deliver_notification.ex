@@ -91,52 +91,50 @@ defmodule Nexus.Workers.DeliverNotification do
 
   def maybe_send_push_for_dm(user_id, actor, thread_id) do
     require Logger
-    user = Nexus.Accounts.get_user(user_id)
 
-    cond do
-      is_nil(user) ->
+    if not push_enabled_for?(Nexus.Accounts.get_user(user_id), "dm") do
+      :ok
+    else
+      subscriptions = Nexus.Accounts.get_push_subscriptions(user_id)
+
+      if Enum.empty?(subscriptions) do
         :ok
-      is_nil(user.push_subscription) ->
-        :ok
-      not push_enabled_for?(user, "dm") ->
-        :ok
-      true ->
-        sub = user.push_subscription
-        endpoint = sub["endpoint"]
-        p256dh   = get_in(sub, ["keys", "p256dh"])
-        auth     = get_in(sub, ["keys", "auth"])
+      else
+        pwa           = Nexus.Admin.get_setting("pwa")
+        vapid_public  = pwa["vapid_public"]
+        vapid_private = pwa["vapid_private"]
 
-        if endpoint && p256dh && auth do
-          pwa          = Nexus.Admin.get_setting("pwa")
-          vapid_public  = pwa["vapid_public"]
-          vapid_private = pwa["vapid_private"]
+        if vapid_public && vapid_private do
+          site_name  = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
+          host       = NexusWeb.Endpoint.url()
+          raw_icon   = pwa["icon_192_path"] || "/images/icon-192.png"
+          raw_badge  = pwa["badge_url"] || raw_icon
+          icon       = if String.starts_with?(raw_icon,  "http"), do: raw_icon,  else: "#{host}#{raw_icon}"
+          badge      = if String.starts_with?(raw_badge, "http"), do: raw_badge, else: "#{host}#{raw_badge}"
+          actor_name = actor_display(actor)
 
-          if vapid_public && vapid_private do
-            site_name  = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
-            host       = NexusWeb.Endpoint.url()
-            raw_icon   = pwa["icon_192_path"] || "/images/icon-192.png"
-            raw_badge  = pwa["badge_url"] || raw_icon
-            icon       = if String.starts_with?(raw_icon,  "http"), do: raw_icon,  else: "#{host}#{raw_icon}"
-            badge      = if String.starts_with?(raw_badge, "http"), do: raw_badge, else: "#{host}#{raw_badge}"
-            actor_name = actor_display(actor)
+          payload = Jason.encode!(%{
+            title: site_name,
+            body:  "#{actor_name} sent you a message",
+            icon:  icon,
+            badge: badge,
+            url:   "#{host}/messages/#{thread_id}"
+          })
 
-            payload = Jason.encode!(%{
-              title: site_name,
-              body:  "#{actor_name} sent you a message",
-              icon:  icon,
-              badge: badge,
-              url:   "#{host}/messages/#{thread_id}"
-            })
-
-            case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
-              :ok -> Logger.info("Push DM: delivered to user #{user_id}")
-              {:error, :subscription_expired} -> clear_subscription(user)
-              {:error, :subscription_not_found} -> clear_subscription(user)
-              {:error, reason} -> Logger.warning("Push DM failed for user #{user_id}: #{inspect(reason)}")
+          Enum.each(subscriptions, fn sub ->
+            case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
+              :ok ->
+                Logger.info("Push DM: delivered to user #{user_id}")
+              {:error, :subscription_expired} ->
+                Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
+              {:error, :subscription_not_found} ->
+                Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
+              {:error, reason} ->
+                Logger.warning("Push DM failed for user #{user_id}: #{inspect(reason)}")
             end
-          end
+          end)
         end
-        :ok
+      end
     end
   end
 
@@ -181,11 +179,6 @@ defmodule Nexus.Workers.DeliverNotification do
 
     cond do
       is_nil(user) ->
-        Logger.warning("Push: user #{notification.user_id} not found")
-        :ok
-
-      is_nil(user.push_subscription) ->
-        Logger.info("Push: user #{user.id} has no push subscription")
         :ok
 
       not push_enabled_for?(user, notification.type) ->
@@ -193,49 +186,41 @@ defmodule Nexus.Workers.DeliverNotification do
         :ok
 
       true ->
-        sub = user.push_subscription
-        endpoint = sub["endpoint"]
-        p256dh   = get_in(sub, ["keys", "p256dh"])
-        auth     = get_in(sub, ["keys", "auth"])
+        subscriptions = Nexus.Accounts.get_push_subscriptions(notification.user_id)
 
-        if is_nil(endpoint) or is_nil(p256dh) or is_nil(auth) do
-          Logger.warning("Push: malformed subscription for user #{user.id}: #{inspect(sub)}")
+        if Enum.empty?(subscriptions) do
+          Logger.info("Push: user #{notification.user_id} has no push subscriptions")
           :ok
         else
           pwa = Nexus.Admin.get_setting("pwa")
           vapid_public  = pwa["vapid_public"]
           vapid_private = pwa["vapid_private"]
 
-          cond do
-            is_nil(vapid_public) ->
-              Logger.warning("Push: VAPID public key not configured")
-              :ok
+          if is_nil(vapid_public) or is_nil(vapid_private) do
+            Logger.warning("Push: VAPID keys not configured")
+            :ok
+          else
+            payload = build_push_payload(notification, pwa)
 
-            is_nil(vapid_private) ->
-              Logger.warning("Push: VAPID private key not configured")
-              :ok
+            Enum.each(subscriptions, fn sub ->
+              Logger.info("Push: sending to user #{notification.user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
 
-            true ->
-              payload = build_push_payload(notification, pwa)
-              Logger.info("Push: sending to user #{user.id} endpoint #{String.slice(endpoint, 0, 50)}…")
-
-              case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
+              case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
                 :ok ->
-                  Logger.info("Push: delivered to user #{user.id}")
-                  :ok
+                  Logger.info("Push: delivered to user #{notification.user_id}")
 
                 {:error, :subscription_expired} ->
-                  Logger.info("Push: subscription expired for user #{user.id}, clearing")
-                  clear_subscription(user)
+                  Logger.info("Push: subscription expired for user #{notification.user_id}, clearing")
+                  Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
 
                 {:error, :subscription_not_found} ->
-                  Logger.info("Push: subscription not found for user #{user.id}, clearing")
-                  clear_subscription(user)
+                  Logger.info("Push: subscription not found for user #{notification.user_id}, clearing")
+                  Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
 
                 {:error, reason} ->
-                  Logger.warning("Push: failed for user #{user.id}: #{inspect(reason)}")
-                  :ok
+                  Logger.warning("Push: failed for user #{notification.user_id}: #{inspect(reason)}")
               end
+            end)
           end
         end
     end
@@ -303,16 +288,10 @@ defmodule Nexus.Workers.DeliverNotification do
   # Called when the push endpoint returns 410 (expired) or 404 (not found).
   # Silently succeeds — if the update fails the subscription will be retried
   # on the next notification and cleaned up then.
-  defp clear_subscription(user) do
-    require Logger
-    Logger.info("Clearing stale push subscription for user #{user.id}")
-    Nexus.Accounts.update_preferences(user, %{push_subscription: nil})
-    :ok
-  end
-
   # Check whether the user has push enabled for this notification type.
   # Preferences are stored as: preferences["notifications"][type]["push"] = true/false
   # Default is true — only skip if explicitly set to false.
+  defp push_enabled_for?(nil, _type), do: false
   defp push_enabled_for?(user, type) do
     prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
     Map.get(prefs, "push", true) != false
