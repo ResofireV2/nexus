@@ -1094,7 +1094,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-game-chip button{background:none;border:none;color:var(--t4);cursor:pointer;font-size:11px;padding:0 0 0 2px;line-height:1;}
 .comp-game-chip button:hover{color:var(--t1);}
 .reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
-.reply-av{width:40px;height:40px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;}
+.reply-av{width:48px;height:48px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#fff;flex-shrink:0;}
 .reply-body-wrap{}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
 .reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
