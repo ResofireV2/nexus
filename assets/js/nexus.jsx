@@ -8974,8 +8974,10 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
         await sub.unsubscribe();
       }
     } catch(e) {
+      console.error("Push subscribe error:", e.name, e.message, e);
       if(e.name==="NotAllowedError") setPushError("Permission denied. Allow notifications in your browser settings.");
-      else setPushError("Failed to enable push notifications.");
+      else if(e.name==="InvalidStateError") setPushError("Service worker not ready. Try reloading the page.");
+      else setPushError(`Failed to enable push notifications: ${e.message||e.name}`);
     } finally {
       setPushLoading(false);
     }
