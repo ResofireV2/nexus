@@ -317,7 +317,7 @@ defmodule NexusWeb.API.V1.AdminController do
       role:               u.role,
       bio:                Map.get(u, :bio),
       avatar_url:         u.avatar_url,
-      avatar_color:       u.avatar_color,
+      avatar_color:       Map.get(u, :avatar_color),
       inserted_at:        u.inserted_at,
       status:             u.status,
       post_count:         Map.get(u, :post_count, 0),

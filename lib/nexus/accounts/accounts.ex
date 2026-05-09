@@ -32,6 +32,7 @@ defmodule Nexus.Accounts do
         role:                u.role,
         bio:                 u.bio,
         avatar_url:          u.avatar_url,
+        avatar_color:        u.avatar_color,
         cover_url:           u.cover_url,
         inserted_at:         u.inserted_at,
         status:              u.status,
@@ -99,9 +100,16 @@ defmodule Nexus.Accounts do
   # Registration
   # ---------------------------------------------------------------------------
 
+  @avatar_colors ~w(#a78bfa #f472b6 #34d399 #60a5fa #fbbf24 #f87171 #ec4899 #10b981 #fb923c #38bdf8 #a3e635 #e879f9)
+
   def register_user(attrs) do
+    # Pick a color based on total user count so consecutive users differ
+    count = Repo.aggregate(User, :count)
+    color = Enum.at(@avatar_colors, rem(count, length(@avatar_colors)))
+
     %User{}
     |> User.registration_changeset(attrs)
+    |> Ecto.Changeset.put_change(:avatar_color, color)
     |> maybe_set_first_admin()
     |> Repo.insert()
   end

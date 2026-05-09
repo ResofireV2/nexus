@@ -5869,7 +5869,7 @@ function LeaderboardPage({currentUser, navigate}) {
   };
 
   const Av = ({user, size, radius, fontSize}) => {
-    const col = userColor(u);
+    const col = userColor(user);
     if(user.avatar_url) return <img src={user.avatar_url} style={{width:size,height:size,borderRadius:radius,objectFit:"cover",display:"block"}} alt={user.username}/>;
     return <div style={{width:size,height:size,borderRadius:radius,background:`${col}33`,color:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:600}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>;
   };
@@ -9478,7 +9478,7 @@ function TagsPage({navigate, currentUser}) {
 
 // ── Members ───────────────────────────────────────────────────────────────────
 function MemberCard({m, navigate, currentUser}) {
-  const col = spaceColor({id:m.id});
+  const col = userColor(m);
   const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
   const ROLE_BG    = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
   const [fullUser, setFullUser] = useState(null);
