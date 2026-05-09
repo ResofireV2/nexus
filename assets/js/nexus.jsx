@@ -1097,7 +1097,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-av{width:48px;height:48px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#fff;flex-shrink:0;}
 .reply-body-wrap{}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
-.reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.reply-quote-btn{font-size:14px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
 .reply-item:hover .reply-quote-btn{opacity:1;}
 .reply-item:hover .reply-menu-btn{opacity:1!important;border-color:var(--b1)!important;}
 .reply-quote-btn:hover{color:var(--ac-text);}
@@ -3119,7 +3119,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="thread-title">{p.title}</div>
                         </div>
                         <div className="thread-tags-row">
-                          
+                          {p.type==="question"&&<div className="thread-tag" style={{background:p.accepted_reply_id?"rgba(52,211,153,0.15)":"rgba(96,165,250,0.15)",color:p.accepted_reply_id?"#34d399":"#60a5fa",display:"flex",alignItems:"center",gap:4}}>
+                            <i className={`fa-solid ${p.accepted_reply_id?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:8}}/>{p.accepted_reply_id?"Answered":"Question"}
+                          </div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
                         {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
@@ -3473,6 +3475,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           api.get("/saved").then(d=>{
             const saves = d.saved||[];
             setPostSaved(saves.some(s=>s.type==="post"&&s.post?.id===pd.post?.id));
+          setAcceptedReplyId(pd.post?.accepted_reply_id||null);
             setSavedReplyIds(new Set(saves.filter(s=>s.type==="reply").map(s=>s.reply?.id).filter(Boolean)));
           }).catch(()=>{});
           // Load follow state — placeholder until backend is built;
@@ -3666,6 +3669,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [openReplyMenu, setOpenReplyMenu] = useState(null);
   const [hoveredReply, setHoveredReply] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
+  const [acceptedReplyId, setAcceptedReplyId] = useState(post?.accepted_reply_id||null);
+  const [editHistory, setEditHistory] = useState(null); // null=closed, []=loaded
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -3729,9 +3734,37 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 style={{background:"none",border:"none",cursor:"pointer",color:postSaved?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
                 <i className={`fa-${postSaved?"solid":"regular"} fa-bookmark`}/>
               </button>}
+              <button title="Edit history" onClick={async()=>{ if(editHistory!==null){setEditHistory(null);return;} const d=await api.get(`/posts/${post.id}/edits`); setEditHistory(d.edits||[]); }}
+                style={{background:"none",border:"none",cursor:"pointer",color:editHistory!==null?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
+                <i className="fa-solid fa-clock-rotate-left"/>
+              </button>
             </div>
             {/* Title full-width */}
-            <div className="post-title" style={{marginBottom:4}}>{post.title}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+              <div className="post-title" style={{marginBottom:0}}>{post.title}</div>
+              {post.type==="question"&&<span style={{fontSize:11,fontWeight:500,padding:"2px 8px",borderRadius:20,background:acceptedReplyId?"rgba(52,211,153,0.15)":"rgba(96,165,250,0.15)",color:acceptedReplyId?"#34d399":"#60a5fa",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                <i className={`fa-solid ${acceptedReplyId?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:10}}/>{acceptedReplyId?"Answered":"Question"}
+              </span>}
+            </div>
+            {editHistory!==null&&(
+              <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"12px 16px",marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:500,color:"var(--t4)",marginBottom:editHistory.length>0?10:0,display:"flex",alignItems:"center",gap:6}}>
+                  <i className="fa-solid fa-clock-rotate-left" style={{fontSize:11}}/>Edit history
+                </div>
+                {editHistory.length===0
+                  ?<div style={{fontSize:12,color:"var(--t5)"}}>No edits recorded.</div>
+                  :editHistory.map((e,i)=>(
+                    <div key={e.id} style={{borderTop:i>0?"0.5px solid var(--b1)":"none",paddingTop:i>0?10:0,marginTop:i>0?10:0}}>
+                      <div style={{fontSize:11,color:"var(--t5)",marginBottom:6,display:"flex",gap:8}}>
+                        <span>{e.editor?.username}</span><span>·</span><span>{ago(e.edited_at)}</span>
+                      </div>
+                      {e.old_title&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:4}}><span style={{color:"var(--t5)"}}>Title was: </span>{e.old_title}</div>}
+                      <div style={{fontSize:12,color:"var(--t3)",fontStyle:"italic",lineHeight:1.6,whiteSpace:"pre-wrap",opacity:.8}}>{e.old_body?.slice(0,300)}{e.old_body?.length>300?"…":""}</div>
+                    </div>
+                  ))
+                }
+              </div>
+            )}
             {editingPost
               ?<div style={{marginTop:12}}>
                 <input className="fi" value={editTitle} onChange={e=>setEditTitle(e.target.value)}
@@ -3847,6 +3880,22 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             onMouseEnter={()=>setHoveredReply(r.id)}
             onMouseLeave={()=>{setHoveredReply(null);if(openReplyMenu===r.id)setOpenReplyMenu(null);}}>
             <div className="reply-body-wrap">
+              {r.id===acceptedReplyId&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:500,color:"var(--green)",marginBottom:6}}>
+                <i className="fa-solid fa-circle-check" style={{fontSize:13}}/>Accepted answer
+              </div>}
+              {r._editHistory!==undefined&&(
+                <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8,padding:"10px 14px",marginBottom:10,fontSize:12}}>
+                  {r._editHistory.length===0
+                    ?<span style={{color:"var(--t5)"}}>No edit history.</span>
+                    :r._editHistory.map((e,i)=>(
+                      <div key={e.id} style={{borderTop:i>0?"0.5px solid var(--b1)":"none",paddingTop:i>0?8:0,marginTop:i>0:8:0}}>
+                        <div style={{color:"var(--t5)",marginBottom:4}}>{e.editor?.username} · {ago(e.edited_at)}</div>
+                        <div style={{color:"var(--t3)",fontStyle:"italic",whiteSpace:"pre-wrap"}}>{e.old_body?.slice(0,200)}{e.old_body?.length>200?"…":""}</div>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
               <div className="reply-meta">
                 {r.user?.avatar_url
                   ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
@@ -3854,6 +3903,27 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
+                <span className="reply-quote-btn" title="Edit history" onClick={async()=>{
+                  const key=`rh_${r.id}`;
+                  if(r._editHistory!==undefined){setReplies(p=>p.map(x=>x.id===r.id?{...x,_editHistory:undefined}:x));return;}
+                  const d=await api.get(`/posts/${postId}/replies/${r.id}/edits`);
+                  setReplies(p=>p.map(x=>x.id===r.id?{...x,_editHistory:d.edits||[]}:x));
+                }} style={{opacity:1}}>
+                  <i className="fa-solid fa-clock-rotate-left" style={{fontSize:11}}/>
+                </span>
+                {post.type==="question"&&(currentUser?.id===post.user?.id||isMod)&&(
+                  <span className="reply-quote-btn" title={acceptedReplyId===r.id?"Unmark answer":"Mark as answer"} onClick={async()=>{
+                    if(acceptedReplyId===r.id){
+                      const d=await api.delete(`/posts/${post.id}/accept`);
+                      if(d.ok) setAcceptedReplyId(null);
+                    } else {
+                      const d=await api.post(`/posts/${post.id}/accept/${r.id}`,{});
+                      if(d.ok) setAcceptedReplyId(r.id);
+                    }
+                  }} style={{opacity:1,color:acceptedReplyId===r.id?"var(--green)":"var(--t5)"}}>
+                    <i className={`fa-${acceptedReplyId===r.id?"solid":"regular"} fa-circle-check`} style={{fontSize:13}}/>
+                  </span>
+                )}
               </div>
               {editingReplyId===r.id
                 ?<div style={{marginTop:8}}>
@@ -4042,6 +4112,7 @@ function ProfileSidebarSlot({username, currentUser, navigate}) {
 function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
   const [spaceId,setSpaceId]=useState(spaces[0]?.id||"");
+  const [postType,setPostType]=useState("discussion");
   const [postBody,setPostBody]=useState("");
   const [selTags,setSelTags]=useState([]); const [showTags,setShowTags]=useState(false);
   const [loading,setLoading]=useState(false);
@@ -4059,7 +4130,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     if(!title.trim()){toast("Title required","err");return;}
     if(!spaceId){toast("Select a space","err");return;}
     setLoading(true);
-    try { const d=await api.post("/posts",{title,body,space_id:parseInt(spaceId),tag_ids:selTags});
+    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
       if(d.post&&d.pending){toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
         // Link any games selected via extension toolbar
@@ -4081,6 +4152,12 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
       <div className="composer-inner">
         <input className="comp-title-input" placeholder="Thread title…" value={title} onChange={e=>setTitle(e.target.value)} autoFocus/>
         <div className="comp-meta-row">
+          {window._postCfg?.questions_enabled&&(
+            <select className="comp-sel" value={postType} onChange={e=>setPostType(e.target.value)}>
+              <option value="discussion">Discussion</option>
+              <option value="question">Question</option>
+            </select>
+          )}
           <select className="comp-sel" value={spaceId} onChange={e=>setSpaceId(e.target.value)}>
             <option value="">Select space…</option>
             {spaces.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
@@ -8612,7 +8689,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});setPostCfg(s.posting||{});setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});});
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -9226,6 +9303,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             </F>
 
             <div className="fgt" style={{marginTop:20}}>Profiles</div>
+            <Tgl label="Enable question posts" desc="Allows users to mark a post as a question. The OP or mods can then mark a reply as the accepted answer." on={!!postCfg.questions_enabled} onChange={v=>setPostCfg(p=>({...p,questions_enabled:v}))}/>
             <Tgl label="Public media tabs" desc="Allow anyone to view the Media tab on other users' profiles. Off by default — users can only see their own media." on={!!postCfg.media_public} onChange={v=>setPostCfg(p=>({...p,media_public:v}))}/>
 
             <div className="fgt" style={{marginTop:20}}>Posting</div>
@@ -10820,7 +10898,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});window._postCfg=s.posting||{};
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
       const digest=s.digest||{};

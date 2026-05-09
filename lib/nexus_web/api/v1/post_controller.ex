@@ -65,6 +65,7 @@ defmodule NexusWeb.API.V1.PostController do
       post ->
         if can_edit?(user, post) do
           tag_ids = Map.get(params, "tag_ids")
+          Forum.record_post_edit(post, user.id)
           case Forum.update_post(post, params, tag_ids) do
             {:ok, updated} ->
               Task.start(fn -> Nexus.Extensions.fire("post_updated", %{post_id: updated.id}) end)
@@ -162,6 +163,7 @@ defmodule NexusWeb.API.V1.PostController do
       type: post.type,
       pinned: post.pinned,
       locked: post.locked,
+      accepted_reply_id: post.accepted_reply_id,
       reply_count: post.reply_count,
       reaction_count: post.reaction_count,
       last_reply_at: post.last_reply_at,
@@ -185,5 +187,38 @@ defmodule NexusWeb.API.V1.PostController do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
+  end
+
+  # GET /api/v1/posts/:id/edits
+  def edits(conn, %{"id" => id}) do
+    edits = Forum.list_post_edits(String.to_integer(id))
+    json(conn, %{edits: Enum.map(edits, fn e ->
+      %{id: e.id, old_title: e.old_title, old_body: e.old_body,
+        edited_at: e.edited_at, editor: e.editor}
+    end)})
+  end
+
+  # POST /api/v1/posts/:id/accept/:reply_id
+  def accept_answer(conn, %{"id" => post_id, "reply_id" => reply_id}) do
+    user = conn.assigns.current_user
+    post = Forum.get_post!(post_id)
+    if post && (post.user_id == user.id || user.role in ["admin", "moderator"]) do
+      Forum.accept_answer(String.to_integer(post_id), String.to_integer(reply_id))
+      json(conn, %{ok: true, accepted_reply_id: String.to_integer(reply_id)})
+    else
+      conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})
+    end
+  end
+
+  # DELETE /api/v1/posts/:id/accept
+  def unaccept_answer(conn, %{"id" => post_id}) do
+    user = conn.assigns.current_user
+    post = Forum.get_post!(post_id)
+    if post && (post.user_id == user.id || user.role in ["admin", "moderator"]) do
+      Forum.unaccept_answer(String.to_integer(post_id))
+      json(conn, %{ok: true, accepted_reply_id: nil})
+    else
+      conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})
+    end
   end
 end

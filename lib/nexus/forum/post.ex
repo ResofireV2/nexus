@@ -17,9 +17,10 @@ defmodule Nexus.Forum.Post do
     field :last_reply_at, :utc_datetime
     field :search_vector, :string, load_in_query: false  # tsvector — managed by DB trigger
 
-    belongs_to :user,      Nexus.Accounts.User
-    belongs_to :space,     Nexus.Forum.Space
-    belongs_to :hidden_by, Nexus.Accounts.User
+    belongs_to :user,          Nexus.Accounts.User
+    belongs_to :space,         Nexus.Forum.Space
+    belongs_to :hidden_by,     Nexus.Accounts.User
+    belongs_to :accepted_reply, Nexus.Forum.Reply, foreign_key: :accepted_reply_id
 
     has_many :replies,     Nexus.Forum.Reply
     has_many :reactions,   Nexus.Forum.Reaction

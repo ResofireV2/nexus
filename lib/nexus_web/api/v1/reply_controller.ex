@@ -85,6 +85,7 @@ defmodule NexusWeb.API.V1.ReplyController do
       nil   -> conn |> put_status(:not_found) |> json(%{error: "Reply not found"})
       reply ->
         if can_edit?(user, reply) do
+          Forum.record_reply_edit(reply, user.id)
           case Forum.update_reply(reply, params) do
             {:ok, updated} -> json(conn, %{reply: reply_json(updated)})
             {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
@@ -146,5 +147,13 @@ defmodule NexusWeb.API.V1.ReplyController do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
+  end
+
+  # GET /api/v1/posts/:post_id/replies/:id/edits
+  def edits(conn, %{"id" => id}) do
+    edits = Forum.list_reply_edits(String.to_integer(id))
+    json(conn, %{edits: Enum.map(edits, fn e ->
+      %{id: e.id, old_body: e.old_body, edited_at: e.edited_at, editor: e.editor}
+    end)})
   end
 end

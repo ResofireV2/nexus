@@ -71,6 +71,8 @@ defmodule NexusWeb.API.V1.FeedController do
       type: post.type,
       pinned: post.pinned,
       locked: post.locked,
+      type: post.type,
+      accepted_reply_id: post.accepted_reply_id,
       reply_count: post.reply_count,
       reaction_count: post.reaction_count,
       last_reply_at: post.last_reply_at,

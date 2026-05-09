@@ -770,4 +770,72 @@ defmodule Nexus.Forum do
   def post_follower_ids(post_id) do
     Repo.all(from f in PostFollow, where: f.post_id == ^post_id, select: f.user_id)
   end
+
+
+  # ── Edit history ──────────────────────────────────────────────────────────
+
+  alias Nexus.Forum.PostEdit
+
+  def record_post_edit(post, editor_id) do
+    %PostEdit{}
+    |> PostEdit.changeset(%{
+      post_id:   post.id,
+      user_id:   editor_id,
+      old_title: post.title,
+      old_body:  post.body,
+      edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert()
+  end
+
+  def record_reply_edit(reply, editor_id) do
+    %PostEdit{}
+    |> PostEdit.changeset(%{
+      reply_id:  reply.id,
+      user_id:   editor_id,
+      old_body:  reply.body,
+      edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert()
+  end
+
+  def list_post_edits(post_id) do
+    Repo.all(
+      from e in PostEdit,
+        where: e.post_id == ^post_id,
+        join: u in Nexus.Accounts.User, on: u.id == e.user_id,
+        order_by: [desc: e.edited_at],
+        select: %{id: e.id, old_title: e.old_title, old_body: e.old_body,
+                  edited_at: e.edited_at, editor: %{id: u.id, username: u.username}}
+    )
+  end
+
+  def list_reply_edits(reply_id) do
+    Repo.all(
+      from e in PostEdit,
+        where: e.reply_id == ^reply_id,
+        join: u in Nexus.Accounts.User, on: u.id == e.user_id,
+        order_by: [desc: e.edited_at],
+        select: %{id: e.id, old_body: e.old_body,
+                  edited_at: e.edited_at, editor: %{id: u.id, username: u.username}}
+    )
+  end
+
+  # ── Question / accepted answer ────────────────────────────────────────────
+
+  def accept_answer(post_id, reply_id) do
+    Repo.update_all(
+      from(p in Post, where: p.id == ^post_id),
+      set: [accepted_reply_id: reply_id]
+    )
+    {:ok, :accepted}
+  end
+
+  def unaccept_answer(post_id) do
+    Repo.update_all(
+      from(p in Post, where: p.id == ^post_id),
+      set: [accepted_reply_id: nil]
+    )
+    {:ok, :unaccepted}
+  end
 end
