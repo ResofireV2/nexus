@@ -746,7 +746,7 @@ S.textContent = `
 :root{
   --tgl-off:rgba(255,255,255,0.12);
   --tgl-knob-off:rgba(255,255,255,0.75);
-  --fs-ui:11px;
+  --fs-ui:14px;
   --fs-body:13px;
   --fs-title:20px;
   --fs-content:14px;
@@ -1084,7 +1084,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .rx-pill:hover{border-color:var(--b2);color:var(--t2);}
 .rx-pill.mine{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
-.replies-count{font-size:12px;color:var(--t3);}
+.replies-count{font-size:14px;color:var(--t3);}
 /* Extension slots */
 .post-footer-slot{padding:12px 0 4px;}
 .comp-ext-toolbar{display:flex;align-items:center;gap:6px;padding:6px 0 2px;}
@@ -1101,7 +1101,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-item:hover .reply-quote-btn{opacity:1;}
 .reply-item:hover .reply-menu-btn{opacity:1!important;border-color:var(--b1)!important;}
 .reply-quote-btn:hover{color:var(--ac-text);}
-.post-reply-btn{font-size:11px;color:var(--t5);cursor:pointer;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;background:none;border:none;font-family:inherit;}
+.post-reply-btn{font-size:14px;color:var(--t5);cursor:pointer;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;white-space:nowrap;background:none;border:none;font-family:inherit;}
 .post-reply-btn:hover{color:var(--ac-text);}
 .reply-item:hover .post-reply-btn{opacity:1;}
 .reaction-row:hover .post-reply-btn{opacity:1;}
@@ -1110,8 +1110,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 .reply-item:hover .row-menu-btn{opacity:1;border-color:var(--b1);}
 .reaction-row:hover .row-menu-btn{opacity:1;border-color:var(--b1);}
 @media(max-width:767.99px){.post-reply-btn{opacity:1!important;}.row-menu-btn{opacity:1!important;border-color:var(--b1)!important;}}
-.reply-author{font-size:13px;font-weight:500;color:var(--t2);}
-.reply-time{font-size:11px;color:var(--t5);}
+.reply-author{font-size:14px;font-weight:500;color:var(--t2);}
+.reply-time{font-size:14px;color:var(--t5);}
 .reply-text{font-size:13px;color:var(--t3);line-height:1.65;}
 
 /* Composer */
@@ -3611,8 +3611,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               <div className="post-meta" style={{marginBottom:0,flex:1}}>
                 {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
                 {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
-                <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
-                <span style={{fontSize:11,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
+                <span style={{fontSize:16,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
+                <span style={{fontSize:14,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
               </div>
               {currentUser&&<button title={postFollowed?"Unfollow":"Follow"}
                 onClick={toggleFollowPost}
