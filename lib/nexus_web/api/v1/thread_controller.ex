@@ -74,7 +74,8 @@ defmodule NexusWeb.API.V1.ThreadController do
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
       {:ok, thread} ->
-        if thread.kind == "group" && thread.creator_id != user_id do
+        is_creator = is_nil(thread.creator_id) || thread.creator_id == user_id
+        if thread.kind == "group" && !is_creator do
           conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can delete this group"})
         else
           Nexus.Messaging.delete_thread(thread)

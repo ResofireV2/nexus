@@ -136,6 +136,7 @@ defmodule NexusWeb.Router do
 
     # Direct messaging
     get    "/threads",                           ThreadController, :index
+    get    "/threads/unread",                    ThreadController, :unread
     post   "/threads/direct",                   ThreadController, :create_direct
     post   "/threads/group",                    ThreadController, :create_group
     get    "/threads/:id",                      ThreadController, :show
@@ -143,7 +144,6 @@ defmodule NexusWeb.Router do
     delete "/threads/:id",                      ThreadController, :delete
     post   "/threads/:id/mute",                 ThreadController, :mute
     post   "/threads/:id/read",                 ThreadController, :mark_read
-    get    "/threads/unread",                   ThreadController, :unread
     post   "/threads/:id/members",              ThreadController, :add_member
     delete "/threads/:id/members/:user_id",     ThreadController, :remove_member
 
