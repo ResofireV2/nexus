@@ -139,10 +139,6 @@ defmodule Nexus.Workers.DeliverNotification do
         :ok
     end
   end
-    else
-      _ -> :ok
-    end
-  end
 
   # ---------------------------------------------------------------------------
   # Phoenix PubSub broadcast (existing behaviour — unchanged)
