@@ -170,12 +170,16 @@ defmodule Nexus.Accounts do
         if RefreshToken.valid?(token) do
           user = get_user!(token.user_id)
 
-          # Rotate: revoke old token and issue a new one
+          # remember_me may not exist if the migration hasn't run yet —
+          # use Map.get with a safe fallback so we never crash on a missing column.
+          remember_me = Map.get(token, :remember_me, true) || true
+
+          # Rotate: revoke old token, issue a new one
           Repo.update!(RefreshToken.revoke_changeset(token))
-          {:ok, new_refresh} = create_refresh_token(user, [remember_me: token.remember_me || true])
+          {:ok, new_refresh} = create_refresh_token(user, [remember_me: remember_me])
 
           {:ok, access_token} = JWT.generate_access_token(user)
-          {:ok, %{access_token: access_token, refresh_token: new_refresh.token_hash, remember_me: token.remember_me || true}}
+          {:ok, %{access_token: access_token, refresh_token: new_refresh.token_hash, remember_me: remember_me}}
         else
           {:error, :token_expired}
         end

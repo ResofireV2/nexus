@@ -126,21 +126,27 @@ defmodule NexusWeb.API.V1.AuthController do
       true ->
         try do
           case Accounts.refresh_access_token(raw_token) do
-            {:ok, access_token} ->
-              json(conn, %{access_token: access_token})
+            {:ok, %{access_token: access_token, refresh_token: new_refresh, remember_me: remember_me}} ->
+              conn
+              |> put_refresh_cookie(new_refresh, remember_me)
+              |> json(%{access_token: access_token})
 
             {:error, _} ->
+              # Genuine invalid/expired token — clear the cookie
               conn
               |> delete_resp_cookie("_nexus_refresh")
               |> put_status(:unauthorized)
               |> json(%{error: "Invalid or expired refresh token"})
           end
         rescue
-          _ ->
+          e ->
+            require Logger
+            Logger.error("Refresh token error: #{inspect(e)}")
+            # Do NOT delete the cookie on unexpected errors —
+            # keep it so the user can retry after a deploy/migration
             conn
-            |> delete_resp_cookie("_nexus_refresh")
             |> put_status(:unauthorized)
-            |> json(%{error: "Invalid refresh token"})
+            |> json(%{error: "Refresh temporarily unavailable"})
         end
     end
   end
