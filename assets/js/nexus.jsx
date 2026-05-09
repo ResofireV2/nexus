@@ -2235,7 +2235,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
           <i className="fa-regular fa-eye" style={{fontSize:12}}/>
         </button>
       </div>
-      {!value && !isFocused && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"rgba(255,255,255,0.12)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
+      {!value && !isFocused && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"var(--t4)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
       <textarea ref={taRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
         onFocus={()=>setIsFocused(true)} onBlur={e=>{handleBlur(e);setIsFocused(false);}} autoFocus={autoFocus}
         className="comp-ta" style={{minHeight,paddingTop:12,paddingBottom:12}}
@@ -2315,10 +2315,10 @@ function AvatarMenu({user, navigate, onLogout}) {
           <div className="av-dd-handle">@{user?.username?.toLowerCase()} · {user?.role}</div>
         </div>
         <div className="av-dd-item" onClick={()=>{navigate("profile",{username:user?.username});setOpen(false);}}>
-          <i className="fa-solid fa-user" style={{color:"rgba(255,255,255,0.4)"}}></i>profile
+          <i className="fa-solid fa-user" style={{color:"var(--t3)"}}></i>profile
         </div>
         <div className="av-dd-item" onClick={()=>{navigate("settings");setOpen(false);}}>
-          <i className="fa-solid fa-gear" style={{color:"rgba(255,255,255,0.4)"}}></i>settings
+          <i className="fa-solid fa-gear" style={{color:"var(--t3)"}}></i>settings
         </div>
         {user?.role==="admin"&&<div className="av-dd-item admin-item" onClick={()=>{navigate("admin");setOpen(false);}}>
           <i className="fa-solid fa-shield-halved"></i>administration
@@ -2746,7 +2746,7 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
         <div className="rw-label">more in {post.space.name}</div>
         {related.map(r=>(
           <div key={r.id} onClick={()=>navigate("post",{id:r.id})}
-            style={{padding:"7px 0",borderBottom:"0.5px solid rgba(255,255,255,0.04)",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:8}}>
+            style={{padding:"7px 0",borderBottom:"0.5px solid var(--b1)",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:8}}>
             <div style={{width:3,height:"100%",minHeight:32,borderRadius:2,background:col,flexShrink:0,alignSelf:"stretch"}}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12,fontWeight:500,color:"var(--t2)",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{r.title}</div>
@@ -4517,7 +4517,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
         <div className="dm-sidebar">
           <div className="dm-search">
             <div className="dm-search-inner">
-              <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}></i>
+              <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t4)"}}></i>
               <input placeholder="Search messages…" value={dmSearch} onChange={e=>setDmSearch(e.target.value)}/>
             </div>
           </div>
@@ -5518,7 +5518,7 @@ function ReportCard({r, onAction, isAdmin}) {
             ? <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:"rgba(52,211,153,0.1)",color:"#34d399",textTransform:"uppercase",letterSpacing:"0.4px"}}>resolved</span>
             : <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:typeBg,color:typeColor,textTransform:"uppercase",letterSpacing:"0.4px"}}>{r.content_type}</span>
           }
-          <span style={{fontSize:13,fontWeight:500,color:"rgba(255,255,255,0.75)"}}>{r.reason}</span>
+          <span style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{r.reason}</span>
         </div>
 
         {/* Post title if available */}
@@ -5531,7 +5531,7 @@ function ReportCard({r, onAction, isAdmin}) {
         {/* Content excerpt — the actual text being reported */}
         {r.excerpt&&(
           <div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,marginBottom:8,
-            background:"rgba(255,255,255,0.03)",border:"0.5px solid rgba(255,255,255,0.07)",
+            background:"var(--s2)",border:"0.5px solid var(--b1)",
             borderRadius:8,padding:"8px 12px",fontStyle:"italic"}}>
             {r.excerpt.length > 240 ? r.excerpt.slice(0,240)+"…" : r.excerpt}
           </div>
@@ -5676,7 +5676,7 @@ function ModerationPage({currentUser, navigate}) {
               </div>
             ))}
             <select value={sort} onChange={e=>setSort(e.target.value)}
-              style={{marginLeft:"auto",fontSize:12,color:"var(--t4)",background:"rgba(255,255,255,0.04)",border:"0.5px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 10px",fontFamily:"inherit",outline:"none"}}>
+              style={{marginLeft:"auto",fontSize:12,color:"var(--t4)",background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"5px 10px",fontFamily:"inherit",outline:"none"}}>
               <option value="newest">newest first</option>
               <option value="oldest">oldest first</option>
             </select>
@@ -5812,7 +5812,7 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
             </div>
           ))}
           <select value={sort} onChange={e=>setSort(e.target.value)}
-            style={{marginLeft:"auto",fontSize:12,color:"var(--t4)",background:"rgba(255,255,255,0.04)",border:"0.5px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"5px 10px",fontFamily:"inherit",outline:"none"}}>
+            style={{marginLeft:"auto",fontSize:12,color:"var(--t4)",background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"5px 10px",fontFamily:"inherit",outline:"none"}}>
             <option value="newest">newest first</option>
             <option value="oldest">oldest first</option>
           </select>
@@ -6355,11 +6355,11 @@ function AdminLogsPanel() {
               No failed or retrying jobs
             </div>
           : <>
-              <div style={{display:"grid",gridTemplateColumns:"80px 1fr 80px 80px 1fr 120px",gap:0,padding:"0 14px 8px",fontSize:10,fontWeight:500,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:"0.8px",borderBottom:"0.5px solid var(--b1)",marginBottom:4}}>
+              <div style={{display:"grid",gridTemplateColumns:"80px 1fr 80px 80px 1fr 120px",gap:0,padding:"0 14px 8px",fontSize:10,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.8px",borderBottom:"0.5px solid var(--b1)",marginBottom:4}}>
                 <div>State</div><div>Worker</div><div>Queue</div><div>Attempts</div><div>Error</div><div>When</div>
               </div>
               {jobs.map(j=>(
-                <div key={j.id} style={{display:"grid",gridTemplateColumns:"80px 1fr 80px 80px 1fr 120px",gap:0,padding:"10px 14px",borderBottom:"0.5px solid rgba(255,255,255,0.04)",alignItems:"start"}}>
+                <div key={j.id} style={{display:"grid",gridTemplateColumns:"80px 1fr 80px 80px 1fr 120px",gap:0,padding:"10px 14px",borderBottom:"0.5px solid var(--b1)",alignItems:"start"}}>
                   <div>
                     <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:STATE_BG[j.state],color:STATE_COLOR[j.state]}}>{j.state}</span>
                   </div>
@@ -6380,7 +6380,7 @@ function AdminLogsPanel() {
           : settings.map((l,i)=>{
               const diffs = diffSettings(l.old_value, l.new_value);
               return (
-                <div key={l.id||i} style={{padding:"12px 14px",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}}>
+                <div key={l.id||i} style={{padding:"12px 14px",borderBottom:"0.5px solid var(--b1)"}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:diffs.length?8:0}}>
                     <span style={{fontSize:12,fontWeight:500,color:"var(--ac-text)",background:"var(--ac-bg)",padding:"2px 8px",borderRadius:20}}>{l.section}</span>
                     <span style={{fontSize:12,color:"var(--t4)"}}>changed by</span>
@@ -9601,7 +9601,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
             </div>
 
             {NOTIF_ROWS.map(row=>(
-              <div key={row.k} style={{display:"grid",gridTemplateColumns:"1fr 64px 64px 64px",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}}>
+              <div key={row.k} style={{display:"grid",gridTemplateColumns:"1fr 64px 64px 64px",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid var(--b1)"}}>
                 <div>
                   <div style={{fontSize:13,color:"var(--t2)",marginBottom:2}}>{row.label}</div>
                   <div style={{fontSize:11,color:"var(--t5)"}}>{row.desc}</div>
@@ -9835,7 +9835,7 @@ function SavedPage({navigate, currentUser}) {
             const r = item.reply;
             const col = r.post?.space ? spaceColor(r.post.space) : "var(--ac)";
             return (
-              <div key={`reply-${r.id}`} className="p-reply-card" style={{padding:"14px 28px",cursor:"pointer",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}} onClick={()=>r.post&&navigate("post",{id:r.post.id})}>
+              <div key={`reply-${r.id}`} className="p-reply-card" style={{padding:"14px 28px",cursor:"pointer",borderBottom:"0.5px solid var(--b1)"}} onClick={()=>r.post&&navigate("post",{id:r.post.id})}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
                   {r.user?.avatar_url
                     ?<img src={r.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt=""/>
