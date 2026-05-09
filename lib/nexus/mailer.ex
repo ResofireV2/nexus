@@ -494,12 +494,12 @@ defmodule Nexus.Mailer do
           medals   = ["🥇", "🥈", "🥉"]
           medal    = if i <= 3, do: Enum.at(medals, i - 1), else: "#{i}."
           label_html = if url do
-            ~s(<a href="#{url}" style="color:#f0eeff;text-decoration:none;">#{label}</a>)
+            ~s{<a href="#{url}" style="color:#f0eeff;text-decoration:none;">#{label}</a>}
           else
             label
           end
           sub_html   = if sublabel do
-            ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;">#{sublabel}</div>)
+            ~s{<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;">#{sublabel}</div>}
           else
             ""
           end
@@ -516,7 +516,7 @@ defmodule Nexus.Mailer do
           """
         end)
         |> Enum.join()
-        |> then(&~s(<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>))
+        |> then(&~s{<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>})
 
       "stat_bars" ->
         max_val =
@@ -557,7 +557,7 @@ defmodule Nexus.Mailer do
           """
         end)
         |> Enum.join()
-        |> then(&~s(<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>))
+        |> then(&~s{<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>})
 
       "pill_grid" ->
         pills =
@@ -567,14 +567,14 @@ defmodule Nexus.Mailer do
             color = Map.get(item, "badge_color", "#a78bfa")
             url   = Map.get(item, "url")
             inner = if url do
-            ~s(<a href="#{url}" style="color:#{color};text-decoration:none;">#{label}</a>)
+            ~s{<a href="#{url}" style="color:#{color};text-decoration:none;">#{label}</a>}
           else
             label
           end
-            ~s(<span style="display:inline-block;padding:4px 12px;border-radius:20px;background:#{color}22;color:#{color};font-size:12px;font-weight:500;margin:3px;">#{inner}</span>)
+            ~s{<span style="display:inline-block;padding:4px 12px;border-radius:20px;background:#{color}22;color:#{color};font-size:12px;font-weight:500;margin:3px;">#{inner}</span>}
           end)
           |> Enum.join(" ")
-        ~s(<div style="margin-bottom:24px;line-height:2;">#{pills}</div>)
+        ~s{<div style="margin-bottom:24px;line-height:2;">#{pills}</div>}
 
       _ ->
         # Default: "list" layout — numbered rows
@@ -587,17 +587,17 @@ defmodule Nexus.Mailer do
           badge_color = Map.get(item, "badge_color", "#a78bfa")
           url      = Map.get(item, "url")
           label_html = if url do
-            ~s(<a href="#{url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;">#{label}</a>)
+            ~s{<a href="#{url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;">#{label}</a>}
           else
-            ~s(<span style="font-size:14px;font-weight:500;color:#f0eeff;">#{label}</span>)
+            ~s{<span style="font-size:14px;font-weight:500;color:#f0eeff;">#{label}</span>}
           end
           badge_html = if badge do
-            ~s( <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#{badge_color}22;color:#{badge_color};font-size:10px;font-weight:600;vertical-align:middle;margin-left:6px;">#{badge}</span>)
+            ~s{ <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#{badge_color}22;color:#{badge_color};font-size:10px;font-weight:600;vertical-align:middle;margin-left:6px;">#{badge}</span>}
           else
             ""
           end
           sub_html   = if sublabel do
-            ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px;">#{sublabel}</div>)
+            ~s{<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px;">#{sublabel}</div>}
           else
             ""
           end
@@ -615,12 +615,12 @@ defmodule Nexus.Mailer do
           """
         end)
         |> Enum.join()
-        |> then(&~s(<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>))
+        |> then(&~s{<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>})
     end
 
     cta_html =
       if cta && is_map(cta) && cta["url"] && cta["label"] do
-        ~s(<p style="margin:0 0 16px;"><a href="#{cta["url"]}" style="font-size:12px;color:#a78bfa;text-decoration:none;">#{cta["label"]} →</a></p>)
+        ~s{<p style="margin:0 0 16px;"><a href="#{cta["url"]}" style="font-size:12px;color:#a78bfa;text-decoration:none;">#{cta["label"]} →</a></p>}
       else
         ""
       end

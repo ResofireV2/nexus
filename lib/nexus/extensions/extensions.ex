@@ -214,7 +214,8 @@ defmodule Nexus.Extensions do
   # Failures are non-fatal and logged as warnings.
   # ---------------------------------------------------------------------------
 
-  def fire(event, payload \\ %{}) when event in @hook_events do
+  def fire(event, payload \\ %{})
+  def fire(event, payload) when event in @hook_events do
     hooks =
       from(h in Hook,
         join: e in Extension, on: h.extension_id == e.id,
