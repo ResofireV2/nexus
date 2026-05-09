@@ -235,8 +235,13 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp build_push_payload(notification, pwa) do
     site_name = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
-    icon      = pwa["icon_192_path"] || "/images/icon-192.png"
-    badge     = pwa["badge_url"]     || icon
+
+    # Icons must be absolute URLs for the push service to fetch them on the device.
+    host      = NexusWeb.Endpoint.url()
+    raw_icon  = pwa["icon_192_path"] || "/images/icon-192.png"
+    raw_badge = pwa["badge_url"]     || raw_icon
+    icon      = if String.starts_with?(raw_icon,  "http"), do: raw_icon,  else: "#{host}#{raw_icon}"
+    badge     = if String.starts_with?(raw_badge, "http"), do: raw_badge, else: "#{host}#{raw_badge}"
 
     {title, body, url} = push_content(notification, site_name)
 
@@ -280,8 +285,8 @@ defmodule Nexus.Workers.DeliverNotification do
   defp actor_display(nil),    do: "Someone"
   defp actor_display(actor),  do: actor.username || "Someone"
 
-  defp post_url(nil),     do: "/"
-  defp post_url(post_id), do: "/posts/#{post_id}"
+  defp post_url(nil),     do: NexusWeb.Endpoint.url()
+  defp post_url(post_id), do: "#{NexusWeb.Endpoint.url()}/posts/#{post_id}"
 
   defp thread_url(nil),       do: "/messages"
   defp thread_url(thread_id), do: "/messages/#{thread_id}"
