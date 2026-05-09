@@ -9267,6 +9267,43 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
 // ── Saved ─────────────────────────────────────────────────────────────────────
 // ── Settings ──────────────────────────────────────────────────────────────────
+function AppearanceTab() {
+  const darkOn  = window._darkEnabled  !== false;
+  const lightOn = window._lightEnabled !== false;
+  const [themePref, setThemePref] = useState(()=>{ try { return localStorage.getItem("nexus_theme_pref")||"auto"; } catch { return "auto"; } });
+  const opts = [
+    {v:"auto",  icon:"fa-circle-half-stroke", label:"Auto",  desc:"Follows your device setting"},
+    ...(darkOn  ? [{v:"dark",  icon:"fa-moon", label:"Dark",  desc:"Always dark"}]  : []),
+    ...(lightOn ? [{v:"light", icon:"fa-sun",  label:"Light", desc:"Always light"}] : []),
+  ];
+  return (<>
+    <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
+    <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {opts.map(({v,icon,label,desc})=>{
+        const active = themePref===v;
+        return (
+          <div key={v}
+            onClick={()=>{
+              try { localStorage.setItem("nexus_theme_pref", v); } catch {}
+              setThemePref(v);
+              const theme = resolveTheme(v, window._defaultTheme, window._darkEnabled, window._lightEnabled);
+              applyTheme(theme, window._appBrandingForTheme||{});
+            }}
+            style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:active?"var(--ac-bg)":"var(--s2)",border:`0.5px solid ${active?"var(--ac-border)":"var(--b1)"}`,borderRadius:10,cursor:"pointer",transition:"all .1s"}}>
+            <i className={`fa-solid ${icon}`} style={{fontSize:16,color:active?"var(--ac)":"var(--t4)",width:20,textAlign:"center"}}/>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:500,color:active?"var(--ac-text)":"var(--t2)"}}>{label}</div>
+              <div style={{fontSize:11,color:"var(--t5)",marginTop:1}}>{desc}</div>
+            </div>
+            {active&&<i className="fa-solid fa-check" style={{fontSize:12,color:"var(--ac)"}}/>}
+          </div>
+        );
+      })}
+    </div>
+  </>);
+}
+
 function SettingsPage({currentUser, onUpdate, navigate}) {
   const [tab,setTab]=useState("profile");
   const [profile,setProfile]=useState({username:currentUser?.username||"",bio:currentUser?.bio||""});
@@ -9513,42 +9550,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
             <button className="btn-primary" onClick={savePassword} disabled={saving||!pw.current||!pw.next}>{saving?"Saving…":"Update password"}</button>
           </>}
 
-          {tab==="appearance"&&(()=>{
-            const darkOn  = window._darkEnabled  !== false;
-            const lightOn = window._lightEnabled !== false;
-            const [themePref, setThemePref] = useState(()=>{ try { return localStorage.getItem("nexus_theme_pref")||"auto"; } catch { return "auto"; } });
-            const opts = [
-              {v:"auto",  icon:"fa-circle-half-stroke", label:"Auto",  desc:"Follows your device setting"},
-              ...(darkOn  ? [{v:"dark",  icon:"fa-moon", label:"Dark",  desc:"Always dark"}]  : []),
-              ...(lightOn ? [{v:"light", icon:"fa-sun",  label:"Light", desc:"Always light"}] : []),
-            ];
-            return (<>
-              <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
-              <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {opts.map(({v,icon,label,desc})=>{
-                  const active = themePref===v;
-                  return (
-                    <div key={v}
-                      onClick={()=>{
-                        try { localStorage.setItem("nexus_theme_pref", v); } catch {}
-                        setThemePref(v);
-                        const theme = resolveTheme(v, window._defaultTheme, window._darkEnabled, window._lightEnabled);
-                        applyTheme(theme, window._appBrandingForTheme||{});
-                      }}
-                      style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:active?"var(--ac-bg)":"var(--s2)",border:`0.5px solid ${active?"var(--ac-border)":"var(--b1)"}`,borderRadius:10,cursor:"pointer",transition:"all .1s"}}>
-                      <i className={`fa-solid ${icon}`} style={{fontSize:16,color:active?"var(--ac)":"var(--t4)",width:20,textAlign:"center"}}/>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:500,color:active?"var(--ac-text)":"var(--t2)"}}>{label}</div>
-                        <div style={{fontSize:11,color:"var(--t5)",marginTop:1}}>{desc}</div>
-                      </div>
-                      {active&&<i className="fa-solid fa-check" style={{fontSize:12,color:"var(--ac)"}}/>}
-                    </div>
-                  );
-                })}
-              </div>
-            </>);
-          })()}
+          {tab==="appearance"&&<AppearanceTab/>}
           {tab==="notifications"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>
