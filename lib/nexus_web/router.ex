@@ -98,6 +98,7 @@ defmodule NexusWeb.Router do
     get "/badges",                 BadgeController,  :index
     get "/leaderboard",            LeaderboardController, :index
     get "/slots/all",              ExtensionController,  :slots_all
+    get "/pwa/vapid-public-key",   PwaController,        :vapid_public_key
   end
 
   # API v1 — authenticated member actions
@@ -248,10 +249,6 @@ defmodule NexusWeb.Router do
     patch  "/extensions/:slug/settings",     ExtensionController, :update_settings
     delete "/extensions/:slug",              ExtensionController, :uninstall
 
-    # Updates
-    get    "/updates/check",           AdminController,  :check_update
-    post   "/updates/apply",           AdminController,  :apply_update
-
     # Badges (admin)
     get    "/badges",                  BadgeController, :admin_index
     post   "/badges",                  BadgeController, :create
@@ -272,6 +269,17 @@ defmodule NexusWeb.Router do
     get    "/digest/settings",         DigestController, :get_settings
     patch  "/digest/settings",         DigestController, :update_settings
     post   "/digest/test",             DigestController, :send_test
+
+    # PWA (admin)
+    post   "/pwa/vapid",               PwaController,    :generate_vapid
+    post   "/pwa/icons",               PwaController,    :upload_icons
+    delete "/pwa/icons",               PwaController,    :delete_icons
+    post   "/pwa/badge",               PwaController,    :upload_badge
+    delete "/pwa/badge",               PwaController,    :delete_badge
+
+    # Updates
+    get    "/updates/check",           AdminController,  :check_update
+    post   "/updates/apply",           AdminController,  :apply_update
   end
 
   # Public slot endpoint
