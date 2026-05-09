@@ -85,6 +85,8 @@ defmodule NexusWeb.Router do
     get "/tags",                   TagController,    :index
     get "/feed",                   FeedController,   :index
     get "/posts/:id",              PostController,   :show
+    get "/posts/:id/reactions",    ReactionController, :show_post_reactions
+    get "/replies/:id/reactions",  ReactionController, :show_reply_reactions
     get "/posts/:post_id/replies", ReplyController,  :index
     get "/search",                 SearchController, :index
     get "/stats",                  FeedController,   :stats

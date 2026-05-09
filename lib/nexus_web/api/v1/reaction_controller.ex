@@ -4,6 +4,28 @@ defmodule NexusWeb.API.V1.ReactionController do
   alias Nexus.Forum
   alias Nexus.Notifications
 
+  # GET /api/v1/posts/:id/reactions
+  def show_post_reactions(conn, %{"id" => post_id}) do
+    if !conn.assigns[:current_user] && !Nexus.Permissions.guest_browsing?() do
+      conn |> put_status(:unauthorized) |> json(%{error: "Please log in to view this forum"})
+    else
+      groups = Forum.list_reactions_with_users(post_id: post_id)
+      total  = Enum.reduce(groups, 0, fn g, acc -> acc + g.count end)
+      json(conn, %{total: total, groups: groups})
+    end
+  end
+
+  # GET /api/v1/replies/:id/reactions
+  def show_reply_reactions(conn, %{"id" => reply_id}) do
+    if !conn.assigns[:current_user] && !Nexus.Permissions.guest_browsing?() do
+      conn |> put_status(:unauthorized) |> json(%{error: "Please log in to view this forum"})
+    else
+      groups = Forum.list_reactions_with_users(reply_id: reply_id)
+      total  = Enum.reduce(groups, 0, fn g, acc -> acc + g.count end)
+      json(conn, %{total: total, groups: groups})
+    end
+  end
+
   # POST /api/v1/reactions
   # Body: { "emoji": "❤️", "post_id": 1 }  or  { "emoji": "❤️", "reply_id": 1 }
   def create(conn, params) do
