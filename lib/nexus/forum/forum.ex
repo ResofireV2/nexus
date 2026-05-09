@@ -366,45 +366,6 @@ defmodule Nexus.Forum do
     |> Repo.all()
   end
 
-  @doc """
-  Returns reactions grouped by emoji, each with a list of users who reacted.
-  Used by the View Reactions modal.
-  """
-  def list_reactions_with_users(post_id: post_id) do
-    from(r in Reaction,
-      where: r.post_id == ^post_id,
-      join: u in Nexus.Accounts.User, on: u.id == r.user_id,
-      order_by: [asc: r.inserted_at],
-      select: %{emoji: r.emoji, user_id: u.id, username: u.username, avatar_url: u.avatar_url}
-    )
-    |> Repo.all()
-    |> group_by_emoji()
-  end
-
-  def list_reactions_with_users(reply_id: reply_id) do
-    from(r in Reaction,
-      where: r.reply_id == ^reply_id,
-      join: u in Nexus.Accounts.User, on: u.id == r.user_id,
-      order_by: [asc: r.inserted_at],
-      select: %{emoji: r.emoji, user_id: u.id, username: u.username, avatar_url: u.avatar_url}
-    )
-    |> Repo.all()
-    |> group_by_emoji()
-  end
-
-  defp group_by_emoji(rows) do
-    rows
-    |> Enum.group_by(& &1.emoji)
-    |> Enum.map(fn {emoji, users} ->
-      %{
-        emoji: emoji,
-        count: length(users),
-        users: Enum.map(users, fn u -> %{id: u.user_id, username: u.username, avatar_url: u.avatar_url} end)
-      }
-    end)
-    |> Enum.sort_by(& &1.count, :desc)
-  end
-
   defp update_reaction_count(%Reaction{post_id: post_id}, delta) when not is_nil(post_id) do
     from(p in Post, where: p.id == ^post_id)
     |> Repo.update_all(inc: [reaction_count: delta])
@@ -434,8 +395,7 @@ defmodule Nexus.Forum do
 
     query =
       Post
-      |> where([p], p.hidden == false)
-      |> preload([:user, :space, :tags])
+      |> where([p], p.hidden == false and p.pending_approval == false)
 
     query = filter_by_space(query, space_slug)
     query = filter_by_tag(query, tag_slug)
@@ -446,7 +406,9 @@ defmodule Nexus.Forum do
     query = apply_sort(query, sort)
     query = limit(query, @page_size + 1)
 
-    posts = Repo.all(query)
+    # Preload user and space inline, but load tags separately after the fact
+    # so the tags JOIN never duplicates post rows and corrupts sort order.
+    posts = query |> preload([:user, :space]) |> Repo.all() |> Repo.preload(:tags)
 
     {posts, next_cursor} =
       if length(posts) > @page_size do
@@ -501,7 +463,7 @@ defmodule Nexus.Forum do
   defp apply_cursor(query, nil, _sort), do: query
   defp apply_cursor(query, cursor, sort) do
     case decode_cursor(cursor) do
-      {:ok, %{"inserted_at" => ts, "id" => id}} when sort == "latest" ->
+      {:ok, %{"inserted_at" => ts, "id" => id}} when sort in ["latest", "rising"] ->
         dt = DateTime.from_unix!(ts)
         where(query, [p], p.inserted_at < ^dt or (p.inserted_at == ^dt and p.id < ^id))
 
@@ -518,6 +480,16 @@ defmodule Nexus.Forum do
 
   defp apply_sort(query, "top"),      do: order_by(query, [p], [desc: p.reaction_count, desc: p.id])
   defp apply_sort(query, "activity"), do: order_by(query, [p], [desc: p.last_reply_at, desc: p.id])
+  defp apply_sort(query, "rising") do
+    # Score = (replies + reactions) / (age_hours + 2)^1.5
+    # The +2 floor prevents brand-new posts with 0 engagement from dominating.
+    order_by(query, [p],
+      fragment(
+        "((? + ?) / power(extract(epoch from (now() - ?)) / 3600.0 + 2, 1.5)) DESC, ? DESC",
+        p.reply_count, p.reaction_count, p.inserted_at, p.id
+      )
+    )
+  end
   defp apply_sort(query, _),          do: order_by(query, [p], [desc: p.inserted_at, desc: p.id])
 
   defp encode_cursor(post, "top") do
