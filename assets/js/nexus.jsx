@@ -3850,7 +3850,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               <div className="reply-meta">
                 {r.user?.avatar_url
                   ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
-                  :<div className="reply-av" style={{background:`${userColor(r.user)}33`,color:userColor(r.user),marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff",marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
