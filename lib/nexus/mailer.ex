@@ -493,8 +493,16 @@ defmodule Nexus.Mailer do
           url      = Map.get(item, "url")
           medals   = ["🥇", "🥈", "🥉"]
           medal    = if i <= 3, do: Enum.at(medals, i - 1), else: "#{i}."
-          label_html = if url, do: ~s(<a href="#{url}" style="color:#f0eeff;text-decoration:none;">#{label}</a>), else: label
-          sub_html   = if sublabel, do: ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;">#{sublabel}</div>), else: ""
+          label_html = if url do
+            ~s(<a href="#{url}" style="color:#f0eeff;text-decoration:none;">#{label}</a>)
+          else
+            label
+          end
+          sub_html   = if sublabel do
+            ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;">#{sublabel}</div>)
+          else
+            ""
+          end
           """
           <tr>
             <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
@@ -558,7 +566,11 @@ defmodule Nexus.Mailer do
             label = Map.get(item, "label", "")
             color = Map.get(item, "badge_color", "#a78bfa")
             url   = Map.get(item, "url")
-            inner = if url, do: ~s(<a href="#{url}" style="color:#{color};text-decoration:none;">#{label}</a>), else: label
+            inner = if url do
+            ~s(<a href="#{url}" style="color:#{color};text-decoration:none;">#{label}</a>)
+          else
+            label
+          end
             ~s(<span style="display:inline-block;padding:4px 12px;border-radius:20px;background:#{color}22;color:#{color};font-size:12px;font-weight:500;margin:3px;">#{inner}</span>)
           end)
           |> Enum.join(" ")
@@ -574,9 +586,21 @@ defmodule Nexus.Mailer do
           badge    = Map.get(item, "badge")
           badge_color = Map.get(item, "badge_color", "#a78bfa")
           url      = Map.get(item, "url")
-          label_html = if url, do: ~s(<a href="#{url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;">#{label}</a>), else: ~s(<span style="font-size:14px;font-weight:500;color:#f0eeff;">#{label}</span>)
-          badge_html = if badge, do: ~s( <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#{badge_color}22;color:#{badge_color};font-size:10px;font-weight:600;vertical-align:middle;margin-left:6px;">#{badge}</span>), else: ""
-          sub_html   = if sublabel, do: ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px;">#{sublabel}</div>), else: ""
+          label_html = if url do
+            ~s(<a href="#{url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;">#{label}</a>)
+          else
+            ~s(<span style="font-size:14px;font-weight:500;color:#f0eeff;">#{label}</span>)
+          end
+          badge_html = if badge do
+            ~s( <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#{badge_color}22;color:#{badge_color};font-size:10px;font-weight:600;vertical-align:middle;margin-left:6px;">#{badge}</span>)
+          else
+            ""
+          end
+          sub_html   = if sublabel do
+            ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px;">#{sublabel}</div>)
+          else
+            ""
+          end
           """
           <tr>
             <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">

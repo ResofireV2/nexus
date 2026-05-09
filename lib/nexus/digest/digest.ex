@@ -327,7 +327,7 @@ defmodule Nexus.Digest do
 
   If the request fails or times out, the section is silently omitted.
   """
-  def collect_extension_sections(frequency, context) do
+  def collect_extension_sections(_frequency, context) do
     import Ecto.Query
 
     # Load all enabled extensions that have digest_sections in their manifest
