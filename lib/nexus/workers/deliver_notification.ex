@@ -168,37 +168,68 @@ defmodule Nexus.Workers.DeliverNotification do
   # ---------------------------------------------------------------------------
 
   defp maybe_send_push(notification) do
+    require Logger
     user = Nexus.Accounts.get_user(notification.user_id)
 
-    with %{"endpoint" => endpoint, "keys" => %{"p256dh" => p256dh, "auth" => auth}} <-
-           user && user.push_subscription,
-         # Check per-type push preference — default true if not explicitly set to false
-         true <- push_enabled_for?(user, notification.type),
-         pwa = Nexus.Admin.get_setting("pwa"),
-         vapid_public  when not is_nil(vapid_public)  <- pwa["vapid_public"],
-         vapid_private when not is_nil(vapid_private) <- pwa["vapid_private"] do
+    cond do
+      is_nil(user) ->
+        Logger.warning("Push: user #{notification.user_id} not found")
+        :ok
 
-      payload = build_push_payload(notification, pwa)
+      is_nil(user.push_subscription) ->
+        Logger.info("Push: user #{user.id} has no push subscription")
+        :ok
 
-      case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
-        :ok ->
+      not push_enabled_for?(user, notification.type) ->
+        Logger.info("Push: user #{user.id} has push disabled for type #{notification.type}")
+        :ok
+
+      true ->
+        sub = user.push_subscription
+        endpoint = sub["endpoint"]
+        p256dh   = get_in(sub, ["keys", "p256dh"])
+        auth     = get_in(sub, ["keys", "auth"])
+
+        if is_nil(endpoint) or is_nil(p256dh) or is_nil(auth) do
+          Logger.warning("Push: malformed subscription for user #{user.id}: #{inspect(sub)}")
           :ok
+        else
+          pwa = Nexus.Admin.get_setting("pwa")
+          vapid_public  = pwa["vapid_public"]
+          vapid_private = pwa["vapid_private"]
 
-        {:error, :subscription_expired} ->
-          # 410 Gone — browser has invalidated this subscription permanently. Clear it.
-          clear_subscription(user)
+          cond do
+            is_nil(vapid_public) ->
+              Logger.warning("Push: VAPID public key not configured")
+              :ok
 
-        {:error, :subscription_not_found} ->
-          # 404 — endpoint no longer exists. Clear it.
-          clear_subscription(user)
+            is_nil(vapid_private) ->
+              Logger.warning("Push: VAPID private key not configured")
+              :ok
 
-        {:error, reason} ->
-          require Logger
-          Logger.warning("Web push failed for user #{notification.user_id}: #{inspect(reason)}")
-          :ok
-      end
-    else
-      _ -> :ok
+            true ->
+              payload = build_push_payload(notification, pwa)
+              Logger.info("Push: sending to user #{user.id} endpoint #{String.slice(endpoint, 0, 50)}…")
+
+              case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
+                :ok ->
+                  Logger.info("Push: delivered to user #{user.id}")
+                  :ok
+
+                {:error, :subscription_expired} ->
+                  Logger.info("Push: subscription expired for user #{user.id}, clearing")
+                  clear_subscription(user)
+
+                {:error, :subscription_not_found} ->
+                  Logger.info("Push: subscription not found for user #{user.id}, clearing")
+                  clear_subscription(user)
+
+                {:error, reason} ->
+                  Logger.warning("Push: failed for user #{user.id}: #{inspect(reason)}")
+                  :ok
+              end
+          end
+        end
     end
   end
 
