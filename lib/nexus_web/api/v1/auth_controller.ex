@@ -56,9 +56,8 @@ defmodule NexusWeb.API.V1.AuthController do
     case Accounts.authenticate_user(email, password) do
       {:ok, user} ->
         opts = [
-          user_agent:  get_req_header(conn, "user-agent") |> List.first(),
-          ip_address:  to_string(:inet.ntoa(conn.remote_ip)),
-          remember_me: remember_me
+          user_agent: get_req_header(conn, "user-agent") |> List.first(),
+          ip_address: to_string(:inet.ntoa(conn.remote_ip))
         ]
 
         {:ok, tokens} = Accounts.issue_tokens(user, opts)
@@ -127,11 +126,8 @@ defmodule NexusWeb.API.V1.AuthController do
       true ->
         try do
           case Accounts.refresh_access_token(raw_token) do
-            {:ok, %{access_token: access_token, refresh_token: new_refresh, remember_me: remember_me}} ->
-              # Reissue a rolling cookie with the new rotated refresh token
-              conn
-              |> put_refresh_cookie(new_refresh, remember_me)
-              |> json(%{access_token: access_token})
+            {:ok, access_token} ->
+              json(conn, %{access_token: access_token})
 
             {:error, _} ->
               conn
@@ -348,7 +344,8 @@ defmodule NexusWeb.API.V1.AuthController do
       cover_url: user.cover_url,
       email_verified: user.email_verified,
       inserted_at: user.inserted_at,
-      preferences: user.preferences || %{}
+      preferences: user.preferences || %{},
+      has_push_subscription: not is_nil(user.push_subscription)
     }
   end
 
