@@ -2728,7 +2728,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
+                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
@@ -2742,7 +2742,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="av-stack">
                             {p.user?.avatar_url
                               ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
-                              :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                              :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
@@ -2764,7 +2764,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                             const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
                             return lastUser?.avatar_url
                               ? <img src={lastUser.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={lastUser.username}/>
-                              : <div className="last-av" style={{background:col}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
+                              : <div className="last-av" style={{background:userColor(lastUser)}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
                           })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
