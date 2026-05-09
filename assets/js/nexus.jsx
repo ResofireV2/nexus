@@ -8819,9 +8819,11 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                     :(stats?.extended?.top_contributors||[]).map((u,i,arr)=>(
                       <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderBottom:i<arr.length-1?"0.5px solid var(--b1)":"none"}}>
                         <div style={{width:7,height:7,borderRadius:"50%",background:"var(--ac)",opacity:1-(i*0.15),flexShrink:0}}/>
-                        <div style={{width:28,height:28,borderRadius:`${22}%`,background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--ac-on)",fontWeight:600,flexShrink:0}}>
-                          {(u.username||"?").slice(0,2).toUpperCase()}
-                        </div>
+                        {u.avatar_url
+                          ?<img src={u.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
+                          :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor({id:u.user_id,avatar_color:u.avatar_color}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:600,flexShrink:0}}>
+                            {(u.username||"?").slice(0,2).toUpperCase()}
+                          </div>}
                         <span style={{flex:1,fontSize:12,color:"var(--t2)"}}>{u.username}</span>
                         <span style={{fontSize:11,color:"var(--t4)"}}>{u.count} post{u.count!==1?"s":""}</span>
                       </div>

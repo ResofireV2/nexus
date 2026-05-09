@@ -93,11 +93,11 @@ defmodule Nexus.Admin do
       limit: 5
     )
     top_poster_ids = Enum.map(top_posters, & &1.user_id)
-    top_poster_users = Repo.all(from u in User, where: u.id in ^top_poster_ids, select: {u.id, u.username, u.avatar_url})
-    user_map = Map.new(top_poster_users, fn {id, uname, av} -> {id, %{username: uname, avatar_url: av}} end)
+    top_poster_users = Repo.all(from u in User, where: u.id in ^top_poster_ids, select: {u.id, u.username, u.avatar_url, u.avatar_color})
+    user_map = Map.new(top_poster_users, fn {id, uname, av, ac} -> {id, %{username: uname, avatar_url: av, avatar_color: ac}} end)
     top_contributors = Enum.map(top_posters, fn p ->
-      u = Map.get(user_map, p.user_id, %{username: "Unknown", avatar_url: nil})
-      %{user_id: p.user_id, username: u.username, avatar_url: u.avatar_url, count: p.count}
+      u = Map.get(user_map, p.user_id, %{username: "Unknown", avatar_url: nil, avatar_color: nil})
+      %{user_id: p.user_id, username: u.username, avatar_url: u.avatar_url, avatar_color: u.avatar_color, count: p.count}
     end)
 
     # Space activity (post counts per space)

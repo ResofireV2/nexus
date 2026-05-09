@@ -63,8 +63,10 @@ defmodule NexusWeb.API.V1.SaveController do
           color: item.post_space_color
         },
         user: item.post_username && %{
-          username:   item.post_username,
-          avatar_url: item.post_avatar_url
+          id:           item.post_user_id,
+          username:     item.post_username,
+          avatar_url:   item.post_avatar_url,
+          avatar_color: item.post_avatar_color
         }
       }
     }
@@ -87,8 +89,10 @@ defmodule NexusWeb.API.V1.SaveController do
           }
         },
         user: item.reply_username && %{
-          username:   item.reply_username,
-          avatar_url: item.reply_avatar_url
+          id:           item.reply_user_id,
+          username:     item.reply_username,
+          avatar_url:   item.reply_avatar_url,
+          avatar_color: item.reply_avatar_color
         }
       }
     }

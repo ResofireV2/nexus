@@ -646,8 +646,10 @@ defmodule Nexus.Forum do
         post_space_name:  sp.name,
         post_space_slug:  sp.slug,
         post_space_color: sp.color,
-        post_username:    pu.username,
-        post_avatar_url:  pu.avatar_url,
+        post_username:      pu.username,
+        post_avatar_url:    pu.avatar_url,
+        post_avatar_color:  pu.avatar_color,
+        post_user_id:       pu.id,
         reply_id:   r.id,
         reply_body: r.body,
         reply_inserted_at: r.inserted_at,
@@ -655,8 +657,10 @@ defmodule Nexus.Forum do
         reply_post_title:  rp.title,
         reply_space_name:  rsp.name,
         reply_space_color: rsp.color,
-        reply_username:    ru.username,
-        reply_avatar_url:  ru.avatar_url
+        reply_username:     ru.username,
+        reply_avatar_url:   ru.avatar_url,
+        reply_avatar_color: ru.avatar_color,
+        reply_user_id:      ru.id
       }
     )
   end
