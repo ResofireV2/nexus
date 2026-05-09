@@ -3597,7 +3597,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           <div style={{flex:1}}>
             {/* Avatar + meta row */}
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-              <RsAv user={post.user} size={36} color={userColor(post.user)}/>
+              <RsAv user={post.user} size={56} color={userColor(post.user)}/>
               <div className="post-meta" style={{marginBottom:0,flex:1}}>
                 {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
                 {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
