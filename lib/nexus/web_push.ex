@@ -73,14 +73,18 @@ defmodule Nexus.WebPush do
     # HKDF-SHA-256 to derive pseudorandom key from auth secret
     prk = hkdf_extract(:sha256, auth_secret, shared_secret)
 
-    # key_info and nonce_info as per RFC 8291
-    key_info   = "Content-Encoding: aesgcm\0" <>
-                 <<0x41>> <> subscriber_pub <>
-                 <<0x41>> <> server_pub
+    # RFC 8291 §3.4 context string:
+    # "P-256\0" + uint16_be(len(receiver_pub)) + receiver_pub
+    #           + uint16_be(len(sender_pub))   + sender_pub
+    len_sub = byte_size(subscriber_pub)
+    len_srv = byte_size(server_pub)
 
-    nonce_info = "Content-Encoding: nonce\0" <>
-                 <<0x41>> <> subscriber_pub <>
-                 <<0x41>> <> server_pub
+    context = "P-256\0" <>
+              <<len_sub::unsigned-big-integer-size(16)>> <> subscriber_pub <>
+              <<len_srv::unsigned-big-integer-size(16)>> <> server_pub
+
+    key_info   = "Content-Encoding: aesgcm\0" <> context
+    nonce_info = "Content-Encoding: nonce\0"  <> context
 
     # HKDF-Expand to derive CEK (16 bytes) and nonce (12 bytes) from PRK + salt
     prk2       = hkdf_extract(:sha256, salt, prk)
