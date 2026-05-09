@@ -44,7 +44,8 @@ defmodule NexusWeb.FeedChannel do
       user: %{
         id: post.user.id,
         username: post.user.username,
-        avatar_url: post.user.avatar_url
+        avatar_url: post.user.avatar_url,
+        avatar_color: post.user.avatar_color
       }
     }
 

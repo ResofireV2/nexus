@@ -1646,104 +1646,6 @@ const REACTIONS = [
   {emoji:"👀", label:"Eyes"},
 ];
 
-// ── Reactions Modal ───────────────────────────────────────────────────────────
-function ReactionsModal({postId, replyId, onClose}) {
-  const [data, setData] = useState(null);
-  const [activeTab, setActiveTab] = useState("all");
-  const ref = useRef();
-
-  useEffect(() => {
-    const url = postId ? `/posts/${postId}/reactions` : `/replies/${replyId}/reactions`;
-    api.get(url).then(d => { setData(d); });
-  }, [postId, replyId]);
-
-  // Close on backdrop click
-  useEffect(() => {
-    const fn = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener("mousedown", fn);
-    return () => document.removeEventListener("mousedown", fn);
-  }, []);
-
-  // Close on Escape
-  useEffect(() => {
-    const fn = e => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", fn);
-    return () => document.removeEventListener("keydown", fn);
-  }, []);
-
-  const visibleUsers = !data ? [] :
-    activeTab === "all"
-      ? data.groups.flatMap(g => g.users.map(u => ({...u, emoji: g.emoji})))
-      : (data.groups.find(g => g.emoji === activeTab)?.users || []).map(u => ({...u, emoji: activeTab}));
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div ref={ref} style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:420,maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 16px 64px rgba(0,0,0,.6)"}}>
-        {/* Header */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 18px 0"}}>
-          <div style={{fontWeight:600,fontSize:15,color:"var(--t1)"}}>
-            Reactions {data && <span style={{fontWeight:400,fontSize:13,color:"var(--t4)",marginLeft:6}}>{data.total}</span>}
-          </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t4)",cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>
-            <i className="fa-solid fa-xmark"/>
-          </button>
-        </div>
-
-        {/* Tabs */}
-        {data && data.groups.length > 0 && (
-          <div style={{display:"flex",gap:4,padding:"12px 18px 0",overflowX:"auto",flexShrink:0}}>
-            <button
-              onClick={() => setActiveTab("all")}
-              style={{flexShrink:0,padding:"5px 12px",borderRadius:20,border:"0.5px solid",fontSize:12,cursor:"pointer",fontFamily:"inherit",
-                borderColor: activeTab==="all" ? "var(--ac-border)" : "var(--b2)",
-                background:  activeTab==="all" ? "var(--ac-bg)"    : "transparent",
-                color:       activeTab==="all" ? "var(--ac-text)"  : "var(--t3)"}}>
-              All <span style={{opacity:.6}}>{data.total}</span>
-            </button>
-            {data.groups.map(g => (
-              <button key={g.emoji}
-                onClick={() => setActiveTab(g.emoji)}
-                style={{flexShrink:0,padding:"5px 10px",borderRadius:20,border:"0.5px solid",fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,
-                  borderColor: activeTab===g.emoji ? "var(--ac-border)" : "var(--b2)",
-                  background:  activeTab===g.emoji ? "var(--ac-bg)"    : "transparent",
-                  color:       activeTab===g.emoji ? "var(--ac-text)"  : "var(--t3)"}}>
-                <span style={{fontSize:16,lineHeight:1}}>{g.emoji}</span>
-                <span style={{opacity:.7}}>{g.count}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* User list */}
-        <div style={{overflowY:"auto",flex:1,padding:"10px 18px 18px"}}>
-          {!data ? (
-            <div style={{display:"flex",justifyContent:"center",padding:"32px 0"}}>
-              <div style={{width:20,height:20,border:"2px solid var(--b2)",borderTopColor:"var(--ac)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-            </div>
-          ) : data.total === 0 ? (
-            <div style={{textAlign:"center",color:"var(--t5)",fontSize:13,padding:"32px 0"}}>No reactions yet</div>
-          ) : visibleUsers.length === 0 ? (
-            <div style={{textAlign:"center",color:"var(--t5)",fontSize:13,padding:"32px 0"}}>No reactions with this emoji</div>
-          ) : (
-            <div style={{display:"flex",flexDirection:"column",gap:2,marginTop:8}}>
-              {visibleUsers.map((u, i) => (
-                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",borderRadius:8}}>
-                  {u.avatar_url
-                    ? <img src={u.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
-                    : <div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff",flexShrink:0}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>
-                  }
-                  <span style={{fontSize:13,color:"var(--t2)",fontWeight:500,flex:1}}>{u.username}</span>
-                  {activeTab === "all" && <span style={{fontSize:18,lineHeight:1}}>{u.emoji}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ReactionButton({postId, replyId, initialReactions=[], initialUserReaction=null, currentUser, onAuthRequired}) {
   const [open, setOpen] = useState(false);
   const [reactions, setReactions] = useState(initialReactions);
@@ -2629,7 +2531,9 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
           ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
           :liveEvents.slice(0,4).map((e,i)=>(
             <div key={i} className="live-row">
-              <div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>
+              {e.avatarUrl
+                ?<img src={e.avatarUrl} className="l-av" style={{objectFit:"cover"}} alt={e.username}/>
+                :<div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>}
               <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
               <div className="l-ago">{ago(e.at)}</div>
             </div>
@@ -3352,7 +3256,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     if(openReport&&post) { setReportTarget({type:"post",id:post.id}); setReportReason(""); }
   },[openReport, post]);
   const [postMenuOpen, setPostMenuOpen] = useState(false);
-  const [reactionsModal, setReactionsModal] = useState(null); // {postId} or {replyId}
   const [openReplyMenu, setOpenReplyMenu] = useState(null);
   const [hoveredReply, setHoveredReply] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
@@ -3466,12 +3369,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       <i className="fa-solid fa-flag" style={{fontSize:11,color:"var(--t4)",width:14}}/>Report
                     </button>}
-                    {/* View reactions */}
-                    {(post.reaction_count||0)>0&&<button onClick={()=>{setPostMenuOpen(false);setReactionsModal({postId:post.id});}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
-                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                      <i className="fa-solid fa-face-smile-beam" style={{fontSize:11,color:"var(--t4)",width:14}}/>View reactions
-                    </button>}
                     {/* Mod actions */}
                     {isMod&&<>
                       <button onClick={()=>{setPostMenuOpen(false);modAction("pin");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:post.pinned?"var(--ac-text)":"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
@@ -3527,7 +3424,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         </div>
         {/* post_footer slot — extension components rendered here */}
         <PostFooterSlot postId={post.id} />
-        {reactionsModal && <ReactionsModal {...reactionsModal} onClose={()=>setReactionsModal(null)}/>}
         <div className="replies-header">
           <span className="replies-count">{post.reply_count} {post.reply_count===1?"reply":"replies"}</span>
           <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>oldest first</span>
@@ -3573,12 +3469,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                           onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
                           onMouseLeave={e=>e.currentTarget.style.background="none"}>
                           <i className="fa-solid fa-flag" style={{fontSize:11,color:"var(--t4)",width:14}}/>Report
-                        </button>}
-                        {(r.reaction_count||0)>0&&<button onClick={()=>{setOpenReplyMenu(null);setReactionsModal({replyId:r.id});}}
-                          style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
-                          onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                          <i className="fa-solid fa-face-smile-beam" style={{fontSize:11,color:"var(--t4)",width:14}}/>View reactions
                         </button>}
                         {(currentUser.id===r.user?.id||isMod)&&<>
                           {currentUser.id===r.user?.id&&<button onClick={()=>{setOpenReplyMenu(null);/* edit reply future */}}
@@ -10248,12 +10138,16 @@ function App() {
   }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
+  const seenPostIds = useRef(new Set());
   const {joinTopic, leaveTopic, sendEvent} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
+      // Deduplicate: the socket may briefly double-fire during token refresh
+      if (seenPostIds.current.has(post.id)) return;
+      seenPostIds.current.add(post.id);
       setLivePosts(p=>[post,...p]);
-      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
+      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,avatarColor:post.user?.avatar_color,avatarUrl:post.user?.avatar_url,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
     },[]),
     useCallback(()=>setNotifCount(c=>c+1),[]),
     useCallback(()=>setMsgCount(c=>c+1),[]),
