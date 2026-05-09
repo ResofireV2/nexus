@@ -1093,9 +1093,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-game-chip img{width:20px;height:28px;object-fit:cover;border-radius:3px;}
 .comp-game-chip button{background:none;border:none;color:var(--t4);cursor:pointer;font-size:11px;padding:0 0 0 2px;line-height:1;}
 .comp-game-chip button:hover{color:var(--t1);}
-.reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);display:flex;gap:12px;}
-.reply-av{width:40px;height:40px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
-.reply-body-wrap{flex:1;}
+.reply-item{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
+.reply-av{width:40px;height:40px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0;}
+.reply-body-wrap{}
 .reply-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;width:100%;}
 .reply-quote-btn{font-size:11px;color:var(--t5);cursor:pointer;margin-left:auto;opacity:0;transition:opacity .15s;padding:2px 6px;border-radius:4px;flex-shrink:0;}
 .reply-item:hover .reply-quote-btn{opacity:1;}
@@ -3735,11 +3735,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           <div key={r.id} id={`reply-${r.id}`} className="reply-item"
             onMouseEnter={()=>setHoveredReply(r.id)}
             onMouseLeave={()=>{setHoveredReply(null);if(openReplyMenu===r.id)setOpenReplyMenu(null);}}>
-            {r.user?.avatar_url
-              ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
-              :<div className="reply-av" style={{background:`${userColor(r.user)}33`,color:userColor(r.user)}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
             <div className="reply-body-wrap">
               <div className="reply-meta">
+                {r.user?.avatar_url
+                  ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
+                  :<div className="reply-av" style={{background:`${userColor(r.user)}33`,color:userColor(r.user),marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
