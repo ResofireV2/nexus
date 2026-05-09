@@ -4463,7 +4463,6 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   const [readIds,setReadIds]=useState(new Set());
   const [dmSearch,setDmSearch]=useState("");
   useEffect(()=>{
-    onOpen?.();
     setLoading(true);
     api.get("/threads").then(d=>{setThreads(d.threads||[]);setLoading(false);});
   },[]);
@@ -4527,7 +4526,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   );
 }
 
-function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinTopic, leaveTopic, sendEvent}) {
+function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinTopic, leaveTopic, sendEvent, onRead}) {
   const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   const [resolvedName,setResolvedName]=useState(threadName||"");
   const [resolvedImage,setResolvedImage]=useState(threadImage||null);
@@ -4537,7 +4536,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
   useEffect(()=>{
     wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
-    api.post(`/threads/${threadId}/read`,{}).catch(()=>{});
+    api.post(`/threads/${threadId}/read`,{}).then(()=>{ onRead?.(); }).catch(()=>{});
     // Fetch thread metadata to get name and image_url (covers refresh case where props are missing)
     api.get(`/threads/${threadId}`).then(d=>{
       if(d.thread){
@@ -10481,6 +10480,7 @@ function App() {
   const [pageProps,setPageProps]=useState(initial.props);
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
+  const pollMsgRef = useRef(null);
   const [modReportCount,setModReportCount]=useState(0);
   const [layoutCfg,setLayoutCfg]=useState({});
   const [appBranding,setAppBranding]=useState({});
@@ -10643,6 +10643,7 @@ function App() {
       if(currentUser?.role==="admin"||currentUser?.role==="moderator")
         api.get("/reports?status=pending").then(d=>setModReportCount((d.reports||[]).length)).catch(()=>{});
     };
+    pollMsgRef.current = pollMsg;
     pollNotif(); pollMsg(); pollMod();
     const interval = setInterval(()=>{ pollNotif(); pollMsg(); pollMod(); }, 60000);
     return () => clearInterval(interval);
@@ -10675,8 +10676,8 @@ function App() {
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
       case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate} onCountChange={setNotifCount}/>);
-      case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate} onOpen={()=>setMsgCount(0)}/>);
-      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent}/>);
+      case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate}/>);
+      case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} onRead={()=>pollMsgRef.current?.()}/>);
       case "dm-new":      return requireAuth(<DMNewPage navigate={navigate} currentUser={currentUser}/>);
       case "members":     return <MembersPage navigate={navigate} currentUser={currentUser}/>;
       case "tags":        return <TagsPage navigate={navigate} currentUser={currentUser}/>;
