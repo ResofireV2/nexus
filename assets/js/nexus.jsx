@@ -8775,13 +8775,13 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             <div className="fgt">Themes</div>
             {(()=>{
               const darkOn  = branding.dark_enabled  !== false;
-              const lightOn = branding.light_enabled === true;
+              const lightOn = branding.light_enabled !== false;
               const onlyOne = (darkOn && !lightOn) || (!darkOn && lightOn);
               const [appTab, setAppTab] = [branding._appTab||"dark", v=>setBranding(p=>({...p,_appTab:v}))];
               return (<>
                 {/* Enable/disable toggles */}
                 <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-                  {[{key:"dark_enabled",label:"Dark mode",def:true,color:"#a78bfa"},{key:"light_enabled",label:"Light mode",def:false,color:"#7351db"}].map(({key,label,def,color})=>{
+                  {[{key:"dark_enabled",label:"Dark mode",def:true,color:"#a78bfa"},{key:"light_enabled",label:"Light mode",def:true,color:"#7351db"}].map(({key,label,def,color})=>{
                     const isOn = key==="dark_enabled" ? darkOn : lightOn;
                     const locked = onlyOne && isOn;
                     return (
