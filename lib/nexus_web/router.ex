@@ -190,6 +190,9 @@ defmodule NexusWeb.Router do
     delete "/tags/:slug",  TagController, :delete
 
     # Post moderation
+    get    "/posts/:id/follow",  PostFollowController, :show
+    post   "/posts/:id/follow",  PostFollowController, :create
+    delete "/posts/:id/follow",  PostFollowController, :delete
     post "/posts/:id/pin",  PostController, :pin
     post "/posts/:id/lock", PostController, :lock
     post "/posts/:id/hide",          PostController, :hide

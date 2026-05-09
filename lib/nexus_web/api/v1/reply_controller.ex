@@ -39,7 +39,20 @@ defmodule NexusWeb.API.V1.ReplyController do
                 conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
               else
                 Nexus.Activity.increment_stat(user.id, :replies_count)
+                # Auto-follow the post if user preference is set (default: true)
+                if Map.get(user.preferences || %{}, "auto_follow_replied_posts", true) != false do
+                  Forum.follow_post(user.id, post.id)
+                end
                 Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
+                # Notify post followers (excluding the reply author)
+                Task.start(fn ->
+                  follower_ids = Forum.post_follower_ids(post.id)
+                  Enum.each(follower_ids, fn follower_id ->
+                    if follower_id != user.id do
+                      Nexus.Notifications.notify_followed_post_reply(post, reply, user, follower_id)
+                    end
+                  end)
+                end)
                 Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
                 %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
                 %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()

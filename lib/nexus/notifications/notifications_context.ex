@@ -108,6 +108,19 @@ defmodule Nexus.Notifications do
   end
 
   @doc """
+  Notify a specific post follower that a new reply was posted on a post they follow.
+  """
+  def notify_followed_post_reply(post, reply, actor, follower_id) do
+    enqueue_notification(%{
+      type:     "followed_post",
+      user_id:  follower_id,
+      actor_id: actor.id,
+      post_id:  post.id,
+      reply_id: reply.id
+    })
+  end
+
+  @doc """
   Notify all users who have announcements enabled when an admin posts one.
   Dispatches one DeliverNotification job per user (batched, non-blocking).
   """

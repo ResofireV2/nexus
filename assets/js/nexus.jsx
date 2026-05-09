@@ -2121,7 +2121,6 @@ const TB_BTNS = [
 ];
 const EXPLORE_ITEMS = [
   {id:"everything", label:"Everything",   icon:"fa-border-all"},
-  {id:"trending",   label:"Trending",     icon:"fa-fire"},
   {id:"notifications",label:"Notifications",icon:"fa-bell",   authOnly:true},
   {id:"messages",   label:"Messages",     icon:"fa-message", authOnly:true},
   {id:"members",    label:"Members",      icon:"fa-users"},
@@ -2589,7 +2588,6 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 
           var exploreMap = {
             everything: <SbItem key="everything" icon="fa-border-all" label="Everything" targetPage="feed" targetProps={{}}/>,
-            trending:   <SbItem key="trending" icon="fa-fire" label="Trending" targetPage="feed" targetProps={{sort:"top"}}/>,
             notifications: currentUser&&<SbItem key="notifications" icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>,
             messages:   currentUser&&<SbItem key="messages" icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>,
             members:    <SbItem key="members" icon="fa-users" label="Members" targetPage="members"/>,
@@ -3661,7 +3659,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     if(openReport&&post) { setReportTarget({type:"post",id:post.id}); setReportReason(""); }
   },[openReport, post]);
   const [postMenuOpen, setPostMenuOpen] = useState(false);
-  const [reactionsModal, setReactionsModal] = useState(null); // {postId} or {replyId}
+  const [reactionsModal, setReactionsModal] = useState(null);
+  const [editingReplyId, setEditingReplyId] = useState(null);
+  const [editingReplyBody, setEditingReplyBody] = useState("");
+  const [editingReplySaving, setEditingReplySaving] = useState(false); // {postId} or {replyId}
   const [openReplyMenu, setOpenReplyMenu] = useState(null);
   const [hoveredReply, setHoveredReply] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
@@ -3854,7 +3855,30 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
               </div>
-              <div className="reply-text"><Md text={r.body}/></div>
+              {editingReplyId===r.id
+                ?<div style={{marginTop:8}}>
+                  <textarea className="fi" value={editingReplyBody} onChange={e=>setEditingReplyBody(e.target.value)}
+                    style={{minHeight:100,resize:"vertical",lineHeight:1.7,fontFamily:"inherit",fontSize:13,marginBottom:8}}
+                    autoFocus/>
+                  <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                    <button className="btn-ghost" onClick={()=>{setEditingReplyId(null);setEditingReplyBody("");}} style={{fontSize:12}}>Cancel</button>
+                    <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}}
+                      disabled={editingReplySaving||!editingReplyBody.trim()}
+                      onClick={async()=>{
+                        setEditingReplySaving(true);
+                        const d = await api.patch(`/posts/${postId}/replies/${r.id}`,{body:editingReplyBody.trim()});
+                        setEditingReplySaving(false);
+                        if(d.reply){
+                          setReplies(p=>p.map(x=>x.id===r.id?{...x,body:d.reply.body}:x));
+                          setEditingReplyId(null);setEditingReplyBody("");
+                          toast("Reply updated");
+                        } else toast(d.error||"Failed","err");
+                      }}>
+                      {editingReplySaving?"Saving…":"Save"}
+                    </button>
+                  </div>
+                </div>
+                :<div className="reply-text"><Md text={r.body}/></div>}
               <div className="reaction-row" style={{marginTop:6,justifyContent:"flex-end",position:"relative"}}>
                 {currentUser&&!post.locked&&(
                   <button className="post-reply-btn" style={{marginRight:"auto"}} onClick={()=>insertReply(r.user?.username,`#reply-${r.id}`)}>
@@ -3890,7 +3914,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                           <i className="fa-solid fa-face-smile-beam" style={{fontSize:11,color:"var(--t4)",width:14}}/>View reactions
                         </button>}
                         {(currentUser.id===r.user?.id||isMod)&&<>
-                          {currentUser.id===r.user?.id&&<button onClick={()=>{setOpenReplyMenu(null);/* edit reply future */}}
+                          {currentUser.id===r.user?.id&&<button onClick={()=>{setOpenReplyMenu(null);setEditingReplyId(r.id);setEditingReplyBody(r.body||"");}}
                             style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                             onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
                             onMouseLeave={e=>e.currentTarget.style.background="none"}>

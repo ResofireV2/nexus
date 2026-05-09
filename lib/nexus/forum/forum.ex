@@ -740,4 +740,30 @@ defmodule Nexus.Forum do
 
     Map.new(results)
   end
+
+
+  # ── Post follows ──────────────────────────────────────────────────────────
+
+  alias Nexus.Forum.PostFollow
+
+  def follow_post(user_id, post_id) do
+    %PostFollow{}
+    |> PostFollow.changeset(%{user_id: user_id, post_id: post_id})
+    |> Repo.insert(on_conflict: :nothing)
+  end
+
+  def unfollow_post(user_id, post_id) do
+    case Repo.get_by(PostFollow, user_id: user_id, post_id: post_id) do
+      nil    -> {:ok, :not_found}
+      follow -> Repo.delete(follow)
+    end
+  end
+
+  def following_post?(user_id, post_id) do
+    Repo.exists?(from f in PostFollow, where: f.user_id == ^user_id and f.post_id == ^post_id)
+  end
+
+  def post_follower_ids(post_id) do
+    Repo.all(from f in PostFollow, where: f.post_id == ^post_id, select: f.user_id)
+  end
 end
