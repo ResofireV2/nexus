@@ -343,68 +343,55 @@ defmodule Nexus.Digest do
       digest_sections = get_in(ext.manifest, ["digest_sections"]) || []
 
       Enum.reduce(digest_sections, acc, fn section_def, inner_acc ->
-        key          = section_def["key"]
-        webhook_path = section_def["webhook_path"]
+        # Use `with` for guard-then-proceed: any {:skip} clause returns inner_acc unchanged.
+        with {:ok, key}          <- valid_string(section_def["key"]),
+             {:ok, webhook_path} <- valid_string(section_def["webhook_path"]),
+             :enabled            <- check_enabled(cfg, key),
+             {:ok, full_url}     <- build_section_url(ext.webhook_url, webhook_path) do
 
-        # Skip if key or webhook_path missing
-        if is_nil(key) or is_nil(webhook_path), do: inner_acc, else:
+          body = Jason.encode!(Map.merge(context, %{settings: ext.settings, extension: ext.slug}))
 
-        # Skip if admin has explicitly disabled this extension section
-        include_key = "include_ext_#{key}"
-        if cfg[include_key] == false, do: inner_acc, else:
+          case Req.post(full_url,
+                 body: body,
+                 headers: [{"Content-Type", "application/json"}, {"X-Nexus-Event", "digest_section"}],
+                 receive_timeout: 8_000) do
+            {:ok, %{status: status, body: resp_body}} when status in 200..299 ->
+              parsed =
+                cond do
+                  is_map(resp_body) -> {:ok, resp_body}
+                  is_binary(resp_body) ->
+                    case Jason.decode(resp_body) do
+                      {:ok, m} -> {:ok, m}
+                      _        -> {:error, :bad_json}
+                    end
+                  true -> {:error, :bad_response}
+                end
 
-        # Build the full webhook URL for this section
-        base_url = ext.webhook_url |> String.replace(~r|/[^/]+$|, "") |> String.trim_trailing("/")
-        # If webhook_url already looks like a base (no path after host), use it directly
-        full_url =
-          if String.match?(webhook_path, ~r|^https?://|) do
-            webhook_path
-          else
-            base = ext.webhook_url |> URI.parse() |> then(fn u -> "#{u.scheme}://#{u.host}#{if u.port && u.port not in [80,443], do: ":#{u.port}", else: ""}" end)
-            base <> webhook_path
-          end
-
-        body = Jason.encode!(Map.merge(context, %{settings: ext.settings, extension: ext.slug}))
-
-        case Req.post(full_url,
-               body: body,
-               headers: [{"Content-Type", "application/json"}, {"X-Nexus-Event", "digest_section"}],
-               receive_timeout: 8_000) do
-          {:ok, %{status: status, body: resp_body}} when status in 200..299 ->
-            parsed =
-              cond do
-                is_map(resp_body) -> {:ok, resp_body}
-                is_binary(resp_body) ->
-                  case Jason.decode(resp_body) do
-                    {:ok, m} -> {:ok, m}
-                    _ -> {:error, :bad_json}
+              case parsed do
+                {:ok, section_data} when is_map(section_data) ->
+                  if Map.has_key?(section_data, "title") and Map.has_key?(section_data, "items") do
+                    Map.put(inner_acc, key, Map.put(section_data, "_ext_slug", ext.slug))
+                  else
+                    require Logger
+                    Logger.warning("Digest section #{key} from #{ext.slug} missing title or items")
+                    inner_acc
                   end
-                true -> {:error, :bad_response}
+                _ ->
+                  inner_acc
               end
 
-            case parsed do
-              {:ok, section_data} when is_map(section_data) ->
-                # Validate the minimum required fields
-                if Map.has_key?(section_data, "title") and Map.has_key?(section_data, "items") do
-                  Map.put(inner_acc, key, Map.put(section_data, "_ext_slug", ext.slug))
-                else
-                  require Logger
-                  Logger.warning("Digest section #{key} from #{ext.slug} missing title or items")
-                  inner_acc
-                end
-              _ ->
-                inner_acc
-            end
+            {:ok, %{status: status}} ->
+              require Logger
+              Logger.warning("Digest section #{key} from #{ext.slug} returned HTTP #{status}")
+              inner_acc
 
-          {:ok, %{status: status}} ->
-            require Logger
-            Logger.warning("Digest section #{key} from #{ext.slug} returned HTTP #{status}")
-            inner_acc
-
-          {:error, reason} ->
-            require Logger
-            Logger.warning("Digest section #{key} from #{ext.slug} failed: #{inspect(reason)}")
-            inner_acc
+            {:error, reason} ->
+              require Logger
+              Logger.warning("Digest section #{key} from #{ext.slug} failed: #{inspect(reason)}")
+              inner_acc
+          end
+        else
+          _ -> inner_acc
         end
       end)
     end)
@@ -420,5 +407,27 @@ defmodule Nexus.Digest do
       where: u.status == "active",
       where: fragment("?->>'digest_frequency' = ?", u.preferences, ^frequency)
     )
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private helpers for collect_extension_sections
+  # ---------------------------------------------------------------------------
+
+  defp valid_string(val) when is_binary(val) and val != "", do: {:ok, val}
+  defp valid_string(_), do: {:error, :invalid}
+
+  defp check_enabled(cfg, key) do
+    if cfg["include_ext_#{key}"] == false, do: {:skip, :disabled}, else: :enabled
+  end
+
+  defp build_section_url(webhook_url, webhook_path) do
+    if String.match?(webhook_path, ~r|^https?://|) do
+      {:ok, webhook_path}
+    else
+      uri = URI.parse(webhook_url)
+      port_str = if uri.port && uri.port not in [80, 443], do: ":#{uri.port}", else: ""
+      base = "#{uri.scheme}://#{uri.host}#{port_str}"
+      {:ok, base <> webhook_path}
+    end
   end
 end
