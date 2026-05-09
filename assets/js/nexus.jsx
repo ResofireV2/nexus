@@ -721,6 +721,66 @@ S.textContent = `
   --amber:#fbbf24;
   --red:#f87171;
 }
+[data-theme="light"] .icon-btn{background:rgba(0,0,0,0.05);border-color:rgba(0,0,0,0.09);color:rgba(26,20,80,0.55);}
+[data-theme="light"] .icon-btn:hover{background:rgba(0,0,0,0.09);}
+[data-theme="light"] .sb-item:hover{background:rgba(0,0,0,0.04);}
+[data-theme="light"] .tb-search{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.09);}
+[data-theme="light"] .tb-search-item:hover{background:rgba(0,0,0,0.04);}
+[data-theme="light"] .sort-pill{border-color:rgba(26,20,80,0.10);}
+[data-theme="light"] .thread{border-bottom-color:rgba(26,20,80,0.07);}
+[data-theme="light"] .thread:hover{background:rgba(0,0,0,0.02);}
+[data-theme="light"] .pav-more{background:rgba(0,0,0,0.06);color:var(--t4);}
+[data-theme="light"] .meta-div{background:rgba(26,20,80,0.08);}
+[data-theme="light"] .rw{border-color:rgba(26,20,80,0.10);}
+[data-theme="light"] .p-bar-wrap{background:rgba(26,20,80,0.07);}
+[data-theme="light"] .stat-card{background:rgba(26,20,80,0.04);}
+[data-theme="light"] .rx-trigger:hover{background:rgba(0,0,0,0.04);}
+[data-theme="light"] .rx-pick-btn:hover{background:rgba(0,0,0,0.06);}
+[data-theme="light"] .rx-pill{border-color:rgba(26,20,80,0.12);background:rgba(26,20,80,0.03);}
+[data-theme="light"] .reply-item{border-bottom-color:rgba(26,20,80,0.06);}
+[data-theme="light"] .row-menu-btn:hover{background:rgba(0,0,0,0.05);}
+[data-theme="light"] .btn-ghost{border-color:rgba(26,20,80,0.15);color:var(--t3);}
+[data-theme="light"] .btn-ghost:hover{background:rgba(26,20,80,0.05);}
+[data-theme="light"] .fi{background:rgba(0,0,0,0.04);border-color:rgba(26,20,80,0.12);color:var(--t1);}
+[data-theme="light"] .fi:focus{border-color:var(--ac-border);}
+[data-theme="light"] .panel{background:rgba(0,0,0,0.02);border-color:var(--b1);}
+[data-theme="light"] .toggle-row{border-bottom-color:rgba(26,20,80,0.06);}
+[data-theme="light"] .atbl td{border-bottom-color:rgba(26,20,80,0.06);}
+[data-theme="light"] .atbl tr:hover td{background:rgba(0,0,0,0.02);}
+[data-theme="light"] .admin-stat-card{background:rgba(26,20,80,0.03);border-color:rgba(26,20,80,0.09);}
+[data-theme="light"] .admin-stat-card:hover{border-color:rgba(26,20,80,0.15);}
+[data-theme="light"] .admin-sn-item:hover{background:rgba(0,0,0,0.04);}
+[data-theme="light"] .comp-sel{border-color:rgba(26,20,80,0.12);background:rgba(0,0,0,0.03);}
+[data-theme="light"] .comp-tag-add{border-color:rgba(26,20,80,0.10);}
+[data-theme="light"] .reply-box{border-color:rgba(26,20,80,0.12);background:rgba(0,0,0,0.01);}
+[data-theme="light"] .reply-box-foot{border-top-color:rgba(26,20,80,0.08);}
+[data-theme="light"] .comp-tb-btn:hover{background:rgba(0,0,0,0.06);}
+[data-theme="light"] .slash-item:hover,.slash-item.sel{background:rgba(0,0,0,0.05);}
+[data-theme="light"] .mention-item:hover,.mention-item.sel{background:rgba(0,0,0,0.06);}
+[data-theme="light"] .slash-icon{background:rgba(0,0,0,0.04);border-color:var(--b1);}
+[data-theme="light"] .notif-item:hover{background:rgba(0,0,0,0.02);}
+[data-theme="light"] .dm-search-inner{background:rgba(0,0,0,0.04);border-color:rgba(26,20,80,0.09);}
+[data-theme="light"] .thread-row{border-bottom-color:rgba(26,20,80,0.06);}
+[data-theme="light"] .thread-row:hover,.thread-row.active{background:rgba(0,0,0,0.03);}
+[data-theme="light"] .theirs .bubble{background:rgba(26,20,80,0.07);border-color:var(--b1);}
+[data-theme="light"] .profile-stat-card{background:rgba(26,20,80,0.03);border-color:rgba(26,20,80,0.08);}
+[data-theme="light"] .profile-stat-card:hover{border-color:rgba(26,20,80,0.14);}
+[data-theme="light"] .p-reply-card{border-bottom-color:rgba(26,20,80,0.06);}
+[data-theme="light"] .md-body code{background:rgba(26,20,80,0.07);}
+[data-theme="light"] .md-body pre{background:rgba(26,20,80,0.04);}
+[data-theme="light"] .atbl.members-tbl tr{border-bottom-color:rgba(26,20,80,0.07);}
+[data-theme="light"] .comp-title-input::placeholder{color:rgba(26,20,80,0.20);}
+[data-theme="light"] .comp-ta::placeholder{color:rgba(26,20,80,0.18);}
+[data-theme="light"] .reply-box-ta::placeholder{color:rgba(26,20,80,0.20);}
+[data-theme="light"] .mob-scrubber-track{background:rgba(26,20,80,0.09);}
+[data-theme="light"] .mob-sheet-handle{background:rgba(26,20,80,0.15);}
+[data-theme="light"] .mob-reply-fake{background:rgba(0,0,0,0.04);}
+[data-theme="light"] .spoiler{background:rgba(26,20,80,0.09);}
+[data-theme="light"] .spoiler.revealed{background:rgba(26,20,80,0.05);}
+[data-theme="light"] .spoiler:hover{background:rgba(26,20,80,0.14);}
+[data-theme="light"] select{background:rgba(0,0,0,0.04);color:var(--t1);border-color:rgba(26,20,80,0.12);}
+[data-theme="light"] select option{background:#fff;color:var(--t1);}
+[data-theme="light"] .av-dd-item:hover{background:rgba(0,0,0,0.05);color:var(--t1);}
 html,body{background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,sans-serif;font-size:13px;line-height:1.5;min-height:100vh;}
 #root{min-height:100vh;display:flex;flex-direction:column;}
 ::-webkit-scrollbar{width:3px;}
@@ -1714,12 +1774,16 @@ function resolveTheme(userPref, adminDefault, darkEnabled, lightEnabled) {
   const osDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
   const allowed = [];
   if (darkEnabled !== false) allowed.push("dark");
-  if (lightEnabled === true) allowed.push("light");
+  if (lightEnabled !== false) allowed.push("light");
   // If user has a stored pref and it's allowed, use it
-  if (userPref && allowed.includes(userPref)) return userPref;
-  // Auto: follow OS if both available
+  if (userPref && userPref !== "auto" && allowed.includes(userPref)) return userPref;
+  // "auto" or no pref: if admin default is a specific theme and it's allowed, use it
+  // unless user explicitly chose "auto" (follow OS)
+  if (userPref !== "auto" && adminDefault && adminDefault !== "auto" && allowed.includes(adminDefault)) {
+    return adminDefault;
+  }
+  // Auto: follow OS if both available, otherwise use whichever is allowed
   if (allowed.length >= 2) return osDark ? "dark" : "light";
-  // Only one available
   return allowed[0] || "dark";
 }
 
@@ -1728,7 +1792,7 @@ function applyBranding(app={}, gen={}) {
 
   // Expose allowed themes globally so user settings UI can read them
   window._darkEnabled  = app.dark_enabled  !== false;
-  window._lightEnabled = app.light_enabled === true;
+  window._lightEnabled = app.light_enabled !== false;
   window._defaultTheme = app.default_theme || "dark";
   window._appBrandingForTheme = app;
 
@@ -9342,7 +9406,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
         </div>
         <div style={{display:"flex",gap:0,marginBottom:-1}}>
-          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},...((window._darkEnabled!==false&&window._lightEnabled===true)?[{k:"appearance",icon:"fa-circle-half-2",label:"Appearance"}]:[])].map(s=>(
+          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-2",label:"Appearance"}]:[])].map(s=>(
             <button key={s.k} onClick={()=>setTab(s.k)}
               style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
                 background:"none",border:"none",
@@ -9390,7 +9454,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
             {(()=>{
               const darkOn  = window._darkEnabled  !== false;
-              const lightOn = window._lightEnabled === true;
+              const lightOn = window._lightEnabled !== false;
               const pref = (()=>{ try { return localStorage.getItem("nexus_theme_pref")||"auto"; } catch { return "auto"; } })();
               const opts = [
                 {v:"auto",  icon:"fa-circle-half-2", label:"Auto",  desc:"Follows your device setting"},
