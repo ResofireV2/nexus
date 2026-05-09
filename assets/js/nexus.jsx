@@ -8124,8 +8124,10 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
 }
 
 function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
-  const [sec,setSec]=useState("overview");
+  const [sec,setSec_raw]=useState("overview");
+  const setSec = (s) => { setSec_raw(s); setMemberSearch(""); };
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
+  const [memberSearch,setMemberSearch]=useState("");
   const [queueStats,setQueueStats]=useState(null);
   const [sysStats,setSysStats]=useState(null);
   const [spaces,setSpaces]=useState([]); const [tags,setTags]=useState([]);
@@ -8569,9 +8571,19 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <div className="fgt" style={{marginBottom:0}}>All members</div>
               <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} onClick={()=>{setNewUser({username:"",email:"",password:"",role:"member",skip_verification:false});setShowCreateUser(true);}}>+ New member</button>
             </div>
+            <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"7px 14px",maxWidth:360}}>
+              <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
+              <input
+                style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}}
+                placeholder="Search by username or email…"
+                value={memberSearch||""}
+                onChange={e=>setMemberSearch(e.target.value)}
+              />
+              {memberSearch&&<button onClick={()=>setMemberSearch("")} style={{background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:0,fontSize:12,lineHeight:1,flexShrink:0}}><i className="fa-solid fa-xmark"/></button>}
+            </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl members-tbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{users.map(u=>(
+                <tbody>{(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
                     <td><select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async e=>{await api.patch(`/admin/users/${u.id}/role`,{role:e.target.value});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></select></td>
