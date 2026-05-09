@@ -3888,7 +3888,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                   {r._editHistory.length===0
                     ?<span style={{color:"var(--t5)"}}>No edit history.</span>
                     :r._editHistory.map((e,i)=>(
-                      <div key={e.id} style={{borderTop:i>0?"0.5px solid var(--b1)":"none",paddingTop:i>0?8:0,marginTop:i>0:8:0}}>
+                      <div key={e.id} style={{borderTop:i>0?"0.5px solid var(--b1)":"none",paddingTop:i>0?8:0,marginTop:i>0?8:0}}>
                         <div style={{color:"var(--t5)",marginBottom:4}}>{e.editor?.username} · {ago(e.edited_at)}</div>
                         <div style={{color:"var(--t3)",fontStyle:"italic",whiteSpace:"pre-wrap"}}>{e.old_body?.slice(0,200)}{e.old_body?.length>200?"…":""}</div>
                       </div>
