@@ -463,11 +463,11 @@ defmodule Nexus.Forum do
   defp apply_cursor(query, nil, _sort), do: query
   defp apply_cursor(query, cursor, sort) do
     case decode_cursor(cursor) do
-      {:ok, %{"inserted_at" => ts, "id" => id}} when sort in ["latest", "rising"] ->
+      {:ok, %{"inserted_at" => ts, "id" => id}} when sort == "rising" ->
         dt = DateTime.from_unix!(ts)
         where(query, [p], p.inserted_at < ^dt or (p.inserted_at == ^dt and p.id < ^id))
 
-      {:ok, %{"last_reply_at" => ts, "id" => id}} when sort == "activity" ->
+      {:ok, %{"last_reply_at" => ts, "id" => id}} when sort in ["latest", "activity"] ->
         dt = DateTime.from_unix!(ts)
         where(query, [p], p.last_reply_at < ^dt or (p.last_reply_at == ^dt and p.id < ^id))
 
@@ -479,7 +479,7 @@ defmodule Nexus.Forum do
   end
 
   defp apply_sort(query, "top"),      do: order_by(query, [p], [desc: p.reaction_count, desc: p.id])
-  defp apply_sort(query, "activity"), do: order_by(query, [p], [desc: p.last_reply_at, desc: p.id])
+  defp apply_sort(query, sort) when sort in ["latest", "activity"], do: order_by(query, [p], [desc: p.last_reply_at, desc: p.id])
   defp apply_sort(query, "rising") do
     # Score = (replies + reactions) / (age_hours + 2)^1.5
     # The +2 floor prevents brand-new posts with 0 engagement from dominating.
@@ -496,7 +496,7 @@ defmodule Nexus.Forum do
     %{"reaction_count" => post.reaction_count, "id" => post.id}
     |> Jason.encode!() |> Base.url_encode64(padding: false)
   end
-  defp encode_cursor(post, "activity") do
+  defp encode_cursor(post, sort) when sort in ["latest", "activity"] do
     ts = post.last_reply_at || post.inserted_at
     %{"last_reply_at" => DateTime.to_unix(ts), "id" => post.id}
     |> Jason.encode!() |> Base.url_encode64(padding: false)
