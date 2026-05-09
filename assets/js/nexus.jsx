@@ -744,6 +744,8 @@ S.textContent = `
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
+  --tgl-off:rgba(255,255,255,0.12);
+  --tgl-knob-off:rgba(255,255,255,0.75);
   --bg:#0d0d14;
   --s1:#13121e;
   --av-radius:22%;
@@ -828,6 +830,14 @@ S.textContent = `
 [data-theme="light"] select{background:rgba(0,0,0,0.04);color:var(--t1);border-color:rgba(26,20,80,0.12);}
 [data-theme="light"] select option{background:#fff;color:var(--t1);}
 [data-theme="light"] .av-dd-item:hover{background:rgba(0,0,0,0.05);color:var(--t1);}
+[data-theme="light"] .tgl{box-shadow:inset 0 0 0 1px rgba(26,20,80,0.15);}
+[data-theme="light"]{--tgl-off:rgba(26,20,80,0.12);--tgl-knob-off:#ffffff;}
+[data-theme="light"] .tgl-knob{box-shadow:0 1px 3px rgba(26,20,80,0.18);}
+[data-theme="light"] .rw-label{color:var(--t4);}
+[data-theme="light"] .p-bar-wrap{background:rgba(26,20,80,0.12);}
+[data-theme="light"] .av-dd{border-color:rgba(26,20,80,0.18);box-shadow:0 4px 24px rgba(26,20,80,0.10);}
+[data-theme="light"] .av-dd-item{color:var(--t2);}
+[data-theme="light"] .av-dd-handle{color:var(--t3);}
 [data-theme="light"] .theirs .bubble{background:rgba(26,20,80,0.07);color:var(--t2);border-color:var(--b2);}
 [data-theme="light"] .profile-cover-edit{background:rgba(255,255,255,0.75);color:var(--t2);border-color:rgba(26,20,80,0.15);}
 [data-theme="light"] .profile-cover-expand{background:rgba(255,255,255,0.75);color:var(--t2);border-color:rgba(26,20,80,0.15);}
@@ -5207,8 +5217,8 @@ function Tgl({on, onChange, label, desc}) {
   return (
     <div className="toggle-row">
       <div><div style={{fontSize:15,color:"var(--t2)"}}>{label}</div>{desc&&<div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>{desc}</div>}</div>
-      <div className="tgl" style={{background:on?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>onChange(!on)}>
-        <div className="tgl-knob" style={{left:on?23:3,background:on?"#fff":"rgba(255,255,255,0.4)"}}/>
+      <div className="tgl" style={{background:on?"var(--ac)":"var(--tgl-off)"}} onClick={()=>onChange(!on)}>
+        <div className="tgl-knob" style={{left:on?23:3,background:on?"#fff":"var(--tgl-knob-off)"}}/>
       </div>
     </div>
   );
@@ -7099,9 +7109,9 @@ function ExtensionSettingsForm({ext, onSaved}) {
         {field.type === "boolean" && (
           <div className="toggle-row" style={{marginBottom:0}}>
             <div/>
-            <div className="tgl" style={{background:val?"var(--ac)":"rgba(255,255,255,0.1)"}}
+            <div className="tgl" style={{background:val?"var(--ac)":"var(--tgl-off)"}}
               onClick={()=>set(!val)}>
-              <div className="tgl-knob" style={{left:val?23:3,background:val?"#fff":"rgba(255,255,255,0.4)"}}/>
+              <div className="tgl-knob" style={{left:val?23:3,background:val?"#fff":"var(--tgl-knob-off)"}}/>
             </div>
           </div>
         )}
@@ -7230,7 +7240,7 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
             <span style={{fontSize:12,color:"var(--t4)"}}>
               {ext.enabled?"Enabled":"Disabled"}
             </span>
-            <div className="tgl" style={{background:ext.enabled?"var(--ac)":"rgba(255,255,255,0.1)"}}
+            <div className="tgl" style={{background:ext.enabled?"var(--ac)":"var(--tgl-off)"}}
               onClick={toggle}>
               <div className="tgl-knob" style={{left:ext.enabled?23:3,
                 background:ext.enabled?"#fff":"rgba(255,255,255,0.4)"}}/>
@@ -7848,9 +7858,9 @@ function ExtensionFieldRenderer({ field, value, onChange }) {
       {type==="boolean"&&(
         <div className="toggle-row" style={{marginBottom:0}}>
           <div/>
-          <div className="tgl" style={{background:value?"var(--ac)":"rgba(255,255,255,0.1)"}}
+          <div className="tgl" style={{background:value?"var(--ac)":"var(--tgl-off)"}}
             onClick={()=>onChange(!value)}>
-            <div className="tgl-knob" style={{left:value?23:3,background:value?"#fff":"rgba(255,255,255,0.4)"}}/>
+            <div className="tgl-knob" style={{left:value?23:3,background:value?"#fff":"var(--tgl-knob-off)"}}/>
           </div>
         </div>
       )}
@@ -8320,7 +8330,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
               <div style={{fontSize:15,color:"var(--t2)"}}>Show iOS install prompt</div>
               <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Shown only in Safari on iOS/iPadOS. Not shown when the app is already installed.</div>
             </div>
-            <div className="tgl" style={{background:pwaCfg.ios_prompt_enabled?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>setPwaCfg(p=>({...p,ios_prompt_enabled:!p.ios_prompt_enabled}))}>
+            <div className="tgl" style={{background:pwaCfg.ios_prompt_enabled?"var(--ac)":"var(--tgl-off)"}} onClick={()=>setPwaCfg(p=>({...p,ios_prompt_enabled:!p.ios_prompt_enabled}))}>
               <div className="tgl-knob" style={{left:pwaCfg.ios_prompt_enabled?23:3,background:pwaCfg.ios_prompt_enabled?"#fff":"rgba(255,255,255,0.4)"}}/>
             </div>
           </div>
@@ -8339,7 +8349,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
               <div style={{fontSize:15,color:"var(--t2)"}}>Auto-detect share button position</div>
               <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Points the arrow toward Safari's share button based on device and orientation.</div>
             </div>
-            <div className="tgl" style={{background:pwaCfg.ios_auto_detect_orientation!==false?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>setPwaCfg(p=>({...p,ios_auto_detect_orientation:p.ios_auto_detect_orientation===false}))}>
+            <div className="tgl" style={{background:pwaCfg.ios_auto_detect_orientation!==false?"var(--ac)":"var(--tgl-off)"}} onClick={()=>setPwaCfg(p=>({...p,ios_auto_detect_orientation:p.ios_auto_detect_orientation===false}))}>
               <div className="tgl-knob" style={{left:pwaCfg.ios_auto_detect_orientation!==false?23:3,background:pwaCfg.ios_auto_detect_orientation!==false?"#fff":"rgba(255,255,255,0.4)"}}/>
             </div>
           </div>
@@ -8348,7 +8358,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
               <div style={{fontSize:15,color:"var(--t2)"}}>Always point up on iPad</div>
               <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Safari's share button is always in the top bar on iPad.</div>
             </div>
-            <div className="tgl" style={{background:pwaCfg.ios_pad_always_up!==false?"var(--ac)":"rgba(255,255,255,0.1)"}} onClick={()=>setPwaCfg(p=>({...p,ios_pad_always_up:p.ios_pad_always_up===false}))}>
+            <div className="tgl" style={{background:pwaCfg.ios_pad_always_up!==false?"var(--ac)":"var(--tgl-off)"}} onClick={()=>setPwaCfg(p=>({...p,ios_pad_always_up:p.ios_pad_always_up===false}))}>
               <div className="tgl-knob" style={{left:pwaCfg.ios_pad_always_up!==false?23:3,background:pwaCfg.ios_pad_always_up!==false?"#fff":"rgba(255,255,255,0.4)"}}/>
             </div>
           </div>
@@ -8719,7 +8729,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             <div className="fgt" style={{marginTop:20}}>Homepage hero</div>
             <F label="Show hero banner" hint="Displays a welcome banner above the post feed on the homepage">
               <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
-                <div className={`tgl-track ${general.hero_enabled?"on":""}`} onClick={()=>setGeneral(p=>({...p,hero_enabled:!p.hero_enabled}))} style={{width:36,height:20,borderRadius:10,background:general.hero_enabled?"var(--ac)":"rgba(255,255,255,0.1)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+                <div className={`tgl-track ${general.hero_enabled?"on":""}`} onClick={()=>setGeneral(p=>({...p,hero_enabled:!p.hero_enabled}))} style={{width:36,height:20,borderRadius:10,background:general.hero_enabled?"var(--ac)":"var(--tgl-off)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
                   <div style={{position:"absolute",top:3,left:general.hero_enabled?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
                 </div>
                 <span style={{fontSize:12,color:"var(--t3)"}}>{general.hero_enabled?"Enabled":"Disabled"}</span>
@@ -8800,7 +8810,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                           <div style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{label}</div>
                           {locked&&<div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>At least one theme must be enabled</div>}
                         </div>
-                        <div style={{position:"relative",width:40,height:22,borderRadius:11,background:isOn?"var(--ac)":"rgba(255,255,255,0.1)",cursor:locked?"not-allowed":"pointer",transition:"background .15s",flexShrink:0,opacity:locked?0.5:1}}
+                        <div style={{position:"relative",width:40,height:22,borderRadius:11,background:isOn?"var(--ac)":"var(--tgl-off)",cursor:locked?"not-allowed":"pointer",transition:"background .15s",flexShrink:0,opacity:locked?0.5:1}}
                           onClick={()=>{if(locked)return;setBranding(p=>({...p,[key]:!isOn}));}}>
                           <div style={{position:"absolute",top:2,left:isOn?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
                         </div>
@@ -9664,7 +9674,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                       const timeAgo = sub.inserted_at ? ago(sub.inserted_at) : "";
                       return (
                         <div key={sub.id} style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"11px 14px",display:"flex",alignItems:"center",gap:12}}>
-                          <div style={{width:36,height:36,borderRadius:9,background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <div style={{width:36,height:36,borderRadius:9,background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                             <i className={icon} style={{fontSize:16,color:"var(--t4)"}}/>
                           </div>
                           <div style={{flex:1,minWidth:0}}>
