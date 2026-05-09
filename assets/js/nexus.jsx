@@ -875,6 +875,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Topbar */
 .topbar{height:64px;background:var(--bg);border-bottom:0.5px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:8px;flex-shrink:0;position:relative;z-index:50;}
 .logo-text{font-size:15px;font-weight:500;color:#fff;letter-spacing:-.5px;}
+[data-theme="light"] .logo-text{color:var(--ac);}
 .logo-text em{font-style:normal;color:var(--ac);}
 .tb-search{flex:1;max-width:400px;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);border-radius:24px;padding:10px 18px;font-size:14px;color:var(--t4);display:flex;align-items:center;gap:10px;cursor:text;}
 .tb-search input{background:transparent;border:none;outline:none;font-size:14px;color:var(--t2);font-family:inherit;flex:1;}
@@ -934,6 +935,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-body{flex:1;min-width:0;padding:12px 0 8px;align-self:center;}
 .thread-top{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
 .thread-title{font-size:14px;font-weight:500;color:#e8e4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+[data-theme="light"] .thread-title{color:var(--t1);}
 .thread-tag{font-size:9px;font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px;}
 .thread-tags-row{display:none;}
 .thread-top-tags{display:none;}
@@ -974,6 +976,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .stat-card{background:rgba(255,255,255,0.04);border-radius:10px;padding:12px 14px;}
 .stat-n{font-size:20px;font-weight:500;color:#e8e4ff;line-height:1;}
+[data-theme="light"] .stat-n{color:var(--t1);}
 .stat-l{font-size:12px;color:var(--t4);margin-top:3px;}
 
 /* Post view */
@@ -8796,7 +8799,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                   <div style={{marginBottom:20}}>
                     <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:8}}>Default theme</div>
                     <div style={{display:"inline-flex",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:3,gap:2}}>
-                      {[{v:"auto",icon:"fa-circle-half-2",label:"Auto"},{v:"dark",icon:"fa-moon",label:"Dark"},{v:"light",icon:"fa-sun",label:"Light"}].map(({v,icon,label})=>{
+                      {[{v:"auto",icon:"fa-circle-half-stroke",label:"Auto"},{v:"dark",icon:"fa-moon",label:"Dark"},{v:"light",icon:"fa-sun",label:"Light"}].map(({v,icon,label})=>{
                         const active = (branding.default_theme||"dark")===v;
                         return (
                           <button key={v} onClick={()=>setBranding(p=>({...p,default_theme:v}))}
@@ -9467,7 +9470,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
         </div>
         <div style={{display:"flex",gap:0,marginBottom:-1}}>
-          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-2",label:"Appearance"}]:[])].map(s=>(
+          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-stroke",label:"Appearance"}]:[])].map(s=>(
             <button key={s.k} onClick={()=>setTab(s.k)}
               style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
                 background:"none",border:"none",
@@ -9510,45 +9513,42 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
             <button className="btn-primary" onClick={savePassword} disabled={saving||!pw.current||!pw.next}>{saving?"Saving…":"Update password"}</button>
           </>}
 
-          {tab==="appearance"&&<>
-            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
-            <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
-            {(()=>{
-              const darkOn  = window._darkEnabled  !== false;
-              const lightOn = window._lightEnabled !== false;
-              const pref = (()=>{ try { return localStorage.getItem("nexus_theme_pref")||"auto"; } catch { return "auto"; } })();
-              const opts = [
-                {v:"auto",  icon:"fa-circle-half-2", label:"Auto",  desc:"Follows your device setting"},
-                ...(darkOn  ? [{v:"dark",  icon:"fa-moon", label:"Dark",  desc:"Always dark"}]  : []),
-                ...(lightOn ? [{v:"light", icon:"fa-sun",  label:"Light", desc:"Always light"}] : []),
-              ];
-              return (
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {opts.map(({v,icon,label,desc})=>{
-                    const active = pref===v;
-                    return (
-                      <div key={v}
-                        onClick={()=>{
-                          try { localStorage.setItem("nexus_theme_pref", v); } catch {}
-                          const theme = resolveTheme(v, window._defaultTheme, window._darkEnabled, window._lightEnabled);
-                          applyTheme(theme, window._appBrandingForTheme||{});
-                          // Force re-render by triggering a state update
-                          document.documentElement.setAttribute("data-theme", theme);
-                        }}
-                        style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:active?"var(--ac-bg)":"var(--s2)",border:`0.5px solid ${active?"var(--ac-border)":"var(--b1)"}`,borderRadius:10,cursor:"pointer",transition:"all .1s"}}>
-                        <i className={`fa-solid ${icon}`} style={{fontSize:16,color:active?"var(--ac)":"var(--t4)",width:20,textAlign:"center"}}/>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:500,color:active?"var(--ac-text)":"var(--t2)"}}>{label}</div>
-                          <div style={{fontSize:11,color:"var(--t5)",marginTop:1}}>{desc}</div>
-                        </div>
-                        {active&&<i className="fa-solid fa-check" style={{fontSize:12,color:"var(--ac)"}}/>}
+          {tab==="appearance"&&(()=>{
+            const darkOn  = window._darkEnabled  !== false;
+            const lightOn = window._lightEnabled !== false;
+            const [themePref, setThemePref] = useState(()=>{ try { return localStorage.getItem("nexus_theme_pref")||"auto"; } catch { return "auto"; } });
+            const opts = [
+              {v:"auto",  icon:"fa-circle-half-stroke", label:"Auto",  desc:"Follows your device setting"},
+              ...(darkOn  ? [{v:"dark",  icon:"fa-moon", label:"Dark",  desc:"Always dark"}]  : []),
+              ...(lightOn ? [{v:"light", icon:"fa-sun",  label:"Light", desc:"Always light"}] : []),
+            ];
+            return (<>
+              <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
+              <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {opts.map(({v,icon,label,desc})=>{
+                  const active = themePref===v;
+                  return (
+                    <div key={v}
+                      onClick={()=>{
+                        try { localStorage.setItem("nexus_theme_pref", v); } catch {}
+                        setThemePref(v);
+                        const theme = resolveTheme(v, window._defaultTheme, window._darkEnabled, window._lightEnabled);
+                        applyTheme(theme, window._appBrandingForTheme||{});
+                      }}
+                      style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:active?"var(--ac-bg)":"var(--s2)",border:`0.5px solid ${active?"var(--ac-border)":"var(--b1)"}`,borderRadius:10,cursor:"pointer",transition:"all .1s"}}>
+                      <i className={`fa-solid ${icon}`} style={{fontSize:16,color:active?"var(--ac)":"var(--t4)",width:20,textAlign:"center"}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:500,color:active?"var(--ac-text)":"var(--t2)"}}>{label}</div>
+                        <div style={{fontSize:11,color:"var(--t5)",marginTop:1}}>{desc}</div>
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </>}
+                      {active&&<i className="fa-solid fa-check" style={{fontSize:12,color:"var(--ac)"}}/>}
+                    </div>
+                  );
+                })}
+              </div>
+            </>);
+          })()}
           {tab==="notifications"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>
