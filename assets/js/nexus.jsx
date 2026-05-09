@@ -3594,30 +3594,30 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
-          <RsAv user={post.user} size={56} color={userColor(post.user)}/>
           <div style={{flex:1}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
-              <div className="post-title" style={{flex:1}}>{post.title}</div>
+            {/* Avatar + meta row */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <RsAv user={post.user} size={36} color={userColor(post.user)}/>
+              <div className="post-meta" style={{marginBottom:0,flex:1}}>
+                {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
+                {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
+                <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
+                <span style={{fontSize:11,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
+              </div>
               {currentUser&&<button title={postFollowed?"Unfollow":"Follow"}
                 onClick={toggleFollowPost}
-                style={{marginTop:3,background:"none",border:"none",cursor:"pointer",
+                style={{background:"none",border:"none",cursor:"pointer",
                   color:postFollowed?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,
                   padding:"2px 4px",transition:"color .15s"}}>
                 <i className={`fa-${postFollowed?"solid":"regular"} fa-bell`}/>
               </button>}
               {currentUser&&<button title={postSaved?"Saved":"Save"} onClick={toggleSavePost}
-                style={{marginTop:3,background:"none",border:"none",cursor:"pointer",color:postSaved?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
+                style={{background:"none",border:"none",cursor:"pointer",color:postSaved?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
                 <i className={`fa-${postSaved?"solid":"regular"} fa-bookmark`}/>
               </button>}
             </div>
-            <div className="post-meta">
-              {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
-              
-              {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
-              <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
-              <span style={{fontSize:11,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
-
-            </div>
+            {/* Title full-width */}
+            <div className="post-title" style={{marginBottom:4}}>{post.title}</div>
             {editingPost
               ?<div style={{marginTop:12}}>
                 <input className="fi" value={editTitle} onChange={e=>setEditTitle(e.target.value)}
