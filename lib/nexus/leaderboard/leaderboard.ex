@@ -206,19 +206,20 @@ defmodule Nexus.Leaderboard do
     score_field = score_field_for(period)
 
     Repo.all(
-      from u in User,
-      left_join: s in UserScore, on: s.user_id == u.id,
+      from s in UserScore,
+      join: u in User, on: s.user_id == u.id,
       where: u.status != "banned",
-      order_by: [desc_nulls_last: field(s, ^score_field)],
+      order_by: [desc: field(s, ^score_field)],
       limit: ^limit,
       select: %{
-        user_id:     u.id,
-        username:    u.username,
-        avatar_url:  u.avatar_url,
-        score:       coalesce(field(s, ^score_field), 0),
-        score_all:   coalesce(s.score_all, 0),
-        score_week:  coalesce(s.score_week, 0),
-        score_month: coalesce(s.score_month, 0)
+        user_id:      s.user_id,
+        username:     u.username,
+        avatar_url:   u.avatar_url,
+        avatar_color: u.avatar_color,
+        score:        field(s, ^score_field),
+        score_all:    s.score_all,
+        score_week:   s.score_week,
+        score_month:  s.score_month
       }
     )
   end
@@ -249,7 +250,8 @@ defmodule Nexus.Leaderboard do
 
     total =
       Repo.aggregate(
-        from(u in User,
+        from(s in UserScore,
+          join: u in User, on: s.user_id == u.id,
           where: u.status != "banned"
         ),
         :count

@@ -281,7 +281,7 @@ function RefPreviewPopup() {
   const popup = useRefPreview();
   if (!popup) return null;
   const { data, x, y, above } = popup;
-  const col = spaceColor({id: data.userId});
+  const col = userColor({id: data.userId, avatar_color: data.userAvatarColor});
   return (
     <div className="ref-popup" style={{
       left: x,
@@ -789,7 +789,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Avatar menu */
 .av-wrap{position:relative;margin-left:2px;}
-.av-circle{width:38px;height:38px;border-radius:var(--av-radius);background:linear-gradient(135deg,#a78bfa,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
+.av-circle{width:38px;height:38px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
 .av-circle:hover{border-color:rgba(167,139,250,.5);}
 .av-circle.open{border-color:var(--ac);}
 .av-dd{position:absolute;top:calc(100% + 10px);right:0;width:200px;background:var(--s2);border:0.5px solid var(--b3);border-radius:14px;padding:6px;z-index:200;opacity:0;pointer-events:none;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}
@@ -1199,7 +1199,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .profile-cover-gradient{position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,var(--bg),transparent);}
 .profile-info-wrap{padding:0 28px 20px;border-bottom:0.5px solid var(--b1);}
 .profile-av-row{margin-top:-40px;margin-bottom:14px;display:flex;align-items:flex-end;justify-content:space-between;}
-.profile-av-ring{width:80px;height:80px;border-radius:var(--av-radius);border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;background:linear-gradient(135deg,#a78bfa,#ec4899);}
+.profile-av-ring{width:80px;height:80px;border-radius:var(--av-radius);border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;}
 .profile-name{font-size:18px;font-weight:600;color:var(--t1);letter-spacing:-.3px;}
 .profile-handle{font-size:13px;color:var(--t5);margin-bottom:10px;}
 .profile-bio{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:14px;}
@@ -1334,8 +1334,14 @@ function fmtDaySep(d) {
 }
 
 // Space colors mapped to accent
-const SPACE_COLORS = ["#a78bfa","#f472b6","#34d399","#60a5fa","#fbbf24","#f87171","#ec4899","#10b981"];
+const SPACE_COLORS = ["#a78bfa","#f472b6","#34d399","#60a5fa","#fbbf24","#f87171","#ec4899","#10b981","#fb923c","#38bdf8","#a3e635","#e879f9"];
 function spaceColor(space) { return space?.color || SPACE_COLORS[(space?.id||0) % SPACE_COLORS.length]; }
+
+// Single source of truth for user avatar color.
+// Uses avatar_color stored at registration, falls back to deterministic hash.
+function userColor(user) {
+  return user?.avatar_color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
+}
 
 // Rounded-square avatar
 // ── User card popover ─────────────────────────────────────────────────────────
@@ -1397,7 +1403,7 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
           <div style={{position:"absolute",bottom:-36,left:16}}>
             {u?.avatar_url
               ?<img src={u.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",objectFit:"cover"}} alt={u.username}/>
-              :<div style={{width:96,height:96,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",background:spaceColor({id:u?.id||0}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
+              :<div style={{width:96,height:96,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",background:userColor(u),display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:500,color:"#fff"}}>{(card.username||"?").slice(0,2).toUpperCase()}</div>}
           </div>
         </div>
         {/* Body */}
@@ -1452,7 +1458,7 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
 }
 
 function RsAv({user, size=34, color, noCard=false}) {
-  const bg = color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
+  const bg = color || userColor(user);
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
   const handleClick = noCard ? undefined : (e)=>{ e.stopPropagation(); if(user?.username) openUserCard(user.username, e.currentTarget); };
   if (user?.avatar_url) return (
@@ -1465,15 +1471,15 @@ function RsAv({user, size=34, color, noCard=false}) {
   );
 }
 
-// Round avatar
+// Respects --av-radius so the admin border radius setting applies everywhere
 function Av({user, size=28}) {
-  const bg = SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
+  const bg = userColor(user);
   if (user?.avatar_url) return (
-    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:`0.5px solid ${bg}55`}} alt={user?.username}/>
+    <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`0.5px solid ${bg}55`}} alt={user?.username}/>
   );
   return (
-    <div style={{width:size,height:size,borderRadius:"50%",background:`${bg}33`,border:`0.5px solid ${bg}55`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.36),fontWeight:500,color:bg}}>
-      {(user?.username||"?").slice(0,1).toUpperCase()}
+    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}33`,border:`0.5px solid ${bg}55`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.36),fontWeight:500,color:bg}}>
+      {(user?.username||"?").slice(0,2).toUpperCase()}
     </div>
   );
 }
@@ -1994,7 +2000,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
               onMouseDown={e=>{e.preventDefault();insertMention(u.username);}}>
               {u.avatar_url
                 ?<img className="mention-av" src={u.avatar_url} alt={u.username}/>
-                :<div className="mention-av" style={{background:spaceColor({id:u.id})}}>{u.username.slice(0,2).toUpperCase()}</div>}
+                :<div className="mention-av" style={{background:userColor(u)}}>{u.username.slice(0,2).toUpperCase()}</div>}
               <span className="mention-name">@{u.username}</span>
             </div>
           ))}
@@ -2021,9 +2027,10 @@ function AvatarMenu({user, navigate, onLogout}) {
     document.addEventListener("mousedown",fn); return ()=>document.removeEventListener("mousedown",fn);
   },[]);
   const initials = (user?.username||"?").slice(0,2).toUpperCase();
+  const bg = userColor(user);
   return (
     <div className="av-wrap" ref={ref}>
-      <div className={`av-circle ${open?"open":""}`} onClick={()=>setOpen(p=>!p)}>
+      <div className={`av-circle ${open?"open":""}`} style={{background: user?.avatar_url ? "transparent" : bg}} onClick={()=>setOpen(p=>!p)}>
         {user?.avatar_url
           ?<img src={user.avatar_url} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"inherit"}} alt={user.username}/>
           :initials}
@@ -2324,7 +2331,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
               <div className="tb-search-section">Replies</div>
               {replies.map(r=>(
                 <div key={r.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:r.post_id});}}>
-                  <RsAv user={r.user} size={28} color={spaceColor({id:r.post_id})}/>
+                  <RsAv user={r.user} size={28} color={userColor(r.user)}/>
                   <div className="tb-search-sub">{r.body?.replace(/!?\[.*?\]\(.*?\)/g,"").replace(/[#*`>]/g,"").slice(0,80)}</div>
                 </div>
               ))}
@@ -2418,7 +2425,7 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
           onClick={()=>navigate("profile",{username:author.username})}>
           {author.avatar_url
             ?<img src={author.avatar_url} style={{width:38,height:38,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={author.username}/>
-            :<div style={{width:38,height:38,borderRadius:"var(--av-radius)",background:spaceColor({id:author.id}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:500,color:"#fff",flexShrink:0}}>{(author.username||"?").slice(0,2).toUpperCase()}</div>}
+            :<div style={{width:38,height:38,borderRadius:"var(--av-radius)",background:userColor(author),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:500,color:"#fff",flexShrink:0}}>{(author.username||"?").slice(0,2).toUpperCase()}</div>}
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{author.username}</div>
             {author.role&&author.role!=="member"&&<div style={{fontSize:10,color:"var(--ac)",textTransform:"capitalize"}}>{author.role}</div>}
@@ -2452,7 +2459,7 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
               onClick={()=>navigate("profile",{username:u.username})}>
               {u.avatar_url
                 ?<img src={u.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1px solid rgba(255,255,255,0.08)"}} alt={u.username}/>
-                :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:spaceColor({id:u.id}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:500,color:"#fff"}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+                :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(u),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:500,color:"#fff"}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
             </div>
           ))}
         </div>
@@ -2522,7 +2529,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
           ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
           :liveEvents.slice(0,4).map((e,i)=>(
             <div key={i} className="live-row">
-              <div className="l-av" style={{background:spaceColor({id:e.userId}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>
+              <div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>
               <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
               <div className="l-ago">{ago(e.at)}</div>
             </div>
@@ -3423,7 +3430,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             onMouseLeave={()=>{setHoveredReply(null);if(openReplyMenu===r.id)setOpenReplyMenu(null);}}>
             {r.user?.avatar_url
               ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
-              :<div className="reply-av" style={{background:`${spaceColor({id:r.user?.id})}33`,color:spaceColor({id:r.user?.id})}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+              :<div className="reply-av" style={{background:`${userColor(r.user)}33`,color:userColor(r.user)}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
             <div className="reply-body-wrap">
               <div className="reply-meta">
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
@@ -3724,7 +3731,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
           {results.replies?.length>0&&<>
             <div style={{fontSize:10,fontWeight:500,color:"var(--t5)",letterSpacing:".07em",textTransform:"uppercase",padding:"14px 0 8px"}}>Replies</div>
             {results.replies.map(r=>{
-              const col=spaceColor({id:r.post_id});
+              const col=userColor(r.user);
               return (
                 <div key={r.id} className="thread" onClick={()=>navigate("post",{id:r.post_id})}>
                   <div className="thread-main">
@@ -3893,7 +3900,7 @@ function ProfilePage({username, currentUser, navigate}) {
     if(tab==="mentions"  && mentions  === null) load("mentions",  ()=>api.get(`/users/${username}/mentions`)).then(d=>setMentions(d.mentions||[]));
   },[tab, user, username]);
 
-  const col = spaceColor({id:user?.id||0});
+  const col = userColor(user);
 
   const handleAvatarUpload = async (file) => {
     if (!file) return;
@@ -4022,7 +4029,7 @@ function ProfilePage({username, currentUser, navigate}) {
             <div style={{position:"relative",display:"inline-block"}}>
               {user?.avatar_url
                 ?<img src={user.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
-                :<div className="profile-av-ring">{(username||"?").slice(0,2).toUpperCase()}</div>}
+                :<div className="profile-av-ring" style={{background:userColor(user)}}>{(username||"?").slice(0,2).toUpperCase()}</div>}
               {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:"var(--av-radius)",background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
                 onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
@@ -5862,7 +5869,7 @@ function LeaderboardPage({currentUser, navigate}) {
   };
 
   const Av = ({user, size, radius, fontSize}) => {
-    const col = spaceColor({id:user.user_id});
+    const col = userColor(u);
     if(user.avatar_url) return <img src={user.avatar_url} style={{width:size,height:size,borderRadius:radius,objectFit:"cover",display:"block"}} alt={user.username}/>;
     return <div style={{width:size,height:size,borderRadius:radius,background:`${col}33`,color:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:600}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>;
   };
@@ -5921,9 +5928,7 @@ function LeaderboardPage({currentUser, navigate}) {
           {/* Your rank banner */}
           {currentUser && myRank && (
             <div style={{background:"rgba(167,139,250,0.07)",border:"0.5px solid rgba(167,139,250,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#a78bfa,#ec4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:500,color:"#fff",flexShrink:0}}>
-                {currentUser.username.slice(0,2).toUpperCase()}
-              </div>
+              <RsAv user={currentUser} size={36} noCard={true}/>
               <div style={{flex:1}}>
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:2}}>your ranking — {periodLabels.find(p=>p.id===period)?.label?.toLowerCase()}</div>
                 <div style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{Number(myRank.score).toLocaleString()} {pointsName}</div>
@@ -5943,7 +5948,6 @@ function LeaderboardPage({currentUser, navigate}) {
             {rest.map((u, idx)=>{
               const rank  = idx + 4;
               const isMe  = currentUser?.username === u.username;
-              const col   = spaceColor({id:u.user_id});
               return (
                 <div key={u.user_id}
                   style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"10px 16px",borderRadius:10,cursor:"pointer",alignItems:"center",marginBottom:2,background:isMe?"rgba(167,139,250,0.07)":"transparent",border:isMe?"0.5px solid rgba(167,139,250,0.15)":"0.5px solid transparent"}}
@@ -5952,9 +5956,7 @@ function LeaderboardPage({currentUser, navigate}) {
                   onClick={()=>navigate("profile",{username:u.username})}>
                   <div style={{fontSize:14,fontWeight:500,color:isMe?"#a78bfa":"rgba(255,255,255,0.25)"}}>{rank}</div>
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                    {u.avatar_url
-                      ? <img src={u.avatar_url} style={{width:34,height:34,borderRadius:10,objectFit:"cover",flexShrink:0}} alt=""/>
-                      : <div style={{width:34,height:34,borderRadius:10,background:`${col}22`,color:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,flexShrink:0}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+                    <RsAv user={u} size={34} noCard={true}/>
                     <div style={{minWidth:0}}>
                       <div style={{fontSize:13,fontWeight:500,color:isMe?"var(--t1)":"rgba(255,255,255,0.75)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                         {u.username}{isMe&&<span style={{fontSize:11,color:"rgba(167,139,250,0.6)",fontWeight:400,marginLeft:6}}>you</span>}
@@ -6726,7 +6728,7 @@ function AdminBadgesPanel() {
                   <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"0.5px solid var(--b1)"}}>
                     {h.user?.avatar_url
                       ?<img src={h.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt=""/>
-                      :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${spaceColor({id:h.user?.id})}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,color:"#fff"}}>{(h.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                      :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${userColor(h.user)}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,color:"#fff"}}>{(h.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                     <div style={{flex:1}}>
                       <div style={{fontSize:13,color:"var(--t2)"}}>{h.user?.username}</div>
                       <div style={{fontSize:11,color:"var(--t5)"}}>
@@ -9393,7 +9395,7 @@ function SavedPage({navigate, currentUser}) {
                 <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
                   {r.user?.avatar_url
                     ?<img src={r.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt=""/>
-                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${spaceColor({id:r.id})}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${userColor(r.user)}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                   <div style={{flex:1,minWidth:0}}>
                     <div className="p-reply-body"><Md text={r.body}/></div>
                     <div className="p-reply-meta">
@@ -9896,7 +9898,7 @@ function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
       <div style={{padding:"20px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:14}}>
         {user.avatar_url
           ? <img src={user.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt={user.username}/>
-          : <div style={{width:56,height:56,borderRadius:"var(--av-radius)",background:spaceColor({id:user.id}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:600,color:"#fff"}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>}
+          : <div style={{width:56,height:56,borderRadius:"var(--av-radius)",background:userColor(user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:600,color:"#fff"}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>}
         <div>
           <div style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>{user.username}</div>
           <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>@{user.username?.toLowerCase()} · {user.role}</div>

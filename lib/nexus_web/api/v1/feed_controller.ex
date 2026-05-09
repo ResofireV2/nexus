@@ -21,12 +21,8 @@ defmodule NexusWeb.API.V1.FeedController do
 
     %{posts: posts, next_cursor: next_cursor} = Forum.list_feed(opts)
 
-    # Fetch last replier for all posts in one extra query
-    post_ids       = Enum.map(posts, & &1.id)
-    last_reply_map = Forum.last_reply_users(post_ids)
-
     json(conn, %{
-      posts: Enum.map(posts, &post_json(&1, last_reply_map)),
+      posts: Enum.map(posts, &post_json/1),
       next_cursor: next_cursor
     })
     end
@@ -50,7 +46,7 @@ defmodule NexusWeb.API.V1.FeedController do
   end
 
 
-  defp post_json(post, last_reply_map \\ %{}) do
+  defp post_json(post) do
     %{
       id: post.id,
       title: post.title,
@@ -64,8 +60,7 @@ defmodule NexusWeb.API.V1.FeedController do
       inserted_at: post.inserted_at,
       space: space_json(post.space),
       tags: Enum.map(post.tags, &tag_json/1),
-      user: user_json(post.user),
-      last_reply_user: user_json(Map.get(last_reply_map, post.id))
+      user: user_json(post.user)
     }
   end
 
@@ -80,6 +75,6 @@ defmodule NexusWeb.API.V1.FeedController do
 
   defp user_json(nil), do: nil
   defp user_json(user) do
-    %{id: user.id, username: user.username, avatar_url: user.avatar_url}
+    %{id: user.id, username: user.username, avatar_url: user.avatar_url, avatar_color: user.avatar_color}
   end
 end

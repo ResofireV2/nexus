@@ -317,6 +317,7 @@ defmodule NexusWeb.API.V1.AdminController do
       role:               u.role,
       bio:                Map.get(u, :bio),
       avatar_url:         u.avatar_url,
+      avatar_color:       u.avatar_color,
       inserted_at:        u.inserted_at,
       status:             u.status,
       post_count:         Map.get(u, :post_count, 0),
@@ -359,6 +360,7 @@ defmodule NexusWeb.API.V1.AdminController do
             role: user.role,
             bio: user.bio,
             avatar_url: user.avatar_url,
+            avatar_color: user.avatar_color,
             cover_url: user.cover_url,
             last_seen_at: user.last_seen_at,
             inserted_at: user.inserted_at,
@@ -401,32 +403,5 @@ defmodule NexusWeb.API.V1.AdminController do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
-  end
-
-  # ── Updates ──────────────────────────────────────────────────────────────────
-
-  # GET /api/v1/admin/updates/check
-  # Checks GitHub Releases for a newer version. Fast — just an API call.
-  def check_update(conn, _params) do
-    case Nexus.Updates.check_for_update() do
-      {:ok, info}      -> json(conn, %{ok: true,  update: info})
-      {:error, reason} -> json(conn, %{ok: false, error: reason})
-    end
-  end
-
-  # POST /api/v1/admin/updates/apply
-  # Downloads and applies the latest release. Slow — rebuilds Docker.
-  # Returns immediately with the log once the rebuild is kicked off.
-  # The container restart means this request may not receive a response;
-  # the frontend polls for the forum coming back up.
-  def apply_update(conn, _params) do
-    case Nexus.Updates.apply_update() do
-      {:ok, log} ->
-        json(conn, %{ok: true, log: log})
-      {:error, {reason, log}} ->
-        conn |> put_status(500) |> json(%{ok: false, error: reason, log: log})
-      {:error, reason} ->
-        conn |> put_status(400) |> json(%{ok: false, error: reason, log: []})
-    end
   end
 end
