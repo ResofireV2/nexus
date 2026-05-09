@@ -2754,7 +2754,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                       <div className="thread-meta">
                         <div className="meta-block">
                           <div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div>
-                          <div className="meta-l"><i className="fa-solid fa-face-smile" style={{fontSize:9}}/></div>
+                          <div className="meta-l"><i className="fa-solid fa-thumbs-up" style={{fontSize:9}}/></div>
                         </div>
                         <div className="meta-div"/>
                         <div className="thread-last">
@@ -3978,7 +3978,7 @@ function ProfilePage({username, currentUser, navigate}) {
             <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
           </div>
           <div className="thread-meta">
-            <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-face-smile" style={{fontSize:9}}/></div></div>
+            <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-thumbs-up" style={{fontSize:9}}/></div></div>
           </div>
         </div>
       </div>
@@ -9415,7 +9415,7 @@ function SavedPage({navigate, currentUser}) {
                     <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
                   </div>
                   <div className="thread-meta">
-                    <div className="meta-block"><div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-face-smile" style={{fontSize:9}}/></div></div>
+                    <div className="meta-block"><div className="meta-n" style={{color:col}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-thumbs-up" style={{fontSize:9}}/></div></div>
                   </div>
                 </div>
                 <button onClick={e=>unsave(e,item)} title="Remove" style={{position:"absolute",top:10,right:12,background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:13,opacity:0,transition:"opacity .15s"}}
