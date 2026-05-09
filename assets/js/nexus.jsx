@@ -47,20 +47,67 @@ function extractBareUrl(text) {
   return null;
 }
 
-// Paragraph override — detect bare media URLs and render embeds
-mdRenderer.paragraph = function(text) {
-  const url = extractBareUrl(text);
-  if (url) {
-    const ytId = getYouTubeId(url);
-    if (ytId) return `<div class="yt-lite" data-id="${ytId}">
+// Paragraph override — detect bare media URLs and render embeds.
+// With breaks:true, a single newline becomes <br> rather than a new paragraph,
+// so "text\nURL" arrives as one paragraph with a <br>-separated URL line.
+// We handle both cases: whole-paragraph bare URL, and URL on its own <br> line.
+function makeYtEmbed(ytId) {
+  return `<div class="yt-lite" data-id="${ytId}">
       <img class="yt-thumb" src="https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg" alt="YouTube video" loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'"/>
       <div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
     </div>`;
-    const vmId = getVimeoId(url);
-    if (vmId) return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
-    if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
-    if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
+}
+function makeVmEmbed(vmId) {
+  return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
+}
+function tryMediaEmbed(url) {
+  const ytId = getYouTubeId(url);
+  if (ytId) return makeYtEmbed(ytId);
+  const vmId = getVimeoId(url);
+  if (vmId) return makeVmEmbed(vmId);
+  if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
+  if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
+  return null;
+}
+mdRenderer.paragraph = function(text) {
+  // Case 1: the whole paragraph is a bare URL
+  const bareUrl = extractBareUrl(text);
+  if (bareUrl) {
+    const embed = tryMediaEmbed(bareUrl);
+    if (embed) return embed;
   }
+
+  // Case 2: breaks:true means single-newline lines arrive as <br>-separated chunks.
+  // Split on <br> (with optional whitespace/newline) and check each chunk.
+  // If a chunk is a bare media URL, replace it with an embed.
+  const BR = /<br\s*\/?>\n?/i;
+  if (BR.test(text)) {
+    const parts = text.split(BR);
+    const out = parts.map(part => {
+      const url = extractBareUrl(part.trim());
+      if (url) {
+        const embed = tryMediaEmbed(url);
+        if (embed) return embed;
+      }
+      return part;
+    });
+    // If any part was converted to an embed, reconstruct:
+    // text parts stay in a <p>, embed parts go after it.
+    const textParts = [];
+    const embedParts = [];
+    out.forEach((part, i) => {
+      if (part.startsWith('<div class="yt-lite') || part.startsWith('<div class="md-embed') || part.startsWith('<audio') || part.startsWith('<div class="md-embed-video')) {
+        embedParts.push(part);
+      } else {
+        textParts.push(part);
+      }
+    });
+    if (embedParts.length > 0) {
+      const textHtml = textParts.filter(p => p.trim()).join('<br>\n');
+      return (textHtml ? `<p>${textHtml}</p>` : '') + embedParts.join('');
+    }
+  }
+
   return `<p>${text}</p>`;
 };
 
@@ -2515,7 +2562,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
                 const col=spaceColor(p.space||{id:p.id});
                 return (
                   <div key={p.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:p.id});}}>
-                    <RsAv user={p.user} size={28} color={col}/>
+                    <RsAv user={p.user} size={28} color={userColor(p.user)}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div className="tb-search-title">{p.title}</div>
                       {p.space&&<div style={{fontSize:10,color:col,marginTop:1}}>{p.space.name}</div>}
@@ -2727,7 +2774,9 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
           ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
           :liveEvents.slice(0,4).map((e,i)=>(
             <div key={i} className="live-row">
-              <div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>
+              {e.avatarUrl
+                ?<img src={e.avatarUrl} className="l-av" style={{objectFit:"cover"}} alt={e.username}/>
+                :<div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>}
               <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
               <div className="l-ago">{ago(e.at)}</div>
             </div>
@@ -2922,7 +2971,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
+                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
@@ -2936,7 +2985,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="av-stack">
                             {p.user?.avatar_url
                               ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
-                              :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                              :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
@@ -2958,7 +3007,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                             const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
                             return lastUser?.avatar_url
                               ? <img src={lastUser.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={lastUser.username}/>
-                              : <div className="last-av" style={{background:col}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
+                              : <div className="last-av" style={{background:userColor(lastUser)}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
                           })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
@@ -3495,7 +3544,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
-          <RsAv user={post.user} size={56} color={col}/>
+          <RsAv user={post.user} size={56} color={userColor(post.user)}/>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
               <div className="post-title" style={{flex:1}}>{post.title}</div>
@@ -3913,7 +3962,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={p.user} size={34} color={col}/>
+                    <RsAv user={p.user} size={34} color={userColor(p.user)}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title">{p.title}</div>
@@ -3934,7 +3983,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={r.id} className="thread" onClick={()=>navigate("post",{id:r.post_id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={r.user} size={34} color={col}/>
+                    <RsAv user={r.user} size={34} color={userColor(r.user)}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>
@@ -8318,8 +8367,10 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
 }
 
 function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
-  const [sec,setSec]=useState("overview");
+  const [sec,setSec_raw]=useState("overview");
+  const setSec = (s) => { setSec_raw(s); setMemberSearch(""); };
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
+  const [memberSearch,setMemberSearch]=useState("");
   const [queueStats,setQueueStats]=useState(null);
   const [sysStats,setSysStats]=useState(null);
   const [spaces,setSpaces]=useState([]); const [tags,setTags]=useState([]);
@@ -8846,9 +8897,19 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <div className="fgt" style={{marginBottom:0}}>All members</div>
               <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} onClick={()=>{setNewUser({username:"",email:"",password:"",role:"member",skip_verification:false});setShowCreateUser(true);}}>+ New member</button>
             </div>
+            <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"7px 14px",maxWidth:360}}>
+              <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
+              <input
+                style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}}
+                placeholder="Search by username or email…"
+                value={memberSearch||""}
+                onChange={e=>setMemberSearch(e.target.value)}
+              />
+              {memberSearch&&<button onClick={()=>setMemberSearch("")} style={{background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:0,fontSize:12,lineHeight:1,flexShrink:0}}><i className="fa-solid fa-xmark"/></button>}
+            </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl members-tbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{users.map(u=>(
+                <tbody>{(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
                     <td><select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async e=>{await api.patch(`/admin/users/${u.id}/role`,{role:e.target.value});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></select></td>
@@ -9723,7 +9784,7 @@ function SavedPage({navigate, currentUser}) {
               <div key={`post-${p.id}`} className="thread" style={{position:"relative"}} onClick={()=>navigate("post",{id:p.id})}>
                 <div className="thread-main">
                   <div className="thread-accent" style={{background:col}}/>
-                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
+                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
                   <div className="thread-body">
                     <div className="thread-top">
                       <div className="thread-title">{p.title}</div>
@@ -10454,12 +10515,16 @@ function App() {
   }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
+  const seenPostIds = useRef(new Set());
   const {joinTopic, leaveTopic, sendEvent} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
+      // Deduplicate: the socket may briefly double-fire during token refresh
+      if (seenPostIds.current.has(post.id)) return;
+      seenPostIds.current.add(post.id);
       setLivePosts(p=>[post,...p]);
-      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
+      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,avatarColor:post.user?.avatar_color,avatarUrl:post.user?.avatar_url,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
     },[]),
     useCallback(()=>setNotifCount(c=>c+1),[]),
     useCallback(()=>setMsgCount(c=>c+1),[]),
