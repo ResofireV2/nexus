@@ -103,8 +103,7 @@ mdRenderer.paragraph = function(text) {
       }
     });
     if (embedParts.length > 0) {
-      const textHtml = textParts.filter(p => p.trim()).join('<br>
-');
+      const textHtml = textParts.filter(p => p.trim()).join('<br>\n');
       return (textHtml ? `<p>${textHtml}</p>` : '') + embedParts.join('');
     }
   }
