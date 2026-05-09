@@ -959,6 +959,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-preview{font-size:12px;color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;}
 .av-stack{display:flex;}
 .pav{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:500;color:#fff;margin-right:-6px;flex-shrink:0;}
+.av-tip{position:relative;display:inline-flex;flex-shrink:0;}
+.av-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--s1);color:var(--t1);border:0.5px solid var(--b2);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.25);}
+.av-tip:hover::after{opacity:1;}
 .pav-more{background:rgba(255,255,255,0.08);color:var(--t4);font-size:8px;}
 .part-label{font-size:10px;color:var(--t5);margin-left:14px;}
 .participants-row{display:flex;align-items:center;padding:0 0 11px;}
@@ -3013,17 +3016,21 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         <div className="participants-row">
                           <div className="av-stack">
                             {/* OP avatar */}
-                            {p.user?.avatar_url
-                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1.5px solid var(--bg)`,flexShrink:0}} alt={p.user.username}/>
-                              :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                            <div className="av-tip" data-tip={p.user?.username||""}>
+                              {p.user?.avatar_url
+                                ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1.5px solid var(--bg)",flexShrink:0}} alt={p.user.username}/>
+                                :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                            </div>
                             {/* Recent participant avatars — up to 3, deduplicated against OP */}
                             {(p.recent_users||[])
                               .filter(u=>u.id!==p.user?.id)
                               .slice(0,3)
                               .map(u=>(
-                                u.avatar_url
-                                  ?<img key={u.id} src={u.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1.5px solid var(--bg)",flexShrink:0}} alt={u.username}/>
-                                  :<div key={u.id} className="pav" style={{background:userColor(u)}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>
+                                <div key={u.id} className="av-tip" data-tip={u.username||""}>
+                                  {u.avatar_url
+                                    ?<img src={u.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1.5px solid var(--bg)",flexShrink:0}} alt={u.username}/>
+                                    :<div className="pav" style={{background:userColor(u)}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+                                </div>
                               ))
                             }
                             {/* +N overflow pill */}
