@@ -1340,7 +1340,10 @@ function spaceColor(space) { return space?.color || SPACE_COLORS[(space?.id||0) 
 // Single source of truth for user avatar color.
 // Uses avatar_color stored at registration, falls back to deterministic hash.
 function userColor(user) {
-  return user?.avatar_color || SPACE_COLORS[(user?.id||0) % SPACE_COLORS.length];
+  if(!user) return SPACE_COLORS[0];
+  if(user.avatar_color) return user.avatar_color;
+  const id = user.id ?? user.user_id ?? 0;
+  return SPACE_COLORS[id % SPACE_COLORS.length];
 }
 
 // Rounded-square avatar
