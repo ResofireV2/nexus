@@ -80,8 +80,7 @@ mdRenderer.paragraph = function(text) {
   // Case 2: breaks:true means single-newline lines arrive as <br>-separated chunks.
   // Split on <br> (with optional whitespace/newline) and check each chunk.
   // If a chunk is a bare media URL, replace it with an embed.
-  const BR = /<br\s*\/?>
-?/i;
+  const BR = /<br\s*\/?>\n?/i;
   if (BR.test(text)) {
     const parts = text.split(BR);
     const out = parts.map(part => {
