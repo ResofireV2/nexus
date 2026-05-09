@@ -70,12 +70,21 @@ defmodule Nexus.WebPush do
     # Random salt (16 bytes)
     salt = :crypto.strong_rand_bytes(16)
 
-    # HKDF-SHA-256 to derive pseudorandom key from auth secret
+    # RFC 8291 Section 3.3 — three-step HKDF derivation:
+    #
+    # Step 1: PRK = HKDF-Extract(salt=auth_secret, IKM=shared_secret)
     prk = hkdf_extract(:sha256, auth_secret, shared_secret)
 
-    # RFC 8291 §3.4 context string:
-    # "P-256\0" + uint16_be(len(receiver_pub)) + receiver_pub
-    #           + uint16_be(len(sender_pub))   + sender_pub
+    # Step 2: IKM = HKDF-Expand(PRK, "Content-Encoding: auth\x00", L=32)
+    #         This intermediate expansion properly mixes the auth secret.
+    #         Skipping this step produces wrong keys — the device cannot decrypt.
+    ikm = hkdf_expand(:sha256, prk, "Content-Encoding: auth\0", 32)
+
+    # Step 3: PRK2 = HKDF-Extract(salt=random_16_byte_salt, IKM=ikm)
+    prk2 = hkdf_extract(:sha256, salt, ikm)
+
+    # RFC 8291 Section 3.4 — context string:
+    # "P-256\0" + uint16_be(len(ua_pub)) + ua_pub + uint16_be(len(as_pub)) + as_pub
     len_sub = byte_size(subscriber_pub)
     len_srv = byte_size(server_pub)
 
@@ -86,10 +95,9 @@ defmodule Nexus.WebPush do
     key_info   = "Content-Encoding: aesgcm\0" <> context
     nonce_info = "Content-Encoding: nonce\0"  <> context
 
-    # HKDF-Expand to derive CEK (16 bytes) and nonce (12 bytes) from PRK + salt
-    prk2       = hkdf_extract(:sha256, salt, prk)
-    cek        = hkdf_expand(:sha256, prk2, key_info,   16)
-    nonce      = hkdf_expand(:sha256, prk2, nonce_info, 12)
+    # Step 4: Derive CEK (16 bytes) and nonce (12 bytes)
+    cek   = hkdf_expand(:sha256, prk2, key_info,   16)
+    nonce = hkdf_expand(:sha256, prk2, nonce_info, 12)
 
     # Pad plaintext: 2-byte big-endian padding length (0) + plaintext
     padded = <<0, 0>> <> plaintext
