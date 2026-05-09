@@ -2319,7 +2319,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
                 const col=spaceColor(p.space||{id:p.id});
                 return (
                   <div key={p.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:p.id});}}>
-                    <RsAv user={p.user} size={28} color={userColor(p.user)}/>
+                    <RsAv user={p.user} size={28} color={col}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div className="tb-search-title">{p.title}</div>
                       {p.space&&<div style={{fontSize:10,color:col,marginTop:1}}>{p.space.name}</div>}
@@ -2531,9 +2531,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
           ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
           :liveEvents.slice(0,4).map((e,i)=>(
             <div key={i} className="live-row">
-              {e.avatarUrl
-                ?<img src={e.avatarUrl} className="l-av" style={{objectFit:"cover"}} alt={e.username}/>
-                :<div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>}
+              <div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>
               <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
               <div className="l-ago">{ago(e.at)}</div>
             </div>
@@ -2728,7 +2726,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
+                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
@@ -2742,7 +2740,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="av-stack">
                             {p.user?.avatar_url
                               ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
-                              :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                              :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
@@ -2764,7 +2762,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                             const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
                             return lastUser?.avatar_url
                               ? <img src={lastUser.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={lastUser.username}/>
-                              : <div className="last-av" style={{background:userColor(lastUser)}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
+                              : <div className="last-av" style={{background:col}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
                           })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
@@ -3301,7 +3299,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
-          <RsAv user={post.user} size={56} color={userColor(post.user)}/>
+          <RsAv user={post.user} size={56} color={col}/>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
               <div className="post-title" style={{flex:1}}>{post.title}</div>
@@ -3719,7 +3717,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={p.user} size={34} color={userColor(p.user)}/>
+                    <RsAv user={p.user} size={34} color={col}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title">{p.title}</div>
@@ -3740,7 +3738,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={r.id} className="thread" onClick={()=>navigate("post",{id:r.post_id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={r.user} size={34} color={userColor(r.user)}/>
+                    <RsAv user={r.user} size={34} color={col}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>
@@ -6151,6 +6149,30 @@ const TIMEZONES = [
 
 function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
   const [sendingTest, setSendingTest] = useState(false);
+  const [extSections, setExtSections] = useState([]);
+
+  // Load extension-contributed digest sections from installed extensions
+  useEffect(() => {
+    api.get("/admin/extensions").then(d => {
+      const sections = [];
+      for (const ext of (d.extensions || [])) {
+        const defs = ext.manifest?.digest_sections || [];
+        for (const def of defs) {
+          if (def.key && def.label) {
+            sections.push({
+              id: def.key,
+              label: def.label,
+              icon: def.icon || "fa-puzzle-piece",
+              ext_name: ext.name,
+              ext_slug: ext.slug,
+              include_key: `include_ext_${def.key}`,
+            });
+          }
+        }
+      }
+      setExtSections(sections);
+    }).catch(() => {});
+  }, []);
 
   const cfg = digestCfg;
   const set = (k,v) => setDigestCfg(p=>({...p,[k]:v}));
@@ -6163,7 +6185,16 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
     set("frequencies", next);
   };
 
-  const sectionOrder = cfg.section_order || DIGEST_SECTIONS.map(s=>s.id);
+  // All sections: built-in + extension
+  const allSections = [
+    ...DIGEST_SECTIONS,
+    ...extSections.filter(e => !DIGEST_SECTIONS.find(b => b.id === e.id))
+  ];
+
+  const defaultOrder = allSections.map(s => s.id);
+  const sectionOrder = cfg.section_order
+    ? [...cfg.section_order, ...defaultOrder.filter(id => !cfg.section_order.includes(id))]
+    : defaultOrder;
   const moveSection = (id, dir) => {
     const idx = sectionOrder.indexOf(id);
     if(idx === -1) return;
@@ -6271,14 +6302,15 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
         <div style={{fontSize:12,color:"var(--t4)",marginBottom:16}}>Toggle sections on/off and reorder them with the arrows.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {sectionOrder.map((id,idx)=>{
-            const sec = DIGEST_SECTIONS.find(s=>s.id===id);
+            const sec = allSections.find(s=>s.id===id);
             if(!sec) return null;
-            const includeKey = {leaderboard:"include_leaderboard",badges:"include_badges",members:"include_new_members",spaces:"include_trending_spaces"}[id];
+            const builtInKeys = {leaderboard:"include_leaderboard",badges:"include_badges",members:"include_new_members",spaces:"include_trending_spaces"};
+            const includeKey = builtInKeys[id] || sec.include_key;
             const included = includeKey ? cfg[includeKey]!==false : true;
             return (
               <div key={id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8}}>
                 <i className={`fa-solid ${sec.icon}`} style={{fontSize:13,color:"var(--t4)",width:16,textAlign:"center"}}/>
-                <span style={{flex:1,fontSize:13,color:included?"var(--t2)":"var(--t5)"}}>{sec.label}</span>
+                <span style={{flex:1,fontSize:13,color:included?"var(--t2)":"var(--t5)"}}>{sec.label}{sec.ext_name&&<span style={{fontSize:10,color:"var(--t5)",marginLeft:8,background:"rgba(255,255,255,0.06)",padding:"1px 6px",borderRadius:8}}>{sec.ext_name}</span>}</span>
                 {includeKey&&(
                   <div style={{position:"relative",width:32,height:18,borderRadius:9,background:included?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
                     onClick={()=>set(includeKey,!included)}>
@@ -8124,10 +8156,8 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
 }
 
 function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
-  const [sec,setSec_raw]=useState("overview");
-  const setSec = (s) => { setSec_raw(s); setMemberSearch(""); };
+  const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
-  const [memberSearch,setMemberSearch]=useState("");
   const [queueStats,setQueueStats]=useState(null);
   const [sysStats,setSysStats]=useState(null);
   const [spaces,setSpaces]=useState([]); const [tags,setTags]=useState([]);
@@ -8571,19 +8601,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <div className="fgt" style={{marginBottom:0}}>All members</div>
               <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} onClick={()=>{setNewUser({username:"",email:"",password:"",role:"member",skip_verification:false});setShowCreateUser(true);}}>+ New member</button>
             </div>
-            <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"7px 14px",maxWidth:360}}>
-              <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
-              <input
-                style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}}
-                placeholder="Search by username or email…"
-                value={memberSearch||""}
-                onChange={e=>setMemberSearch(e.target.value)}
-              />
-              {memberSearch&&<button onClick={()=>setMemberSearch("")} style={{background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:0,fontSize:12,lineHeight:1,flexShrink:0}}><i className="fa-solid fa-xmark"/></button>}
-            </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl members-tbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
+                <tbody>{users.map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
                     <td><select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async e=>{await api.patch(`/admin/users/${u.id}/role`,{role:e.target.value});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></select></td>
@@ -9419,7 +9439,7 @@ function SavedPage({navigate, currentUser}) {
               <div key={`post-${p.id}`} className="thread" style={{position:"relative"}} onClick={()=>navigate("post",{id:p.id})}>
                 <div className="thread-main">
                   <div className="thread-accent" style={{background:col}}/>
-                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
+                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
                   <div className="thread-body">
                     <div className="thread-top">
                       <div className="thread-title">{p.title}</div>
@@ -10150,16 +10170,12 @@ function App() {
   }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
-  const seenPostIds = useRef(new Set());
   const {joinTopic, leaveTopic, sendEvent} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
-      // Deduplicate: the socket may briefly double-fire during token refresh
-      if (seenPostIds.current.has(post.id)) return;
-      seenPostIds.current.add(post.id);
       setLivePosts(p=>[post,...p]);
-      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,avatarColor:post.user?.avatar_color,avatarUrl:post.user?.avatar_url,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
+      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
     },[]),
     useCallback(()=>setNotifCount(c=>c+1),[]),
     useCallback(()=>setMsgCount(c=>c+1),[]),

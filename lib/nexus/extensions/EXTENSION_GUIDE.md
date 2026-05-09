@@ -609,3 +609,174 @@ Your extension backend (webhook receiver, API, JS bundle server) can be any lang
 - `GET  /api/*` — any API routes your frontend needs
 
 Use Caddy or nginx to proxy both your service and Nexus behind the same domain. Drop a `Caddyfile` snippet in your extension repo and add `import /opt/my-extension/Caddyfile` to your Nexus `Caddyfile` once. Future extension updates never require touching the Nexus `Caddyfile` again.
+
+---
+
+## Digest email sections
+
+Extensions can contribute sections to Nexus digest emails. When a digest is sent, Nexus calls a webhook on your extension for each section it declares. Your extension queries its own database, builds the response, and Nexus renders it using the native email template — so it looks visually consistent with the built-in sections.
+
+### 1. Declare sections in manifest.json
+
+```json
+{
+  "digest_sections": [
+    {
+      "key": "gamepedia_new_games",
+      "label": "New Games",
+      "icon": "fa-gamepad",
+      "webhook_path": "/digest/new_games",
+      "enabled_by_default": true
+    },
+    {
+      "key": "gamepedia_top_discussed",
+      "label": "Most Discussed Games",
+      "icon": "fa-fire",
+      "webhook_path": "/digest/top_discussed",
+      "enabled_by_default": true
+    }
+  ]
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `key` | ✓ | Unique identifier. Use your extension slug as a prefix (e.g. `gamepedia_new_games`) to avoid collisions. |
+| `label` | ✓ | Section heading shown in the email and admin UI. |
+| `icon` | | FontAwesome icon class for the admin UI (e.g. `fa-gamepad`). |
+| `webhook_path` | ✓ | Path appended to your `webhook_url` base. Must start with `/`. |
+| `enabled_by_default` | | Whether the section is on by default. Admins can toggle it. |
+
+### 2. Handle the webhook
+
+Nexus sends a `POST` request to `{your_webhook_base}{webhook_path}` with:
+
+```json
+{
+  "from": "2026-05-02T00:00:00Z",
+  "to":   "2026-05-09T00:00:00Z",
+  "frequency": "weekly",
+  "period_label": "this week",
+  "extension": "gamepedia",
+  "settings": { }
+}
+```
+
+Use `from` and `to` to scope your queries to the digest period. Your extension responds with:
+
+```json
+{
+  "title": "New Games",
+  "layout": "list",
+  "cta": {
+    "label": "Browse all games",
+    "url": "https://gamepedia.billyrayfoss.com"
+  },
+  "items": [
+    {
+      "label": "Elden Ring",
+      "sublabel": "Action RPG · FromSoftware · 2022",
+      "badge": "NEW",
+      "badge_color": "#34d399",
+      "url": "https://gamepedia.billyrayfoss.com/games/elden-ring"
+    }
+  ]
+}
+```
+
+### 3. Layouts
+
+Choose the layout that best fits your data:
+
+| Layout | Best for | Notes |
+|---|---|---|
+| `list` | Ranked lists of items | Shows a number, label, optional badge and sublabel |
+| `leaderboard` | Top N with a score | Medal icons for top 3, right-aligned `value` field |
+| `stat_bars` | Comparative counts | Horizontal bar scaled to the highest `value` |
+| `pill_grid` | Tags, genres, categories | Wrapping colored pills, good for many small items |
+
+### 4. Item fields
+
+| Field | Used by layouts | Description |
+|---|---|---|
+| `label` | all | Primary text. Required. |
+| `sublabel` | list, leaderboard | Dimmed secondary line below label |
+| `value` | leaderboard, stat_bars | Right-aligned number/text |
+| `badge` | list | Small pill next to the label (e.g. "NEW", "HOT") |
+| `badge_color` | list, stat_bars, pill_grid | Hex color for badge or bar |
+| `url` | all | Makes the label a clickable link |
+
+### 5. Example — Gamepedia new games (Elixir/Phoenix)
+
+```elixir
+# router.ex
+post "/digest/new_games", DigestController, :new_games
+post "/digest/top_discussed", DigestController, :top_discussed
+
+# digest_controller.ex
+def new_games(conn, params) do
+  from_dt = parse_dt(params["from"])
+  to_dt   = parse_dt(params["to"])
+  limit   = 5
+
+  games = Repo.all(
+    from g in Game,
+    where: g.inserted_at >= ^from_dt and g.inserted_at <= ^to_dt,
+    order_by: [desc: g.inserted_at],
+    limit: ^limit
+  )
+
+  items = Enum.map(games, fn g ->
+    %{
+      label:    g.title,
+      sublabel: "#{g.genre} · #{g.developer}",
+      badge:    "NEW",
+      badge_color: "#34d399",
+      url:      "https://gamepedia.billyrayfoss.com/games/#{g.slug}"
+    }
+  end)
+
+  json(conn, %{
+    title:  "New Games",
+    layout: "list",
+    cta:    %{label: "Browse all games", url: "https://gamepedia.billyrayfoss.com"},
+    items:  items
+  })
+end
+
+def top_discussed(conn, params) do
+  from_dt = parse_dt(params["from"])
+
+  games = Repo.all(
+    from g in Game,
+    join: gl in GameLog, on: gl.game_id == g.id,
+    where: gl.inserted_at >= ^from_dt,
+    group_by: [g.id, g.title, g.slug],
+    order_by: [desc: count(gl.id)],
+    limit: 5,
+    select: %{title: g.title, slug: g.slug, log_count: count(gl.id)}
+  )
+
+  items = Enum.map(games, fn g ->
+    %{
+      label:    g.title,
+      value:    "#{g.log_count} logs",
+      url:      "https://gamepedia.billyrayfoss.com/games/#{g.slug}"
+    }
+  end)
+
+  json(conn, %{
+    title:  "Most Discussed Games",
+    layout: "leaderboard",
+    items:  items
+  })
+end
+```
+
+### 6. Admin control
+
+Once installed, each extension section appears in **Admin → Digest → Content sections** alongside the built-in sections. Admins can:
+- Toggle individual extension sections on or off
+- Drag/reorder them relative to built-in sections
+
+If an extension is disabled or uninstalled, its sections are automatically omitted from the digest.

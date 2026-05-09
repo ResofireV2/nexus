@@ -220,7 +220,12 @@ defmodule Nexus.Digest do
     cfg           = settings()
     {from_dt, to_dt} = date_range(frequency)
     limit         = cfg["top_posts_count"] || 5
-    section_order = cfg["section_order"] || ["posts","leaderboard","badges","members","spaces"]
+
+    # Default section order includes built-in sections only.
+    # Extension sections are appended when first installed and can be reordered
+    # by the admin in the digest settings UI.
+    default_order = ["posts","leaderboard","badges","members","spaces"]
+    section_order = cfg["section_order"] || default_order
 
     period_label = case frequency do
       "daily"   -> "today"
@@ -234,13 +239,32 @@ defmodule Nexus.Digest do
       "monthly" -> "monthly"
     end
 
-    sections = %{
+    built_in_sections = %{
       "posts"       => top_posts(from_dt, to_dt, limit),
       "leaderboard" => if(cfg["include_leaderboard"] != false, do: leaderboard_snapshot(lb_period), else: nil),
       "badges"      => if(cfg["include_badges"]      != false, do: badge_highlights(from_dt, to_dt), else: nil),
       "members"     => if(cfg["include_new_members"] != false, do: new_members(from_dt, to_dt), else: nil),
       "spaces"      => if(cfg["include_trending_spaces"] != false, do: trending_spaces(from_dt, to_dt), else: nil)
     }
+
+    # Collect sections from installed extensions that declare digest_sections.
+    # Each extension webhook is called synchronously (with a short timeout)
+    # and its response is merged into the sections map.
+    extension_sections = collect_extension_sections(frequency, %{
+      from: DateTime.to_iso8601(from_dt),
+      to:   DateTime.to_iso8601(to_dt),
+      frequency: frequency,
+      period_label: period_label
+    })
+
+    # Merge: built-in wins on key collision (extensions cannot override core sections)
+    sections = Map.merge(extension_sections, built_in_sections)
+
+    # Ensure any newly-seen extension section keys are appended to the order
+    # (so they appear in the email even before the admin explicitly reorders them)
+    known_keys = MapSet.new(section_order)
+    new_keys   = extension_sections |> Map.keys() |> Enum.reject(&MapSet.member?(known_keys, &1))
+    section_order = section_order ++ new_keys
 
     %{
       frequency:     frequency,
@@ -250,6 +274,140 @@ defmodule Nexus.Digest do
       section_order: section_order,
       sections:      sections
     }
+  end
+
+  # ---------------------------------------------------------------------------
+  # Extension section collection
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Queries all enabled installed extensions for digest content.
+
+  An extension opts in by declaring a `digest_sections` array in its manifest:
+
+      "digest_sections": [
+        {
+          "key": "gamepedia_new_games",
+          "label": "New Games",
+          "icon": "fa-gamepad",
+          "webhook_path": "/digest/new_games",
+          "enabled_by_default": true
+        }
+      ]
+
+  Nexus calls `POST {webhook_url_base}{webhook_path}` with a JSON body:
+
+      {
+        "from": "2026-05-02T00:00:00Z",
+        "to":   "2026-05-09T00:00:00Z",
+        "frequency": "weekly",
+        "period_label": "this week"
+      }
+
+  The extension must respond with a JSON body matching the digest section schema:
+
+      {
+        "title":  "New Games",
+        "layout": "list",          // "list" | "stat_bars" | "leaderboard" | "pill_grid"
+        "cta": {                   // optional
+          "label": "Browse all games",
+          "url":   "https://gamepedia.example.com"
+        },
+        "items": [
+          {
+            "label":       "Elden Ring",
+            "sublabel":    "Action RPG · FromSoftware",
+            "badge":       "NEW",          // optional pill text
+            "badge_color": "#34d399",      // optional
+            "value":       "1,204",        // optional — shown right-aligned (leaderboard/stat_bars)
+            "url":         "https://..."   // optional — makes label a link
+          }
+        ]
+      }
+
+  If the request fails or times out, the section is silently omitted.
+  """
+  def collect_extension_sections(frequency, context) do
+    import Ecto.Query
+
+    # Load all enabled extensions that have digest_sections in their manifest
+    extensions =
+      Repo.all(
+        from e in Nexus.Extensions.Extension,
+        where: e.enabled == true and not is_nil(e.webhook_url)
+      )
+
+    cfg = settings()
+
+    Enum.reduce(extensions, %{}, fn ext, acc ->
+      digest_sections = get_in(ext.manifest, ["digest_sections"]) || []
+
+      Enum.reduce(digest_sections, acc, fn section_def, inner_acc ->
+        key          = section_def["key"]
+        webhook_path = section_def["webhook_path"]
+
+        # Skip if key or webhook_path missing
+        if is_nil(key) or is_nil(webhook_path), do: inner_acc, else:
+
+        # Skip if admin has explicitly disabled this extension section
+        include_key = "include_ext_#{key}"
+        if cfg[include_key] == false, do: inner_acc, else:
+
+        # Build the full webhook URL for this section
+        base_url = ext.webhook_url |> String.replace(~r|/[^/]+$|, "") |> String.trim_trailing("/")
+        # If webhook_url already looks like a base (no path after host), use it directly
+        full_url =
+          if String.match?(webhook_path, ~r|^https?://|) do
+            webhook_path
+          else
+            base = ext.webhook_url |> URI.parse() |> then(fn u -> "#{u.scheme}://#{u.host}#{if u.port && u.port not in [80,443], do: ":#{u.port}", else: ""}" end)
+            base <> webhook_path
+          end
+
+        body = Jason.encode!(Map.merge(context, %{settings: ext.settings, extension: ext.slug}))
+
+        case Req.post(full_url,
+               body: body,
+               headers: [{"Content-Type", "application/json"}, {"X-Nexus-Event", "digest_section"}],
+               receive_timeout: 8_000) do
+          {:ok, %{status: status, body: resp_body}} when status in 200..299 ->
+            parsed =
+              cond do
+                is_map(resp_body) -> {:ok, resp_body}
+                is_binary(resp_body) ->
+                  case Jason.decode(resp_body) do
+                    {:ok, m} -> {:ok, m}
+                    _ -> {:error, :bad_json}
+                  end
+                true -> {:error, :bad_response}
+              end
+
+            case parsed do
+              {:ok, section_data} when is_map(section_data) ->
+                # Validate the minimum required fields
+                if Map.has_key?(section_data, "title") and Map.has_key?(section_data, "items") do
+                  Map.put(inner_acc, key, Map.put(section_data, "_ext_slug", ext.slug))
+                else
+                  require Logger
+                  Logger.warning("Digest section #{key} from #{ext.slug} missing title or items")
+                  inner_acc
+                end
+              _ ->
+                inner_acc
+            end
+
+          {:ok, %{status: status}} ->
+            require Logger
+            Logger.warning("Digest section #{key} from #{ext.slug} returned HTTP #{status}")
+            inner_acc
+
+          {:error, reason} ->
+            require Logger
+            Logger.warning("Digest section #{key} from #{ext.slug} failed: #{inspect(reason)}")
+            inner_acc
+        end
+      end)
+    end)
   end
 
   # ---------------------------------------------------------------------------

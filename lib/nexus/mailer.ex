@@ -467,6 +467,146 @@ defmodule Nexus.Mailer do
     """
   end
 
+  # ---------------------------------------------------------------------------
+  # Generic extension section renderer
+  # Handles any section whose data map includes a "title" and "items" list.
+  # Layout is controlled by the "layout" field in the section data:
+  #   "list"        - numbered rows (default)
+  #   "leaderboard" - rows with right-aligned value
+  #   "stat_bars"   - horizontal bar chart rows
+  #   "pill_grid"   - wrapping pill chips
+  # ---------------------------------------------------------------------------
+
+  defp render_digest_section(_key, %{"title" => title, "items" => items} = data, _url, _site_name)
+       when is_list(items) and items != [] do
+    layout = Map.get(data, "layout", "list")
+    cta    = Map.get(data, "cta")
+
+    rows_html = case layout do
+      "leaderboard" ->
+        items
+        |> Enum.with_index(1)
+        |> Enum.map(fn {item, i} ->
+          label    = Map.get(item, "label", "")
+          sublabel = Map.get(item, "sublabel")
+          value    = Map.get(item, "value", "")
+          url      = Map.get(item, "url")
+          medals   = ["🥇", "🥈", "🥉"]
+          medal    = if i <= 3, do: Enum.at(medals, i - 1), else: "#{i}."
+          label_html = if url, do: ~s(<a href="#{url}" style="color:#f0eeff;text-decoration:none;">#{label}</a>), else: label
+          sub_html   = if sublabel, do: ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;">#{sublabel}</div>), else: ""
+          """
+          <tr>
+            <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+              <table cellpadding="0" cellspacing="0" width="100%"><tr>
+                <td style="width:28px;font-size:16px;">#{medal}</td>
+                <td><span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:500;">#{label_html}</span>#{sub_html}</td>
+                <td style="text-align:right;font-size:13px;color:#a78bfa;font-weight:500;white-space:nowrap;">#{value}</td>
+              </tr></table>
+            </td>
+          </tr>
+          """
+        end)
+        |> Enum.join()
+        |> then(&~s(<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>))
+
+      "stat_bars" ->
+        max_val =
+          items
+          |> Enum.map(fn item ->
+            case Integer.parse(to_string(Map.get(item, "value", "0") |> to_string() |> String.replace(",", ""))) do
+              {n, _} -> n
+              :error  -> 0
+            end
+          end)
+          |> Enum.max(fn -> 1 end)
+          |> max(1)
+
+        items
+        |> Enum.map(fn item ->
+          label   = Map.get(item, "label", "")
+          value   = Map.get(item, "value", "")
+          color   = Map.get(item, "badge_color", "#a78bfa")
+          raw_val = case Integer.parse(to_string(value) |> String.replace(",", "")) do
+            {n, _} -> n
+            :error  -> 0
+          end
+          pct = max(4, round(raw_val / max_val * 100))
+          """
+          <tr>
+            <td style="padding:6px 0;">
+              <table cellpadding="0" cellspacing="0" width="100%"><tr>
+                <td style="width:110px;font-size:12px;color:rgba(255,255,255,0.5);">#{label}</td>
+                <td>
+                  <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);">
+                    <div style="height:4px;border-radius:2px;background:#{color};width:#{pct}%;"></div>
+                  </div>
+                </td>
+                <td style="width:40px;text-align:right;font-size:11px;color:#{color};padding-left:8px;">#{value}</td>
+              </tr></table>
+            </td>
+          </tr>
+          """
+        end)
+        |> Enum.join()
+        |> then(&~s(<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>))
+
+      "pill_grid" ->
+        pills =
+          items
+          |> Enum.map(fn item ->
+            label = Map.get(item, "label", "")
+            color = Map.get(item, "badge_color", "#a78bfa")
+            url   = Map.get(item, "url")
+            inner = if url, do: ~s(<a href="#{url}" style="color:#{color};text-decoration:none;">#{label}</a>), else: label
+            ~s(<span style="display:inline-block;padding:4px 12px;border-radius:20px;background:#{color}22;color:#{color};font-size:12px;font-weight:500;margin:3px;">#{inner}</span>)
+          end)
+          |> Enum.join(" ")
+        ~s(<div style="margin-bottom:24px;line-height:2;">#{pills}</div>)
+
+      _ ->
+        # Default: "list" layout — numbered rows
+        items
+        |> Enum.with_index(1)
+        |> Enum.map(fn {item, i} ->
+          label    = Map.get(item, "label", "")
+          sublabel = Map.get(item, "sublabel")
+          badge    = Map.get(item, "badge")
+          badge_color = Map.get(item, "badge_color", "#a78bfa")
+          url      = Map.get(item, "url")
+          label_html = if url, do: ~s(<a href="#{url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;">#{label}</a>), else: ~s(<span style="font-size:14px;font-weight:500;color:#f0eeff;">#{label}</span>)
+          badge_html = if badge, do: ~s( <span style="display:inline-block;padding:2px 7px;border-radius:10px;background:#{badge_color}22;color:#{badge_color};font-size:10px;font-weight:600;vertical-align:middle;margin-left:6px;">#{badge}</span>), else: ""
+          sub_html   = if sublabel, do: ~s(<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px;">#{sublabel}</div>), else: ""
+          """
+          <tr>
+            <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+              <table cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{i}.</td>
+                  <td>#{label_html}#{badge_html}#{sub_html}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          """
+        end)
+        |> Enum.join()
+        |> then(&~s(<table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{&1}</table>))
+    end
+
+    cta_html =
+      if cta && is_map(cta) && cta["url"] && cta["label"] do
+        ~s(<p style="margin:0 0 16px;"><a href="#{cta["url"]}" style="font-size:12px;color:#a78bfa;text-decoration:none;">#{cta["label"]} →</a></p>)
+      else
+        ""
+      end
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">#{title}</p>
+    #{rows_html}#{cta_html}#{divider()}
+    """
+  end
+
   # Fallback for empty/nil sections
   defp render_digest_section(_key, _data, _url, _site_name), do: ""
 
@@ -500,6 +640,15 @@ defmodule Nexus.Mailer do
         {"spaces", spaces} when is_list(spaces) and spaces != [] ->
           space_lines = Enum.map(spaces, fn s -> "#{s.name}: #{s.post_count} posts" end)
           ["TRENDING SPACES", ""] ++ space_lines ++ [""]
+        {_key, %{"title" => title, "items" => items}} when is_list(items) and items != [] ->
+          item_lines = Enum.with_index(items, 1) |> Enum.map(fn {item, i} ->
+            label    = Map.get(item, "label", "")
+            sublabel = Map.get(item, "sublabel")
+            value    = Map.get(item, "value")
+            suffix   = [sublabel, value] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
+            if suffix != "", do: "#{i}. #{label} — #{suffix}", else: "#{i}. #{label}"
+          end)
+          [String.upcase(title), ""] ++ item_lines ++ [""]
         _ -> []
       end
     end)
