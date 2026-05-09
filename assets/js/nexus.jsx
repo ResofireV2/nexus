@@ -3012,10 +3012,24 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
+                            {/* OP avatar */}
                             {p.user?.avatar_url
-                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
+                              ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1.5px solid var(--bg)`,flexShrink:0}} alt={p.user.username}/>
                               :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
-                            {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
+                            {/* Recent participant avatars — up to 3, deduplicated against OP */}
+                            {(p.recent_users||[])
+                              .filter(u=>u.id!==p.user?.id)
+                              .slice(0,3)
+                              .map(u=>(
+                                u.avatar_url
+                                  ?<img key={u.id} src={u.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1.5px solid var(--bg)",flexShrink:0}} alt={u.username}/>
+                                  :<div key={u.id} className="pav" style={{background:userColor(u)}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>
+                              ))
+                            }
+                            {/* +N overflow pill */}
+                            {p.reply_count>(1+(p.recent_users||[]).filter(u=>u.id!==p.user?.id).length)&&(
+                              <div className="pav pav-more">+{Math.min(p.reply_count-1,9)}</div>
+                            )}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
                         </div>

@@ -281,7 +281,7 @@ defmodule Nexus.Forum do
   def add_reaction(user_id, attrs) do
     post_id  = attrs["post_id"]
     reply_id = attrs["reply_id"]
-    _new_emoji = attrs["emoji"]
+    new_emoji = attrs["emoji"]
 
     # Remove any existing reaction from this user on this post/reply first
     existing_query =
@@ -622,6 +622,56 @@ defmodule Nexus.Forum do
   Returns a map of %{post_id => user} for the most recent non-hidden reply
   on each of the given post IDs. Fetched in a single query.
   """
+  @doc """
+  Returns a map of %{post_id => [user, ...]} with up to 4 unique recent
+  participants (repliers) per post, ordered most-recent first.
+  The post author is NOT included — they are already shown separately.
+  Fetched in a single query.
+  """
+  def recent_participant_users(post_ids) when post_ids == [], do: %{}
+  def recent_participant_users(post_ids) do
+    # Rank unique (post_id, user_id) pairs by most recent reply
+    ranked =
+      from r in Reply,
+        where: r.post_id in ^post_ids and r.hidden == false and r.pending_approval == false,
+        select: %{
+          post_id: r.post_id,
+          user_id: r.user_id,
+          row_num: fragment(
+            "ROW_NUMBER() OVER (PARTITION BY ?, ? ORDER BY ? DESC)",
+            r.post_id, r.user_id, r.inserted_at
+          )
+        }
+
+    # Keep only the latest reply per (post, user) pair, then rank across the post
+    deduped =
+      from(sub in subquery(ranked),
+        where: sub.row_num == 1,
+        select: %{
+          post_id: sub.post_id,
+          user_id: sub.user_id,
+          rank: fragment(
+            "ROW_NUMBER() OVER (PARTITION BY ? ORDER BY ? DESC)",
+            sub.post_id, sub.row_num
+          )
+        }
+      )
+
+    results =
+      from(d in subquery(deduped),
+        where: d.rank <= 4,
+        join: u in Nexus.Accounts.User, on: u.id == d.user_id,
+        order_by: [asc: d.post_id, asc: d.rank],
+        select: {d.post_id, %{id: u.id, username: u.username, avatar_url: u.avatar_url, avatar_color: u.avatar_color}}
+      )
+      |> Repo.all()
+
+    # Group into %{post_id => [user, ...]}
+    Enum.reduce(results, %{}, fn {post_id, user}, acc ->
+      Map.update(acc, post_id, [user], &(&1 ++ [user]))
+    end)
+  end
+
   def last_reply_users(post_ids) when post_ids == [], do: %{}
   def last_reply_users(post_ids) do
     # Rank replies per post by inserted_at DESC, then keep rank = 1

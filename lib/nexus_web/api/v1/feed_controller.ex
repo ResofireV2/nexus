@@ -21,8 +21,7 @@ defmodule NexusWeb.API.V1.FeedController do
 
     %{posts: posts, next_cursor: next_cursor} = Forum.list_feed(opts)
 
-    # Fetch last replier for all posts in one extra query — wrapped defensively
-    # so a missing function or DB error never breaks the feed.
+    # Fetch last replier and recent participants for all posts in one pass.
     post_ids = Enum.map(posts, & &1.id)
     last_reply_map =
       try do
@@ -31,8 +30,15 @@ defmodule NexusWeb.API.V1.FeedController do
         _ -> %{}
       end
 
+    recent_users_map =
+      try do
+        Forum.recent_participant_users(post_ids)
+      rescue
+        _ -> %{}
+      end
+
     json(conn, %{
-      posts: Enum.map(posts, &post_json(&1, last_reply_map)),
+      posts: Enum.map(posts, &post_json(&1, last_reply_map, recent_users_map)),
       next_cursor: next_cursor
     })
     end
@@ -56,7 +62,8 @@ defmodule NexusWeb.API.V1.FeedController do
   end
 
 
-  defp post_json(post, last_reply_map \\ %{}) do
+  defp post_json(post, last_reply_map \\ %{}, recent_users_map \\ %{}) do
+    recent_users = Map.get(recent_users_map, post.id, [])
     %{
       id: post.id,
       title: post.title,
@@ -71,7 +78,8 @@ defmodule NexusWeb.API.V1.FeedController do
       space: space_json(post.space),
       tags: Enum.map(post.tags, &tag_json/1),
       user: user_json(post.user),
-      last_reply_user: user_json(Map.get(last_reply_map, post.id))
+      last_reply_user: user_json(Map.get(last_reply_map, post.id)),
+      recent_users: Enum.map(recent_users, &user_json/1)
     }
   end
 
