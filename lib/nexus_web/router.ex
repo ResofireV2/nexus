@@ -148,6 +148,8 @@ defmodule NexusWeb.Router do
     # Push subscriptions
     post   "/push/subscribe",   PushController, :subscribe
     delete "/push/subscribe",   PushController, :unsubscribe
+    get    "/push/subscriptions", PushController, :list_subscriptions
+    delete "/push/subscriptions/:id", PushController, :revoke_subscription
 
     # Notifications
     get  "/notifications",          NotificationController, :index
@@ -276,6 +278,7 @@ defmodule NexusWeb.Router do
     delete "/pwa/icons",               PwaController,    :delete_icons
     post   "/pwa/badge",               PwaController,    :upload_badge
     delete "/pwa/badge",               PwaController,    :delete_badge
+    get    "/push-subscriptions",      AdminController,  :push_subscriptions
 
     # Updates
     get    "/updates/check",           AdminController,  :check_update

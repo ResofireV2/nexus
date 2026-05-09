@@ -8927,21 +8927,22 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   const [pushLoading, setPushLoading]       = useState(false);
   const [pushError, setPushError]           = useState(null);
   const [vapidReady, setVapidReady]         = useState(false);
+  const [pushSubs, setPushSubs]             = useState([]);
   const pushSupported = "serviceWorker" in navigator && "PushManager" in window;
 
   // Check VAPID config and current subscription state on mount
   useEffect(()=>{
     if(!pushSupported) return;
-    // Check if VAPID is configured
     fetch("/api/v1/pwa/vapid-public-key")
       .then(r=>r.ok?r.json():null)
       .then(d=>{ if(d?.public_key) setVapidReady(true); })
       .catch(()=>{});
-    // Check if we have an active SW registration + subscription
     navigator.serviceWorker.ready.then(reg=>
       reg.pushManager.getSubscription()
-    ).then(sub=>{
-      setPushSubscribed(!!sub);
+    ).then(sub=>{ setPushSubscribed(!!sub); }).catch(()=>{});
+    // Load all subscriptions for this user
+    api.get("/push/subscriptions").then(d=>{
+      if(d.subscriptions) setPushSubs(d.subscriptions);
     }).catch(()=>{});
   },[pushSupported]);
 
@@ -8980,7 +8981,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
       console.log("subscribePush: server response", d);
       if(d.ok) {
         setPushSubscribed(true);
-        // Enable push for all notification types by default
+        api.get("/push/subscriptions").then(d=>{ if(d.subscriptions) setPushSubs(d.subscriptions); }).catch(()=>{});
         setNotifPrefs(p=>{
           const next={...p};
           Object.keys(next).forEach(k=>{ next[k]={...next[k],push:true}; });
@@ -9206,6 +9207,51 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
               <div style={{display:"flex",justifyContent:"flex-end"}}>
                 <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}} onClick={saveNotifPrefs} disabled={notifSaving}>{notifSaving?"Saving…":"Save preferences"}</button>
               </div>
+
+              {/* Active push subscriptions — device list */}
+              {pushSubs.length>0&&(
+                <div style={{marginTop:20,paddingTop:20,borderTop:"0.5px solid var(--b1)"}}>
+                  <div style={{fontSize:14,fontWeight:500,color:"var(--t1)",marginBottom:4}}>Subscribed devices</div>
+                  <div style={{fontSize:12,color:"var(--t4)",marginBottom:14}}>
+                    {pushSubs.length} device{pushSubs.length!==1?"s":""} subscribed. Revoke a device to stop push notifications on it.
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {pushSubs.map(sub=>{
+                      const ep = sub.endpoint||"";
+                      const isApple = ep.includes("push.apple.com");
+                      const isMozilla = ep.includes("mozilla.com")||ep.includes("mozaws.net");
+                      const isWindows = ep.includes("windows.com");
+                      const label = isApple?"iPhone · Safari" : isMozilla?"Firefox" : isWindows?"Windows · Edge" : "Chrome";
+                      const icon = isApple?"fa-brands fa-apple" : isMozilla?"fa-brands fa-firefox-browser" : isWindows?"fa-brands fa-windows" : "fa-brands fa-chrome";
+                      const host = ep.includes("googleapis")||ep.includes("fcm")?"fcm.googleapis.com" : isApple?"web.push.apple.com" : isMozilla?"updates.push.mozilla.com" : "push service";
+                      const isCurrentDevice = pushSubscribed && sub === pushSubs[pushSubs.length-1];
+                      const timeAgo = sub.inserted_at ? ago(sub.inserted_at) : "";
+                      return (
+                        <div key={sub.id} style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"11px 14px",display:"flex",alignItems:"center",gap:12}}>
+                          <div style={{width:36,height:36,borderRadius:9,background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                            <i className={icon} style={{fontSize:16,color:"var(--t4)"}}/>
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{label}</div>
+                            <div style={{fontSize:11,color:"var(--t5)"}}>{host} · {timeAgo}</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                            {isCurrentDevice&&<span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:"rgba(52,211,153,0.1)",color:"var(--green)"}}>this device</span>}
+                            <button className="btn-ghost" style={{fontSize:12,padding:"4px 12px",color:"var(--red)"}}
+                              onClick={async()=>{
+                                await api.delete(`/push/subscriptions/${sub.id}`);
+                                setPushSubs(p=>p.filter(s=>s.id!==sub.id));
+                                if(isCurrentDevice){ setPushSubscribed(false); }
+                              }}>
+                              Revoke
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Following */}
