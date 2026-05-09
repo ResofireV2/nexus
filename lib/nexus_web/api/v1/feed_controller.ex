@@ -21,9 +21,15 @@ defmodule NexusWeb.API.V1.FeedController do
 
     %{posts: posts, next_cursor: next_cursor} = Forum.list_feed(opts)
 
-    # Fetch last replier for all posts in one extra query
-    post_ids       = Enum.map(posts, & &1.id)
-    last_reply_map = Forum.last_reply_users(post_ids)
+    # Fetch last replier for all posts in one extra query — wrapped defensively
+    # so a missing function or DB error never breaks the feed.
+    post_ids = Enum.map(posts, & &1.id)
+    last_reply_map =
+      try do
+        Forum.last_reply_users(post_ids)
+      rescue
+        _ -> %{}
+      end
 
     json(conn, %{
       posts: Enum.map(posts, &post_json(&1, last_reply_map)),

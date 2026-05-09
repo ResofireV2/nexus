@@ -641,7 +641,7 @@ defmodule Nexus.Forum do
       from(sub in subquery(ranked),
         where: sub.row_num == 1,
         join: u in Nexus.Accounts.User, on: u.id == sub.user_id,
-        select: {sub.post_id, %{id: u.id, username: u.username, avatar_url: u.avatar_url}}
+        select: {sub.post_id, %{id: u.id, username: u.username, avatar_url: u.avatar_url, avatar_color: u.avatar_color}}
       )
       |> Repo.all()
 
