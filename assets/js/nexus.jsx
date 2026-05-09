@@ -2319,7 +2319,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
                 const col=spaceColor(p.space||{id:p.id});
                 return (
                   <div key={p.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:p.id});}}>
-                    <RsAv user={p.user} size={28} color={col}/>
+                    <RsAv user={p.user} size={28} color={userColor(p.user)}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div className="tb-search-title">{p.title}</div>
                       {p.space&&<div style={{fontSize:10,color:col,marginTop:1}}>{p.space.name}</div>}
@@ -3301,7 +3301,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
-          <RsAv user={post.user} size={56} color={col}/>
+          <RsAv user={post.user} size={56} color={userColor(post.user)}/>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
               <div className="post-title" style={{flex:1}}>{post.title}</div>
@@ -3719,7 +3719,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={p.user} size={34} color={col}/>
+                    <RsAv user={p.user} size={34} color={userColor(p.user)}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title">{p.title}</div>
@@ -3740,7 +3740,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={r.id} className="thread" onClick={()=>navigate("post",{id:r.post_id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={r.user} size={34} color={col}/>
+                    <RsAv user={r.user} size={34} color={userColor(r.user)}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>
@@ -9407,7 +9407,7 @@ function SavedPage({navigate, currentUser}) {
               <div key={`post-${p.id}`} className="thread" style={{position:"relative"}} onClick={()=>navigate("post",{id:p.id})}>
                 <div className="thread-main">
                   <div className="thread-accent" style={{background:col}}/>
-                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
+                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
                   <div className="thread-body">
                     <div className="thread-top">
                       <div className="thread-title">{p.title}</div>
