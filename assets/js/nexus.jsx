@@ -5858,20 +5858,14 @@ function LeaderboardPage({currentUser, navigate}) {
     : top3;
 
   const podiumStyle = {
-    1: {avSize:72, avRadius:20, fontSize:20, blockH:72, blockBg:"rgba(251,191,36,0.12)", blockBorder:"rgba(251,191,36,0.2)", scoreColor:"#fbbf24", badgeColor:"#fbbf24", badgeBg:"rgba(251,191,36,0.15)"},
-    2: {avSize:58, avRadius:16, fontSize:16, blockH:52, blockBg:"rgba(176,184,200,0.08)", blockBorder:"rgba(176,184,200,0.15)", scoreColor:"#b0b8c8", badgeColor:"#b0b8c8", badgeBg:"rgba(176,184,200,0.12)"},
-    3: {avSize:52, avRadius:14, fontSize:14, blockH:36, blockBg:"rgba(200,121,65,0.08)", blockBorder:"rgba(200,121,65,0.15)", scoreColor:"#c87941", badgeColor:"#c87941", badgeBg:"rgba(200,121,65,0.12)"},
+    1: {avSize:72, blockH:72, blockBg:"rgba(251,191,36,0.12)", blockBorder:"rgba(251,191,36,0.2)", scoreColor:"#fbbf24"},
+    2: {avSize:58, blockH:52, blockBg:"rgba(176,184,200,0.08)", blockBorder:"rgba(176,184,200,0.15)", scoreColor:"#b0b8c8"},
+    3: {avSize:52, blockH:36, blockBg:"rgba(200,121,65,0.08)", blockBorder:"rgba(200,121,65,0.15)", scoreColor:"#c87941"},
   };
   const rankBadgeStyle = {
     1:{bg:"#fbbf24",color:"#412402"},
     2:{bg:"#b0b8c8",color:"#1a1e2a"},
     3:{bg:"#c87941",color:"#fff"},
-  };
-
-  const Av = ({user, size, radius, fontSize}) => {
-    const col = userColor(user);
-    if(user.avatar_url) return <img src={user.avatar_url} style={{width:size,height:size,borderRadius:radius,objectFit:"cover",display:"block"}} alt={user.username}/>;
-    return <div style={{width:size,height:size,borderRadius:radius,background:`${col}33`,color:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize,fontWeight:600}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>;
   };
 
   const periodLabels = [{id:"week",label:"This week"},{id:"month",label:"This month"},{id:"all",label:"All time"}];
@@ -5911,7 +5905,7 @@ function LeaderboardPage({currentUser, navigate}) {
                   <div key={u.user_id} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,maxWidth:160,cursor:"pointer"}} onClick={()=>navigate("profile",{username:u.username})}>
                     <div style={{position:"relative",marginBottom:10}}>
                       {rank===1 && <div style={{position:"absolute",top:-16,left:"50%",transform:"translateX(-50%)",fontSize:20,lineHeight:1}}>👑</div>}
-                      <Av user={u} size={ps.avSize} radius={ps.avRadius} fontSize={ps.fontSize}/>
+                      <RsAv user={u} size={ps.avSize} noCard={true}/>
                       <div style={{position:"absolute",bottom:-6,right:-6,width:20,height:20,borderRadius:"50%",background:rbs.bg,color:rbs.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600,border:"2px solid var(--bg)"}}>{rank}</div>
                     </div>
                     <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:2,textAlign:"center"}}>{u.username}</div>
