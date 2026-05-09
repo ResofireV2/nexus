@@ -103,9 +103,64 @@ defmodule Nexus.Moderation do
   # ---------------------------------------------------------------------------
 
   def create_report(attrs) do
-    %Report{}
-    |> Report.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %Report{}
+      |> Report.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, report} ->
+        mod_cfg = Nexus.Admin.get_setting("moderation") || %{}
+
+        # ── Auto-hide on threshold ────────────────────────────────────────
+        if mod_cfg["auto_hide_reported"] do
+          report_count =
+            Nexus.Repo.aggregate(
+              from(r in Report,
+                where: r.status == "pending",
+                where: (not is_nil(r.post_id) and r.post_id == ^report.post_id) or
+                       (not is_nil(r.reply_id) and r.reply_id == ^report.reply_id)
+              ),
+              :count
+            )
+
+          threshold = mod_cfg["auto_hide_threshold"] || 3
+
+          if report_count >= threshold do
+            cond do
+              not is_nil(report.post_id) ->
+                Nexus.Repo.update_all(
+                  from(p in Nexus.Forum.Post, where: p.id == ^report.post_id),
+                  set: [hidden: true, hidden_at: DateTime.utc_now() |> DateTime.truncate(:second)]
+                )
+              not is_nil(report.reply_id) ->
+                Nexus.Repo.update_all(
+                  from(r in Nexus.Forum.Reply, where: r.id == ^report.reply_id),
+                  set: [hidden: true]
+                )
+              true -> :ok
+            end
+          end
+        end
+
+        # ── Notify moderators by email ────────────────────────────────────
+        if mod_cfg["notify_mods_reports"] do
+          Task.start(fn ->
+            mods = Nexus.Repo.all(
+              from u in Nexus.Accounts.User,
+                where: u.role in ["admin", "moderator"] and u.status == "active",
+                select: u
+            )
+            Enum.each(mods, fn mod ->
+              Nexus.Mailer.send_mod_report_email(mod, report)
+            end)
+          end)
+        end
+
+        {:ok, report}
+
+      err -> err
+    end
   end
 
   def list_reports(opts \\ []) do
