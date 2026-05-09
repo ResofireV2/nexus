@@ -828,6 +828,12 @@ S.textContent = `
 [data-theme="light"] select{background:rgba(0,0,0,0.04);color:var(--t1);border-color:rgba(26,20,80,0.12);}
 [data-theme="light"] select option{background:#fff;color:var(--t1);}
 [data-theme="light"] .av-dd-item:hover{background:rgba(0,0,0,0.05);color:var(--t1);}
+[data-theme="light"] .theirs .bubble{background:rgba(26,20,80,0.07);color:var(--t2);border-color:var(--b2);}
+[data-theme="light"] .profile-cover-edit{background:rgba(255,255,255,0.75);color:var(--t2);border-color:rgba(26,20,80,0.15);}
+[data-theme="light"] .profile-cover-expand{background:rgba(255,255,255,0.75);color:var(--t2);border-color:rgba(26,20,80,0.15);}
+[data-theme="light"] .profile-cover-expand:hover{color:var(--t1);}
+[data-theme="light"] .ucard-stat-n{color:var(--t1);}
+[data-theme="light"] .ucard-stat-l{color:var(--t4);}
 html,body{background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,sans-serif;font-size:13px;line-height:1.5;min-height:100vh;}
 #root{min-height:100vh;display:flex;flex-direction:column;}
 ::-webkit-scrollbar{width:3px;}
@@ -1491,7 +1497,7 @@ function UserCardPopover({card, setCard, currentUser, navigate}) {
 
   const u = card.user;
   const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
-  const ROLE_BG = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
+  const ROLE_BG = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"var(--s3)"};
 
   const startDM = async () => {
     setCard(null);
@@ -6174,7 +6180,7 @@ function LeaderboardPage({currentUser, navigate}) {
           <div style={{display:"flex",gap:4}}>
             {periodLabels.map(p=>(
               <button key={p.id} onClick={()=>setPeriod(p.id)}
-                style={{fontSize:11,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${period===p.id?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.1)"}`,background:period===p.id?"rgba(167,139,250,0.1)":"transparent",color:period===p.id?"#c4b5fd":"rgba(255,255,255,0.3)",cursor:"pointer",fontFamily:"inherit"}}>
+                style={{fontSize:11,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${period===p.id?"rgba(167,139,250,0.3)":"var(--b2)"}`,background:period===p.id?"rgba(167,139,250,0.1)":"transparent",color:period===p.id?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
                 {p.label}
               </button>
             ))}
@@ -6203,7 +6209,7 @@ function LeaderboardPage({currentUser, navigate}) {
                     <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:2,textAlign:"center"}}>{u.username}</div>
                     <div style={{fontSize:11,color:"var(--t5)",marginBottom:8,textAlign:"center"}}>@{u.username}</div>
                     <div style={{fontSize:18,fontWeight:600,letterSpacing:-0.5,color:ps.scoreColor,textAlign:"center",marginBottom:2}}>{Number(u.score).toLocaleString()}</div>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",marginBottom:10,textAlign:"center"}}>{pointsName}</div>
+                    <div style={{fontSize:10,color:"var(--t5)",marginBottom:10,textAlign:"center"}}>{pointsName}</div>
                     <div style={{height:ps.blockH,width:"100%",background:ps.blockBg,border:`0.5px solid ${ps.blockBorder}`,borderRadius:"12px 12px 0 0"}}/>
                   </div>
                 );
@@ -6216,19 +6222,19 @@ function LeaderboardPage({currentUser, navigate}) {
             <div style={{background:"rgba(167,139,250,0.07)",border:"0.5px solid rgba(167,139,250,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
               <RsAv user={currentUser} size={36} noCard={true}/>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:2}}>your ranking — {periodLabels.find(p=>p.id===period)?.label?.toLowerCase()}</div>
+                <div style={{fontSize:11,color:"var(--t5)",marginBottom:2}}>your ranking — {periodLabels.find(p=>p.id===period)?.label?.toLowerCase()}</div>
                 <div style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{Number(myRank.score).toLocaleString()} {pointsName}</div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:22,fontWeight:600,color:"#a78bfa",letterSpacing:-0.5,lineHeight:1}}>#{myRank.rank}</div>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>top {myRank.pct}%</div>
+                <div style={{fontSize:11,color:"var(--t5)"}}>top {myRank.pct}%</div>
               </div>
             </div>
           )}
 
           {/* Rank table */}
           {rest.length > 0 && <>
-            <div style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"0 16px 8px",fontSize:10,fontWeight:500,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:"0.8px",borderBottom:"0.5px solid rgba(255,255,255,0.06)",marginBottom:4}}>
+            <div style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"0 16px 8px",fontSize:10,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.8px",borderBottom:"0.5px solid var(--b1)",marginBottom:4}}>
               <div>#</div><div>member</div><div style={{textAlign:"right"}}>{pointsName}</div><div style={{textAlign:"right"}}>streak</div>
             </div>
             {rest.map((u, idx)=>{
@@ -6237,14 +6243,14 @@ function LeaderboardPage({currentUser, navigate}) {
               return (
                 <div key={u.user_id}
                   style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"10px 16px",borderRadius:10,cursor:"pointer",alignItems:"center",marginBottom:2,background:isMe?"rgba(167,139,250,0.07)":"transparent",border:isMe?"0.5px solid rgba(167,139,250,0.15)":"0.5px solid transparent"}}
-                  onMouseEnter={e=>{ if(!isMe) e.currentTarget.style.background="rgba(255,255,255,0.03)"; }}
+                  onMouseEnter={e=>{ if(!isMe) e.currentTarget.style.background=document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.04)":"rgba(255,255,255,0.03)"; }}
                   onMouseLeave={e=>{ if(!isMe) e.currentTarget.style.background="transparent"; }}
                   onClick={()=>navigate("profile",{username:u.username})}>
-                  <div style={{fontSize:14,fontWeight:500,color:isMe?"#a78bfa":"rgba(255,255,255,0.25)"}}>{rank}</div>
+                  <div style={{fontSize:14,fontWeight:500,color:isMe?"var(--ac)":"var(--t4)"}}>{rank}</div>
                   <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
                     <RsAv user={u} size={34} noCard={true}/>
                     <div style={{minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:500,color:isMe?"var(--t1)":"rgba(255,255,255,0.75)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      <div style={{fontSize:13,fontWeight:500,color:isMe?"var(--t1)":"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                         {u.username}{isMe&&<span style={{fontSize:11,color:"rgba(167,139,250,0.6)",fontWeight:400,marginLeft:6}}>you</span>}
                       </div>
                       {u.badges && u.badges.length > 0 && (
@@ -6256,8 +6262,8 @@ function LeaderboardPage({currentUser, navigate}) {
                       )}
                     </div>
                   </div>
-                  <div style={{fontSize:13,fontWeight:500,color:isMe?"#c4b5fd":"rgba(255,255,255,0.5)",textAlign:"right"}}>{Number(u.score).toLocaleString()}</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",textAlign:"right"}}>—</div>
+                  <div style={{fontSize:13,fontWeight:500,color:isMe?"var(--ac-text)":"var(--t3)",textAlign:"right"}}>{Number(u.score).toLocaleString()}</div>
+                  <div style={{fontSize:12,color:"var(--t5)",textAlign:"right"}}>—</div>
                 </div>
               );
             })}
@@ -6686,16 +6692,16 @@ function BadgesPage({currentUser, navigate}) {
     const rb = RARITY_BG[badge.rarity]||"rgba(255,255,255,0.06)";
     return (
       <div style={{borderRadius:14,border:`0.5px solid ${isEarned?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.08)"}`,padding:16,position:"relative",transition:"border-color .15s",background:isEarned?"rgba(167,139,250,0.04)":"transparent",opacity:isLocked?0.55:1,cursor:"default"}}
-        onMouseEnter={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.16)"}
-        onMouseLeave={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.08)"}>
+        onMouseEnter={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.35)":document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.16)":"rgba(255,255,255,0.16)"}
+        onMouseLeave={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.2)":document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.10)":"rgba(255,255,255,0.08)"}>
         {isEarned&&<div style={{position:"absolute",top:10,right:10,width:18,height:18,borderRadius:"50%",background:"#34d399",display:"flex",alignItems:"center",justifyContent:"center"}}>
           <i className="fa-solid fa-check" style={{fontSize:8,color:"#0d0d14"}}/>
         </div>}
         <div style={{width:42,height:42,borderRadius:12,background:`${badge.color}22`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:11,fontSize:18}}>
           <i className={`fa-solid ${badge.icon}`} style={{color:badge.color}}/>
         </div>
-        <div style={{fontSize:13,fontWeight:500,color:isEarned?"var(--t1)":"rgba(255,255,255,0.55)",marginBottom:4}}>{badge.name}</div>
-        <div style={{fontSize:12,color:"rgba(255,255,255,0.32)",lineHeight:1.55,marginBottom:8}}>{badge.description}</div>
+        <div style={{fontSize:13,fontWeight:500,color:isEarned?"var(--t1)":"var(--t3)",marginBottom:4}}>{badge.name}</div>
+        <div style={{fontSize:12,color:"var(--t4)",lineHeight:1.55,marginBottom:8}}>{badge.description}</div>
         {isEarned&&(
           <div style={{fontSize:11,color:"#34d399",display:"flex",alignItems:"center",gap:4}}>
             <i className="fa-solid fa-circle-check" style={{fontSize:10}}/>
@@ -6704,20 +6710,20 @@ function BadgesPage({currentUser, navigate}) {
           </div>
         )}
         {inProgress&&(<>
-          <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden",marginBottom:4,marginTop:8}}>
+          <div style={{height:3,background:"var(--b1)",borderRadius:3,overflow:"hidden",marginBottom:4,marginTop:8}}>
             <div style={{height:3,borderRadius:3,background:badge.color,width:progressData.pct+"%"}}/>
           </div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,0.28)"}}>{progressData.current_value} / {badge.trigger_threshold} · {progressData.pct}%</div>
+          <div style={{fontSize:11,color:"var(--t5)"}}>{progressData.current_value} / {badge.trigger_threshold} · {progressData.pct}%</div>
         </>)}
-        {isLocked&&progressData&&<div style={{fontSize:11,color:"rgba(255,255,255,0.25)",marginTop:8}}>0 / {badge.trigger_threshold}</div>}
+        {isLocked&&progressData&&<div style={{fontSize:11,color:"var(--t5)",marginTop:8}}>0 / {badge.trigger_threshold}</div>}
         <div style={{position:"absolute",bottom:10,right:10,fontSize:9,fontWeight:500,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.4px",background:rb,color:rc}}>{badge.rarity}</div>
       </div>
     );
   };
 
   const Section = ({label, items, renderItem}) => items.length===0?null:<>
-    <div style={{fontSize:11,fontWeight:500,color:"rgba(255,255,255,0.2)",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12,marginTop:20,display:"flex",alignItems:"center",gap:8}}>
-      {label}<div style={{flex:1,height:"0.5px",background:"rgba(255,255,255,0.06)"}}/>
+    <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12,marginTop:20,display:"flex",alignItems:"center",gap:8}}>
+      {label}<div style={{flex:1,height:"0.5px",background:"var(--b1)"}}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
       {items.map(renderItem)}
@@ -6734,7 +6740,7 @@ function BadgesPage({currentUser, navigate}) {
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
           {["all","earned","progress","locked"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)}
-              style={{fontSize:12,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${filter===f?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.1)"}`,background:filter===f?"rgba(167,139,250,0.1)":"transparent",color:filter===f?"#c4b5fd":"rgba(255,255,255,0.3)",cursor:"pointer",fontFamily:"inherit"}}>
+              style={{fontSize:12,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${filter===f?"rgba(167,139,250,0.3)":"var(--b2)"}`,background:filter===f?"rgba(167,139,250,0.1)":"transparent",color:filter===f?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
               {f==="all"?"all badges":f==="progress"?"in progress":f}
             </button>
           ))}
@@ -6747,13 +6753,13 @@ function BadgesPage({currentUser, navigate}) {
           </div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:5}}>your badge collection</div>
-            <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden",marginBottom:4}}>
+            <div style={{height:4,background:"var(--b1)",borderRadius:4,overflow:"hidden",marginBottom:4}}>
               <div style={{height:4,background:"var(--ac)",borderRadius:4,width:progressPct+"%"}}/>
             </div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{earnedCount} earned · {progressBadges.length} in progress · {lockedBadges.length} locked</div>
+            <div style={{fontSize:11,color:"var(--t5)"}}>{earnedCount} earned · {progressBadges.length} in progress · {lockedBadges.length} locked</div>
           </div>
           <div style={{fontSize:22,fontWeight:600,color:"var(--ac)",letterSpacing:-0.5,lineHeight:1,flexShrink:0}}>
-            {earnedCount} <span style={{fontSize:13,color:"rgba(255,255,255,0.3)",fontWeight:400}}>/ {totalBadges}</span>
+            {earnedCount} <span style={{fontSize:13,color:"var(--t5)",fontWeight:400}}>/ {totalBadges}</span>
           </div>
         </div>}
         {showEarned&&<Section label="earned" items={earnedBadges} renderItem={ub=>(
@@ -9871,7 +9877,7 @@ function TagsPage({navigate, currentUser}) {
           {tags.map(tag=>(
             <div key={tag.id} style={{background:"var(--s1)",border:`0.5px solid ${tag.subscribed?"rgba(167,139,250,0.25)":"var(--b1)"}`,borderRadius:12,padding:"14px 16px",display:"flex",flexDirection:"column",gap:8,transition:"border-color .15s",cursor:"pointer"}}
               onClick={()=>navigate("feed",{space:null,tag:tag.slug})}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=tag.subscribed?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.14)"}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=tag.subscribed?"rgba(167,139,250,0.4)":"var(--b3)"}
               onMouseLeave={e=>e.currentTarget.style.borderColor=tag.subscribed?"rgba(167,139,250,0.25)":"var(--b1)"}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -9880,7 +9886,7 @@ function TagsPage({navigate, currentUser}) {
                 </div>
                 {currentUser&&(
                   <button onClick={e=>{e.stopPropagation();toggleFollow(tag);}}
-                    style={{fontSize:11,padding:"3px 10px",borderRadius:20,border:`0.5px solid ${tag.subscribed?"rgba(167,139,250,0.35)":"rgba(255,255,255,0.12)"}`,background:tag.subscribed?"rgba(167,139,250,0.12)":"transparent",color:tag.subscribed?"#c4b5fd":"var(--t4)",cursor:"pointer",fontFamily:"inherit",fontWeight:500,transition:"all .15s",flexShrink:0}}>
+                    style={{fontSize:11,padding:"3px 10px",borderRadius:20,border:`0.5px solid ${tag.subscribed?"rgba(167,139,250,0.35)":"var(--b2)"}`,background:tag.subscribed?"rgba(167,139,250,0.12)":"transparent",color:tag.subscribed?"var(--ac-text)":"var(--t3)",cursor:"pointer",fontFamily:"inherit",fontWeight:500,transition:"all .15s",flexShrink:0}}>
                     {tag.subscribed?"✓ following":"+ follow"}
                   </button>
                 )}
@@ -9899,7 +9905,7 @@ function TagsPage({navigate, currentUser}) {
 function MemberCard({m, navigate, currentUser}) {
   const col = userColor(m);
   const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};
-  const ROLE_BG    = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"rgba(255,255,255,0.05)"};
+  const ROLE_BG    = {admin:"rgba(251,191,36,.15)", moderator:"var(--ac-bg)", member:"var(--s3)"};
   const [fullUser, setFullUser] = useState(null);
   const stats = fullUser ? {post_count:fullUser.post_count||0,reply_count:fullUser.reply_count||0,reactions_received:fullUser.reactions_received||0} : null;
 
@@ -9925,7 +9931,7 @@ function MemberCard({m, navigate, currentUser}) {
       onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--b2)";e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.3)";}}
       onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--b1)";e.currentTarget.style.boxShadow="none";}}>
       {/* Cover */}
-      <div style={{height:90,position:"relative",background:cover_url?`url(${cover_url}) center/cover`:`linear-gradient(135deg,#1e1c2e,#312e55)`}}>
+      <div style={{height:90,position:"relative",background:cover_url?`url(${cover_url}) center/cover`:"var(--s3)"}}>
         <div style={{position:"absolute",bottom:-36,left:16}}>
           {m.avatar_url
             ?<img src={m.avatar_url} style={{width:72,height:72,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",objectFit:"cover"}} alt={m.username}/>
