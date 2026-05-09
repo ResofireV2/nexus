@@ -47,67 +47,20 @@ function extractBareUrl(text) {
   return null;
 }
 
-// Paragraph override — detect bare media URLs and render embeds.
-// With breaks:true, a single newline becomes <br> rather than a new paragraph,
-// so "text\nURL" arrives as one paragraph with a <br>-separated URL line.
-// We handle both cases: whole-paragraph bare URL, and URL on its own <br> line.
-function makeYtEmbed(ytId) {
-  return `<div class="yt-lite" data-id="${ytId}">
+// Paragraph override — detect bare media URLs and render embeds
+mdRenderer.paragraph = function(text) {
+  const url = extractBareUrl(text);
+  if (url) {
+    const ytId = getYouTubeId(url);
+    if (ytId) return `<div class="yt-lite" data-id="${ytId}">
       <img class="yt-thumb" src="https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg" alt="YouTube video" loading="lazy" onerror="this.src='https://i.ytimg.com/vi/${ytId}/hqdefault.jpg'"/>
       <div class="yt-play"><svg viewBox="0 0 68 48" width="68" height="48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#f00"/><path d="M45 24 27 14v20" fill="#fff"/></svg></div>
     </div>`;
-}
-function makeVmEmbed(vmId) {
-  return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
-}
-function tryMediaEmbed(url) {
-  const ytId = getYouTubeId(url);
-  if (ytId) return makeYtEmbed(ytId);
-  const vmId = getVimeoId(url);
-  if (vmId) return makeVmEmbed(vmId);
-  if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
-  if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
-  return null;
-}
-mdRenderer.paragraph = function(text) {
-  // Case 1: the whole paragraph is a bare URL
-  const bareUrl = extractBareUrl(text);
-  if (bareUrl) {
-    const embed = tryMediaEmbed(bareUrl);
-    if (embed) return embed;
+    const vmId = getVimeoId(url);
+    if (vmId) return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
+    if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
+    if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
   }
-
-  // Case 2: breaks:true means single-newline lines arrive as <br>-separated chunks.
-  // Split on <br> (with optional whitespace/newline) and check each chunk.
-  // If a chunk is a bare media URL, replace it with an embed.
-  const BR = /<br\s*\/?>\n?/i;
-  if (BR.test(text)) {
-    const parts = text.split(BR);
-    const out = parts.map(part => {
-      const url = extractBareUrl(part.trim());
-      if (url) {
-        const embed = tryMediaEmbed(url);
-        if (embed) return embed;
-      }
-      return part;
-    });
-    // If any part was converted to an embed, reconstruct:
-    // text parts stay in a <p>, embed parts go after it.
-    const textParts = [];
-    const embedParts = [];
-    out.forEach((part, i) => {
-      if (part.startsWith('<div class="yt-lite') || part.startsWith('<div class="md-embed') || part.startsWith('<audio') || part.startsWith('<div class="md-embed-video')) {
-        embedParts.push(part);
-      } else {
-        textParts.push(part);
-      }
-    });
-    if (embedParts.length > 0) {
-      const textHtml = textParts.filter(p => p.trim()).join('<br>\n');
-      return (textHtml ? `<p>${textHtml}</p>` : '') + embedParts.join('');
-    }
-  }
-
   return `<p>${text}</p>`;
 };
 
@@ -1644,25 +1597,157 @@ function deriveTintVars(hex) {
   return { bg:mix(0x0d0d14,0.10), s1:mix(0x13121e,0.10), s2:mix(0x18182a,0.10), s3:mix(0x1e1c2e,0.10) };
 }
 
-function applyBranding(app={}, gen={}) {
+// ── Light-mode derive functions ──────────────────────────────────────────────
+// Parallel to deriveAccentVars/deriveTintVars but tuned for light surfaces.
+
+function deriveAccentVarsLight(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const rgb = hexToRgb(hex);
+  const lum = luminance(rgb);
+  const [r,g,b] = rgb;
+  // Text on solid accent bg: same logic as dark (luminance-based)
+  const onAccent = lum > 0.35 ? "#0d0d14" : "#ffffff";
+  // Tinted bg at low opacity looks fine on white too
+  const acBg = `rgba(${r},${g},${b},0.09)`;
+  const acBorder = `rgba(${r},${g},${b},0.25)`;
+  // acText must contrast against light surfaces — darken light accents
+  const acText = lum > 0.5
+    ? `rgb(${Math.round(r*0.55)},${Math.round(g*0.55)},${Math.round(b*0.55)})`
+    : lum > 0.25
+    ? hex
+    : hex; // already dark enough
+  return {onAccent, acBg, acBorder, acText};
+}
+
+function deriveTintVarsLight(hex) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const [r,g,b] = hexToRgb(hex);
+  // Mix toward light bases (inverted from dark)
+  const mix = (base, amt) => {
+    const br=(base>>16)&255, bg=(base>>8)&255, bb=base&255;
+    return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
+  };
+  return {
+    bg: mix(0xf5f4fb, 0.12),
+    s1: mix(0xffffff, 0.08),
+    s2: mix(0xedeaf9, 0.12),
+    s3: mix(0xe3dff5, 0.12),
+  };
+}
+
+// Light-mode CSS variable overrides (text, borders)
+const LIGHT_VARS = {
+  "--t1": "#1a1428",
+  "--t2": "rgba(26,20,80,0.70)",
+  "--t3": "rgba(26,20,80,0.50)",
+  "--t4": "rgba(26,20,80,0.30)",
+  "--t5": "rgba(26,20,80,0.18)",
+  "--b1": "rgba(26,20,80,0.07)",
+  "--b2": "rgba(26,20,80,0.10)",
+  "--b3": "rgba(26,20,80,0.14)",
+};
+const DARK_VARS = {
+  "--t1": "#f0eeff",
+  "--t2": "rgba(255,255,255,0.65)",
+  "--t3": "rgba(255,255,255,0.45)",
+  "--t4": "rgba(255,255,255,0.25)",
+  "--t5": "rgba(255,255,255,0.15)",
+  "--b1": "rgba(255,255,255,0.07)",
+  "--b2": "rgba(255,255,255,0.10)",
+  "--b3": "rgba(255,255,255,0.14)",
+};
+
+// Active theme tracking
+let _currentTheme = "dark";
+
+// Apply dark or light CSS variables for a given appearance config
+function applyTheme(mode, app={}) {
   const r = document.documentElement;
-  if (app.accent_color) {
-    r.style.setProperty("--ac", app.accent_color);
-    const vars = deriveAccentVars(app.accent_color);
+  _currentTheme = mode;
+  r.setAttribute("data-theme", mode);
+
+  if (mode === "light") {
+    // Text + border vars
+    Object.entries(LIGHT_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
+    // Accent
+    const ac = app.light_accent_color || "#7351db";
+    r.style.setProperty("--ac", ac);
+    const vars = deriveAccentVarsLight(ac);
     if (vars) {
-      r.style.setProperty("--ac-on", vars.onAccent);   // text ON solid accent bg
-      r.style.setProperty("--ac-bg", vars.acBg);        // tinted accent bg
-      r.style.setProperty("--ac-border", vars.acBorder); // accent border
-      r.style.setProperty("--ac-text", vars.acText);    // accent-colored text on dark bg
+      r.style.setProperty("--ac-on", vars.onAccent);
+      r.style.setProperty("--ac-bg", vars.acBg);
+      r.style.setProperty("--ac-border", vars.acBorder);
+      r.style.setProperty("--ac-text", vars.acText);
+    }
+    // Surfaces
+    if (app.light_tint_color) {
+      const tint = deriveTintVarsLight(app.light_tint_color);
+      if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
+    } else {
+      r.style.setProperty("--bg","#f5f4fb"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#edeaf9"); r.style.setProperty("--s3","#e3dff5");
+    }
+  } else {
+    // Dark mode
+    Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
+    // Accent
+    const ac = app.accent_color || "#a78bfa";
+    r.style.setProperty("--ac", ac);
+    const vars = deriveAccentVars(ac);
+    if (vars) {
+      r.style.setProperty("--ac-on", vars.onAccent);
+      r.style.setProperty("--ac-bg", vars.acBg);
+      r.style.setProperty("--ac-border", vars.acBorder);
+      r.style.setProperty("--ac-text", vars.acText);
+    }
+    // Surfaces
+    if (app.tint_color) {
+      const tint = deriveTintVars(app.tint_color);
+      if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
+    } else {
+      r.style.setProperty("--bg","#0d0d14"); r.style.setProperty("--s1","#13121e"); r.style.setProperty("--s2","#18182a"); r.style.setProperty("--s3","#1e1c2e");
     }
   }
-  // Background tint
-  if (app.tint_color) {
-    const tint = deriveTintVars(app.tint_color);
-    if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-  } else {
-    r.style.setProperty("--bg","#0d0d14"); r.style.setProperty("--s1","#13121e"); r.style.setProperty("--s2","#18182a"); r.style.setProperty("--s3","#1e1c2e");
+}
+
+// Resolve which theme to show based on user pref, admin default, and OS
+function resolveTheme(userPref, adminDefault, darkEnabled, lightEnabled) {
+  const osDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const allowed = [];
+  if (darkEnabled !== false) allowed.push("dark");
+  if (lightEnabled === true) allowed.push("light");
+  // If user has a stored pref and it's allowed, use it
+  if (userPref && allowed.includes(userPref)) return userPref;
+  // Auto: follow OS if both available
+  if (allowed.length >= 2) return osDark ? "dark" : "light";
+  // Only one available
+  return allowed[0] || "dark";
+}
+
+function applyBranding(app={}, gen={}) {
+  const r = document.documentElement;
+
+  // Expose allowed themes globally so user settings UI can read them
+  window._darkEnabled  = app.dark_enabled  !== false;
+  window._lightEnabled = app.light_enabled === true;
+  window._defaultTheme = app.default_theme || "dark";
+  window._appBrandingForTheme = app;
+
+  // Resolve and apply the active theme
+  let storedPref = null;
+  try { storedPref = localStorage.getItem("nexus_theme_pref"); } catch {}
+  const theme = resolveTheme(storedPref, window._defaultTheme, window._darkEnabled, window._lightEnabled);
+  applyTheme(theme, app);
+
+  // Listen for OS theme changes if on Auto
+  if (!storedPref || storedPref === "auto") {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
+      if (!localStorage.getItem("nexus_theme_pref") || localStorage.getItem("nexus_theme_pref") === "auto") {
+        const t = resolveTheme("auto", window._defaultTheme, window._darkEnabled, window._lightEnabled);
+        applyTheme(t, window._appBrandingForTheme || {});
+      }
+    });
   }
+
   // Avatar radius: 0=square, 50=circle. Default 22%
   r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
   if (gen.site_name) document.title = gen.site_name + " · Nexus";
@@ -2366,7 +2451,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
                 const col=spaceColor(p.space||{id:p.id});
                 return (
                   <div key={p.id} className="tb-search-item" onClick={()=>{setDrop(null);setQ("");navigate("post",{id:p.id});}}>
-                    <RsAv user={p.user} size={28} color={userColor(p.user)}/>
+                    <RsAv user={p.user} size={28} color={col}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div className="tb-search-title">{p.title}</div>
                       {p.space&&<div style={{fontSize:10,color:col,marginTop:1}}>{p.space.name}</div>}
@@ -2578,9 +2663,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
           ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
           :liveEvents.slice(0,4).map((e,i)=>(
             <div key={i} className="live-row">
-              {e.avatarUrl
-                ?<img src={e.avatarUrl} className="l-av" style={{objectFit:"cover"}} alt={e.username}/>
-                :<div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>}
+              <div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>
               <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
               <div className="l-ago">{ago(e.at)}</div>
             </div>
@@ -2775,7 +2858,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
+                      <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={44} color={col}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           <div className="thread-title">{p.title}</div>
@@ -2789,7 +2872,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="av-stack">
                             {p.user?.avatar_url
                               ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`,flexShrink:0}} alt={p.user.username}/>
-                              :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                              :<div className="pav" style={{background:col}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             {p.reply_count>0&&<div className="pav pav-more">+{Math.min(p.reply_count,9)}</div>}
                           </div>
                           <span className="part-label">{p.reply_count} {p.reply_count===1?"reply":"replies"}</span>
@@ -2811,7 +2894,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                             const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
                             return lastUser?.avatar_url
                               ? <img src={lastUser.avatar_url} style={{width:24,height:24,borderRadius:"var(--av-radius)",objectFit:"cover",border:`1px solid ${col}33`}} alt={lastUser.username}/>
-                              : <div className="last-av" style={{background:userColor(lastUser)}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
+                              : <div className="last-av" style={{background:col}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
                           })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
@@ -3348,7 +3431,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
-          <RsAv user={post.user} size={56} color={userColor(post.user)}/>
+          <RsAv user={post.user} size={56} color={col}/>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
               <div className="post-title" style={{flex:1}}>{post.title}</div>
@@ -3766,7 +3849,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={p.id} className="thread" onClick={()=>navigate("post",{id:p.id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={p.user} size={34} color={userColor(p.user)}/>
+                    <RsAv user={p.user} size={34} color={col}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title">{p.title}</div>
@@ -3787,7 +3870,7 @@ function SearchPage({navigate, tags, initialQ=""}) {
                 <div key={r.id} className="thread" onClick={()=>navigate("post",{id:r.post_id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={r.user} size={34} color={userColor(r.user)}/>
+                    <RsAv user={r.user} size={34} color={col}/>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title" style={{fontSize:13,fontWeight:400}}>{r.body?.replace(/!?\[[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").slice(0,120)}</div>
@@ -8171,10 +8254,8 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
 }
 
 function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
-  const [sec,setSec_raw]=useState("overview");
-  const setSec = (s) => { setSec_raw(s); setMemberSearch(""); };
+  const [sec,setSec]=useState("overview");
   const [stats,setStats]=useState(null); const [users,setUsers]=useState([]);
-  const [memberSearch,setMemberSearch]=useState("");
   const [queueStats,setQueueStats]=useState(null);
   const [sysStats,setSysStats]=useState(null);
   const [spaces,setSpaces]=useState([]); const [tags,setTags]=useState([]);
@@ -8567,25 +8648,108 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           </>}
 
           {sec==="appearance"&&<>
-            <div className="fgt">Colors</div>
-            <F label="Accent color" hint="Used for buttons, active states, and highlights">
-              <ColorPicker
-                value={branding.accent_color||"#a78bfa"}
-                onChange={v=>{
-                  setBranding(p=>({...p,accent_color:v}));
-                  if(/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
-                }}
-              />
-            </F>
-            <F label="Background tint" hint="Adds a subtle color tint to dark surfaces. Use near-black for no tint.">
-              <ColorPicker
-                value={branding.tint_color||"#0d0d14"}
-                onChange={v=>{
-                  setBranding(p=>({...p,tint_color:v}));
-                  if(/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
-                }}
-              />
-            </F>
+            <div className="fgt">Themes</div>
+            {(()=>{
+              const darkOn  = branding.dark_enabled  !== false;
+              const lightOn = branding.light_enabled === true;
+              const onlyOne = (darkOn && !lightOn) || (!darkOn && lightOn);
+              const [appTab, setAppTab] = [branding._appTab||"dark", v=>setBranding(p=>({...p,_appTab:v}))];
+              return (<>
+                {/* Enable/disable toggles */}
+                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                  {[{key:"dark_enabled",label:"Dark mode",def:true,color:"#a78bfa"},{key:"light_enabled",label:"Light mode",def:false,color:"#7351db"}].map(({key,label,def,color})=>{
+                    const isOn = key==="dark_enabled" ? darkOn : lightOn;
+                    const locked = onlyOne && isOn;
+                    return (
+                      <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10}}>
+                        <div style={{width:10,height:10,borderRadius:"50%",background:color,flexShrink:0}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{label}</div>
+                          {locked&&<div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>At least one theme must be enabled</div>}
+                        </div>
+                        <div style={{position:"relative",width:40,height:22,borderRadius:11,background:isOn?"var(--ac)":"rgba(255,255,255,0.1)",cursor:locked?"not-allowed":"pointer",transition:"background .15s",flexShrink:0,opacity:locked?0.5:1}}
+                          onClick={()=>{if(locked)return;setBranding(p=>({...p,[key]:!isOn}));}}>
+                          <div style={{position:"absolute",top:2,left:isOn?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Default theme selector — only when both enabled */}
+                {darkOn && lightOn && (
+                  <div style={{marginBottom:20}}>
+                    <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:8}}>Default theme</div>
+                    <div style={{display:"inline-flex",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:3,gap:2}}>
+                      {[{v:"auto",icon:"fa-circle-half-2",label:"Auto"},{v:"dark",icon:"fa-moon",label:"Dark"},{v:"light",icon:"fa-sun",label:"Light"}].map(({v,icon,label})=>{
+                        const active = (branding.default_theme||"dark")===v;
+                        return (
+                          <button key={v} onClick={()=>setBranding(p=>({...p,default_theme:v}))}
+                            style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"none",background:active?"var(--s3)":"transparent",fontSize:12,fontWeight:active?500:400,color:active?"var(--t1)":"var(--t4)",cursor:"pointer",fontFamily:"inherit",transition:"all .1s"}}>
+                            <i className={`fa-solid ${icon}`} style={{fontSize:11}}/>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-theme color tabs */}
+                <div style={{marginBottom:16}}>
+                  <div style={{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:20}}>
+                    {[darkOn&&{id:"dark",label:"Dark theme",icon:"fa-moon"},lightOn&&{id:"light",label:"Light theme",icon:"fa-sun"}].filter(Boolean).map(t=>(
+                      <button key={t.id} onClick={()=>setAppTab(t.id)}
+                        style={{display:"flex",alignItems:"center",gap:7,padding:"9px 16px",background:"none",border:"none",borderBottom:appTab===t.id?"2px solid var(--ac)":"2px solid transparent",color:appTab===t.id?"var(--ac-text)":"var(--t4)",fontWeight:appTab===t.id?500:400,fontSize:13,cursor:"pointer",fontFamily:"inherit",marginBottom:-1}}>
+                        <i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>{t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {appTab==="dark"&&darkOn&&<>
+                    <F label="Accent color" hint="Used for buttons, active states, and highlights on dark backgrounds">
+                      <ColorPicker
+                        value={branding.accent_color||"#a78bfa"}
+                        onChange={v=>{
+                          setBranding(p=>({...p,accent_color:v}));
+                          if(_currentTheme==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
+                        }}
+                      />
+                    </F>
+                    <F label="Background tint" hint="Subtle hue tint applied to dark surfaces. Use near-black for no tint.">
+                      <ColorPicker
+                        value={branding.tint_color||"#0d0d14"}
+                        onChange={v=>{
+                          setBranding(p=>({...p,tint_color:v}));
+                          if(_currentTheme==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                        }}
+                      />
+                    </F>
+                  </>}
+
+                  {appTab==="light"&&lightOn&&<>
+                    <F label="Accent color" hint="Used for buttons, active states, and highlights on light backgrounds">
+                      <ColorPicker
+                        value={branding.light_accent_color||"#7351db"}
+                        onChange={v=>{
+                          setBranding(p=>({...p,light_accent_color:v}));
+                          if(_currentTheme==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVarsLight(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
+                        }}
+                      />
+                    </F>
+                    <F label="Background tint" hint="Subtle hue tint applied to light surfaces. Use near-white for no tint.">
+                      <ColorPicker
+                        value={branding.light_tint_color||"#f5f4fb"}
+                        onChange={v=>{
+                          setBranding(p=>({...p,light_tint_color:v}));
+                          if(_currentTheme==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVarsLight(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                        }}
+                      />
+                    </F>
+                  </>}
+                </div>
+              </>);
+            })()}
             <div className="fgt" style={{marginTop:16}}>Avatars</div>
             <F label="Avatar shape" hint="Controls roundness of all avatars across the forum">
               <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:6}}>
@@ -8618,19 +8782,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <div className="fgt" style={{marginBottom:0}}>All members</div>
               <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} onClick={()=>{setNewUser({username:"",email:"",password:"",role:"member",skip_verification:false});setShowCreateUser(true);}}>+ New member</button>
             </div>
-            <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"7px 14px",maxWidth:360}}>
-              <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
-              <input
-                style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}}
-                placeholder="Search by username or email…"
-                value={memberSearch||""}
-                onChange={e=>setMemberSearch(e.target.value)}
-              />
-              {memberSearch&&<button onClick={()=>setMemberSearch("")} style={{background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:0,fontSize:12,lineHeight:1,flexShrink:0}}><i className="fa-solid fa-xmark"/></button>}
-            </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl members-tbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
+                <tbody>{users.map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
                     <td><select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async e=>{await api.patch(`/admin/users/${u.id}/role`,{role:e.target.value});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></select></td>
@@ -9188,7 +9342,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
         </div>
         <div style={{display:"flex",gap:0,marginBottom:-1}}>
-          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"}].map(s=>(
+          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},...((window._darkEnabled!==false&&window._lightEnabled===true)?[{k:"appearance",icon:"fa-circle-half-2",label:"Appearance"}]:[])].map(s=>(
             <button key={s.k} onClick={()=>setTab(s.k)}
               style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
                 background:"none",border:"none",
@@ -9231,6 +9385,45 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
             <button className="btn-primary" onClick={savePassword} disabled={saving||!pw.current||!pw.next}>{saving?"Saving…":"Update password"}</button>
           </>}
 
+          {tab==="appearance"&&<>
+            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
+            <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
+            {(()=>{
+              const darkOn  = window._darkEnabled  !== false;
+              const lightOn = window._lightEnabled === true;
+              const pref = (()=>{ try { return localStorage.getItem("nexus_theme_pref")||"auto"; } catch { return "auto"; } })();
+              const opts = [
+                {v:"auto",  icon:"fa-circle-half-2", label:"Auto",  desc:"Follows your device setting"},
+                ...(darkOn  ? [{v:"dark",  icon:"fa-moon", label:"Dark",  desc:"Always dark"}]  : []),
+                ...(lightOn ? [{v:"light", icon:"fa-sun",  label:"Light", desc:"Always light"}] : []),
+              ];
+              return (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {opts.map(({v,icon,label,desc})=>{
+                    const active = pref===v;
+                    return (
+                      <div key={v}
+                        onClick={()=>{
+                          try { localStorage.setItem("nexus_theme_pref", v); } catch {}
+                          const theme = resolveTheme(v, window._defaultTheme, window._darkEnabled, window._lightEnabled);
+                          applyTheme(theme, window._appBrandingForTheme||{});
+                          // Force re-render by triggering a state update
+                          document.documentElement.setAttribute("data-theme", theme);
+                        }}
+                        style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:active?"var(--ac-bg)":"var(--s2)",border:`0.5px solid ${active?"var(--ac-border)":"var(--b1)"}`,borderRadius:10,cursor:"pointer",transition:"all .1s"}}>
+                        <i className={`fa-solid ${icon}`} style={{fontSize:16,color:active?"var(--ac)":"var(--t4)",width:20,textAlign:"center"}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,fontWeight:500,color:active?"var(--ac-text)":"var(--t2)"}}>{label}</div>
+                          <div style={{fontSize:11,color:"var(--t5)",marginTop:1}}>{desc}</div>
+                        </div>
+                        {active&&<i className="fa-solid fa-check" style={{fontSize:12,color:"var(--ac)"}}/>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </>}
           {tab==="notifications"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>
@@ -9466,7 +9659,7 @@ function SavedPage({navigate, currentUser}) {
               <div key={`post-${p.id}`} className="thread" style={{position:"relative"}} onClick={()=>navigate("post",{id:p.id})}>
                 <div className="thread-main">
                   <div className="thread-accent" style={{background:col}}/>
-                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
+                  <div style={{margin:"0 14px 0 18px",flexShrink:0}}><RsAv user={p.user} size={34} color={col}/></div>
                   <div className="thread-body">
                     <div className="thread-top">
                       <div className="thread-title">{p.title}</div>
@@ -10197,16 +10390,12 @@ function App() {
   }, []);
   const loadSpaces=useCallback(()=>{api.get("/spaces").then(d=>setSpaces(d.spaces||[]));},[]);
 
-  const seenPostIds = useRef(new Set());
   const {joinTopic, leaveTopic, sendEvent} = useSocket(
     api.token,
     currentUser?.id,
     useCallback(post=>{
-      // Deduplicate: the socket may briefly double-fire during token refresh
-      if (seenPostIds.current.has(post.id)) return;
-      seenPostIds.current.add(post.id);
       setLivePosts(p=>[post,...p]);
-      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,avatarColor:post.user?.avatar_color,avatarUrl:post.user?.avatar_url,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
+      setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
     },[]),
     useCallback(()=>setNotifCount(c=>c+1),[]),
     useCallback(()=>setMsgCount(c=>c+1),[]),
