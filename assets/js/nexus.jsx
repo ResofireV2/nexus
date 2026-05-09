@@ -1465,20 +1465,19 @@ function RsAv({user, size=34, color, noCard=false}) {
     <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`1px solid ${bg}33`,cursor:noCard?"default":"pointer"}} alt={user.username} onClick={handleClick}/>
   );
   return (
-    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}22`,color:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.32),fontWeight:500,flexShrink:0,cursor:noCard?"default":"pointer"}} onClick={handleClick}>
+    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:bg,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.35),fontWeight:500,flexShrink:0,cursor:noCard?"default":"pointer"}} onClick={handleClick}>
       {initials}
     </div>
   );
 }
 
-// Respects --av-radius so the admin border radius setting applies everywhere
 function Av({user, size=28}) {
   const bg = userColor(user);
   if (user?.avatar_url) return (
     <img src={user.avatar_url} style={{width:size,height:size,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0,border:`0.5px solid ${bg}55`}} alt={user?.username}/>
   );
   return (
-    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:`${bg}33`,border:`0.5px solid ${bg}55`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.36),fontWeight:500,color:bg}}>
+    <div style={{width:size,height:size,borderRadius:"var(--av-radius)",background:bg,color:"#fff",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.38),fontWeight:500}}>
       {(user?.username||"?").slice(0,2).toUpperCase()}
     </div>
   );
@@ -4210,11 +4209,16 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   const filtered = dmSearch ? threads.filter(t=>tname(t).toLowerCase().includes(dmSearch.toLowerCase())) : threads;
   const unread=filtered.filter(t=>t.unread_count>0&&!readIds.has(t.id));
   const read=filtered.filter(t=>!t.unread_count||t.unread_count===0||readIds.has(t.id));
-  const ThreadRow=({t})=>(
+  const ThreadRow=({t})=>{
+    const otherMember = t.kind!=="group" ? t.members?.find(m=>m.user_id!==currentUser?.id) : null;
+    const otherUser = otherMember?.user;
+    return (
     <div className="thread-row" onClick={()=>openThread(t)}>
       {t.kind==="group"&&t.image_url
         ?<div className="thr-av" style={{backgroundImage:`url(${t.image_url})`,backgroundSize:"cover",backgroundPosition:"center"}}></div>
-        :<div className="thr-av" style={{background:spaceColor({id:t.id})+"33",color:spaceColor({id:t.id})}}>{tname(t).slice(0,2).toUpperCase()}</div>
+        :otherUser
+          ?<RsAv user={otherUser} size={38} noCard={true}/>
+          :<div className="thr-av" style={{background:userColor({id:t.id}),color:"#fff"}}>{tname(t).slice(0,2).toUpperCase()}</div>
       }
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:2}}>
@@ -4225,7 +4229,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
       </div>
       {t.unread_count>0&&!readIds.has(t.id)&&<div className="thr-unread">{t.unread_count}</div>}
     </div>
-  );
+  );};
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
