@@ -37,7 +37,9 @@ defmodule Nexus.WebPush do
         {"Encryption", encryption},
         {"Crypto-Key", "#{crypto_key};#{vapid_header.crypto_key}"},
         {"Authorization", vapid_header.authorization},
-        {"TTL", "86400"}
+        {"TTL", "86400"},
+        {"Urgency", "high"},
+        {"Topic", "nexus-notification"}
       ]
 
       case Req.post(endpoint, body: encrypted, headers: headers) do
