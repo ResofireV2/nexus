@@ -159,30 +159,16 @@ defmodule Nexus.Badges do
 
       {:ok, user_badge} ->
         badge = get_badge(badge_id)
-        # Fire notification asynchronously
-        Task.start(fn ->
-          Nexus.Notifications.create_notification(%{
-            type:     "badge",
-            user_id:  user_id,
-            actor_id: awarded_by_id,
-            data:     %{badge_id: badge_id, badge_name: badge && badge.name, badge_icon: badge && badge.icon, badge_color: badge && badge.color}
-          })
-          |> case do
-            {:ok, notification} ->
-              Phoenix.PubSub.broadcast(
-                Nexus.PubSub,
-                "notifications:#{user_id}",
-                {:new_notification, %{
-                  id:         notification.id,
-                  type:       "badge",
-                  read:       false,
-                  data:       notification.data,
-                  inserted_at: notification.inserted_at
-                }}
-              )
-            _ -> :ok
-          end
-        end)
+        # Route through DeliverNotification so push and email are sent
+        %{attrs: %{
+          type:     "badge",
+          user_id:  user_id,
+          actor_id: awarded_by_id,
+          data:     %{badge_id: badge_id, badge_name: badge && badge.name,
+                      badge_icon: badge && badge.icon, badge_color: badge && badge.color}
+        }}
+        |> Nexus.Workers.DeliverNotification.new()
+        |> Oban.insert()
         {:ok, user_badge}
 
       error ->

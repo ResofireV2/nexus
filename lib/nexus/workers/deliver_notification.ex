@@ -90,43 +90,55 @@ defmodule Nexus.Workers.DeliverNotification do
   # ---------------------------------------------------------------------------
 
   def maybe_send_push_for_dm(user_id, actor, thread_id) do
+    require Logger
     user = Nexus.Accounts.get_user(user_id)
 
-    with %{"endpoint" => endpoint, "keys" => %{"p256dh" => p256dh, "auth" => auth}} <-
-           user && user.push_subscription,
-         true <- push_enabled_for?(user, "dm"),
-         pwa = Nexus.Admin.get_setting("pwa"),
-         vapid_public  when not is_nil(vapid_public)  <- pwa["vapid_public"],
-         vapid_private when not is_nil(vapid_private) <- pwa["vapid_private"] do
+    cond do
+      is_nil(user) ->
+        :ok
+      is_nil(user.push_subscription) ->
+        :ok
+      not push_enabled_for?(user, "dm") ->
+        :ok
+      true ->
+        sub = user.push_subscription
+        endpoint = sub["endpoint"]
+        p256dh   = get_in(sub, ["keys", "p256dh"])
+        auth     = get_in(sub, ["keys", "auth"])
 
-      site_name = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
-      icon      = pwa["icon_192_path"] || "/images/icon-192.png"
-      badge     = pwa["badge_url"]     || icon
-      actor_name = actor_display(actor)
+        if endpoint && p256dh && auth do
+          pwa          = Nexus.Admin.get_setting("pwa")
+          vapid_public  = pwa["vapid_public"]
+          vapid_private = pwa["vapid_private"]
 
-      payload = Jason.encode!(%{
-        title: site_name,
-        body:  "#{actor_name} sent you a message",
-        icon:  icon,
-        badge: badge,
-        url:   thread_url(thread_id)
-      })
+          if vapid_public && vapid_private do
+            site_name  = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
+            host       = NexusWeb.Endpoint.url()
+            raw_icon   = pwa["icon_192_path"] || "/images/icon-192.png"
+            raw_badge  = pwa["badge_url"] || raw_icon
+            icon       = if String.starts_with?(raw_icon,  "http"), do: raw_icon,  else: "#{host}#{raw_icon}"
+            badge      = if String.starts_with?(raw_badge, "http"), do: raw_badge, else: "#{host}#{raw_badge}"
+            actor_name = actor_display(actor)
 
-      case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
-        :ok ->
-          :ok
+            payload = Jason.encode!(%{
+              title: site_name,
+              body:  "#{actor_name} sent you a message",
+              icon:  icon,
+              badge: badge,
+              url:   "#{host}/messages/#{thread_id}"
+            })
 
-        {:error, :subscription_expired} ->
-          clear_subscription(user)
-
-        {:error, :subscription_not_found} ->
-          clear_subscription(user)
-
-        {:error, reason} ->
-          require Logger
-          Logger.warning("DM web push failed for user #{user_id}: #{inspect(reason)}")
-          :ok
-      end
+            case Nexus.WebPush.send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
+              :ok -> Logger.info("Push DM: delivered to user #{user_id}")
+              {:error, :subscription_expired} -> clear_subscription(user)
+              {:error, :subscription_not_found} -> clear_subscription(user)
+              {:error, reason} -> Logger.warning("Push DM failed for user #{user_id}: #{inspect(reason)}")
+            end
+          end
+        end
+        :ok
+    end
+  end
     else
       _ -> :ok
     end

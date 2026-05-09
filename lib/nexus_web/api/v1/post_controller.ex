@@ -42,7 +42,7 @@ defmodule NexusWeb.API.V1.PostController do
             Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
             Nexus.Activity.increment_stat(user.id, :posts_count)
             %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
             conn |> put_status(:created) |> json(%{post: post_json(post)})
           end
 
@@ -120,10 +120,13 @@ defmodule NexusWeb.API.V1.PostController do
   # POST /api/v1/posts/:id/pin  (moderator+)
   def pin(conn, %{"id" => id}) do
     post = Forum.get_post!(id)
+    actor = conn.assigns.current_user
     {:ok, updated} = Forum.pin_post(post, !post.pinned)
     # Enqueue score update for post author when pinned (not unpinned)
     if updated.pinned && post.user_id do
-      %{"user_id" => post.user_id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+      %{"user_id" => post.user_id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+      # Notify all users of this announcement (pinned post = announcement)
+      Task.start(fn -> Nexus.Notifications.notify_announcement(updated, actor) end)
     end
     json(conn, %{post: post_json(updated)})
   end
