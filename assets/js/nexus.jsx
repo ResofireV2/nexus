@@ -1852,6 +1852,16 @@ function applyBranding(app={}, gen={}) {
   window._defaultTheme = app.default_theme || "dark";
   window._appBrandingForTheme = app;
 
+  // Persist allowed themes config to localStorage so the early-theme script
+  // on next page load can validate the stored pref against what's allowed.
+  try {
+    localStorage.setItem("nexus_theme_cfg", JSON.stringify({
+      darkEnabled:  window._darkEnabled,
+      lightEnabled: window._lightEnabled,
+      defaultTheme: window._defaultTheme
+    }));
+  } catch {}
+
   // Resolve and apply the active theme
   let storedPref = null;
   try { storedPref = localStorage.getItem("nexus_theme_pref"); } catch {}

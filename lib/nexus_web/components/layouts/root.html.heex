@@ -27,15 +27,32 @@
     </script>
     <script>
       // Apply theme immediately before React loads to prevent flash.
-      // Reads localStorage pref; defaults to dark if nothing stored.
+      // Reads stored pref AND the admin-persisted config to validate what's allowed.
       (function() {
         try {
-          var pref = localStorage.getItem('nexus_theme_pref') || 'auto';
+          var pref   = localStorage.getItem('nexus_theme_pref') || 'auto';
+          var cfgRaw = localStorage.getItem('nexus_theme_cfg');
+          var cfg    = cfgRaw ? JSON.parse(cfgRaw) : {darkEnabled:true, lightEnabled:true, defaultTheme:'dark'};
+          var darkEnabled  = cfg.darkEnabled  !== false;
+          var lightEnabled = cfg.lightEnabled !== false;
+          var defaultTheme = cfg.defaultTheme || 'dark';
           var osDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var theme = pref === 'light' ? 'light'
-                    : pref === 'dark'  ? 'dark'
-                    : osDark           ? 'dark'
-                    : 'dark'; // default dark until branding loads
+
+          // Resolve theme respecting allowed options
+          var theme;
+          if (pref === 'light' && lightEnabled)      { theme = 'light'; }
+          else if (pref === 'dark' && darkEnabled)   { theme = 'dark';  }
+          else if (pref === 'light' && !lightEnabled) { theme = darkEnabled ? 'dark' : 'dark'; }
+          else if (pref === 'dark'  && !darkEnabled)  { theme = lightEnabled ? 'light' : 'dark'; }
+          else {
+            // auto or unset: use admin default, else OS, else dark
+            if (defaultTheme === 'light' && lightEnabled)     { theme = 'light'; }
+            else if (defaultTheme === 'dark' && darkEnabled)  { theme = 'dark';  }
+            else if (darkEnabled && lightEnabled) { theme = osDark ? 'dark' : 'light'; }
+            else if (lightEnabled) { theme = 'light'; }
+            else { theme = 'dark'; }
+          }
+
           if (theme === 'light') {
             var r = document.documentElement;
             r.setAttribute('data-theme', 'light');
