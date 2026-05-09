@@ -2019,7 +2019,7 @@ function ReactionsModal({postId, replyId, onClose}) {
                 <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",borderRadius:8}}>
                   {u.avatar_url
                     ? <img src={u.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
-                    : <div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff",flexShrink:0}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>
+                    : <div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:userColor(u),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff",flexShrink:0}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>
                   }
                   <span style={{fontSize:13,color:"var(--t2)",fontWeight:500,flex:1}}>{u.username}</span>
                   {activeTab === "all" && <span style={{fontSize:18,lineHeight:1}}>{u.emoji}</span>}
@@ -4413,7 +4413,7 @@ function ProfilePage({username, currentUser, navigate}) {
       <div className="thread" onClick={()=>navigate("post",{id:p.id})}>
         <div className="thread-main">
           <div className="thread-accent" style={{background:pc}}/>
-          <div style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={34} color={pc}/></div>
+          <div style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
           <div className="thread-body">
             <div className="thread-top">
               <div className="thread-title">{p.title}</div>
@@ -7210,7 +7210,7 @@ function AdminBadgesPanel() {
                   <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"0.5px solid var(--b1)"}}>
                     {h.user?.avatar_url
                       ?<img src={h.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt=""/>
-                      :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${userColor(h.user)}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,color:"#fff"}}>{(h.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                      :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(h.user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,color:"#fff"}}>{(h.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                     <div style={{flex:1}}>
                       <div style={{fontSize:13,color:"var(--t2)"}}>{h.user?.username}</div>
                       <div style={{fontSize:11,color:"var(--t5)"}}>
@@ -10031,7 +10031,7 @@ function SavedPage({navigate, currentUser}) {
                 <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
                   {r.user?.avatar_url
                     ?<img src={r.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt=""/>
-                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:`${userColor(r.user)}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(r.user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,color:"#fff",flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                   <div style={{flex:1,minWidth:0}}>
                     <div className="p-reply-body"><Md text={r.body}/></div>
                     <div className="p-reply-meta">
