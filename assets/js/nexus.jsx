@@ -9103,7 +9103,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* Settings content */}
-        <div style={{flex:1,overflow:"auto",padding:"24px 32px",maxWidth:600}}>
+        <div style={{flex:1,overflow:"auto",padding:"24px 32px"}}>
           {tab==="profile"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Profile</div>
             <F label="Username" hint="Changing your username will affect your profile URL">
