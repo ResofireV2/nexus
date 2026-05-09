@@ -366,6 +366,41 @@ defmodule Nexus.Forum do
     |> Repo.all()
   end
 
+  def list_reactions_with_users(post_id: post_id) do
+    from(r in Reaction,
+      where: r.post_id == ^post_id,
+      join: u in Nexus.Accounts.User, on: u.id == r.user_id,
+      order_by: [asc: r.inserted_at],
+      select: %{emoji: r.emoji, user_id: u.id, username: u.username, avatar_url: u.avatar_url}
+    )
+    |> Repo.all()
+    |> group_by_emoji()
+  end
+
+  def list_reactions_with_users(reply_id: reply_id) do
+    from(r in Reaction,
+      where: r.reply_id == ^reply_id,
+      join: u in Nexus.Accounts.User, on: u.id == r.user_id,
+      order_by: [asc: r.inserted_at],
+      select: %{emoji: r.emoji, user_id: u.id, username: u.username, avatar_url: u.avatar_url}
+    )
+    |> Repo.all()
+    |> group_by_emoji()
+  end
+
+  defp group_by_emoji(rows) do
+    rows
+    |> Enum.group_by(& &1.emoji)
+    |> Enum.map(fn {emoji, users} ->
+      %{
+        emoji: emoji,
+        count: length(users),
+        users: Enum.map(users, fn u -> %{id: u.user_id, username: u.username, avatar_url: u.avatar_url} end)
+      }
+    end)
+    |> Enum.sort_by(& &1.count, :desc)
+  end
+
   defp update_reaction_count(%Reaction{post_id: post_id}, delta) when not is_nil(post_id) do
     from(p in Post, where: p.id == ^post_id)
     |> Repo.update_all(inc: [reaction_count: delta])

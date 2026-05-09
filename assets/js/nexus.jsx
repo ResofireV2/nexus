@@ -1939,7 +1939,11 @@ function ReactionsModal({postId, replyId, onClose}) {
 
   useEffect(() => {
     const url = postId ? `/posts/${postId}/reactions` : `/replies/${replyId}/reactions`;
-    api.get(url).then(d => { setData(d); });
+    api.get(url).then(d => {
+      // Guard: only set data if response has the expected shape
+      if (d && Array.isArray(d.groups)) setData(d);
+      else setData({total: 0, groups: []});
+    }).catch(() => setData({total: 0, groups: []}));
   }, [postId, replyId]);
 
   // Close on backdrop click
