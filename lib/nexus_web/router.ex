@@ -135,21 +135,26 @@ defmodule NexusWeb.Router do
     post "/reports", ReportController, :create
 
     # Direct messaging
-    get  "/threads",               ThreadController, :index
-    post "/threads/direct",        ThreadController, :create_direct
-    post "/threads/group",         ThreadController, :create_group
-    post "/threads/:id/mute",      ThreadController, :mute
-    post "/threads/:id/read",      ThreadController, :mark_read
-    get  "/threads/unread",        ThreadController, :unread
+    get    "/threads",                           ThreadController, :index
+    post   "/threads/direct",                   ThreadController, :create_direct
+    post   "/threads/group",                    ThreadController, :create_group
+    get    "/threads/:id",                      ThreadController, :show
+    patch  "/threads/:id",                      ThreadController, :update
+    delete "/threads/:id",                      ThreadController, :delete
+    post   "/threads/:id/mute",                 ThreadController, :mute
+    post   "/threads/:id/read",                 ThreadController, :mark_read
+    get    "/threads/unread",                   ThreadController, :unread
+    post   "/threads/:id/members",              ThreadController, :add_member
+    delete "/threads/:id/members/:user_id",     ThreadController, :remove_member
 
     get  "/threads/:thread_id/messages", MessageController, :index
     post "/threads/:thread_id/messages", MessageController, :create
 
     # Push subscriptions
-    post   "/push/subscribe",   PushController, :subscribe
-    delete "/push/subscribe",   PushController, :unsubscribe
-    get    "/push/subscriptions", PushController, :list_subscriptions
-    delete "/push/subscriptions/:id", PushController, :revoke_subscription
+    post   "/push/subscribe",            PushController, :subscribe
+    delete "/push/subscribe",            PushController, :unsubscribe
+    get    "/push/subscriptions",        PushController, :list_subscriptions
+    delete "/push/subscriptions/:id",    PushController, :revoke_subscription
 
     # Notifications
     get  "/notifications",          NotificationController, :index

@@ -4269,6 +4269,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
   const [resolvedImage,setResolvedImage]=useState(threadImage||null);
   const [thread,setThread]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
+  const [showThreadMenu,setShowThreadMenu]=useState(false);
   useEffect(()=>{
     wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
@@ -4350,11 +4351,47 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
         <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("messages")}>← Messages</span>
         {resolvedImage&&<div style={{width:28,height:28,borderRadius:"50%",backgroundImage:`url(${resolvedImage})`,backgroundSize:"cover",backgroundPosition:"center",flexShrink:0}}/>}
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{resolvedName}</span>
-        {thread?.kind==="group"&&(thread?.creator_id===currentUser?.id||!thread?.creator_id)&&(
+        {thread?.kind==="group"&&(String(thread?.creator_id)===String(currentUser?.id)||!thread?.creator_id)&&(
           <button onClick={()=>setShowSettings(true)} style={{marginLeft:"auto",width:30,height:30,borderRadius:"50%",background:"transparent",border:"none",cursor:"pointer",color:"var(--t4)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} title="Group settings">
             <i className="fa-solid fa-gear" style={{fontSize:14}}/>
           </button>
         )}
+        {thread&&<div style={{position:"relative",marginLeft:thread?.kind==="group"&&(String(thread?.creator_id)===String(currentUser?.id)||!thread?.creator_id)?0:"auto"}}>
+          <button onClick={()=>setShowThreadMenu(p=>!p)} style={{width:30,height:30,borderRadius:"50%",background:"transparent",border:"none",cursor:"pointer",color:"var(--t4)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}} title="More options">
+            <i className="fa-solid fa-ellipsis" style={{fontSize:14}}/>
+          </button>
+          {showThreadMenu&&<>
+            <div style={{position:"fixed",inset:0,zIndex:99}} onClick={()=>setShowThreadMenu(false)}/>
+            <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:10,padding:4,zIndex:100,minWidth:170,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+              {thread?.kind==="group"&&String(thread?.creator_id)!==String(currentUser?.id)&&(
+                <div style={{padding:"8px 12px",fontSize:13,color:"var(--red)",cursor:"pointer",borderRadius:7,display:"flex",alignItems:"center",gap:8}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.08)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  onClick={async()=>{
+                    setShowThreadMenu(false);
+                    if(!confirm("Leave this group?")) return;
+                    await api.delete(`/threads/${thread.id}/members/${currentUser.id}`).catch(()=>{});
+                    navigate("messages");
+                  }}>
+                  <i className="fa-solid fa-right-from-bracket" style={{fontSize:12}}/>Leave group
+                </div>
+              )}
+              <div style={{padding:"8px 12px",fontSize:13,color:"var(--red)",cursor:"pointer",borderRadius:7,display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.08)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={async()=>{
+                  setShowThreadMenu(false);
+                  const label=thread?.kind==="group"?"Delete this group and all messages?":"Delete this conversation?";
+                  if(!confirm(label)) return;
+                  await api.delete(`/threads/${thread.id}`).catch(()=>{});
+                  navigate("messages");
+                }}>
+                <i className="fa-solid fa-trash" style={{fontSize:12}}/>
+                {thread?.kind==="group"?"Delete group":"Delete conversation"}
+              </div>
+            </div>
+          </>}
+        </div>}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
         {messages.map((m,i)=>{

@@ -105,6 +105,10 @@ defmodule Nexus.Messaging do
     |> Repo.update()
   end
 
+  def delete_thread(%Thread{} = thread) do
+    Repo.delete(thread)
+  end
+
   def add_member(thread_id, user_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 

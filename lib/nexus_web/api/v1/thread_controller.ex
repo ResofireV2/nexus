@@ -67,6 +67,22 @@ defmodule NexusWeb.API.V1.ThreadController do
     end
   end
 
+  # DELETE /api/v1/threads/:id — delete thread (owner for groups, any member for DMs)
+  def delete(conn, %{"id" => id}) do
+    user_id = conn.assigns.current_user.id
+    case Nexus.Messaging.get_thread_for_user(id, user_id) do
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
+      {:ok, thread} ->
+        if thread.kind == "group" && thread.creator_id != user_id do
+          conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can delete this group"})
+        else
+          Nexus.Messaging.delete_thread(thread)
+          json(conn, %{ok: true})
+        end
+    end
+  end
+
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id
     threads = Messaging.list_threads(user_id)
@@ -182,7 +198,7 @@ defmodule NexusWeb.API.V1.ThreadController do
   end
 
   defp user_json(nil), do: nil
-  defp user_json(u), do: %{id: u.id, username: u.username, avatar_url: u.avatar_url}
+  defp user_json(u), do: %{id: u.id, username: u.username, avatar_url: u.avatar_url, avatar_color: u.avatar_color}
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{\#{k}}", to_string(v)) end)
