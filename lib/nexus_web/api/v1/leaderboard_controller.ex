@@ -113,6 +113,7 @@ defmodule NexusWeb.API.V1.LeaderboardController do
     unless Leaderboard.enabled?() do
       conn |> put_status(:not_found) |> json(%{error: "Leaderboard is disabled"})
     else
+      import Ecto.Query, only: [from: 2]
       top = Nexus.Repo.all(
         from u in Nexus.Accounts.User,
           where: u.status == "active" and u.current_streak > 0,
