@@ -9,6 +9,24 @@ defmodule NexusWeb.API.V1.BadgeController do
   # ---------------------------------------------------------------------------
 
   # GET /api/v1/badges
+  # GET /api/v1/badges/recent
+  def recent_earners(conn, _params) do
+    earners = Nexus.Badges.list_recent_earners(4)
+    json(conn, %{earners: Enum.map(earners, fn e ->
+      %{
+        username:     e.username,
+        avatar_url:   e.avatar_url,
+        avatar_color: e.avatar_color,
+        user_id:      e.user_id,
+        badge_name:   e.badge_name,
+        badge_icon:   e.badge_icon,
+        badge_color:  e.badge_color,
+        badge_rarity: e.badge_rarity,
+        awarded_at:   e.awarded_at
+      }
+    end)})
+  end
+
   def index(conn, _params) do
     badges = Badges.list_badges()
     json(conn, %{badges: Enum.map(badges, &badge_json/1)})

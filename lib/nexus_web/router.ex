@@ -101,6 +101,7 @@ defmodule NexusWeb.Router do
     get "/users/:username/reactions",  UserContentController, :reactions
     get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
+    get "/badges/recent",           BadgeController,  :recent_earners
     get "/badges",                 BadgeController,  :index
     get "/leaderboard",            LeaderboardController, :index
     get "/slots/all",              ExtensionController,  :slots_all

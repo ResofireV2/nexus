@@ -112,6 +112,28 @@ defmodule Nexus.Badges do
     |> Repo.all()
   end
 
+  def list_recent_earners(limit \\ 4) do
+    from(ub in UserBadge,
+      join: u in Nexus.Accounts.User, on: u.id == ub.user_id,
+      join: b in Badge, on: b.id == ub.badge_id,
+      where: u.status == "active",
+      order_by: [desc: ub.awarded_at],
+      limit: ^limit,
+      select: %{
+        username:    u.username,
+        avatar_url:  u.avatar_url,
+        avatar_color: u.avatar_color,
+        user_id:     u.id,
+        badge_name:  b.name,
+        badge_icon:  b.icon,
+        badge_color: b.color,
+        badge_rarity: b.rarity,
+        awarded_at:  ub.awarded_at
+      }
+    )
+    |> Repo.all()
+  end
+
   def list_badge_holders(badge_id) do
     from(ub in UserBadge,
       where: ub.badge_id == ^badge_id,

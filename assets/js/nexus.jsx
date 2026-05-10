@@ -2964,6 +2964,16 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
   );
   var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
 
+  // Badges page gets its own contextual sidebar
+  if(page === "badges") {
+    return (
+      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
+        <BadgesPageSidebar currentUser={currentUser} navigate={navigate}/>
+        {liveActivityWidget}
+      </div>
+    );
+  }
+
   // Post page gets its own contextual sidebar
   if(page === "post" && pageProps?.id) {
     return (
@@ -7194,6 +7204,88 @@ const RARITY_COLOR = {common:"var(--t5)", rare:"#93c5fd", epic:"#c4b5fd", legend
 const RARITY_BG    = {common:"rgba(255,255,255,0.06)", rare:"rgba(96,165,250,0.1)", epic:"rgba(167,139,250,0.12)", legendary:"rgba(251,191,36,0.12)"};
 
 // ── Forum-facing BadgesPage ───────────────────────────────────────────────────
+// ── Badges page contextual sidebar ───────────────────────────────────────────
+const RARITY_WEIGHT = {legendary:4, epic:3, rare:2, common:1};
+
+function BadgesPageSidebar({currentUser, navigate}) {
+  const [earners, setEarners] = useState(null);
+  const [myData, setMyData]   = useState(null);
+
+  useEffect(()=>{
+    api.get("/badges/recent").then(d=>setEarners(d.earners||[])).catch(()=>setEarners([]));
+    if(currentUser) {
+      api.get("/badges/my").then(d=>setMyData(d)).catch(()=>{});
+    }
+  },[currentUser]);
+
+  // Top 5 rarest earned badges, sorted legendary → epic → rare → common
+  const rarestBadges = [...(myData?.earned||[])]
+    .sort((a,b)=>(RARITY_WEIGHT[b.badge?.rarity]||0)-(RARITY_WEIGHT[a.badge?.rarity]||0))
+    .slice(0,5);
+
+  return (
+    <>
+      {/* Your Rarest Badges */}
+      {currentUser&&rarestBadges.length>0&&(
+        <div className="rw">
+          <div className="rw-label">Your rarest badges</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {rarestBadges.map((e,i)=>{
+              const b=e.badge;
+              const rc=RARITY_COLOR[b.rarity]||"var(--t5)";
+              const rb=RARITY_BG[b.rarity]||"rgba(255,255,255,0.06)";
+              return (
+                <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:i<rarestBadges.length-1?"0.5px solid var(--b1)":"none"}}>
+                  <div style={{width:32,height:32,borderRadius:9,background:`${b.color}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <i className={`fa-solid ${b.icon}`} style={{fontSize:14,color:b.color}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:500,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.name}</div>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:500,padding:"2px 8px",borderRadius:20,textTransform:"uppercase",letterSpacing:"0.4px",background:rb,color:rc,flexShrink:0}}>{b.rarity}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Community Earners */}
+      <div className="rw">
+        <div className="rw-label">Recently earned</div>
+        {earners===null
+          ?<div style={{fontSize:14,color:"var(--t5)",textAlign:"center",padding:"12px 0"}}>Loading…</div>
+          :earners.length===0
+            ?<div style={{fontSize:14,color:"var(--t5)",textAlign:"center",padding:"12px 0"}}>No recent activity</div>
+            :earners.map((e,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:i<earners.length-1?"0.5px solid var(--b1)":"none"}}>
+                {/* User avatar */}
+                {e.avatar_url
+                  ?<img src={e.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={e.username}/>
+                  :<div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:userColor({id:e.user_id,avatar_color:e.avatar_color}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:500,color:"#fff",flexShrink:0}}>
+                    {(e.username||"?").slice(0,2).toUpperCase()}
+                  </div>}
+                {/* Info */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:500,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}
+                    onClick={()=>navigate("profile",{username:e.username})}>
+                    {e.username}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}>
+                    <i className={`fa-solid ${e.badge_icon}`} style={{fontSize:11,color:e.badge_color}}/>
+                    <span style={{fontSize:13,color:"var(--t5)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{e.badge_name}</span>
+                  </div>
+                </div>
+                <span style={{fontSize:12,color:"var(--t5)",flexShrink:0}}>{ago(e.awarded_at)}</span>
+              </div>
+            ))
+        }
+      </div>
+    </>
+  );
+}
+
+
 function BadgesPage({currentUser, navigate}) {
   const [data,   setData]   = useState(null);
   const [filter, setFilter] = useState("all");
