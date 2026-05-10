@@ -746,7 +746,7 @@ S.textContent = `
 :root{
   --tgl-off:rgba(255,255,255,0.12);
   --tgl-knob-off:rgba(255,255,255,0.75);
-  --fs-ui:14px;
+  --fs-ui:16px;
   --fs-body:13px;
   --fs-title:20px;
   --fs-content:14px;
@@ -972,7 +972,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .participants-row{display:flex;align-items:center;padding:0 0 11px;}
 .thread-meta{display:flex;align-items:center;justify-content:center;padding:0 14px 0 0;flex-shrink:0;}
 .meta-block{display:flex;flex-direction:column;align-items:center;gap:1px;width:48px;}
-.meta-n{font-size:13px;font-weight:500;color:var(--t3);}
+.meta-n{font-size:16px;font-weight:500;color:var(--t3);}
 .meta-l{font-size:var(--fs-ui);color:var(--t5);}
 .meta-div{width:0.5px;height:26px;background:rgba(255,255,255,0.06);}
 .thread-last{display:flex;flex-direction:column;align-items:center;gap:2px;width:52px;}
