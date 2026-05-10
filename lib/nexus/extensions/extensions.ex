@@ -74,10 +74,17 @@ defmodule Nexus.Extensions do
         "settings_tabs"   => Map.get(attrs, "settings_tabs", [])
       }
 
+      # Auto-generate a proxy secret if the extension has a service_url
+      proxy_secret =
+        if Map.get(attrs, "service_url") do
+          :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
+        end
+
       ext_attrs =
         attrs
         |> Map.drop(["hooks", "slots", "settings_schema", "settings_tabs"])
         |> Map.put("manifest", manifest)
+        |> Map.put("proxy_secret", proxy_secret)
 
       case %Extension{} |> Extension.changeset(ext_attrs) |> Repo.insert() do
         {:ok, ext} ->
@@ -214,8 +221,7 @@ defmodule Nexus.Extensions do
   # Failures are non-fatal and logged as warnings.
   # ---------------------------------------------------------------------------
 
-  def fire(event, payload \\ %{})
-  def fire(event, payload) when event in @hook_events do
+  def fire(event, payload \\ %{}) when event in @hook_events do
     hooks =
       from(h in Hook,
         join: e in Extension, on: h.extension_id == e.id,

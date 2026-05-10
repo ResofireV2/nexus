@@ -305,6 +305,15 @@ defmodule NexusWeb.Router do
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through :api
     get "/slots/:slot", ExtensionController, :slots
+
+    # Extension proxy — forwards requests to extension service_url
+    # No Caddyfile changes needed for any extension
+    get    "/extensions/:slug/assets/*path", ExtensionProxyController, :assets
+    get    "/extensions/:slug/api/*path",    ExtensionProxyController, :api
+    post   "/extensions/:slug/api/*path",    ExtensionProxyController, :api
+    put    "/extensions/:slug/api/*path",    ExtensionProxyController, :api
+    patch  "/extensions/:slug/api/*path",    ExtensionProxyController, :api
+    delete "/extensions/:slug/api/*path",    ExtensionProxyController, :api
   end
 
   if Application.compile_env(:nexus, :dev_routes) do

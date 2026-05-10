@@ -17,6 +17,8 @@ defmodule Nexus.Extensions.Extension do
     field :webhook_url,   :string
     field :js_bundle_url, :string
     field :manifest_url,  :string
+    field :service_url,   :string
+    field :proxy_secret,  :string
     field :install_count, :integer, default: 0
 
     has_many :hooks, Nexus.Extensions.Hook
@@ -29,12 +31,13 @@ defmodule Nexus.Extensions.Extension do
     ext
     |> cast(attrs, [:name, :slug, :version, :description, :author, :homepage,
                     :enabled, :settings, :manifest, :webhook_url, :js_bundle_url,
-                    :manifest_url, :install_count])
+                    :manifest_url, :service_url, :proxy_secret, :install_count])
     |> validate_required([:name, :slug, :version])
     |> validate_format(:slug, ~r/^[a-z0-9\-]+$/, message: "only lowercase letters, numbers, and hyphens")
     |> validate_format(:webhook_url,   ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> validate_format(:js_bundle_url, ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> validate_format(:manifest_url,  ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
+    |> validate_format(:service_url,   ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> unique_constraint(:slug)
   end
 

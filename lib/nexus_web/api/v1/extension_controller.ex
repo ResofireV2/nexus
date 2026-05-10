@@ -133,6 +133,8 @@ defmodule NexusWeb.API.V1.ExtensionController do
       webhook_url:    ext.webhook_url,
       js_bundle_url:  ext.js_bundle_url,
       manifest_url:   ext.manifest_url,
+      service_url:    ext.service_url,
+      # Never expose proxy_secret to the frontend
       # Expose schema so admin UI can render settings forms automatically
       settings_schema: manifest["settings_schema"] || %{},
       settings_tabs:   manifest["settings_tabs"]   || [],
