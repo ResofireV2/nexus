@@ -963,7 +963,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-tags-col{display:flex;flex-direction:column;gap:4px;align-items:flex-end;justify-content:center;padding:0 14px 0 0;flex-shrink:0;}
 .thread-preview{font-size:var(--fs-body);color:var(--t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px;}
 .av-stack{display:flex;}
-.pav{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:500;color:#fff;margin-right:-6px;flex-shrink:0;}
+.pav{width:36px;height:36px;border-radius:50%;border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#fff;margin-right:-10px;flex-shrink:0;}
 .av-tip{position:relative;display:inline-flex;flex-shrink:0;}
 .av-tip::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--s1);color:var(--t1);border:0.5px solid var(--b2);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:500;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.25);}
 .av-tip:hover::after{opacity:1;}
@@ -3130,7 +3130,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                             {/* OP avatar */}
                             <div className="av-tip" data-tip={p.user?.username||""}>
                               {p.user?.avatar_url
-                                ?<img src={p.user.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1.5px solid var(--bg)",flexShrink:0}} alt={p.user.username}/>
+                                ?<img src={p.user.avatar_url} style={{width:36,height:36,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",flexShrink:0}} alt={p.user.username}/>
                                 :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             </div>
                             {/* Recent participant avatars — up to 3, deduplicated against OP */}
@@ -3140,7 +3140,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                               .map(u=>(
                                 <div key={u.id} className="av-tip" data-tip={u.username||""}>
                                   {u.avatar_url
-                                    ?<img src={u.avatar_url} style={{width:22,height:22,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1.5px solid var(--bg)",flexShrink:0}} alt={u.username}/>
+                                    ?<img src={u.avatar_url} style={{width:36,height:36,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",flexShrink:0}} alt={u.username}/>
                                     :<div className="pav" style={{background:userColor(u)}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
                                 </div>
                               ))
