@@ -1218,7 +1218,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 
 /* Composer toolbar */
 .comp-toolbar{display:flex;align-items:center;gap:2px;padding:6px 8px;border-bottom:0.5px solid var(--b1);}
-.comp-tb-btn{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:0 6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--t4);font-family:inherit;font-size:13px;transition:all .1s;}
+.comp-tb-btn{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--t4);font-family:inherit;font-size:16px;transition:all .1s;}
 .comp-tb-btn:hover{background:rgba(255,255,255,0.07);color:var(--t1);}
 .comp-tb-sep{width:0.5px;height:16px;background:var(--b1);margin:0 3px;}
 .slash-menu{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;width:214px;overflow:hidden;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.6);}
@@ -2328,8 +2328,8 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
           : b.type==="image"
             ? <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
                 {uploading
-                  ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:11}}/>
-                  : <i className="fa-solid fa-image" style={{fontSize:12}}/>}
+                  ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:16}}/>
+                  : <i className="fa-solid fa-image" style={{fontSize:16}}/>}
               </label>
             : <button key={b.type} className="comp-tb-btn" title={b.tip}
                 style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
@@ -2342,11 +2342,11 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
           <button key={i} className="comp-tb-btn" title={config.tip||""}
             style={{color: config.color||"inherit"}}
             onMouseDown={e=>{e.preventDefault(); config.onClick && config.onClick(toolbarLinkedGames, toolbarSetLinkedGames);}}>
-            <i className={config.icon} style={{fontSize:13}}/>
+            <i className={config.icon} style={{fontSize:16}}/>
           </button>
         ))}
         <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
-          <i className="fa-regular fa-eye" style={{fontSize:12}}/>
+          <i className="fa-regular fa-eye" style={{fontSize:16}}/>
         </button>
       </div>
       {!value && !isFocused && <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"var(--t4)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>{placeholder}</div>}
@@ -6550,7 +6550,7 @@ function ToolbarEditor({items, onChange}) {
                 : React.createElement('button',{key:b.type+i,className:"comp-tb-btn",style:b.style||{}},b.label);
             })}
             <div style={{flex:1}}/>
-            <button className="comp-tb-btn" style={{opacity:0.6}}><i className="fa-regular fa-eye" style={{fontSize:12}}/></button>
+            <button className="comp-tb-btn" style={{opacity:0.6}}><i className="fa-regular fa-eye" style={{fontSize:16}}/></button>
           </div>
         </div>
       </div>
