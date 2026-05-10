@@ -191,7 +191,7 @@ document.addEventListener("click", e => {
 let _lbSetState = null;
 function useLightbox() {
   const [lb, setLb] = useState(null);
-  useEffect(()=>{ _lbSetState = setLb; return ()=>{ _lbSetState=null; }; }, []);
+  useEffect(()=>{ _lbSetState = setLb; window._lbSetState = setLb; return ()=>{ _lbSetState=null; window._lbSetState=null; }; }, []);
   return [lb, setLb];
 }
 
