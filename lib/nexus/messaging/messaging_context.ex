@@ -196,6 +196,10 @@ defmodule Nexus.Messaging do
         from(t in Thread, where: t.id == ^thread.id)
         |> Repo.update_all(set: [last_message_at: now])
 
+        # Mark the thread as read for the sender so it doesn't appear unread to them
+        from(m in ThreadMember, where: m.thread_id == ^thread.id and m.user_id == ^user_id)
+        |> Repo.update_all(set: [last_read_at: now])
+
         message = Repo.preload(message, :user)
 
         # Notify all other members in real-time
