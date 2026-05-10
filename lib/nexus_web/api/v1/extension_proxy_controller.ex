@@ -40,6 +40,13 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
 
     {:ok, body, conn} = Plug.Conn.read_body(conn)
 
+    # Plug.Parsers may have already consumed the body — re-encode params as JSON
+    body = if body == "" and is_map(conn.body_params) and map_size(conn.body_params) > 0 do
+      Jason.encode!(conn.body_params)
+    else
+      body
+    end
+
     method = conn.method |> String.downcase() |> String.to_atom()
 
     # Strip hop-by-hop and conditional cache headers
