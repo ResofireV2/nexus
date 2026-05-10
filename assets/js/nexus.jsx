@@ -8382,13 +8382,24 @@ function AdminExtensionsPanel() {
                       )}
                       <div style={{flex:1}}/>
                       {isInstalled?(
-                        window.NexusExtensions.getAdminPanels().some(p=>p.slug===item.slug)&&(
-                          <span style={{fontSize:11,color:"var(--t5)",display:"flex",
-                            alignItems:"center",gap:5}}>
-                            <i className="fa-solid fa-sidebar" style={{fontSize:10}}/>
-                            Settings in sidebar
-                          </span>
-                        )
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+                          {window.NexusExtensions.getAdminPanels().some(p=>p.slug===item.slug)&&(
+                            <span style={{fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:5}}>
+                              <i className="fa-solid fa-sidebar" style={{fontSize:11}}/>
+                              Settings in sidebar
+                            </span>
+                          )}
+                          <button onClick={async()=>{
+                            if(!window.confirm(`Uninstall ${item.name}?`)) return;
+                            const d = await api.delete(`/admin/extensions/${item.slug}`);
+                            if(d.ok){ toast(`${item.name} uninstalled`); loadExtensions(); loadStore(); }
+                            else toast(d.error||"Uninstall failed","err");
+                          }} style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                            background:"rgba(248,113,113,0.1)",border:"0.5px solid rgba(248,113,113,0.3)",
+                            color:"var(--red)",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                            Uninstall
+                          </button>
+                        </div>
                       ):(
                         <button
                           onClick={()=>installFromStore(item)}
