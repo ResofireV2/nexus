@@ -3120,7 +3120,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         </div>
                         <div className="thread-tags-row">
                           {p.type==="question"&&<div className="thread-tag" style={{background:p.accepted_reply_id?"rgba(52,211,153,0.15)":"rgba(96,165,250,0.15)",color:p.accepted_reply_id?"#34d399":"#60a5fa",display:"flex",alignItems:"center",gap:4}}>
-                            <i className={`fa-solid ${p.accepted_reply_id?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:8}}/>{p.accepted_reply_id?"Answered":"Question"}
+                            <i className={`fa-solid ${p.accepted_reply_id?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:14}}/>{p.accepted_reply_id?"Answered":"Question"}
                           </div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
@@ -3937,7 +3937,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
               <div className="post-title" style={{marginBottom:0}}>{post.title}</div>
               {post.type==="question"&&<span style={{fontSize:11,fontWeight:500,padding:"2px 8px",borderRadius:20,background:acceptedReplyId?"rgba(52,211,153,0.15)":"rgba(96,165,250,0.15)",color:acceptedReplyId?"#34d399":"#60a5fa",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-                <i className={`fa-solid ${acceptedReplyId?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:10}}/>{acceptedReplyId?"Answered":"Question"}
+                <i className={`fa-solid ${acceptedReplyId?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:14}}/>{acceptedReplyId?"Answered":"Question"}
               </span>}
             </div>
             {editHistoryOpen&&<EditHistoryModal postId={post.id} editCount={post.edit_count||0} onClose={()=>setEditHistoryOpen(false)}/>}
@@ -4057,7 +4057,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             onMouseLeave={()=>{setHoveredReply(null);if(openReplyMenu===r.id)setOpenReplyMenu(null);}}>
             <div className="reply-body-wrap">
               {r.id===acceptedReplyId&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:500,color:"var(--green)",marginBottom:6}}>
-                <i className="fa-solid fa-circle-check" style={{fontSize:13}}/>Accepted answer
+                <i className="fa-solid fa-circle-check" style={{fontSize:14}}/>Accepted answer
               </div>}
               {r._historyOpen&&<EditHistoryModal replyId={{id:r.id,postId:postId}} editCount={r.edit_count||0} onClose={()=>setReplies(p=>p.map(x=>x.id===r.id?{...x,_historyOpen:false}:x))}/>}
               <div className="reply-meta">
@@ -4083,7 +4083,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                       if(d.ok) setAcceptedReplyId(r.id);
                     }
                   }} style={{opacity:1,color:acceptedReplyId===r.id?"var(--green)":"var(--t5)"}}>
-                    <i className={`fa-${acceptedReplyId===r.id?"solid":"regular"} fa-circle-check`} style={{fontSize:13}}/>
+                    <i className={`fa-${acceptedReplyId===r.id?"solid":"regular"} fa-circle-check`} style={{fontSize:14}}/>
                   </span>
                 )}
               </div>
