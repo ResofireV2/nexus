@@ -56,7 +56,7 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
     # Build headers to forward — strip hop-by-hop headers, add Nexus headers
     forward_headers =
       conn.req_headers
-      |> Enum.reject(fn {k, _} -> k in ["host", "transfer-encoding", "connection"] end)
+      |> Enum.reject(fn {k, _} -> k in ["host", "transfer-encoding", "connection", "if-none-match", "if-modified-since"] end)
       |> Enum.map(fn {k, v} -> {k, v} end)
 
     nexus_headers = [
