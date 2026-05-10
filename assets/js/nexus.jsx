@@ -729,11 +729,13 @@ async function loadExtensionBundles() {
     if (!d.ok) return;
     const {bundles} = await d.json();
     for (const url of (bundles || [])) {
-      try {
-        await import(/* @vite-ignore */ url);
-      } catch (e) {
-        console.warn("Failed to load extension bundle:", url, e);
-      }
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = (e) => { console.warn("Failed to load extension bundle:", url, e); resolve(); };
+        document.head.appendChild(s);
+      });
     }
   } catch {}
 }
@@ -1659,6 +1661,12 @@ function urlToPage(pathname) {
   // Extension-registered routes — checked last so core routes always win
   const extRoute = window.NexusExtensions.matchRoute(p);
   if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
+  // Unknown path — could be an extension SPA route that hasn't registered yet
+  // because bundles load asynchronously. Hand it to ExtensionRoutePage whose
+  // polling loop will resolve the component once the bundle loads.
+  if (p !== "/" && !p.startsWith("/api/")) {
+    return {page:"ext-route", props:{ _match: null }};
+  }
   return {page:"feed", props:{}};
 }
 
