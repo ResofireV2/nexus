@@ -4974,22 +4974,39 @@ function ProfilePage({username, currentUser, navigate}) {
 // briefly and shows a spinner in the meantime.
 function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
   const [, forceUpdate] = React.useState(0);
+  const [timedOut, setTimedOut] = React.useState(false);
 
   // Re-check once the bundle registers its component (handles race where the
-  // page is navigated to before the bundle finishes loading).
+  // page is navigated to before the bundle finishes loading, or when popstate
+  // restores history state that had the component function stripped by JSON serialization).
   React.useEffect(() => {
+    // First try resolving immediately from the live registry
+    const live = window.NexusExtensions.matchRoute(window.location.pathname);
+    if (live?.component && !_match?.component) {
+      forceUpdate(n => n + 1);
+      return;
+    }
     if (_match?.component) return;
+
+    // Poll for up to 8 seconds, then show an error
+    let elapsed = 0;
     const id = setInterval(() => {
+      elapsed += 100;
       if (window.NexusExtensions.matchRoute(window.location.pathname)?.component) {
         clearInterval(id);
         forceUpdate(n => n + 1);
+      } else if (elapsed >= 8000) {
+        clearInterval(id);
+        setTimedOut(true);
       }
     }, 100);
     return () => clearInterval(id);
   }, []);
 
-  const Component = _match?.component;
-  const title     = _match?.options?.title || "";
+  // Resolve component from live registry if _match is missing/stale (e.g. after popstate)
+  const liveMatch = window.NexusExtensions.matchRoute(window.location.pathname);
+  const Component = _match?.component || liveMatch?.component;
+  const title     = _match?.options?.title || liveMatch?.options?.title || "";
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -5002,9 +5019,15 @@ function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
       <div style={{flex:1,overflowY:"auto",padding:"0 28px"}}>
         {Component
           ? <Component {...params} currentUser={currentUser} navigate={navigate}/>
-          : <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
-              <i className="fa-solid fa-spinner fa-spin" style={{marginRight:6}}/>Loading…
-            </div>
+          : timedOut
+            ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:14}}>
+                <i className="fa-solid fa-circle-exclamation" style={{marginRight:8,color:"var(--red)"}}/>
+                Extension failed to load.{" "}
+                <span style={{cursor:"pointer",color:"var(--ac)",textDecoration:"underline"}} onClick={()=>window.location.reload()}>Reload</span>
+              </div>
+            : <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:14}}>
+                <i className="fa-solid fa-spinner fa-spin" style={{marginRight:8}}/>Loading…
+              </div>
         }
       </div>
     </div>
@@ -11294,8 +11317,15 @@ function App() {
   useEffect(()=>{
     const fn = (e) => {
       if (e.state?.page) {
+        let restoredProps = e.state.props || {};
+        // For ext-route, the component function is stripped by JSON serialization.
+        // Re-resolve it from the live registry so the page doesn't spin forever.
+        if (e.state.page === "ext-route" && !restoredProps._match?.component) {
+          const live = window.NexusExtensions.matchRoute(window.location.pathname);
+          if (live) restoredProps = { ...restoredProps, _match: live };
+        }
         setPage(e.state.page);
-        setPageProps(e.state.props||{});
+        setPageProps(restoredProps);
       } else {
         const {page:pg, props:pr} = urlToPage(window.location.pathname);
         setPage(pg); setPageProps(pr);
