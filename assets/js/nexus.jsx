@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
+// Expose React and ReactDOM globally so extension bundles can access them
+window.React = React;
+window.ReactDOM = ReactDOM;
+
 marked.setOptions({ breaks: true, gfm: true });
 // Allow <a> tags wrapping images (needed for lightbox original URL)
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
