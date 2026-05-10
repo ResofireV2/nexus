@@ -238,6 +238,11 @@ defmodule NexusWeb.Router do
     patch  "/users/:id/role",     AdminController,  :update_role
     patch  "/users/:id/verify-email", AdminController, :verify_email
     delete "/users/:id",          AdminController,  :delete_user
+    post   "/users/:id/mark-spammer", AdminController, :mark_spammer
+
+    # Anti-spam
+    get    "/blocked-registrations", AdminController, :blocked_registrations
+
     get    "/settings",           AdminController,  :get_settings
     patch  "/settings/:key",      AdminController,  :update_settings
     post   "/test-email",         AdminController,  :test_email

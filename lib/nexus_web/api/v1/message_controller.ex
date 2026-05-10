@@ -24,35 +24,41 @@ defmodule NexusWeb.API.V1.MessageController do
 
   # POST /api/v1/threads/:thread_id/messages
   def create(conn, %{"thread_id" => thread_id} = params) do
-    user_id = conn.assigns.current_user.id
+    user = conn.assigns.current_user
 
-    case Messaging.get_thread_for_user(thread_id, user_id) do
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
+    unless Nexus.AntiSpam.can_send_dm?(user) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{error: "New accounts must be at least 24 hours old to send direct messages"})
+    else
+      case Messaging.get_thread_for_user(thread_id, user.id) do
+        {:error, :not_found} ->
+          conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
 
-      {:ok, thread} ->
-        case Messaging.send_message(thread, user_id, params) do
-          {:ok, message} ->
-            payload = message_json(message)
+        {:ok, thread} ->
+          case Messaging.send_message(thread, user.id, params) do
+            {:ok, message} ->
+              payload = message_json(message)
 
-            # Deliver to every thread member's always-on notification channel.
-            # This is more reliable than the dm: channel which may not be subscribed.
-            thread_with_members = Nexus.Repo.preload(thread, :members)
-            Enum.each(thread_with_members.members, fn member ->
-              Phoenix.PubSub.broadcast(
-                Nexus.PubSub,
-                "notifications:#{member.user_id}",
-                {:new_dm_message, payload}
-              )
-            end)
+              # Deliver to every thread member's always-on notification channel.
+              # This is more reliable than the dm: channel which may not be subscribed.
+              thread_with_members = Nexus.Repo.preload(thread, :members)
+              Enum.each(thread_with_members.members, fn member ->
+                Phoenix.PubSub.broadcast(
+                  Nexus.PubSub,
+                  "notifications:#{member.user_id}",
+                  {:new_dm_message, payload}
+                )
+              end)
 
-            conn |> put_status(:created) |> json(%{message: payload})
+              conn |> put_status(:created) |> json(%{message: payload})
 
-          {:error, changeset} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{errors: format_errors(changeset)})
-        end
+            {:error, changeset} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{errors: format_errors(changeset)})
+          end
+      end
     end
   end
 

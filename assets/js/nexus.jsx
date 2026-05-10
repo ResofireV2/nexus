@@ -7011,6 +7011,116 @@ function LeaderboardPage({currentUser, navigate}) {
   );
 }
 
+// ── AdminAntiSpamPanel ────────────────────────────────────────────────────────
+function AdminAntiSpamPanel() {
+  const [tab, setTab]             = useState("settings");
+  const [cfg, setCfg]             = useState(null);
+  const [blocked, setBlocked]     = useState(null);
+  const [saving, setSaving]       = useState(false);
+
+  useEffect(() => {
+    api.get("/admin/settings").then(d => {
+      setCfg(d.settings?.anti_spam || {});
+    });
+  }, []);
+
+  useEffect(() => {
+    if (tab === "log" && blocked === null) {
+      api.get("/admin/blocked-registrations").then(d => setBlocked(d.blocked || []));
+    }
+  }, [tab]);
+
+  function save() {
+    setSaving(true);
+    api.patch("/admin/settings/anti_spam", { value: cfg })
+      .then(d => { if (d.ok) toast("Anti-spam settings saved"); else toast(d.error || "Failed", "err"); })
+      .finally(() => setSaving(false));
+  }
+
+  if (cfg === null) return <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>;
+
+  const tabStyle = active => ({
+    padding:"6px 16px", borderRadius:20, fontSize:12, fontWeight:500, cursor:"pointer",
+    background: active ? "var(--ac-bg)" : "transparent",
+    color: active ? "var(--ac-text)" : "var(--t4)",
+    border: active ? "0.5px solid var(--ac)" : "0.5px solid transparent",
+  });
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:24}}>
+        <button style={tabStyle(tab==="settings")} onClick={()=>setTab("settings")}>Settings</button>
+        <button style={tabStyle(tab==="log")} onClick={()=>setTab("log")}>Blocked registrations</button>
+      </div>
+
+      {tab==="settings"&&<>
+        <div className="fgt">StopForumSpam</div>
+        <Tgl label="Enable SFS check at registration" desc="Checks IP, email and username against StopForumSpam.org on every registration. Fails open — if SFS is unreachable, registration proceeds normally." on={!!cfg.sfs_enabled} onChange={v=>setCfg(p=>({...p,sfs_enabled:v}))}/>
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:8}}>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Frequency threshold
+            <input type="number" min="1" max="500" value={cfg.sfs_frequency??5} onChange={e=>setCfg(p=>({...p,sfs_frequency:parseInt(e.target.value)||5}))}
+              style={{width:90,padding:"5px 10px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",fontSize:13,outline:"none"}}/>
+            <span style={{fontSize:11,color:"var(--t5)"}}>Combined report count across IP/email/username</span>
+          </label>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Confidence threshold (%)
+            <input type="number" min="1" max="100" value={cfg.sfs_confidence??50} onChange={e=>setCfg(p=>({...p,sfs_confidence:parseFloat(e.target.value)||50}))}
+              style={{width:90,padding:"5px 10px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",fontSize:13,outline:"none"}}/>
+            <span style={{fontSize:11,color:"var(--t5)"}}>Highest confidence score across checked fields</span>
+          </label>
+        </div>
+
+        <div className="fgt" style={{marginTop:16}}>New account restrictions</div>
+        <div style={{fontSize:13,color:"var(--t3)",marginBottom:12}}>
+          New accounts under 24 hours old are blocked from sending direct messages. This is always enforced and cannot be disabled.
+        </div>
+
+        <button onClick={save} disabled={saving} style={{marginTop:8,padding:"8px 24px",borderRadius:20,background:"var(--ac)",color:"var(--ac-text)",border:"none",fontWeight:500,fontSize:13,cursor:"pointer"}}>
+          {saving?"Saving…":"Save settings"}
+        </button>
+      </>}
+
+      {tab==="log"&&<>
+        {blocked===null
+          ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
+          : blocked.length===0
+            ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>No blocked registrations yet.</div>
+            : <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{borderBottom:"0.5px solid var(--b1)"}}>
+                      {["Time","IP","Email","Username","Reason"].map(h=>
+                        <th key={h} style={{padding:"8px 12px",textAlign:"left",color:"var(--t5)",fontWeight:500}}>{h}</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {blocked.map(b=>
+                      <tr key={b.id} style={{borderBottom:"0.5px solid var(--b1)"}}>
+                        <td style={{padding:"8px 12px",color:"var(--t5)",whiteSpace:"nowrap"}}>{new Date(b.inserted_at).toLocaleString()}</td>
+                        <td style={{padding:"8px 12px",color:"var(--t3)",fontFamily:"monospace"}}>{b.ip||"—"}</td>
+                        <td style={{padding:"8px 12px",color:"var(--t3)"}}>{b.email||"—"}</td>
+                        <td style={{padding:"8px 12px",color:"var(--t3)"}}>{b.username||"—"}</td>
+                        <td style={{padding:"8px 12px"}}>
+                          <span style={{padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:500,
+                            background:b.reason==="sfs"?"rgba(251,146,60,0.1)":"rgba(96,165,250,0.1)",
+                            color:b.reason==="sfs"?"#fb923c":"#60a5fa",
+                            border:`0.5px solid ${b.reason==="sfs"?"rgba(251,146,60,0.3)":"rgba(96,165,250,0.3)"}`}}>
+                            {b.reason==="sfs"?"StopForumSpam":"honeypot"}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+        }
+      </>}
+    </div>
+  );
+}
+
 // ── AdminLogsPanel ────────────────────────────────────────────────────────────
 function AdminLogsPanel() {
   const [tab, setTab] = useState("jobs");
@@ -9284,6 +9394,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
     ]},
     {label:"manage", items:[
       {k:"members",    icon:"fa-users",                label:"members"},
+      {k:"anti-spam",  icon:"fa-shield-halved",        label:"anti-spam"},
       {k:"spaces",     icon:"fa-layer-group",          label:"spaces"},
       {k:"tags",       icon:"fa-tag",                  label:"tags"},
       {k:"badges",     icon:"fa-medal",                label:"badges"},
@@ -9782,6 +9893,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                             ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(52,211,153,0.25)",background:"rgba(52,211,153,0.12)",color:"#34d399",cursor:"pointer",fontFamily:"inherit"}}>unsuspend</button>
                             :<button onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.12)",color:"#fbbf24",cursor:"pointer",fontFamily:"inherit"}}>suspend</button>}
                           <button onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.15)",background:"rgba(248,113,113,0.07)",color:"rgba(248,113,113,0.6)",cursor:"pointer",fontFamily:"inherit"}}>delete</button>
+                          <button onClick={async()=>{if(!confirm(`Mark ${u.username} as spammer? This will ban them and delete all their posts and DMs.`))return;const d=await api.post(`/admin/users/${u.id}/mark-spammer`,{});if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("Marked as spammer");}else toast(d.error||"Failed","err");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(251,146,60,0.25)",background:"rgba(251,146,60,0.1)",color:"#fb923c",cursor:"pointer",fontFamily:"inherit"}}>mark spammer</button>
                         </div>
                       </>}
                     </td>
@@ -9843,6 +9955,8 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <span style={{fontSize:11,color:"var(--t5)"}}>Sends to your account email address</span>
             </div>
           </>}
+
+          {sec==="anti-spam"&&<AdminAntiSpamPanel/>}
 
           {sec==="spaces"&&<SpacesAdmin spaces={spaces} onRefresh={()=>{ api.get("/spaces").then(d=>setSpaces(d.spaces||[])); onSpacesUpdated?.(); }} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
           {sec==="tags"&&<TagsAdmin tags={tags} onRefresh={()=>api.get("/tags").then(d=>setTags(d.tags||[]))}/>}

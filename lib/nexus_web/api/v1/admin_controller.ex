@@ -117,6 +117,49 @@ defmodule NexusWeb.API.V1.AdminController do
     end
   end
 
+  # POST /api/v1/admin/users/:id/mark-spammer
+  def mark_spammer(conn, %{"id" => id}) do
+    me = conn.assigns.current_user
+
+    if to_string(me.id) == to_string(id) do
+      conn |> put_status(:forbidden) |> json(%{error: "Cannot mark yourself as a spammer"})
+    else
+      case Accounts.get_user(id) do
+        nil ->
+          conn |> put_status(:not_found) |> json(%{error: "User not found"})
+
+        user ->
+          case Nexus.AntiSpam.mark_as_spammer(me, user) do
+            {:ok, :done} ->
+              json(conn, %{ok: true})
+
+            {:error, reason} ->
+              conn
+              |> put_status(:internal_server_error)
+              |> json(%{error: "Failed to mark as spammer: #{inspect(reason)}"})
+          end
+      end
+    end
+  end
+
+  # GET /api/v1/admin/blocked-registrations
+  def blocked_registrations(conn, _params) do
+    records = Nexus.AntiSpam.list_blocked_registrations(200)
+
+    json(conn, %{
+      blocked: Enum.map(records, fn r ->
+        %{
+          id:         r.id,
+          ip:         r.ip,
+          email:      r.email,
+          username:   r.username,
+          reason:     r.reason,
+          inserted_at: r.inserted_at
+        }
+      end)
+    })
+  end
+
   # PATCH /api/v1/admin/users/:id/verify-email
   def verify_email(conn, %{"id" => id}) do
     case Nexus.Accounts.admin_verify_email(String.to_integer("#{id}")) do

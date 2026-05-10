@@ -11,40 +11,49 @@ defmodule NexusWeb.API.V1.AuthController do
     unless Nexus.Permissions.registration_open?() do
       conn |> put_status(:forbidden) |> json(%{error: "Registration is currently closed"}) |> halt()
     else
-    case Accounts.register_user(params) do
-      {:ok, user} ->
-        # Send verification email (non-blocking — failure doesn't stop registration)
-        Task.start(fn -> Accounts.send_verification_email(user) end)
-        Task.start(fn -> Nexus.Extensions.fire("user_registered", %{user_id: user.id}) end)
+      ip = to_string(:inet.ntoa(conn.remote_ip))
 
-        opts = [
-          user_agent: get_req_header(conn, "user-agent") |> List.first(),
-          ip_address: to_string(:inet.ntoa(conn.remote_ip))
-        ]
+      case Nexus.AntiSpam.check_registration(ip, params["email"], params["username"], params) do
+        {:block, reason} ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
 
-        case Accounts.issue_tokens(user, opts) do
-          {:ok, tokens} ->
-            conn
-            |> put_refresh_cookie(tokens.refresh_token)
-            |> put_status(:created)
-            |> json(%{
-              access_token: tokens.access_token,
-              user: user_json(user)
-            })
+        :allow ->
+          case Accounts.register_user(params) do
+            {:ok, user} ->
+              # Send verification email (non-blocking — failure doesn't stop registration)
+              Task.start(fn -> Accounts.send_verification_email(user) end)
+              Task.start(fn -> Nexus.Extensions.fire("user_registered", %{user_id: user.id}) end)
 
-          {:error, _} ->
-            conn
-            |> put_status(:internal_server_error)
-            |> json(%{error: "Registration succeeded but token issuance failed"})
-        end
+              opts = [
+                user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                ip_address: to_string(:inet.ntoa(conn.remote_ip))
+              ]
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{errors: format_errors(changeset)})
-    end
+              case Accounts.issue_tokens(user, opts) do
+                {:ok, tokens} ->
+                  conn
+                  |> put_refresh_cookie(tokens.refresh_token)
+                  |> put_status(:created)
+                  |> json(%{
+                    access_token: tokens.access_token,
+                    user: user_json(user)
+                  })
+
+                {:error, _} ->
+                  conn
+                  |> put_status(:internal_server_error)
+                  |> json(%{error: "Registration succeeded but token issuance failed"})
+              end
+
+            {:error, changeset} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{errors: format_errors(changeset)})
+          end
+      end
     end
   end
+
 
   # ---------------------------------------------------------------------------
   # POST /api/v1/auth/login
