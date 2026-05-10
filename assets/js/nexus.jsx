@@ -8589,6 +8589,17 @@ function AdminExtensionsPanel() {
                               Settings in sidebar
                             </span>
                           )}
+                          {item.manifest_url&&(
+                            <button onClick={async()=>{
+                              const d = await api.post(`/admin/extensions/${item.slug}/sync`);
+                              if(d.extension){ toast("Manifest synced"); loadExtensions(); loadStore(); }
+                              else toast(d.error||"Sync failed","err");
+                            }} style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                              background:"rgba(96,165,250,0.08)",border:"0.5px solid rgba(96,165,250,0.3)",
+                              color:"#60a5fa",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                              <i className="fa-solid fa-rotate" style={{marginRight:5,fontSize:11}}/>Sync
+                            </button>
+                          )}
                           <button onClick={async()=>{
                             if(!window.confirm(`Uninstall ${item.name}?`)) return;
                             const d = await api.delete(`/admin/extensions/${item.slug}`);
