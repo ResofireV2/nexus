@@ -9314,10 +9314,6 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const dirty = fn => v => { fn(v); setIsDirty(true); };
   // Track whether settings have been initially loaded so we don't mark dirty on hydration.
   const adminSettingsLoaded = React.useRef(false);
-  useEffect(()=>{
-    if(!adminSettingsLoaded.current) return;
-    setIsDirty(true);
-  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg]);
   const [uploadCfg,setUploadCfg]=useState({});
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
@@ -9325,6 +9321,11 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const [digestCfg,setDigestCfg]=useState({});
   const [pwaCfg,setPwaCfg]=useState({});
   const [spamCfg,setSpamCfg]=useState({});
+  // Watch all cfg values and mark dirty when any change after initial load.
+  useEffect(()=>{
+    if(!adminSettingsLoaded.current) return;
+    setIsDirty(true);
+  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg]);
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
