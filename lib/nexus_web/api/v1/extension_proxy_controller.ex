@@ -84,20 +84,33 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
         body: body,
         receive_timeout: 30_000,
         connect_timeout: 5_000,
-        redirect: false
+        redirect: false,
+        # Disable automatic decoding so we get raw binary back
+        decode_body: false,
+        raw: true
       )
 
     case result do
       {:ok, %{status: status, headers: resp_headers, body: resp_body}} ->
-        # Forward safe response headers back to client
+        # Strip headers that conflict with proxying or have invalid chars
         safe_headers =
           resp_headers
-          |> Enum.reject(fn {k, _} -> k in ["transfer-encoding", "connection", "keep-alive"] end)
+          |> Enum.reject(fn {k, _} ->
+            k in ["transfer-encoding", "connection", "keep-alive", "content-encoding"]
+          end)
+          |> Enum.filter(fn {_k, v} ->
+            # Plug will crash on header values with newlines — skip any that have them
+            is_binary(v) && !String.contains?(v, ["", "
+"])
+          end)
 
         conn =
           Enum.reduce(safe_headers, conn, fn {k, v}, acc ->
             Plug.Conn.put_resp_header(acc, k, v)
           end)
+
+        # Ensure body is binary
+        resp_body = if is_binary(resp_body), do: resp_body, else: ""
         send_resp(conn, status, resp_body)
 
       {:error, %{reason: reason}} ->
