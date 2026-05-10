@@ -2169,6 +2169,27 @@ const TB_BTNS = [
   {type:"image",    label:"🖼",    tip:"Upload image", style:{},                                  wrap:null},
   {sep:true},
 ];
+// Returns TB_BTNS merged with any extension-registered toolbar buttons.
+// Extension buttons are normalised to the same shape as TB_BTNS entries so
+// ToolbarEditor can render and reorder them alongside built-in buttons.
+// A _ext:true flag distinguishes them so reset() knows to keep them.
+function getAllToolbarButtons() {
+  var ext = window.NexusExtensions ? window.NexusExtensions.getToolbarButtons() : [];
+  var extItems = ext.map(function(e) {
+    return {
+      type:    "_ext_" + (e.config.tip||"").toLowerCase().replace(/\s+/g,"_"),
+      label:   e.config.icon,   // FA class — ToolbarEditor checks _ext to render it
+      tip:     e.config.tip || "",
+      color:   e.config.color || "inherit",
+      onClick: e.config.onClick,
+      style:   {},
+      wrap:    null,
+      _ext:    true,
+    };
+  });
+  return TB_BTNS.concat(extItems);
+}
+
 const EXPLORE_ITEMS = [
   {id:"everything", label:"Everything",   icon:"fa-border-all"},
   {id:"notifications",label:"Notifications",icon:"fa-bell",   authOnly:true},
@@ -2373,28 +2394,26 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
     <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Static toolbar */}
       <div className="comp-toolbar">
-        {(toolbarItems||TB_BTNS).filter(b=>!b.hidden).map((b,i)=> b.sep
+        {(toolbarItems||getAllToolbarButtons()).filter(b=>!b.hidden).map((b,i)=> b.sep
           ? <div key={i} className="comp-tb-sep"/>
-          : b.type==="image"
-            ? <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
-                {uploading
-                  ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:16}}/>
-                  : <i className="fa-solid fa-image" style={{fontSize:16}}/>}
-              </label>
-            : <button key={b.type} className="comp-tb-btn" title={b.tip}
-                style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
-                {b.label}
+          : b._ext
+            ? <button key={b.type} className="comp-tb-btn" title={b.tip}
+                style={{color:b.color||"inherit"}}
+                onMouseDown={e=>{e.preventDefault(); b.onClick && b.onClick(toolbarLinkedGames, toolbarSetLinkedGames);}}>
+                <i className={b.label} style={{fontSize:16}}/>
               </button>
+            : b.type==="image"
+              ? <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
+                  {uploading
+                    ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:16}}/>
+                    : <i className="fa-solid fa-image" style={{fontSize:16}}/>}
+                </label>
+              : <button key={b.type} className="comp-tb-btn" title={b.tip}
+                  style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
+                  {b.label}
+                </button>
         )}
         <div style={{flex:1}}/>
-        {/* Extension toolbar buttons */}
-        {window.NexusExtensions && window.NexusExtensions.getToolbarButtons().map(({config}, i) => (
-          <button key={i} className="comp-tb-btn" title={config.tip||""}
-            style={{color: config.color||"inherit"}}
-            onMouseDown={e=>{e.preventDefault(); config.onClick && config.onClick(toolbarLinkedGames, toolbarSetLinkedGames);}}>
-            <i className={config.icon} style={{fontSize:16}}/>
-          </button>
-        ))}
         <button className="comp-tb-btn" title="Preview" onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}} style={{color:showPreview?"var(--ac)":"inherit",opacity:showPreview?1:0.6}}>
           <i className="fa-regular fa-eye" style={{fontSize:16}}/>
         </button>
@@ -6705,12 +6724,12 @@ function ToolbarEditor({items, onChange}) {
                     <span style={{fontSize:12,color:"var(--t4)"}}>Separator</span>
                   </div>
                 : <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{minWidth:28,height:28,borderRadius:6,border:"0.5px solid var(--b1)",background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--t3)",fontWeight:500,...(item.style||{})}}>
-                      {item.label}
+                    <div style={{minWidth:28,height:28,borderRadius:6,border:"0.5px solid var(--b1)",background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:item._ext?(item.color||"var(--ac)"):"var(--t3)",fontWeight:500,...(item.style||{})}}>
+                      {item._ext ? React.createElement('i', {className:item.label, style:{fontSize:14}}) : item.label}
                     </div>
                     <div>
                       <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{item.tip}</div>
-                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
+                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item._ext?"extension":item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
                     </div>
                   </div>}
               {/* Toggle visible */}
@@ -11593,7 +11612,7 @@ function App() {
         window._digestFrequencies = [];
       }
       const lc=s.layout||{};
-      if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();TB_BTNS.forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;_activeToolbar=merged;}
+      if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();getAllToolbarButtons().forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;_activeToolbar=merged;}
       setLayoutCfg(lc);
     }).catch(()=>{});
   },[]);
