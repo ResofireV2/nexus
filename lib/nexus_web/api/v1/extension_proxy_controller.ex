@@ -94,9 +94,11 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
           resp_headers
           |> Enum.reject(fn {k, _} -> k in ["transfer-encoding", "connection", "keep-alive"] end)
 
-        conn
-        |> merge_resp_headers(safe_headers)
-        |> send_resp(status, resp_body)
+        conn =
+          Enum.reduce(safe_headers, conn, fn {k, v}, acc ->
+            Plug.Conn.put_resp_header(acc, k, v)
+          end)
+        send_resp(conn, status, resp_body)
 
       {:error, %{reason: reason}} ->
         conn
@@ -105,9 +107,5 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
     end
   end
 
-  defp merge_resp_headers(conn, headers) do
-    Enum.reduce(headers, conn, fn {k, v}, acc ->
-      Plug.Conn.put_resp_header(acc, k, v)
-    end)
-  end
+
 end
