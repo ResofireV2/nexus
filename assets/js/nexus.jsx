@@ -980,7 +980,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-save-btn.saved{color:var(--ac);opacity:1;}
 .thread:hover .thread-save-btn{opacity:1;}
 @media(max-width:767.99px){.thread-save-btn{opacity:1!important;}}
-.last-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;}
+.last-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;}
 .last-ago{font-size:16px;color:var(--t5);}
 
 /* Right panel */
