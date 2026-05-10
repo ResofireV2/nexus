@@ -4049,8 +4049,27 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         {reactionsModal && <ReactionsModal {...reactionsModal} onClose={()=>setReactionsModal(null)}/>}
         <div className="replies-header">
           <span className="replies-count">{post.reply_count} {post.reply_count===1?"reply":"replies"}</span>
-          <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>oldest first</span>
+          <span style={{marginLeft:"auto",fontSize:14,color:"var(--t5)"}}>oldest first</span>
         </div>
+        {/* Accepted answer pinned below OP */}
+        {acceptedReplyId&&(()=>{
+          const ar = replies.find(r=>r.id===acceptedReplyId);
+          if(!ar) return null;
+          return (
+            <div style={{background:"rgba(52,211,153,0.06)",border:"1px solid rgba(52,211,153,0.25)",borderRadius:12,padding:"16px 18px",marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+                <i className="fa-solid fa-circle-check" style={{fontSize:16,color:"var(--green)"}}/>
+                <span style={{fontSize:14,fontWeight:600,color:"var(--green)"}}>Accepted answer</span>
+                <span style={{fontSize:13,color:"var(--t5)",marginLeft:"auto"}}>by {ar.user?.username} · {ago(ar.inserted_at)}</span>
+              </div>
+              <div className="md-body"><Md text={ar.body}/></div>
+              <a href={`#reply-${ar.id}`} onClick={e=>{e.preventDefault();document.getElementById(`reply-${ar.id}`)?.scrollIntoView({behavior:"smooth",block:"center"});}}
+                style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:12,fontSize:13,color:"var(--t4)",textDecoration:"none",cursor:"pointer"}}>
+                <i className="fa-solid fa-arrow-down" style={{fontSize:12}}/>Jump to reply
+              </a>
+            </div>
+          );
+        })()}
         {replies.map(r=>(
           <div key={r.id} id={`reply-${r.id}`} className="reply-item"
             onMouseEnter={()=>setHoveredReply(r.id)}
