@@ -729,13 +729,11 @@ async function loadExtensionBundles() {
     if (!d.ok) return;
     const {bundles} = await d.json();
     for (const url of (bundles || [])) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = url;
-        s.onload = resolve;
-        s.onerror = (e) => { console.warn("Failed to load extension bundle:", url, e); resolve(); };
-        document.head.appendChild(s);
-      });
+      try {
+        await import(/* @vite-ignore */ url);
+      } catch (e) {
+        console.warn("Failed to load extension bundle:", url, e);
+      }
     }
   } catch {}
 }
@@ -1661,9 +1659,10 @@ function urlToPage(pathname) {
   // Extension-registered routes — checked last so core routes always win
   const extRoute = window.NexusExtensions.matchRoute(p);
   if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
-  // Unknown path — could be an extension SPA route that hasn't registered yet
-  // because bundles load asynchronously. Hand it to ExtensionRoutePage whose
-  // polling loop will resolve the component once the bundle loads.
+  // Unknown path — may be an extension SPA route whose bundle hasn't registered yet
+  // (bundles load 500ms after render). Mount ExtensionRoutePage so its polling loop
+  // can resolve the component once the bundle loads. Truly unknown paths time out
+  // after 8 seconds and show the reload prompt instead of silently showing the feed.
   if (p !== "/" && !p.startsWith("/api/")) {
     return {page:"ext-route", props:{ _match: null }};
   }
@@ -5015,6 +5014,9 @@ function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
   const liveMatch = window.NexusExtensions.matchRoute(window.location.pathname);
   const Component = _match?.component || liveMatch?.component;
   const title     = _match?.options?.title || liveMatch?.options?.title || "";
+  // On hard refresh, params come from liveMatch (URL re-parsed against registry)
+  // rather than from props, which may be empty if urlToPage ran before bundles loaded.
+  const resolvedParams = Object.keys(params).length > 0 ? params : (liveMatch?.params || {});
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -5026,7 +5028,7 @@ function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"0 28px"}}>
         {Component
-          ? <Component {...params} currentUser={currentUser} navigate={navigate}/>
+          ? <Component {...resolvedParams} currentUser={currentUser} navigate={navigate}/>
           : timedOut
             ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:14}}>
                 <i className="fa-solid fa-circle-exclamation" style={{marginRight:8,color:"var(--red)"}}/>
@@ -11514,7 +11516,7 @@ function App() {
             <button className="mob-icon-btn" onClick={()=>setMobLeftOpen(false)}><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
-            <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={p=>{setMobLeftOpen(false);navigate(p);}} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg} mobile={true}/>
+            <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={(p,props)=>{setMobLeftOpen(false);navigate(p,props);}} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg} mobile={true}/>
           </div>
         </div>
         <div className={`mob-overlay right ${mobRightOpen?"open":""}`}>
