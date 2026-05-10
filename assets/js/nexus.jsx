@@ -2970,6 +2970,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
       <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
         <BadgesPageSidebar currentUser={currentUser} navigate={navigate}/>
         {liveActivityWidget}
+        {statsWidget}
       </div>
     );
   }
