@@ -38,6 +38,12 @@ defmodule NexusWeb.Router do
     get "/", PageController, :home
   end
 
+  # PWA manifest — explicit path, pipe through :api for JSON response
+  scope "/manifest.json", NexusWeb.API.V1 do
+    pipe_through :api
+    get "/", PwaController, :manifest
+  end
+
   # Setup wizard (public - runs before any auth exists)
   scope "/api/v1/setup", NexusWeb.API.V1 do
     pipe_through :api
@@ -101,7 +107,6 @@ defmodule NexusWeb.Router do
     get "/leaderboard",            LeaderboardController, :index
     get "/slots/all",              ExtensionController,  :slots_all
     get "/pwa/vapid-public-key",   PwaController,        :vapid_public_key
-    get "/manifest.json",          PwaController,        :manifest
   end
 
   # API v1 — authenticated member actions
