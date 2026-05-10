@@ -1656,16 +1656,18 @@ function urlToPage(pathname) {
   if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
   const dmM      = p.match(/^\/messages\/(.+)$/);
   if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
-  // Extension-registered routes — checked last so core routes always win
-  const extRoute = window.NexusExtensions.matchRoute(p);
-  if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
-  // Unknown path — may be an extension SPA route whose bundle hasn't registered yet
-  // (bundles load 500ms after render). Mount ExtensionRoutePage so its polling loop
-  // can resolve the component once the bundle loads. Truly unknown paths time out
-  // after 8 seconds and show the reload prompt instead of silently showing the feed.
-  if (p !== "/" && !p.startsWith("/api/")) {
+  // Extension SPA routes all live under /ext/* — this prefix is owned exclusively
+  // by extensions so we can match it definitively against the live registry.
+  // On hard refresh the bundle may not have loaded yet; return ext-route with
+  // _match:null so ExtensionRoutePage's polling loop resolves it once loaded.
+  if (p.startsWith("/ext/")) {
+    const extRoute = window.NexusExtensions.matchRoute(p);
+    if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
     return {page:"ext-route", props:{ _match: null }};
   }
+  // Non-extension routes — checked against registry for any edge cases
+  const extRoute = window.NexusExtensions.matchRoute(p);
+  if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
   return {page:"feed", props:{}};
 }
 
@@ -4366,7 +4368,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
       else if(d.post){
         // Link any games selected via extension toolbar
         if(linkedGames.length>0){
-          try{ await fetch(`/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
+          try{ await fetch(`/api/v1/extensions/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
         }
         toast("Post published!");navigate("post",{id:d.post.id});
       }

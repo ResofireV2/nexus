@@ -323,6 +323,15 @@ defmodule NexusWeb.Router do
     end
   end
 
+  # Extension SPA routes — /ext/* is the dedicated prefix for all extension pages.
+  # Because this is an explicit server-side scope, hard refreshes on any /ext/* path
+  # are always served the HTML shell by Nexus, then React boots and the extension
+  # bundle resolves the route client-side. No Caddy changes needed for any extension.
+  scope "/ext", NexusWeb do
+    pipe_through :browser
+    get "/*path", PageController, :home
+  end
+
   # SPA catch-all — must be last so API routes take priority
   scope "/", NexusWeb do
     pipe_through :browser
