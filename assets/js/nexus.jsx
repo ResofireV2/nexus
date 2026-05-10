@@ -157,18 +157,42 @@ function renderMd(t) {
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────
-function Lightbox({src, originalSrc, onClose}) {
+function Lightbox({src, originalSrc, slides, slideIndex, onClose}) {
+  const [idx, setIdx] = useState(slideIndex ?? 0);
+  const isSlideshow = slides && slides.length > 1;
+  const current = isSlideshow ? slides[idx] : {src, originalSrc};
+  const displaySrc = current.originalSrc || current.src;
+
+  const prev = (e) => { e.stopPropagation(); setIdx(i => (i - 1 + slides.length) % slides.length); };
+  const next = (e) => { e.stopPropagation(); setIdx(i => (i + 1) % slides.length); };
+
   useEffect(()=>{
-    const fn=e=>{ if(e.key==="Escape") onClose(); };
+    const fn=e=>{
+      if(e.key==="Escape")  onClose();
+      if(e.key==="ArrowLeft"  && isSlideshow) setIdx(i=>(i-1+slides.length)%slides.length);
+      if(e.key==="ArrowRight" && isSlideshow) setIdx(i=>(i+1)%slides.length);
+    };
     document.addEventListener("keydown",fn);
     return ()=>document.removeEventListener("keydown",fn);
-  },[]);
+  },[isSlideshow]);
+
   return (
     <div className="lb-overlay" onMouseDown={e=>{if(e.button===0)onClose();}}>
       <span className="lb-close" onMouseDown={e=>{e.stopPropagation();onClose();}}>×</span>
-      <img src={originalSrc||src} alt=""/>
-      {originalSrc&&originalSrc!==src&&
-        <a className="lb-orig" href={originalSrc} target="_blank" rel="noopener" onMouseDown={e=>e.stopPropagation()}>
+      <img src={displaySrc} alt="" onMouseDown={e=>e.stopPropagation()}/>
+      {isSlideshow && <>
+        <button className="lb-nav lb-nav-prev" onMouseDown={prev}>
+          <i className="fa-solid fa-chevron-left"/>
+        </button>
+        <button className="lb-nav lb-nav-next" onMouseDown={next}>
+          <i className="fa-solid fa-chevron-right"/>
+        </button>
+        <div className="lb-counter" onMouseDown={e=>e.stopPropagation()}>
+          {idx + 1} / {slides.length}
+        </div>
+      </>}
+      {current.originalSrc&&current.originalSrc!==current.src&&
+        <a className="lb-orig" href={current.originalSrc} target="_blank" rel="noopener" onMouseDown={e=>e.stopPropagation()}>
           <i className="fa-solid fa-arrow-up-right-from-square" style={{marginRight:4}}></i>open original
         </a>}
     </div>
@@ -1414,6 +1438,11 @@ select option{background:#1a1a2e;color:var(--t1);}
 .lb-close{position:fixed;top:16px;right:20px;font-size:24px;color:rgba(255,255,255,.7);cursor:pointer;line-height:1;z-index:10000;}
 .lb-close:hover{color:#fff;}
 .lb-orig{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;}
+.lb-nav{position:fixed;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.45);border:0.5px solid rgba(255,255,255,.15);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:16px;cursor:pointer;z-index:10000;transition:background .15s,color .15s;}
+.lb-nav:hover{background:rgba(0,0,0,.75);color:#fff;}
+.lb-nav-prev{left:20px;}
+.lb-nav-next{right:20px;}
+.lb-counter{position:fixed;bottom:20px;right:20px;font-size:12px;color:rgba(255,255,255,.45);z-index:10000;}
 /* User card popover */
 .ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
 .ucard-wrap.visible{pointer-events:auto;}
@@ -11545,7 +11574,7 @@ function App() {
         <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
       </div>
       </div>
-      {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} onClose={()=>setLb(null)}/>}
+      {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} slides={lb.slides} slideIndex={lb.slideIndex} onClose={()=>setLb(null)}/>}
       {userCard&&<UserCardPopover card={userCard} setCard={setUserCard} currentUser={currentUser} navigate={navigate}/>}
       <RefPreviewPopup/>
       {authModal&&(
