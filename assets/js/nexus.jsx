@@ -1117,17 +1117,24 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Composer */
 .composer-shell{flex:1;padding:0;display:flex;flex-direction:column;overflow:hidden;}
 .composer-inner{width:100%;padding:32px 48px 0;box-sizing:border-box;display:flex;flex-direction:column;flex:1;overflow:hidden;}
-.comp-title-input{width:100%;background:transparent;border:none;outline:none;font-size:22px;font-weight:600;color:var(--t1);font-family:inherit;letter-spacing:-.3px;margin-bottom:8px;}
+.comp-title-input{width:100%;background:transparent;border:none;border-bottom:0.5px solid var(--b1);outline:none;font-size:22px;font-weight:600;color:var(--t1);font-family:inherit;letter-spacing:-.3px;margin-bottom:0;padding-bottom:16px;}
 .comp-title-input::placeholder{color:rgba(255,255,255,0.15);}
-.comp-meta-row{display:flex;align-items:center;gap:8px;padding:10px 0 16px;border-bottom:0.5px solid var(--b1);flex-wrap:wrap;margin-bottom:20px;}
+.comp-meta-row{display:flex;align-items:center;gap:8px;padding:12px 0;flex-wrap:wrap;border-bottom:0.5px solid var(--b1);margin-bottom:0;}
 .comp-sel{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--t3);cursor:pointer;font-family:inherit;outline:none;}
-.comp-tag-pill{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);cursor:pointer;}
-.comp-tag-add{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);background:transparent;color:var(--t4);cursor:pointer;}
-.comp-body-area{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.comp-tag-pill{font-size:14px;padding:4px 12px;border-radius:20px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);cursor:pointer;display:flex;align-items:center;gap:6px;}
+.comp-tag-add{font-size:14px;padding:6px 14px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .1s;}
+.comp-tag-add:hover{border-color:var(--b2);color:var(--t2);}
+.comp-body-area{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--s1);border-radius:0 0 12px 12px;}
+.comp-type-btn{display:flex;align-items:center;gap:7px;padding:6px 14px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--t3);cursor:pointer;font-size:14px;font-family:inherit;transition:all .1s;position:relative;user-select:none;}
+.comp-type-btn:hover{border-color:var(--b2);color:var(--t2);}
+.comp-dd{position:absolute;top:calc(100% + 6px);left:0;background:var(--s2);border:0.5px solid var(--b3);border-radius:14px;padding:6px;z-index:100;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.comp-dd-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--t3);transition:background .1s;}
+.comp-dd-item:hover{background:rgba(255,255,255,0.06);color:var(--t1);}
+.comp-dd-item.active{color:var(--ac-text);background:var(--ac-bg);}
 .comp-ta{width:100%;height:100%;background:transparent;border:none;outline:none;font-size:15px;color:var(--t3);line-height:1.75;font-family:inherit;resize:none;min-height:240px;caret-color:var(--ac);padding:0 16px;box-sizing:border-box;}
 .comp-ta::placeholder{color:rgba(255,255,255,0.12);}
-.comp-footer{display:flex;align-items:center;gap:10px;padding:16px 0 24px;border-top:0.5px solid var(--b1);margin-top:16px;flex-shrink:0;}
-.comp-char{font-size:11px;color:var(--t5);}
+.comp-footer{display:flex;align-items:center;gap:10px;padding:16px 0 24px;border-top:0.5px solid var(--b1);margin-top:0;flex-shrink:0;}
+.comp-char{font-size:14px;color:var(--t5);}
 
 /* Buttons */
 .btn-primary{font-size:14px;padding:9px 22px;border-radius:22px;background:var(--ac);color:var(--ac-on);border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
@@ -4295,15 +4302,24 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
   const [spaceId,setSpaceId]=useState(spaces[0]?.id||"");
   const [postType,setPostType]=useState("discussion");
   const [postBody,setPostBody]=useState("");
-  const [selTags,setSelTags]=useState([]); const [showTags,setShowTags]=useState(false);
+  const [selTags,setSelTags]=useState([]);
+  const [showTagModal,setShowTagModal]=useState(false);
+  const [tagModalSel,setTagModalSel]=useState([]);
+  const [showTypeDd,setShowTypeDd]=useState(false);
+  const [showSpaceDd,setShowSpaceDd]=useState(false);
   const [loading,setLoading]=useState(false);
   const [linkedGames,setLinkedGames]=useState([]);
-  const tagPickerRef=useRef();
+  const typeDdRef=useRef(); const spaceDdRef=useRef();
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+  const selectedSpace=spaces.find(s=>String(s.id)===String(spaceId));
+  const TYPE_OPTS=[{v:"discussion",label:"Discussion",icon:"fa-comments"},{v:"question",label:"Question",icon:"fa-circle-question"}];
+  const selectedType=TYPE_OPTS.find(t=>t.v===postType)||TYPE_OPTS[0];
 
-  // Close tag picker when clicking outside
   useEffect(()=>{
-    const fn=e=>{if(tagPickerRef.current&&!tagPickerRef.current.contains(e.target))setShowTags(false);};
+    const fn=e=>{
+      if(typeDdRef.current&&!typeDdRef.current.contains(e.target))setShowTypeDd(false);
+      if(spaceDdRef.current&&!spaceDdRef.current.contains(e.target))setShowSpaceDd(false);
+    };
     document.addEventListener("mousedown",fn); return ()=>document.removeEventListener("mousedown",fn);
   },[]);
 
@@ -4333,27 +4349,99 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
       <div className="composer-inner">
         <input className="comp-title-input" placeholder="Thread title…" value={title} onChange={e=>setTitle(e.target.value)} autoFocus/>
         <div className="comp-meta-row">
+          {/* Post type dropdown */}
           {window._postCfg?.questions_enabled&&(
-            <select className="comp-sel" value={postType} onChange={e=>setPostType(e.target.value)}>
-              <option value="discussion">Discussion</option>
-              <option value="question">Question</option>
-            </select>
+            <div ref={typeDdRef} style={{position:"relative"}}>
+              <div className="comp-type-btn" onClick={()=>setShowTypeDd(p=>!p)}>
+                <i className={`fa-solid ${selectedType.icon}`} style={{fontSize:14,color:"var(--ac-text)"}}/>
+                {selectedType.label}
+                <i className="fa-solid fa-chevron-down" style={{fontSize:10,color:"var(--t5)",marginLeft:2}}/>
+              </div>
+              {showTypeDd&&(
+                <div className="comp-dd">
+                  {TYPE_OPTS.map(opt=>(
+                    <div key={opt.v} className={`comp-dd-item${postType===opt.v?" active":""}`}
+                      onClick={()=>{setPostType(opt.v);setShowTypeDd(false);}}>
+                      <i className={`fa-solid ${opt.icon}`} style={{fontSize:14,width:18,textAlign:"center"}}/>
+                      {opt.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-          <select className="comp-sel" value={spaceId} onChange={e=>setSpaceId(e.target.value)}>
-            <option value="">Select space…</option>
-            {spaces.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          {selTags.map(id=>{const t=tags.find(x=>x.id===id);return t?<span key={id} className="comp-tag-pill" onClick={()=>toggleTag(id)}>#{t.name} ✕</span>:null;})}
-          <div ref={tagPickerRef} style={{position:"relative"}}>
-            <div className="comp-tag-add" onClick={()=>setShowTags(p=>!p)}>+ tag</div>
-            {showTags&&tags.length>0&&<div style={{position:"absolute",top:"100%",left:0,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:10,padding:8,zIndex:30,minWidth:160,marginTop:4}}>
-              {tags.map(t=><div key={t.id} onClick={()=>toggleTag(t.id)} style={{padding:"6px 10px",fontSize:12,cursor:"pointer",color:selTags.includes(t.id)?"var(--ac-text)":"var(--t3)",borderRadius:6,display:"flex",alignItems:"center",gap:8}}>
-                {selTags.includes(t.id)&&<i className="fa-solid fa-check" style={{fontSize:10,color:"var(--ac)"}}></i>}
-                #{t.name}
-              </div>)}
-            </div>}
+          {/* Space dropdown */}
+          <div ref={spaceDdRef} style={{position:"relative"}}>
+            <div className="comp-type-btn" onClick={()=>setShowSpaceDd(p=>!p)}>
+              {selectedSpace
+                ?<><i className={`fa-solid ${selectedSpace.icon||"fa-layer-group"}`} style={{fontSize:14,color:selectedSpace.color||"var(--ac)"}}/>
+                  {selectedSpace.name}</>
+                :<><i className="fa-solid fa-layer-group" style={{fontSize:14,color:"var(--t5)"}}/>Select space…</>
+              }
+              <i className="fa-solid fa-chevron-down" style={{fontSize:10,color:"var(--t5)",marginLeft:2}}/>
+            </div>
+            {showSpaceDd&&(
+              <div className="comp-dd" style={{maxHeight:280,overflowY:"auto"}}>
+                {spaces.map(s=>{
+                  const sc=s.color||spaceColor(s);
+                  return (
+                    <div key={s.id} className={`comp-dd-item${String(spaceId)===String(s.id)?" active":""}`}
+                      onClick={()=>{setSpaceId(s.id);setShowSpaceDd(false);}}>
+                      <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:14,color:sc,width:18,textAlign:"center"}}/>
+                      {s.name}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+          {/* Selected tags */}
+          {selTags.map(id=>{const t=tags.find(x=>x.id===id);return t?(
+            <span key={id} className="comp-tag-pill" onClick={()=>toggleTag(id)}
+              style={{background:t.color?`${t.color}22`:"var(--ac-bg)",color:t.color||"var(--ac-text)",borderColor:t.color?`${t.color}44`:"var(--ac-border)"}}>
+              #{t.name}<i className="fa-solid fa-xmark" style={{fontSize:11}}/>
+            </span>
+          ):null;})}
+          {/* Tags button */}
+          {tags.length>0&&(
+            <div className="comp-tag-add" onClick={()=>{setTagModalSel([...selTags]);setShowTagModal(true);}}>
+              <i className="fa-solid fa-tag" style={{fontSize:13}}/>
+              {selTags.length>0?`${selTags.length} tag${selTags.length>1?"s":""}`:"+ tags"}
+            </div>
+          )}
         </div>
+        {/* Tag modal */}
+        {showTagModal&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+            <div style={{background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 8px 48px rgba(0,0,0,.6)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"0.5px solid var(--b1)"}}>
+                <span style={{fontSize:16,fontWeight:500,color:"var(--t1)"}}>Select tags</span>
+                <button onClick={()=>setShowTagModal(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
+              </div>
+              <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,maxHeight:360,overflowY:"auto"}}>
+                {tags.map(t=>{
+                  const sel=tagModalSel.includes(t.id);
+                  const tc=t.color||"var(--ac)";
+                  return (
+                    <div key={t.id} onClick={()=>setTagModalSel(p=>sel?p.filter(x=>x!==t.id):[...p,t.id])}
+                      style={{padding:"10px 14px",borderRadius:10,cursor:"pointer",border:`1.5px solid ${sel?tc:"var(--b1)"}`,
+                        background:sel?`${tc}18`:"var(--s2)",color:sel?tc:"var(--t3)",transition:"all .1s",
+                        display:"flex",alignItems:"center",gap:8,fontSize:14,fontWeight:sel?500:400}}>
+                      {sel&&<i className="fa-solid fa-check" style={{fontSize:12,flexShrink:0}}/>}
+                      #{t.name}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{padding:"16px 24px",borderTop:"0.5px solid var(--b1)",display:"flex",justifyContent:"flex-end",gap:10}}>
+                <button className="btn-ghost" style={{fontSize:14}} onClick={()=>{setTagModalSel([]);setShowTagModal(false);}}>Clear</button>
+                <button className="btn-primary" style={{fontSize:14,padding:"8px 20px"}} onClick={()=>{setSelTags(tagModalSel);setShowTagModal(false);}}>
+                  {tagModalSel.length>0?`Add ${tagModalSel.length} tag${tagModalSel.length>1?"s":""}`:"Add tags"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="comp-body-area">
           <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames}/>
         </div>
