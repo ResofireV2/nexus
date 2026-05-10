@@ -8321,6 +8321,7 @@ function AdminExtensionsPanel() {
 
   // Merge store + installed into a unified list
   const installedSlugs = new Set((extensions||[]).map(e=>e.slug));
+  const installedBySlug = Object.fromEntries((extensions||[]).map(e=>[e.slug, e]));
 
   // Build full item list from store + any installed-but-not-in-store
   const allItems = (() => {
@@ -8335,7 +8336,20 @@ function AdminExtensionsPanel() {
         categories: e.categories||[], installs: null,
         manifest_url: e.manifest_url, installed: true,
       }));
-    return [...store, ...installedOnly];
+    // For store items that are installed, merge DB values over store entry
+    // so that synced logo_url/banner_url always takes precedence over the registry.
+    const storeWithInstalled = store.map(item => {
+      const inst = installedBySlug[item.slug];
+      if(!inst) return item;
+      return {
+        ...item,
+        logo_url:   inst.logo_url   || item.logo_url,
+        banner_url: inst.banner_url || item.banner_url,
+        version:    inst.version    || item.version,
+        installed:  true,
+      };
+    });
+    return [...storeWithInstalled, ...installedOnly];
   })();
 
   const q = filter.trim().toLowerCase();

@@ -67,13 +67,14 @@ defmodule Nexus.Extensions do
 
   def install_extension(attrs) do
     Repo.transaction(fn ->
-      # Store settings_schema and settings_tabs inside the manifest field
-      # so extension_json can read them back when rendering the settings form.
+      # Store settings_schema, settings_tabs, logo_url and banner_url inside the manifest field
+      # so extension_json can read them back without needing extra DB columns.
       manifest = %{
         "settings_schema" => Map.get(attrs, "settings_schema", %{}),
-        "settings_tabs"   => Map.get(attrs, "settings_tabs", [])
+        "settings_tabs"   => Map.get(attrs, "settings_tabs", []),
+        "logo_url"        => Map.get(attrs, "logo_url"),
+        "banner_url"      => Map.get(attrs, "banner_url"),
       }
-
       # Auto-generate a proxy secret if the extension has a service_url
       proxy_secret =
         if Map.get(attrs, "service_url") do
