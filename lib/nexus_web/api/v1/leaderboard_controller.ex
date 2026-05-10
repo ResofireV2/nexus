@@ -98,12 +98,36 @@ defmodule NexusWeb.API.V1.LeaderboardController do
 
   defp entry_json(row) do
     %{
-      user_id:     row.user_id,
-      username:    row.username,
-      avatar_url:  row.avatar_url,
-      score:       row.score,
-      badges:      Map.get(row, :badges, [])
+      user_id:        row.user_id,
+      username:       row.username,
+      avatar_url:     row.avatar_url,
+      avatar_color:   Map.get(row, :avatar_color),
+      score:          row.score,
+      badges:         Map.get(row, :badges, []),
+      current_streak: Map.get(row, :current_streak, 0)
     }
+  end
+
+  # GET /api/v1/leaderboard/streaks
+  def streaks(conn, _params) do
+    unless Leaderboard.enabled?() do
+      conn |> put_status(:not_found) |> json(%{error: "Leaderboard is disabled"})
+    else
+      top = Nexus.Repo.all(
+        from u in Nexus.Accounts.User,
+          where: u.status == "active" and u.current_streak > 0,
+          order_by: [desc: u.current_streak],
+          limit: 5,
+          select: %{
+            user_id:        u.id,
+            username:       u.username,
+            avatar_url:     u.avatar_url,
+            avatar_color:   u.avatar_color,
+            current_streak: u.current_streak
+          }
+      )
+      json(conn, %{streaks: top})
+    end
   end
 
   defp format_errors(changeset) do

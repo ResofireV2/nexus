@@ -1359,6 +1359,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .p-reply-meta{font-size:11px;color:var(--t5);display:flex;align-items:center;gap:6px;}
 .members-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
 @media(max-width:767.99px){.members-grid{grid-template-columns:1fr;}}
+@media(max-width:767.99px){.podium-desktop{display:none!important;}.podium-mobile{display:flex!important;}}
 .p-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:16px 0;}
 @media(max-width:767.99px){.profile-stat-grid{grid-template-columns:repeat(2,1fr);}.p-media-grid{grid-template-columns:repeat(2,1fr);}}
 
@@ -2963,6 +2964,17 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
     </div>
   );
   var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
+
+  // Leaderboard page gets its own contextual sidebar
+  if(page === "leaderboard") {
+    return (
+      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
+        <LeaderboardPageSidebar currentUser={currentUser} navigate={navigate}/>
+        {liveActivityWidget}
+        {statsWidget}
+      </div>
+    );
+  }
 
   // Badges page gets its own contextual sidebar
   if(page === "badges") {
@@ -6677,6 +6689,85 @@ function ToolbarEditor({items, onChange}) {
 }
 
 
+// ── Leaderboard page contextual sidebar ──────────────────────────────────────
+function LeaderboardPageSidebar({currentUser, navigate}) {
+  const [streaks,    setStreaks]    = useState(null);
+  const [lbData,     setLbData]     = useState(null);
+
+  useEffect(()=>{
+    api.get("/leaderboard/streaks").then(d=>setStreaks(d.streaks||[])).catch(()=>setStreaks([]));
+    api.get("/leaderboard?period=all").then(d=>setLbData(d)).catch(()=>{});
+  },[]);
+
+  const board      = lbData?.leaderboard || [];
+  const myRank     = lbData?.my_rank || null;
+  const pointsName = lbData?.points_name || "points";
+
+  // Points to next rank — find person directly above current user
+  const nextRankInfo = (() => {
+    if(!currentUser||!myRank||!board||board.length===0) return null;
+    const myPos = myRank.rank;
+    if(myPos<=1) return {isFirst:true};
+    const aboveUser = board[myPos-2];
+    if(!aboveUser) return null;
+    const gap = aboveUser.score - myRank.score;
+    return {username: aboveUser.username, gap, nextRank: myPos-1};
+  })();
+
+  return (
+    <>
+      {/* Points to next rank */}
+      {currentUser&&nextRankInfo&&(
+        <div className="rw" style={{border:"0.5px solid rgba(167,139,250,0.2)",background:"rgba(167,139,250,0.04)"}}>
+          <div className="rw-label">your next rank</div>
+          {nextRankInfo.isFirst
+            ? <div style={{fontSize:14,color:"var(--green)",fontWeight:500,display:"flex",alignItems:"center",gap:8}}>
+                <i className="fa-solid fa-crown" style={{fontSize:14,color:"#fbbf24"}}/>You&apos;re #1!
+              </div>
+            : <>
+                <div style={{fontSize:28,fontWeight:600,color:"var(--ac)",letterSpacing:-0.5,lineHeight:1,marginBottom:6}}>
+                  {Number(nextRankInfo.gap).toLocaleString()}
+                </div>
+                <div style={{fontSize:14,color:"var(--t4)",lineHeight:1.5}}>
+                  {pointsName} to pass <span style={{color:"var(--t2)",fontWeight:500}}>@{nextRankInfo.username}</span> and reach <span style={{color:"var(--ac-text)",fontWeight:500}}>#{nextRankInfo.nextRank}</span>
+                </div>
+              </>
+          }
+        </div>
+      )}
+
+      {/* Streak leaderboard */}
+      <div className="rw">
+        <div className="rw-label">top streaks</div>
+        {streaks===null
+          ?<div style={{fontSize:14,color:"var(--t5)",textAlign:"center",padding:"12px 0"}}>Loading…</div>
+          :streaks.length===0
+            ?<div style={{fontSize:14,color:"var(--t5)",textAlign:"center",padding:"12px 0"}}>No streaks yet</div>
+            :streaks.map((u,i)=>(
+              <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:i<streaks.length-1?"0.5px solid var(--b1)":"none",cursor:"pointer"}}
+                onClick={()=>navigate("profile",{username:u.username})}>
+                {u.avatar_url
+                  ?<img src={u.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
+                  :<div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:userColor({id:u.user_id,avatar_color:u.avatar_color}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:500,color:"#fff",flexShrink:0}}>
+                    {(u.username||"?").slice(0,2).toUpperCase()}
+                  </div>}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:500,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.username}</div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                  <i className="fa-solid fa-fire" style={{fontSize:13,color:"#fbbf24"}}/>
+                  <span style={{fontSize:14,fontWeight:600,color:"#fbbf24"}}>{u.current_streak}</span>
+                  <span style={{fontSize:12,color:"var(--t5)"}}>days</span>
+                </div>
+              </div>
+            ))
+        }
+      </div>
+    </>
+  );
+}
+
+
 // ── LeaderboardPage ───────────────────────────────────────────────────────────
 function LeaderboardPage({currentUser, navigate}) {
   const [period,   setPeriod]   = useState("all");
@@ -6703,9 +6794,9 @@ function LeaderboardPage({currentUser, navigate}) {
     : top3;
 
   const podiumStyle = {
-    1: {avSize:72, blockH:72, blockBg:"rgba(251,191,36,0.12)", blockBorder:"rgba(251,191,36,0.2)", scoreColor:"#fbbf24"},
-    2: {avSize:58, blockH:52, blockBg:"rgba(176,184,200,0.08)", blockBorder:"rgba(176,184,200,0.15)", scoreColor:"#b0b8c8"},
-    3: {avSize:52, blockH:36, blockBg:"rgba(200,121,65,0.08)", blockBorder:"rgba(200,121,65,0.15)", scoreColor:"#c87941"},
+    1: {avSize:100, blockH:80, blockBg:"rgba(251,191,36,0.12)", blockBorder:"rgba(251,191,36,0.2)", scoreColor:"#fbbf24"},
+    2: {avSize:86,  blockH:60, blockBg:"rgba(176,184,200,0.08)", blockBorder:"rgba(176,184,200,0.15)", scoreColor:"#b0b8c8"},
+    3: {avSize:72,  blockH:44, blockBg:"rgba(200,121,65,0.08)", blockBorder:"rgba(200,121,65,0.15)", scoreColor:"#c87941"},
   };
   const rankBadgeStyle = {
     1:{bg:"#fbbf24",color:"#412402"},
@@ -6740,8 +6831,9 @@ function LeaderboardPage({currentUser, navigate}) {
         {loading ? <div style={{textAlign:"center",padding:"60px 0",color:"var(--t5)"}}>Loading…</div> : <>
 
           {/* Podium */}
-          {podiumOrder.length > 0 && (
-            <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:16,marginBottom:32,padding:"0 20px"}}>
+          {podiumOrder.length > 0 && (<>
+            {/* Desktop podium */}
+            <div className="podium-desktop" style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:16,marginBottom:32,padding:"0 20px"}}>
               {podiumOrder.map((u, idx)=>{
                 const rank = podiumOrder.length === 3 ? [2,1,3][idx] : idx+1;
                 const ps   = podiumStyle[rank] || podiumStyle[3];
@@ -6749,20 +6841,43 @@ function LeaderboardPage({currentUser, navigate}) {
                 return (
                   <div key={u.user_id} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,maxWidth:160,cursor:"pointer"}} onClick={()=>navigate("profile",{username:u.username})}>
                     <div style={{position:"relative",marginBottom:10}}>
-                      {rank===1 && <div style={{position:"absolute",top:-16,left:"50%",transform:"translateX(-50%)",fontSize:20,lineHeight:1}}>👑</div>}
+                      {rank===1 && <div style={{position:"absolute",top:-20,left:"50%",transform:"translateX(-50%)",fontSize:22,lineHeight:1}}>👑</div>}
                       <RsAv user={u} size={ps.avSize} noCard={true}/>
-                      <div style={{position:"absolute",bottom:-6,right:-6,width:20,height:20,borderRadius:"50%",background:rbs.bg,color:rbs.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600,border:"2px solid var(--bg)"}}>{rank}</div>
+                      <div style={{position:"absolute",bottom:-6,right:-6,width:22,height:22,borderRadius:"50%",background:rbs.bg,color:rbs.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,border:"2px solid var(--bg)"}}>{rank}</div>
                     </div>
-                    <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:2,textAlign:"center"}}>{u.username}</div>
-                    <div style={{fontSize:11,color:"var(--t5)",marginBottom:8,textAlign:"center"}}>@{u.username}</div>
-                    <div style={{fontSize:18,fontWeight:600,letterSpacing:-0.5,color:ps.scoreColor,textAlign:"center",marginBottom:2}}>{Number(u.score).toLocaleString()}</div>
-                    <div style={{fontSize:10,color:"var(--t5)",marginBottom:10,textAlign:"center"}}>{pointsName}</div>
+                    <div style={{fontSize:14,fontWeight:500,color:"var(--t1)",marginBottom:2,textAlign:"center"}}>{u.username}</div>
+                    <div style={{fontSize:12,color:"var(--t5)",marginBottom:8,textAlign:"center"}}>@{u.username}</div>
+                    <div style={{fontSize:20,fontWeight:600,letterSpacing:-0.5,color:ps.scoreColor,textAlign:"center",marginBottom:2}}>{Number(u.score).toLocaleString()}</div>
+                    <div style={{fontSize:11,color:"var(--t5)",marginBottom:10,textAlign:"center"}}>{pointsName}</div>
                     <div style={{height:ps.blockH,width:"100%",background:ps.blockBg,border:`0.5px solid ${ps.blockBorder}`,borderRadius:"12px 12px 0 0"}}/>
                   </div>
                 );
               })}
             </div>
-          )}
+            {/* Mobile podium — single column, ranked 1→2→3 */}
+            <div className="podium-mobile" style={{display:"none",flexDirection:"column",gap:10,marginBottom:24}}>
+              {top3.map((u, idx)=>{
+                const rank = idx+1;
+                const ps   = podiumStyle[rank] || podiumStyle[3];
+                const rbs  = rankBadgeStyle[rank] || rankBadgeStyle[3];
+                return (
+                  <div key={u.user_id} onClick={()=>navigate("profile",{username:u.username})}
+                    style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderRadius:14,
+                      border:`0.5px solid ${ps.blockBorder}`,background:ps.blockBg,cursor:"pointer"}}>
+                    <div style={{position:"relative",flexShrink:0}}>
+                      {rank===1&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",fontSize:16,lineHeight:1}}>👑</div>}
+                      <RsAv user={u} size={52} noCard={true}/>
+                      <div style={{position:"absolute",bottom:-4,right:-4,width:20,height:20,borderRadius:"50%",background:rbs.bg,color:rbs.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,border:"2px solid var(--bg)"}}>{rank}</div>
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:600,color:"var(--t1)",marginBottom:2}}>{u.username}</div>
+                      <div style={{fontSize:14,color:"var(--t5)"}}>{Number(u.score).toLocaleString()} {pointsName}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>)}
 
           {/* Your rank banner */}
           {currentUser && myRank && (

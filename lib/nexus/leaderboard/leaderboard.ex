@@ -216,10 +216,11 @@ defmodule Nexus.Leaderboard do
         username:     u.username,
         avatar_url:   u.avatar_url,
         avatar_color: u.avatar_color,
-        score:        field(s, ^score_field),
-        score_all:    s.score_all,
-        score_week:   s.score_week,
-        score_month:  s.score_month
+        score:          field(s, ^score_field),
+        score_all:      s.score_all,
+        score_week:     s.score_week,
+        score_month:    s.score_month,
+        current_streak: u.current_streak
       }
     )
   end

@@ -103,6 +103,7 @@ defmodule NexusWeb.Router do
     get "/branding",               AdminController,  :get_branding
     get "/badges/recent",           BadgeController,  :recent_earners
     get "/badges",                 BadgeController,  :index
+    get "/leaderboard/streaks",    LeaderboardController, :streaks
     get "/leaderboard",            LeaderboardController, :index
     get "/slots/all",              ExtensionController,  :slots_all
     get "/pwa/vapid-public-key",   PwaController,        :vapid_public_key
