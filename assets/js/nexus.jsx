@@ -7030,6 +7030,25 @@ function LeaderboardPage({currentUser, navigate}) {
   );
 }
 
+
+// ── AdminIntegrationsPanel ────────────────────────────────────────────────────
+function AdminIntegrationsPanel({cfg, setCfg}) {
+  return (
+    <div>
+      <div className="fgt">GitHub</div>
+      <div style={{fontSize:13,color:"var(--t3)",marginBottom:16,lineHeight:1.7}}>
+        A GitHub personal access token is required to check extensions for updates and install from tagged releases.
+        Create one at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>github.com/settings/tokens</a> with <code style={{fontSize:11}}>public_repo</code> read access.
+        Without a token the GitHub API is rate-limited to 60 requests/hour. With a token: 5,000/hour.
+      </div>
+      <F label="Personal access token" hint="Stored securely. Never exposed to the frontend.">
+        <input className="fi" type="password" value={cfg.github_token||""} placeholder="ghp_…"
+          onChange={e=>setCfg(p=>({...p,github_token:e.target.value}))}/>
+      </F>
+    </div>
+  );
+}
+
 // ── AdminAntiSpamPanel ────────────────────────────────────────────────────────
 function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
   const [tab, setTab]         = useState("settings");
@@ -8253,6 +8272,9 @@ function AdminExtensionsPanel() {
   const [installError, setInstallError] = useState(null);
   const [filter, setFilter]             = useState("");          // search/filter string
   const [readme, setReadme]             = useState(null);        // { item, content, loading, error }
+  const [updates, setUpdates]           = useState(null);        // null | [] | [{slug,name,current,latest,notes}]
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updatingSlug, setUpdatingSlug] = useState(null);
 
   // Derive the raw README URL from a GitHub homepage URL.
   // https://github.com/owner/repo  →  https://raw.githubusercontent.com/owner/repo/HEAD/README.md
@@ -8293,6 +8315,33 @@ function AdminExtensionsPanel() {
       .finally(()=>setStoreLoading(false));
   };
 
+  const checkForUpdates = async () => {
+    setCheckingUpdates(true);
+    const d = await api.post("/admin/extensions/check-updates");
+    setCheckingUpdates(false);
+    if(d.updates !== undefined) {
+      setUpdates(d.updates);
+      if(d.updates.length === 0) toast("All extensions are up to date");
+      else toast(`${d.updates.length} update${d.updates.length>1?"s":""} available`);
+    } else {
+      toast(d.error||"Update check failed","err");
+    }
+    loadExtensions();
+  };
+
+  const updateExtension = async (slug) => {
+    setUpdatingSlug(slug);
+    const d = await api.post(`/admin/extensions/${slug}/update`);
+    setUpdatingSlug(null);
+    if(d.extension) {
+      toast(`${d.extension.name} updated to ${d.extension.installed_version}`);
+      setUpdates(prev=>(prev||[]).filter(u=>u.slug!==slug));
+      loadExtensions();
+    } else {
+      toast(d.error||"Update failed","err");
+    }
+  };
+
   const installFromUrl = async () => {
     if(!installUrl.trim()) return;
     setInstalling("__url__"); setInstallError(null);
@@ -8331,22 +8380,31 @@ function AdminExtensionsPanel() {
       .filter(e=>!storeSlugs.has(e.slug))
       .map(e=>({
         slug: e.slug, name: e.name, description: e.description,
-        author: e.author, version: e.version, homepage: e.homepage,
+        author: e.author, version: e.installed_version||e.version, homepage: e.homepage,
         logo_url: e.logo_url, banner_url: e.banner_url,
         categories: e.categories||[], installs: null,
         manifest_url: e.manifest_url, installed: true,
+        installed_version: e.installed_version,
+        latest_version: e.latest_version,
+        release_notes: e.release_notes,
+        update_available: !!(updates||[]).find(u=>u.slug===e.slug),
       }));
     // For store items that are installed, merge DB values over store entry
     // so that synced logo_url/banner_url always takes precedence over the registry.
+    const updatesBySlug = Object.fromEntries((updates||[]).map(u=>[u.slug, u]));
     const storeWithInstalled = store.map(item => {
       const inst = installedBySlug[item.slug];
       if(!inst) return item;
       return {
         ...item,
-        logo_url:   inst.logo_url   || item.logo_url,
-        banner_url: inst.banner_url || item.banner_url,
-        version:    inst.version    || item.version,
-        installed:  true,
+        logo_url:          inst.logo_url          || item.logo_url,
+        banner_url:        inst.banner_url         || item.banner_url,
+        version:           inst.installed_version  || inst.version || item.version,
+        installed_version: inst.installed_version,
+        latest_version:    inst.latest_version,
+        release_notes:     inst.release_notes,
+        update_available:  !!updatesBySlug[item.slug],
+        installed:         true,
       };
     });
     return [...storeWithInstalled, ...installedOnly];
@@ -8401,8 +8459,16 @@ function AdminExtensionsPanel() {
                 fontFamily:"inherit",outline:"none",width:160}}/>
           </div>
         )}
-        <button onClick={()=>{loadStore();loadExtensions();}}
+        <button onClick={checkForUpdates} disabled={checkingUpdates}
           style={{marginLeft:tab==="url"?"auto":8,background:"none",border:"none",
+            color:"var(--ac)",cursor:checkingUpdates?"default":"pointer",padding:"4px 8px",fontSize:12,flexShrink:0,
+            display:"flex",alignItems:"center",gap:5,opacity:checkingUpdates?0.6:1}}
+          title="Check for updates">
+          <i className={`fa-solid fa-arrow-up-right-dots${checkingUpdates?" fa-beat":""}`} style={{fontSize:12}}/>
+          {checkingUpdates?"Checking…":"Check for updates"}
+        </button>
+        <button onClick={()=>{loadStore();loadExtensions();}}
+          style={{marginLeft:4,background:"none",border:"none",
             color:"var(--t5)",cursor:"pointer",padding:"4px 8px",fontSize:13,flexShrink:0}}
           title="Refresh">
           <i className="fa-solid fa-rotate-right"/>
@@ -8493,14 +8559,23 @@ function AdminExtensionsPanel() {
                         style={{fontSize:20,color:accentColor,
                           display:item.logo_url?"none":"flex"}}/>
                     </div>
-                    {/* Installed badge */}
+                    {/* Installed / update available badges */}
                     {isInstalled&&(
-                      <div style={{position:"absolute",top:10,right:10,
-                        fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
-                        background:"rgba(52,211,153,0.15)",border:"0.5px solid rgba(52,211,153,0.3)",
-                        color:"#34d399",display:"flex",alignItems:"center",gap:4}}>
-                        <i className="fa-solid fa-circle-check" style={{fontSize:9}}/>
-                        Installed
+                      <div style={{position:"absolute",top:10,right:10,display:"flex",gap:6}}>
+                        {item.update_available&&(
+                          <div style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                            background:"rgba(251,146,60,0.15)",border:"0.5px solid rgba(251,146,60,0.4)",
+                            color:"#fb923c",display:"flex",alignItems:"center",gap:4}}>
+                            <i className="fa-solid fa-arrow-up" style={{fontSize:9}}/>
+                            Update
+                          </div>
+                        )}
+                        <div style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                          background:"rgba(52,211,153,0.15)",border:"0.5px solid rgba(52,211,153,0.3)",
+                          color:"#34d399",display:"flex",alignItems:"center",gap:4}}>
+                          <i className="fa-solid fa-circle-check" style={{fontSize:9}}/>
+                          Installed
+                        </div>
                       </div>
                     )}
                   </div>
@@ -8508,10 +8583,24 @@ function AdminExtensionsPanel() {
                   {/* Card body */}
                   <div style={{padding:"28px 16px 16px",flex:1,display:"flex",flexDirection:"column",gap:8}}>
                     {/* Name + version */}
-                    <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                    <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
                       <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",lineHeight:1.2}}>{item.name}</div>
                       {item.version&&<div style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>v{item.version}</div>}
+                      {item.update_available&&item.latest_version&&(
+                        <div style={{fontSize:11,color:"#fb923c",flexShrink:0}}>
+                          → {item.latest_version} available
+                        </div>
+                      )}
                     </div>
+                    {/* Release notes — shown when update is available */}
+                    {item.update_available&&item.release_notes&&(
+                      <div style={{fontSize:12,color:"var(--t4)",background:"rgba(251,146,60,0.05)",
+                        border:"0.5px solid rgba(251,146,60,0.2)",borderRadius:8,padding:"8px 12px",
+                        lineHeight:1.6,maxHeight:80,overflowY:"auto"}}>
+                        {item.release_notes.split("\n").slice(0,5).join(" ").slice(0,200)}
+                        {item.release_notes.length>200?"…":""}
+                      </div>
+                    )}
 
                     {/* Author + installs */}
                     <div style={{fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:8}}>
@@ -8602,6 +8691,18 @@ function AdminExtensionsPanel() {
                               <i className="fa-solid fa-sidebar" style={{fontSize:11}}/>
                               Settings in sidebar
                             </span>
+                          )}
+                          {item.update_available&&(
+                            <button onClick={()=>updateExtension(item.slug)}
+                              disabled={updatingSlug===item.slug}
+                              style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                                background:"rgba(251,146,60,0.1)",border:"0.5px solid rgba(251,146,60,0.4)",
+                                color:"#fb923c",cursor:updatingSlug===item.slug?"default":"pointer",
+                                fontFamily:"inherit",fontWeight:500,
+                                opacity:updatingSlug===item.slug?0.6:1}}>
+                              <i className="fa-solid fa-arrow-up" style={{marginRight:5,fontSize:11}}/>
+                              {updatingSlug===item.slug?"Updating…":`Update to ${item.latest_version}`}
+                            </button>
                           )}
                           {item.manifest_url&&(
                             <button onClick={async()=>{
@@ -9392,11 +9493,12 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const [digestCfg,setDigestCfg]=useState({});
   const [pwaCfg,setPwaCfg]=useState({});
   const [spamCfg,setSpamCfg]=useState({});
+  const [integrationsCfg,setIntegrationsCfg]=useState({});
   // Watch all cfg values and mark dirty when any change after initial load.
   useEffect(()=>{
     if(!adminSettingsLoaded.current) return;
     setIsDirty(true);
-  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg]);
+  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg,integrationsCfg]);
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -9424,7 +9526,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});}).then(()=>{ adminSettingsLoaded.current=true; });
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});}).then(()=>{ adminSettingsLoaded.current=true; });
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -9465,6 +9567,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       {k:"moderation", icon:"fa-lock",                 label:"moderation"},
       {k:"extensions", icon:"fa-plug",                 label:"extensions", badge:0},
       {k:"pwa",        icon:"fa-mobile-screen",         label:"pwa"},
+      {k:"integrations",icon:"fa-plug-circle-bolt",       label:"integrations"},
     ]},
     {label:"manage", items:[
       {k:"members",    icon:"fa-users",                label:"members"},
@@ -9553,6 +9656,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             else if(sec==="moderation") saveSection("moderation",general);
             else if(sec==="pwa") saveSection("pwa",pwaCfg);
             else if(sec==="anti-spam") saveSection("anti_spam",spamCfg);
+            else if(sec==="integrations") saveSection("integrations",integrationsCfg);
             else if(sec.startsWith("ext-panel-")&&window._nexusAdminSaveFn) window._nexusAdminSaveFn().then(()=>setIsDirty(false));
           }} disabled={saving||!isDirty} style={{opacity:isDirty?1:0.4,cursor:isDirty?"pointer":"default"}}>{saving?"…":"Save changes"}</button>
         </div>
@@ -10036,6 +10140,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           </>}
 
           {sec==="anti-spam"&&<AdminAntiSpamPanel spamCfg={spamCfg} setSpamCfg={setSpamCfg}/>}
+          {sec==="integrations"&&<AdminIntegrationsPanel cfg={integrationsCfg} setCfg={setIntegrationsCfg}/>}
 
           {sec==="spaces"&&<SpacesAdmin spaces={spaces} onRefresh={()=>{ api.get("/spaces").then(d=>setSpaces(d.spaces||[])); onSpacesUpdated?.(); }} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
           {sec==="tags"&&<TagsAdmin tags={tags} onRefresh={()=>api.get("/tags").then(d=>setTags(d.tags||[]))}/>}

@@ -135,6 +135,8 @@ defmodule Nexus.Extensions do
 
       # Fields we allow the manifest to update on sync — settings and slug are excluded
       # intentionally: settings are admin-managed, slug changes would break installs.
+      github_repo = Nexus.Extensions.GitHub.repo_from_url(ext.manifest_url) || ext.github_repo
+
       update_attrs = %{
         "name"          => manifest["name"],
         "version"       => manifest["version"],
@@ -144,6 +146,7 @@ defmodule Nexus.Extensions do
         "webhook_url"   => manifest["webhook_url"],
         "js_bundle_url" => manifest["js_bundle_url"],
         "service_url"   => manifest["service_url"],
+        "github_repo"   => github_repo,
         "manifest"      => Map.merge(ext.manifest || %{}, %{
           "settings_schema" => manifest["settings_schema"] || %{},
           "settings_tabs"   => manifest["settings_tabs"]   || [],
@@ -201,7 +204,26 @@ defmodule Nexus.Extensions do
          {:ok, manifest} <- parse_manifest(body),
          :ok             <- validate_manifest(manifest) do
 
-      attrs = Map.merge(manifest, %{"manifest_url" => url})
+      github_repo = Nexus.Extensions.GitHub.repo_from_url(url)
+
+      # If we can identify a GitHub repo, try to get the latest release tag
+      # so we record what version was installed from the start.
+      installed_version =
+        if github_repo do
+          token = Nexus.Extensions.GitHub.get_token()
+          case Nexus.Extensions.GitHub.latest_release(github_repo, token) do
+            {:ok, %{tag: tag}} -> tag
+            _ -> manifest["version"]
+          end
+        else
+          manifest["version"]
+        end
+
+      attrs = manifest
+        |> Map.merge(%{"manifest_url" => url})
+        |> Map.merge(%{"github_repo" => github_repo})
+        |> Map.merge(%{"installed_version" => installed_version})
+
       install_extension(attrs)
     else
       {:ok, %{status: status}} ->
@@ -215,6 +237,96 @@ defmodule Nexus.Extensions do
 
       {:error, reason} ->
         {:error, "Failed to install extension: #{inspect(reason)}"}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # GitHub update checking
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Checks all installed extensions with a github_repo for available updates.
+  Returns a list of maps for extensions that have a newer release available:
+    %{extension: ext, current: "v0.2.0", latest: "v0.3.0", notes: "markdown"}
+  """
+  def check_for_updates do
+    token = Nexus.Extensions.GitHub.get_token()
+
+    list_extensions()
+    |> Enum.filter(& &1.github_repo)
+    |> Enum.map(fn ext ->
+      case Nexus.Extensions.GitHub.latest_release(ext.github_repo, token) do
+        {:ok, release} ->
+          current = ext.installed_version || ext.version
+          latest  = release.tag
+
+          # Store the latest version and release notes on the extension record
+          ext
+          |> Extension.changeset(%{"latest_version" => latest, "release_notes" => release.body})
+          |> Repo.update()
+
+          if latest != current do
+            %{
+              slug:     ext.slug,
+              name:     ext.name,
+              current:  current,
+              latest:   latest,
+              notes:    release.body,
+            }
+          else
+            nil
+          end
+
+        {:error, :no_release} ->
+          nil
+
+        {:error, reason} ->
+          require Logger
+          Logger.warning("Update check failed for #{ext.slug}: #{inspect(reason)}")
+          nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Updates an installed extension to the latest GitHub release.
+  Fetches the manifest at the release tag, syncs all fields, and updates
+  installed_version.
+  """
+  def update_extension_from_release(%Extension{github_repo: nil}),
+    do: {:error, "Extension has no GitHub repo configured"}
+
+  def update_extension_from_release(%Extension{} = ext) do
+    token = Nexus.Extensions.GitHub.get_token()
+
+    with {:ok, release}  <- Nexus.Extensions.GitHub.latest_release(ext.github_repo, token),
+         {:ok, manifest} <- Nexus.Extensions.GitHub.manifest_at_tag(ext.github_repo, release.tag, token),
+         :ok             <- validate_manifest(manifest) do
+
+      update_attrs = %{
+        "name"              => manifest["name"],
+        "version"           => manifest["version"],
+        "description"       => manifest["description"],
+        "author"            => manifest["author"],
+        "homepage"          => manifest["homepage"],
+        "webhook_url"       => manifest["webhook_url"],
+        "js_bundle_url"     => manifest["js_bundle_url"],
+        "service_url"       => manifest["service_url"],
+        "installed_version" => release.tag,
+        "latest_version"    => release.tag,
+        "release_notes"     => release.body,
+        "manifest"          => Map.merge(ext.manifest || %{}, %{
+          "settings_schema" => manifest["settings_schema"] || %{},
+          "settings_tabs"   => manifest["settings_tabs"]   || [],
+          "logo_url"        => manifest["logo_url"],
+          "banner_url"      => manifest["banner_url"],
+        }),
+      }
+
+      ext
+      |> Extension.changeset(update_attrs)
+      |> Repo.update()
     end
   end
 

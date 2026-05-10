@@ -270,6 +270,8 @@ defmodule NexusWeb.Router do
     post   "/extensions/install-from-url",   ExtensionController, :install_from_url
     post   "/extensions/:slug/toggle",       ExtensionController, :toggle
     post   "/extensions/:slug/sync",         ExtensionController, :sync_manifest
+    post   "/extensions/:slug/update",       ExtensionController, :update_extension
+    post   "/extensions/check-updates",      ExtensionController, :check_updates
     patch  "/extensions/:slug/settings",     ExtensionController, :update_settings
     delete "/extensions/:slug",              ExtensionController, :uninstall
 

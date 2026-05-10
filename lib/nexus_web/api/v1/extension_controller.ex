@@ -107,6 +107,38 @@ defmodule NexusWeb.API.V1.ExtensionController do
     end
   end
 
+  # POST /api/v1/admin/extensions/check-updates
+  def check_updates(conn, _params) do
+    token = Nexus.Extensions.GitHub.get_token()
+    unless token do
+      conn
+      |> put_status(:unprocessable_entity)
+      |> json(%{error: "No GitHub token configured. Add one in Admin → Settings → Integrations."})
+    else
+      updates = Extensions.check_for_updates()
+      json(conn, %{updates: updates})
+    end
+  end
+
+  # POST /api/v1/admin/extensions/:slug/update
+  def update_extension(conn, %{"slug" => slug}) do
+    token = Nexus.Extensions.GitHub.get_token()
+    unless token do
+      conn
+      |> put_status(:unprocessable_entity)
+      |> json(%{error: "No GitHub token configured. Add one in Admin → Settings → Integrations."})
+    else
+      case Extensions.get_extension_by_slug(slug) do
+        nil -> conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
+        ext ->
+          case Extensions.update_extension_from_release(ext) do
+            {:ok, updated} -> json(conn, %{extension: extension_json(updated)})
+            {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+          end
+      end
+    end
+  end
+
   # GET /api/v1/slots/:slot  (public — no auth required)
   def slots(conn, %{"slot" => slot}) do
     components = Extensions.slots_for(slot)
@@ -145,8 +177,12 @@ defmodule NexusWeb.API.V1.ExtensionController do
       js_bundle_url:  ext.js_bundle_url,
       manifest_url:   ext.manifest_url,
       service_url:    ext.service_url,
-      logo_url:       manifest["logo_url"],
-      banner_url:     manifest["banner_url"],
+      logo_url:           manifest["logo_url"],
+      banner_url:         manifest["banner_url"],
+      github_repo:        ext.github_repo,
+      installed_version:  ext.installed_version,
+      latest_version:     ext.latest_version,
+      release_notes:      ext.release_notes,
       # Never expose proxy_secret to the frontend
       # Expose schema so admin UI can render settings forms automatically
       settings_schema: manifest["settings_schema"] || %{},

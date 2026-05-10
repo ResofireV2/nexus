@@ -318,6 +318,9 @@ defmodule Nexus.Admin do
       "ios_prompt_delay"          => 10000,
       "ios_auto_detect_orientation" => true,
       "ios_pad_always_up"         => true
+    },
+    "integrations" => %{
+      "github_token" => nil
     }
   }
 
