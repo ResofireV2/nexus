@@ -8098,6 +8098,7 @@ function ExtensionSettingsForm({ext, onSaved}) {
 function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
   const [ext, setExt] = useState(initialExt);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const toggle = async () => {
     const d = await api.post(`/admin/extensions/${ext.slug}/toggle`);
@@ -8108,6 +8109,15 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
     const d = await api.delete(`/admin/extensions/${ext.slug}`);
     if(d.ok) { toast(`${ext.name} uninstalled`); onUninstall(ext.slug); }
     else toast(d.error||"Failed","err");
+  };
+
+  const syncManifest = async () => {
+    setSyncing(true);
+    try {
+      const d = await api.post(`/admin/extensions/${ext.slug}/sync`);
+      if(d.extension) { setExt(d.extension); toast("Manifest synced"); }
+      else toast(d.error||"Sync failed","err");
+    } finally { setSyncing(false); }
   };
 
   return (
@@ -8179,6 +8189,23 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
       {/* Settings form */}
       <div className="fgt" style={{marginBottom:16}}>Settings</div>
       <ExtensionSettingsForm ext={ext} onSaved={updated=>setExt(updated)}/>
+
+      {/* Manifest sync */}
+      {ext.manifest_url&&(
+        <div style={{marginTop:24,paddingTop:20,borderTop:"0.5px solid var(--b1)"}}>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:6}}>Manifest</div>
+          <div style={{fontSize:12,color:"var(--t4)",marginBottom:12}}>
+            Re-fetch the manifest from the source URL to pick up updated metadata, logo, banner, and bundle URL without reinstalling.
+          </div>
+          <button onClick={syncManifest} disabled={syncing}
+            style={{fontSize:12,padding:"6px 16px",borderRadius:8,
+              background:"rgba(96,165,250,0.08)",border:"0.5px solid rgba(96,165,250,0.3)",
+              color:"#60a5fa",cursor:syncing?"default":"pointer",fontFamily:"inherit",
+              opacity:syncing?0.6:1}}>
+            <i className="fa-solid fa-rotate" style={{marginRight:6,fontSize:11}}/>{syncing?"Syncing…":"Sync manifest"}
+          </button>
+        </div>
+      )}
 
       {/* Danger zone */}
       <div style={{marginTop:32,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>

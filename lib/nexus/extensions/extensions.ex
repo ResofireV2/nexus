@@ -124,6 +124,51 @@ defmodule Nexus.Extensions do
     Repo.delete(ext)
   end
 
+  def sync_manifest(%Extension{manifest_url: nil}), do: {:error, "No manifest URL stored for this extension"}
+  def sync_manifest(%Extension{} = ext) do
+    raw_url = to_raw_manifest_url(ext.manifest_url)
+
+    with {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
+         {:ok, manifest}                   <- parse_manifest(body),
+         :ok                               <- validate_manifest(manifest) do
+
+      # Fields we allow the manifest to update on sync — settings and slug are excluded
+      # intentionally: settings are admin-managed, slug changes would break installs.
+      update_attrs = %{
+        "name"          => manifest["name"],
+        "version"       => manifest["version"],
+        "description"   => manifest["description"],
+        "author"        => manifest["author"],
+        "homepage"      => manifest["homepage"],
+        "webhook_url"   => manifest["webhook_url"],
+        "js_bundle_url" => manifest["js_bundle_url"],
+        "service_url"   => manifest["service_url"],
+        "manifest"      => Map.merge(ext.manifest || %{}, %{
+          "settings_schema" => manifest["settings_schema"] || %{},
+          "settings_tabs"   => manifest["settings_tabs"]   || [],
+          "logo_url"        => manifest["logo_url"],
+          "banner_url"      => manifest["banner_url"],
+        }),
+      }
+
+      ext
+      |> Extension.changeset(update_attrs)
+      |> Repo.update()
+    else
+      {:ok, %{status: status}} ->
+        {:error, "Could not fetch manifest (HTTP #{status})"}
+
+      {:error, %{reason: reason}} ->
+        {:error, "Network error: #{inspect(reason)}"}
+
+      {:error, reason} when is_binary(reason) ->
+        {:error, reason}
+
+      {:error, reason} ->
+        {:error, "Sync failed: #{inspect(reason)}"}
+    end
+  end
+
   def toggle_extension(%Extension{} = ext) do
     ext
     |> Extension.toggle_changeset()
