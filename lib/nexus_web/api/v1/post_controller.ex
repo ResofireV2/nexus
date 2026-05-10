@@ -171,7 +171,8 @@ defmodule NexusWeb.API.V1.PostController do
       updated_at: post.updated_at,
       space: space_json(post.space),
       tags: Enum.map(post.tags, &tag_json/1),
-      user: user_json(post.user)
+      user: user_json(post.user),
+      edit_count: Forum.post_edit_count(post.id)
     }
   end
 

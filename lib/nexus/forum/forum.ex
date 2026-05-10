@@ -799,6 +799,36 @@ defmodule Nexus.Forum do
     |> Repo.insert()
   end
 
+  def post_edit_count(post_id) do
+    Repo.aggregate(from(e in PostEdit, where: e.post_id == ^post_id), :count)
+  end
+
+  def reply_edit_count(reply_id) do
+    Repo.aggregate(from(e in PostEdit, where: e.reply_id == ^reply_id), :count)
+  end
+
+  # Batch: returns %{post_id => count} for a list of post_ids
+  def post_edit_counts(post_ids) when post_ids == [], do: %{}
+  def post_edit_counts(post_ids) do
+    Repo.all(
+      from e in PostEdit,
+        where: e.post_id in ^post_ids,
+        group_by: e.post_id,
+        select: {e.post_id, count(e.id)}
+    ) |> Map.new()
+  end
+
+  # Batch: returns %{reply_id => count} for a list of reply_ids
+  def reply_edit_counts(reply_ids) when reply_ids == [], do: %{}
+  def reply_edit_counts(reply_ids) do
+    Repo.all(
+      from e in PostEdit,
+        where: e.reply_id in ^reply_ids,
+        group_by: e.reply_id,
+        select: {e.reply_id, count(e.id)}
+    ) |> Map.new()
+  end
+
   def list_post_edits(post_id) do
     Repo.all(
       from e in PostEdit,

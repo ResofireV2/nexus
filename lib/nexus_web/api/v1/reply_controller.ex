@@ -136,7 +136,8 @@ defmodule NexusWeb.API.V1.ReplyController do
       reactions: Nexus.Forum.list_reactions(reply_id: reply.id),
       inserted_at: reply.inserted_at,
       updated_at: reply.updated_at,
-      user: user_json(reply.user)
+      user: user_json(reply.user),
+      edit_count: Forum.reply_edit_count(reply.id)
     }
   end
 

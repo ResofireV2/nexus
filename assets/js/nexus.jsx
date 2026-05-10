@@ -3383,6 +3383,167 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
   );
 }
 
+// ── Edit History Modal ────────────────────────────────────────────────────────
+function wordDiff(before, after) {
+  const a = before.split(/(\s+)/);
+  const b = after.split(/(\s+)/);
+  // LCS table
+  const m = a.length, n = b.length;
+  const dp = Array.from({length:m+1}, ()=>new Array(n+1).fill(0));
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
+  // Backtrack
+  const ops = [];
+  let i=m,j=n;
+  while(i>0||j>0){
+    if(i>0&&j>0&&a[i-1]===b[j-1]){ops.unshift({t:'eq',v:a[i-1]});i--;j--;}
+    else if(j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])){ops.unshift({t:'add',v:b[j-1]});j--;}
+    else{ops.unshift({t:'del',v:a[i-1]});i--;}
+  }
+  return ops;
+}
+
+function DiffView({before, after}) {
+  const ops = wordDiff(before||"", after||"");
+  return (
+    <div style={{fontSize:"var(--fs-body)",lineHeight:1.75,color:"var(--t2)",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+      {ops.map((op,i)=>(
+        op.t==="eq"  ? <span key={i}>{op.v}</span> :
+        op.t==="add" ? <span key={i} style={{background:"rgba(52,211,153,0.2)",color:"var(--green)",borderRadius:2}}>{op.v}</span> :
+                       <span key={i} style={{background:"rgba(248,113,113,0.15)",color:"var(--red)",textDecoration:"line-through",borderRadius:2}}>{op.v}</span>
+      ))}
+    </div>
+  );
+}
+
+function EditHistoryModal({postId, replyId, editCount, onClose}) {
+  const [edits, setEdits] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const ref = useRef();
+
+  useEffect(()=>{
+    const url = postId ? `/posts/${postId}/edits` : `/posts/${replyId?.postId}/replies/${replyId?.id}/edits`;
+    api.get(url).then(d=>{ setEdits(d.edits||[]); setLoading(false); }).catch(()=>setLoading(false));
+  },[postId, replyId]);
+
+  useEffect(()=>{
+    const fn = e=>{ if(ref.current&&!ref.current.contains(e.target)) onClose(); };
+    const esc = e=>{ if(e.key==="Escape") onClose(); };
+    document.addEventListener("mousedown",fn);
+    document.addEventListener("keydown",esc);
+    return ()=>{ document.removeEventListener("mousedown",fn); document.removeEventListener("keydown",esc); };
+  },[]);
+
+  // Build pairs: each edit shows [that edit's old content] vs [next edit's old content or current]
+  const buildPairs = (edits, currentBody, currentTitle) => {
+    if(!edits||edits.length===0) return [];
+    // edits are newest-first. pairs[0] = most recent edit: before=edits[0].old, after=current
+    return edits.map((e,i)=>({
+      edit: e,
+      before_title: e.old_title,
+      before_body:  e.old_body,
+      after_title:  i===0 ? currentTitle : edits[i-1].old_title,
+      after_body:   i===0 ? currentBody  : edits[i-1].old_body,
+    }));
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"24px 16px",overflowY:"auto"}}>
+      <div ref={ref} style={{background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:900,boxShadow:"0 8px 48px rgba(0,0,0,.6)",flexShrink:0}}>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"0.5px solid var(--b1)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <i className="fa-solid fa-clock-rotate-left" style={{fontSize:16,color:"var(--t3)"}}/>
+            <span style={{fontSize:16,fontWeight:500,color:"var(--t1)"}}>Edit history</span>
+            <span style={{fontSize:13,color:"var(--t5)"}}>{editCount} edit{editCount!==1?"s":""}</span>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>×</button>
+        </div>
+        {/* Body */}
+        <div style={{padding:"20px 24px"}}>
+          {loading&&<div style={{textAlign:"center",color:"var(--t5)",padding:"40px 0",fontSize:"var(--fs-body)"}}>Loading…</div>}
+          {!loading&&edits&&edits.length===0&&<div style={{textAlign:"center",color:"var(--t5)",padding:"40px 0",fontSize:"var(--fs-body)"}}>No edit history found.</div>}
+          {!loading&&edits&&edits.length>0&&(
+            <EditHistoryPairs edits={edits} postId={postId} replyId={replyId}/>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditHistoryPairs({edits, postId, replyId}) {
+  // Fetch current content once
+  const [current, setCurrent] = useState(null);
+  useEffect(()=>{
+    if(postId) api.get(`/posts/${postId}`).then(d=>setCurrent(d.post)).catch(()=>{});
+  },[postId]);
+
+  const currentBody  = current?.body  || "";
+  const currentTitle = current?.title || null;
+
+  const pairs = edits.map((e,i)=>({
+    edit:         e,
+    before_title: e.old_title,
+    before_body:  e.old_body,
+    after_title:  i===0 ? currentTitle        : edits[i-1].old_title,
+    after_body:   i===0 ? currentBody         : edits[i-1].old_body,
+    label:        i===0 ? "Current version"   : `After edit ${edits.length - i}`,
+  }));
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:24}}>
+      {pairs.map((pair,i)=>(
+        <div key={pair.edit.id} style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+          {/* Edit header */}
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",background:"var(--s2)",borderBottom:"0.5px solid var(--b1)"}}>
+            <span style={{fontSize:"var(--fs-body)",fontWeight:500,color:"var(--t2)"}}>Edit {edits.length - i}</span>
+            <span style={{fontSize:13,color:"var(--t5)"}}>·</span>
+            <span style={{fontSize:13,color:"var(--t4)"}}>{pair.edit.editor?.username}</span>
+            <span style={{fontSize:13,color:"var(--t5)"}}>·</span>
+            <span style={{fontSize:13,color:"var(--t5)"}}>{ago(pair.edit.edited_at)}</span>
+          </div>
+          {/* Title diff if changed */}
+          {pair.before_title&&pair.after_title&&pair.before_title!==pair.after_title&&(
+            <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",background:"var(--bg)"}}>
+              <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Title</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <div style={{fontSize:12,color:"var(--red)",marginBottom:6,fontWeight:500}}>Before</div>
+                  <div style={{fontSize:"var(--fs-body)",color:"var(--t2)",fontWeight:500,background:"rgba(248,113,113,0.08)",padding:"8px 12px",borderRadius:8}}>{pair.before_title}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:12,color:"var(--green)",marginBottom:6,fontWeight:500}}>After</div>
+                  <div style={{fontSize:"var(--fs-body)",color:"var(--t2)",fontWeight:500,background:"rgba(52,211,153,0.08)",padding:"8px 12px",borderRadius:8}}>{pair.after_title}</div>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Body diff */}
+          <div style={{padding:"16px",background:"var(--bg)"}}>
+            <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:12}}>Content</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <div>
+                <div style={{fontSize:13,color:"var(--red)",marginBottom:8,fontWeight:500}}>Before</div>
+                <div style={{background:"rgba(248,113,113,0.05)",border:"0.5px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"14px 16px"}}>
+                  <DiffView before={pair.before_body} after={pair.after_body}/>
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:13,color:"var(--green)",marginBottom:8,fontWeight:500}}>After</div>
+                <div style={{background:"rgba(52,211,153,0.05)",border:"0.5px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"14px 16px"}}>
+                  <DiffView before={pair.after_body} after={pair.before_body}/>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
 function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
@@ -3670,7 +3831,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [hoveredReply, setHoveredReply] = useState(null);
   const [editingPost, setEditingPost] = useState(false);
   const [acceptedReplyId, setAcceptedReplyId] = useState(post?.accepted_reply_id||null);
-  const [editHistory, setEditHistory] = useState(null); // null=closed, []=loaded
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -3734,10 +3895,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 style={{background:"none",border:"none",cursor:"pointer",color:postSaved?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
                 <i className={`fa-${postSaved?"solid":"regular"} fa-bookmark`}/>
               </button>}
-              <button title="Edit history" onClick={async()=>{ if(editHistory!==null){setEditHistory(null);return;} const d=await api.get(`/posts/${post.id}/edits`); setEditHistory(d.edits||[]); }}
-                style={{background:"none",border:"none",cursor:"pointer",color:editHistory!==null?"var(--ac)":"var(--t5)",fontSize:15,flexShrink:0,padding:"2px 4px",transition:"color .15s"}}>
-                <i className="fa-solid fa-clock-rotate-left"/>
-              </button>
+              {(post.edit_count||0)>0&&(
+                <button title="Edit history" onClick={()=>setEditHistoryOpen(true)}
+                  style={{background:"none",border:"none",cursor:"pointer",color:"var(--t5)",fontSize:14,flexShrink:0,padding:"2px 4px",transition:"color .15s",display:"flex",alignItems:"center",gap:3}}>
+                  <i className="fa-solid fa-clock-rotate-left" style={{fontSize:14}}/>
+                  <span style={{fontSize:12,color:"var(--t5)"}}>{post.edit_count}</span>
+                </button>
+              )}
             </div>
             {/* Title full-width */}
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
@@ -3746,25 +3910,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <i className={`fa-solid ${acceptedReplyId?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:10}}/>{acceptedReplyId?"Answered":"Question"}
               </span>}
             </div>
-            {editHistory!==null&&(
-              <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"12px 16px",marginBottom:12}}>
-                <div style={{fontSize:12,fontWeight:500,color:"var(--t4)",marginBottom:editHistory.length>0?10:0,display:"flex",alignItems:"center",gap:6}}>
-                  <i className="fa-solid fa-clock-rotate-left" style={{fontSize:11}}/>Edit history
-                </div>
-                {editHistory.length===0
-                  ?<div style={{fontSize:12,color:"var(--t5)"}}>No edits recorded.</div>
-                  :editHistory.map((e,i)=>(
-                    <div key={e.id} style={{borderTop:i>0?"0.5px solid var(--b1)":"none",paddingTop:i>0?10:0,marginTop:i>0?10:0}}>
-                      <div style={{fontSize:11,color:"var(--t5)",marginBottom:6,display:"flex",gap:8}}>
-                        <span>{e.editor?.username}</span><span>·</span><span>{ago(e.edited_at)}</span>
-                      </div>
-                      {e.old_title&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:4}}><span style={{color:"var(--t5)"}}>Title was: </span>{e.old_title}</div>}
-                      <div style={{fontSize:12,color:"var(--t3)",fontStyle:"italic",lineHeight:1.6,whiteSpace:"pre-wrap",opacity:.8}}>{e.old_body?.slice(0,300)}{e.old_body?.length>300?"…":""}</div>
-                    </div>
-                  ))
-                }
-              </div>
-            )}
+            {editHistoryOpen&&<EditHistoryModal postId={post.id} editCount={post.edit_count||0} onClose={()=>setEditHistoryOpen(false)}/>}
             {editingPost
               ?<div style={{marginTop:12}}>
                 <input className="fi" value={editTitle} onChange={e=>setEditTitle(e.target.value)}
@@ -3883,19 +4029,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               {r.id===acceptedReplyId&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:500,color:"var(--green)",marginBottom:6}}>
                 <i className="fa-solid fa-circle-check" style={{fontSize:13}}/>Accepted answer
               </div>}
-              {r._editHistory!==undefined&&(
-                <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8,padding:"10px 14px",marginBottom:10,fontSize:12}}>
-                  {r._editHistory.length===0
-                    ?<span style={{color:"var(--t5)"}}>No edit history.</span>
-                    :r._editHistory.map((e,i)=>(
-                      <div key={e.id} style={{borderTop:i>0?"0.5px solid var(--b1)":"none",paddingTop:i>0?8:0,marginTop:i>0?8:0}}>
-                        <div style={{color:"var(--t5)",marginBottom:4}}>{e.editor?.username} · {ago(e.edited_at)}</div>
-                        <div style={{color:"var(--t3)",fontStyle:"italic",whiteSpace:"pre-wrap"}}>{e.old_body?.slice(0,200)}{e.old_body?.length>200?"…":""}</div>
-                      </div>
-                    ))
-                  }
-                </div>
-              )}
+              {r._historyOpen&&<EditHistoryModal replyId={{id:r.id,postId:postId}} editCount={r.edit_count||0} onClose={()=>setReplies(p=>p.map(x=>x.id===r.id?{...x,_historyOpen:false}:x))}/>}
               <div className="reply-meta">
                 {r.user?.avatar_url
                   ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
@@ -3903,14 +4037,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
-                <span className="reply-quote-btn" title="Edit history" onClick={async()=>{
-                  const key=`rh_${r.id}`;
-                  if(r._editHistory!==undefined){setReplies(p=>p.map(x=>x.id===r.id?{...x,_editHistory:undefined}:x));return;}
-                  const d=await api.get(`/posts/${postId}/replies/${r.id}/edits`);
-                  setReplies(p=>p.map(x=>x.id===r.id?{...x,_editHistory:d.edits||[]}:x));
-                }} style={{opacity:1}}>
-                  <i className="fa-solid fa-clock-rotate-left" style={{fontSize:11}}/>
-                </span>
+                {(r.edit_count||0)>0&&(
+                  <span className="reply-quote-btn" title="Edit history" onClick={()=>setReplies(p=>p.map(x=>x.id===r.id?{...x,_historyOpen:!x._historyOpen}:x))} style={{opacity:1,display:"inline-flex",alignItems:"center",gap:3}}>
+                    <i className="fa-solid fa-clock-rotate-left" style={{fontSize:14}}/>
+                    <span style={{fontSize:12}}>{r.edit_count}</span>
+                  </span>
+                )}
                 {post.type==="question"&&(currentUser?.id===post.user?.id||isMod)&&(
                   <span className="reply-quote-btn" title={acceptedReplyId===r.id?"Unmark answer":"Mark as answer"} onClick={async()=>{
                     if(acceptedReplyId===r.id){
