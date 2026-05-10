@@ -14,19 +14,13 @@ billyrayfoss.com {
 
     encode gzip
 
-    # --- Gamepedia extension ---
-    handle /gamepedia/* {
-        uri strip_prefix /gamepedia
-        reverse_proxy localhost:4001
-    }
-
     # --- Nexus (catch-all, must be last) ---
-    handle @websockets {
-        reverse_proxy localhost:4000
-    }
     @websockets {
         header Connection *Upgrade*
         header Upgrade websocket
+    }
+    handle @websockets {
+        reverse_proxy localhost:4000
     }
 
     handle {
