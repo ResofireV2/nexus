@@ -4418,7 +4418,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
                 <span style={{fontSize:16,fontWeight:500,color:"var(--t1)"}}>Select tags</span>
                 <button onClick={()=>setShowTagModal(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
               </div>
-              <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,maxHeight:360,overflowY:"auto"}}>
+              <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,maxHeight:360,overflowY:"auto"}}>
                 {tags.map(t=>{
                   const sel=tagModalSel.includes(t.id);
                   const tc=t.color||"var(--ac)";
