@@ -7012,32 +7012,15 @@ function LeaderboardPage({currentUser, navigate}) {
 }
 
 // ── AdminAntiSpamPanel ────────────────────────────────────────────────────────
-function AdminAntiSpamPanel() {
-  const [tab, setTab]             = useState("settings");
-  const [cfg, setCfg]             = useState(null);
-  const [blocked, setBlocked]     = useState(null);
-  const [saving, setSaving]       = useState(false);
-
-  useEffect(() => {
-    api.get("/admin/settings").then(d => {
-      setCfg(d.settings?.anti_spam || {});
-    });
-  }, []);
+function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
+  const [tab, setTab]         = useState("settings");
+  const [blocked, setBlocked] = useState(null);
 
   useEffect(() => {
     if (tab === "log" && blocked === null) {
       api.get("/admin/blocked-registrations").then(d => setBlocked(d.blocked || []));
     }
   }, [tab]);
-
-  function save() {
-    setSaving(true);
-    api.patch("/admin/settings/anti_spam", { value: cfg })
-      .then(d => { if (d.ok) toast("Anti-spam settings saved"); else toast(d.error || "Failed", "err"); })
-      .finally(() => setSaving(false));
-  }
-
-  if (cfg === null) return <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>;
 
   const tabStyle = active => ({
     padding:"6px 16px", borderRadius:20, fontSize:12, fontWeight:500, cursor:"pointer",
@@ -7055,17 +7038,17 @@ function AdminAntiSpamPanel() {
 
       {tab==="settings"&&<>
         <div className="fgt">StopForumSpam</div>
-        <Tgl label="Enable SFS check at registration" desc="Checks IP, email and username against StopForumSpam.org on every registration. Fails open — if SFS is unreachable, registration proceeds normally." on={!!cfg.sfs_enabled} onChange={v=>setCfg(p=>({...p,sfs_enabled:v}))}/>
+        <Tgl label="Enable SFS check at registration" desc="Checks IP, email and username against StopForumSpam.org on every registration. Fails open — if SFS is unreachable, registration proceeds normally." on={!!spamCfg.sfs_enabled} onChange={v=>setSpamCfg(p=>({...p,sfs_enabled:v}))}/>
         <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:8}}>
           <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
             Frequency threshold
-            <input type="number" min="1" max="500" value={cfg.sfs_frequency??5} onChange={e=>setCfg(p=>({...p,sfs_frequency:parseInt(e.target.value)||5}))}
+            <input type="number" min="1" max="500" value={spamCfg.sfs_frequency??5} onChange={e=>setSpamCfg(p=>({...p,sfs_frequency:parseInt(e.target.value)||5}))}
               style={{width:90,padding:"5px 10px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",fontSize:13,outline:"none"}}/>
             <span style={{fontSize:11,color:"var(--t5)"}}>Combined report count across IP/email/username</span>
           </label>
           <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
             Confidence threshold (%)
-            <input type="number" min="1" max="100" value={cfg.sfs_confidence??50} onChange={e=>setCfg(p=>({...p,sfs_confidence:parseFloat(e.target.value)||50}))}
+            <input type="number" min="1" max="100" value={spamCfg.sfs_confidence??50} onChange={e=>setSpamCfg(p=>({...p,sfs_confidence:parseFloat(e.target.value)||50}))}
               style={{width:90,padding:"5px 10px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",fontSize:13,outline:"none"}}/>
             <span style={{fontSize:11,color:"var(--t5)"}}>Highest confidence score across checked fields</span>
           </label>
@@ -7075,10 +7058,6 @@ function AdminAntiSpamPanel() {
         <div style={{fontSize:13,color:"var(--t3)",marginBottom:12}}>
           New accounts under 24 hours old are blocked from sending direct messages. This is always enforced and cannot be disabled.
         </div>
-
-        <button onClick={save} disabled={saving} style={{marginTop:8,padding:"8px 24px",borderRadius:20,background:"var(--ac)",color:"var(--ac-text)",border:"none",fontWeight:500,fontSize:13,cursor:"pointer"}}>
-          {saving?"Saving…":"Save settings"}
-        </button>
       </>}
 
       {tab==="log"&&<>
@@ -7120,6 +7099,7 @@ function AdminAntiSpamPanel() {
     </div>
   );
 }
+
 
 // ── AdminLogsPanel ────────────────────────────────────────────────────────────
 function AdminLogsPanel() {
@@ -7288,9 +7268,7 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
         <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={sendTest} disabled={sendingTest||!cfg.enabled}>
           <i className="fa-solid fa-paper-plane" style={{fontSize:11}}/>{sendingTest?"Sending…":"Send test"}
         </button>
-        <button className="btn-primary" style={{fontSize:12,padding:"7px 16px"}} onClick={()=>saveSection("digest",digestCfg)} disabled={saving}>
-          {saving?"Saving…":"Save"}
-        </button>
+
       </div>
 
       {/* Enable / disable */}
@@ -7443,9 +7421,7 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
         <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={recalculate} disabled={recalculating}>
           <i className="fa-solid fa-rotate" style={{fontSize:11}}/>{recalculating?"Recalculating…":"Recalculate all scores"}
         </button>
-        <button className="btn-primary" style={{fontSize:12,padding:"7px 16px"}} onClick={()=>saveSection("leaderboard",lbCfg)} disabled={saving}>
-          {saving?"Saving…":"Save"}
-        </button>
+
       </div>
 
       <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:20}}>
@@ -8837,9 +8813,23 @@ function useExtensionSettings(slug, fields) {
       if(d.extension) toast("Settings saved");
       else toast(d.error||"Failed to save","err");
     } finally { setSaving(false); }
+    return true;
   };
 
-  return { vals, setVals, loaded, saving, save };
+  // Register this panel's save fn with the top-bar Save Changes button.
+  React.useEffect(()=>{
+    if(!loaded) return;
+    window._nexusAdminSaveFn = save;
+    return ()=>{ if(window._nexusAdminSaveFn===save) window._nexusAdminSaveFn=null; };
+  },[loaded, vals]);
+
+  // Dirty-aware setter — signals the top bar when a value changes.
+  const setValsDirty = updater => {
+    setVals(updater);
+    if(window._nexusAdminSetDirty) window._nexusAdminSetDirty();
+  };
+
+  return { vals, setVals: setValsDirty, loaded, saving, save };
 }
 
 // SimpleSettingsPanel — flat list of fields with a single Save button.
@@ -8865,10 +8855,6 @@ function SimpleSettingsPanel({ slug, fields=[] }) {
         <ExtensionFieldRenderer key={f.key} field={f} value={vals[f.key]}
           onChange={v=>setVals(p=>({...p,[f.key]:v}))}/>
       ))}
-      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
-          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
-      </div>
     </div>
   );
 }
@@ -8913,10 +8899,6 @@ function TabbedPanel({ slug, tabs=[] }) {
         <ExtensionFieldRenderer key={f.key} field={f} value={vals[f.key]}
           onChange={v=>setVals(p=>({...p,[f.key]:v}))}/>
       ))}
-      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
-          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
-      </div>
     </div>
   );
 }
@@ -8928,6 +8910,12 @@ window.NexusExtensionTemplates = {
   SimpleSettingsPanel,
   TabbedPanel,
 };
+
+// Extensions use these to integrate with the top-bar Save Changes button.
+// SimpleSettingsPanel/TabbedPanel register their save fn on mount and call
+// _nexusAdminSetDirty() when the user changes a value.
+window._nexusAdminSaveFn   = null;
+window._nexusAdminSetDirty = null;
 
 // ── iOS Install Prompt ───────────────────────────────────────────────────────
 // Shows a sticky footer on Safari/iOS guiding users through the manual
@@ -9321,13 +9309,22 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
   const [mobAdminNavOpen,setMobAdminNavOpen]=useState(false);
   const [newUser,setNewUser]=useState({username:"",email:"",password:"",role:"member",skip_verification:false});
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
-  const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false);
+  const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false); const [isDirty,setIsDirty]=useState(false);
+  // Dirty-aware setters — wraps a state setter so any change marks the page dirty.
+  const dirty = fn => v => { fn(v); setIsDirty(true); };
+  // Track whether settings have been initially loaded so we don't mark dirty on hydration.
+  const adminSettingsLoaded = React.useRef(false);
+  useEffect(()=>{
+    if(!adminSettingsLoaded.current) return;
+    setIsDirty(true);
+  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg]);
   const [uploadCfg,setUploadCfg]=useState({});
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
   const [lbCfg,setLbCfg]=useState({});
   const [digestCfg,setDigestCfg]=useState({});
   const [pwaCfg,setPwaCfg]=useState({});
+  const [spamCfg,setSpamCfg]=useState({});
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -9355,7 +9352,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});});
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});}).then(()=>{ adminSettingsLoaded.current=true; });
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -9364,10 +9361,15 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
     if(currentUser?.role!=="admin")return;
     if(sec==="storage") fetchUploadData();
     if(sec==="moderation") api.get("/admin/pending").then(d=>setPendingItems(d.pending||[]));
+    setIsDirty(false);
+    window._nexusAdminSaveFn = null;
   },[sec, uploadFilter]);
 
   if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
-  const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");if(key==="appearance")applyBranding(value,general);}finally{setSaving(false);}};
+  const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");setIsDirty(false);if(key==="appearance")applyBranding(value,general);}finally{setSaving(false);}};
+  // Wire global dirty/save hooks so extension panels (SimpleSettingsPanel, TabbedPanel)
+  // can signal changes and be saved via the top-bar Save Changes button.
+  window._nexusAdminSetDirty = ()=>setIsDirty(true);
 
   // Re-render when extension bundles register new admin panels at runtime
   const [, forceAdminUpdate] = React.useState(0);
@@ -9462,20 +9464,25 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
       <div className="admin-content-wrap">
         <div className="admin-topbar">
           <div style={{flex:1}}/>
-          <button className="btn-ghost" onClick={()=>{ api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});}); toast("Discarded"); }}>Discard</button>
+          <button className="btn-ghost" disabled={!isDirty} onClick={()=>{
+            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});});
+            setIsDirty(false);
+            toast("Discarded");
+          }}>Discard</button>
           <button className="btn-primary" onClick={()=>{
             if(sec==="appearance") saveSection("appearance",branding);
             else if(sec==="email") saveSection("email",emailCfg);
             else if(sec==="layout") saveSection("layout",layoutCfg);
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="storage") saveSection("uploads",uploadCfg);
-            else if(sec==="permissions") { saveSection("registration",regCfg); saveSection("posting",postCfg); }
+            else if(sec==="permissions") Promise.all([saveSection("registration",regCfg),saveSection("posting",postCfg)]);
             else if(sec==="leaderboard") saveSection("leaderboard",lbCfg);
             else if(sec==="digest") saveSection("digest",digestCfg);
             else if(sec==="moderation") saveSection("moderation",general);
             else if(sec==="pwa") saveSection("pwa",pwaCfg);
-            else toast("No changes to save for this section");
-          }} disabled={saving}>{saving?"…":"Save changes"}</button>
+            else if(sec==="anti-spam") saveSection("anti_spam",spamCfg);
+            else if(sec.startsWith("ext-panel-")&&window._nexusAdminSaveFn) window._nexusAdminSaveFn().then(()=>setIsDirty(false));
+          }} disabled={saving||!isDirty} style={{opacity:isDirty?1:0.4,cursor:isDirty?"pointer":"default"}}>{saving?"…":"Save changes"}</button>
         </div>
         <div className="admin-content-body">
 
@@ -9956,7 +9963,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             </div>
           </>}
 
-          {sec==="anti-spam"&&<AdminAntiSpamPanel/>}
+          {sec==="anti-spam"&&<AdminAntiSpamPanel spamCfg={spamCfg} setSpamCfg={setSpamCfg}/>}
 
           {sec==="spaces"&&<SpacesAdmin spaces={spaces} onRefresh={()=>{ api.get("/spaces").then(d=>setSpaces(d.spaces||[])); onSpacesUpdated?.(); }} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
           {sec==="tags"&&<TagsAdmin tags={tags} onRefresh={()=>api.get("/tags").then(d=>setTags(d.tags||[]))}/>}
@@ -10000,7 +10007,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               </select>
             </F>
             <div style={{display:"flex",gap:8,marginTop:8}}>
-              <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={async()=>{setSaving(true);try{await api.patch("/admin/settings/registration",{value:regCfg});await api.patch("/admin/settings/posting",{value:postCfg});toast("Permissions saved");}finally{setSaving(false);}}} disabled={saving}>{saving?"…":"Save permissions"}</button>
+
             </div>
           </>}
 
@@ -10085,7 +10092,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               </div>
             </F>}
             <div style={{display:"flex",gap:8,marginTop:4}}>
-              <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} onClick={async()=>{setSaving(true);try{await api.patch("/admin/settings/uploads",{value:uploadCfg});toast("Upload settings saved");}finally{setSaving(false);}}} disabled={saving}>{saving?"…":"Save upload settings"}</button>
+
             </div>
 
             {/* Storage stats */}
