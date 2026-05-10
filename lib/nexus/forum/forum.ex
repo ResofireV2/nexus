@@ -503,7 +503,10 @@ defmodule Nexus.Forum do
 
       {:ok, %{"last_reply_at" => ts, "id" => id}} when sort in ["latest", "activity"] ->
         dt = DateTime.from_unix!(ts)
-        where(query, [p], p.last_reply_at < ^dt or (p.last_reply_at == ^dt and p.id < ^id))
+        where(query, [p],
+          fragment("COALESCE(?, ?)", p.last_reply_at, p.inserted_at) < ^dt or
+          (fragment("COALESCE(?, ?)", p.last_reply_at, p.inserted_at) == ^dt and p.id < ^id)
+        )
 
       {:ok, %{"reaction_count" => rc, "id" => id}} when sort == "top" ->
         where(query, [p], p.reaction_count < ^rc or (p.reaction_count == ^rc and p.id < ^id))
@@ -513,7 +516,9 @@ defmodule Nexus.Forum do
   end
 
   defp apply_sort(query, "top"),      do: order_by(query, [p], [desc: p.reaction_count, desc: p.id])
-  defp apply_sort(query, sort) when sort in ["latest", "activity"], do: order_by(query, [p], [desc: p.last_reply_at, desc: p.id])
+  defp apply_sort(query, sort) when sort in ["latest", "activity"] do
+    order_by(query, [p], [desc: fragment("COALESCE(?, ?)", p.last_reply_at, p.inserted_at), desc: p.id])
+  end
   defp apply_sort(query, "rising") do
     order_by(query, [p],
       fragment(
