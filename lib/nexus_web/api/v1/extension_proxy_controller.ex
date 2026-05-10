@@ -40,22 +40,39 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
 
     {:ok, body, conn} = Plug.Conn.read_body(conn)
 
-    # Plug.Parsers may have already consumed the body — re-encode params as JSON
-    body = if body == "" and is_map(conn.body_params) and map_size(conn.body_params) > 0 do
-      Jason.encode!(conn.body_params)
-    else
-      body
-    end
+    # Plug.Parsers runs early and consumes the raw body stream.
+    # Recover the body from parsed params if read_body returned empty.
+    {body, extra_headers} =
+      if body == "" and conn.method in ["POST", "PUT", "PATCH", "DELETE"] do
+        params =
+          cond do
+            is_map(conn.body_params) and map_size(conn.body_params) > 0 ->
+              conn.body_params
+            is_map(conn.params) and map_size(conn.params) > 0 ->
+              Map.drop(conn.params, ["slug", "path"])
+            true ->
+              nil
+          end
+
+        if params do
+          {Jason.encode!(params), [{"content-type", "application/json"}]}
+        else
+          {"", []}
+        end
+      else
+        {body, []}
+      end
 
     method = conn.method |> String.downcase() |> String.to_atom()
 
-    # Strip hop-by-hop and conditional cache headers
+    # Strip hop-by-hop, conditional cache, and content headers we'll re-add
     forward_headers =
       conn.req_headers
       |> Enum.reject(fn {k, _} ->
         k in ["host", "transfer-encoding", "connection",
               "if-none-match", "if-modified-since", "if-match",
-              "if-unmodified-since", "if-range"]
+              "if-unmodified-since", "if-range",
+              "content-type", "content-length"]
       end)
 
     nexus_headers = [
@@ -69,7 +86,7 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
         user -> [{"x-nexus-user-id", to_string(user.id)} | nexus_headers]
       end
 
-    all_headers = forward_headers ++ nexus_headers
+    all_headers = forward_headers ++ nexus_headers ++ extra_headers
 
     # Use hackney directly — gives us raw binary response with no decoding
     case :hackney.request(method, target_url, all_headers, body, [:with_body]) do
