@@ -3403,7 +3403,12 @@ function wordDiff(before, after) {
   return ops;
 }
 
-function DiffView({before, after}) {
+function DiffView({before, after, mode}) {
+  // mode="plain"  — no highlighting, just render the text as-is
+  // mode="after"  — highlight additions (green) and removals (red strikethrough)
+  if(mode==="plain") {
+    return <div style={{fontSize:"var(--fs-body)",lineHeight:1.75,color:"var(--t2)",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{before}</div>;
+  }
   const ops = wordDiff(before||"", after||"");
   return (
     <div style={{fontSize:"var(--fs-body)",lineHeight:1.75,color:"var(--t2)",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
@@ -3524,15 +3529,15 @@ function EditHistoryPairs({edits, postId, replyId}) {
             <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:12}}>Content</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
               <div>
-                <div style={{fontSize:13,color:"var(--red)",marginBottom:8,fontWeight:500}}>Before</div>
-                <div style={{background:"rgba(248,113,113,0.05)",border:"0.5px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"14px 16px"}}>
-                  <DiffView before={pair.before_body} after={pair.after_body}/>
+                <div style={{fontSize:13,color:"var(--t4)",marginBottom:8,fontWeight:500}}>Before</div>
+                <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"14px 16px"}}>
+                  <DiffView before={pair.before_body} after={pair.after_body} mode="plain"/>
                 </div>
               </div>
               <div>
                 <div style={{fontSize:13,color:"var(--green)",marginBottom:8,fontWeight:500}}>After</div>
                 <div style={{background:"rgba(52,211,153,0.05)",border:"0.5px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"14px 16px"}}>
-                  <DiffView before={pair.after_body} after={pair.before_body}/>
+                  <DiffView before={pair.before_body} after={pair.after_body} mode="after"/>
                 </div>
               </div>
             </div>
