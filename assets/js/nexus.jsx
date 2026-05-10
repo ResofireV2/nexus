@@ -3384,15 +3384,11 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
 }
 
 // ── Edit History Modal ────────────────────────────────────────────────────────
-function wordDiff(before, after) {
-  const a = before.split(/(\s+)/);
-  const b = after.split(/(\s+)/);
-  // LCS table
+function lcs(a, b) {
   const m = a.length, n = b.length;
   const dp = Array.from({length:m+1}, ()=>new Array(n+1).fill(0));
   for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
     dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
-  // Backtrack
   const ops = [];
   let i=m,j=n;
   while(i>0||j>0){
@@ -3401,6 +3397,35 @@ function wordDiff(before, after) {
     else{ops.unshift({t:'del',v:a[i-1]});i--;}
   }
   return ops;
+}
+
+function wordDiff(before, after) {
+  // Diff line by line first, then word-level within changed lines.
+  // This prevents words that exist in both versions from being matched
+  // across line boundaries, which causes false highlighting.
+  const aLines = (before||"").split("\n");
+  const bLines = (after||"").split("\n");
+  const lineOps = lcs(aLines, bLines);
+  const result = [];
+  lineOps.forEach((op, li) => {
+    if(op.t === 'eq') {
+      result.push({t:'eq', v: op.v + (li < lineOps.length-1 ? "\n" : "")});
+    } else if(op.t === 'add') {
+      result.push({t:'add', v: op.v + (li < lineOps.length-1 ? "\n" : "")});
+    } else {
+      // For deleted lines, do word-level diff against the next added line if adjacent
+      const nextOp = lineOps[li+1];
+      if(nextOp && nextOp.t === 'add') {
+        // word-level diff between this deleted line and the paired added line
+        const wordOps = lcs(op.v.split(" "), nextOp.v.split(" "));
+        wordOps.forEach(wo => result.push(wo));
+        result.push({t:'eq', v:"\n"});
+      } else {
+        result.push({t:'del', v: op.v + "\n"});
+      }
+    }
+  });
+  return result;
 }
 
 function DiffView({before, after, mode}) {
