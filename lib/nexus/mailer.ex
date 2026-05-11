@@ -77,10 +77,35 @@ defmodule Nexus.Mailer do
     if addr != "", do: {name, addr}, else: {"Nexus", "noreply@nexus.local"}
   end
 
-  defp base_url do
+  def base_url do
     host   = Application.get_env(:nexus, NexusWeb.Endpoint)[:url][:host] || "localhost"
     scheme = if Application.get_env(:nexus, :env) == :prod, do: "https", else: "http"
     "#{scheme}://#{host}"
+  end
+
+  defp appearance_settings do
+    case Nexus.Admin.get_setting("appearance") do
+      s when is_map(s) -> s
+      _ -> %{}
+    end
+  end
+
+  # Returns a branding context map used by all digest section renderers.
+  # Extensions receive this so their HTML matches the forum's configured colours.
+  def branding_context do
+    app = appearance_settings()
+    accent = Map.get(app, "accent_color", "#a78bfa")
+    %{
+      accent:      accent,
+      bg:          "#0d0d14",
+      card_bg:     "#13121e",
+      text_1:      "#f0eeff",
+      text_2:      "rgba(255,255,255,0.75)",
+      text_3:      "rgba(255,255,255,0.55)",
+      text_4:      "rgba(255,255,255,0.35)",
+      border:      "rgba(255,255,255,0.08)",
+      divider:     "rgba(255,255,255,0.08)",
+    }
   end
 
   # ---------------------------------------------------------------------------
@@ -334,6 +359,7 @@ defmodule Nexus.Mailer do
     period    = digest.period_label
     sections  = digest.sections
     order     = digest.section_order
+    branding  = branding_context()
 
     subject_line = "#{site_name} digest — #{period}"
 
@@ -342,7 +368,7 @@ defmodule Nexus.Mailer do
       order
       |> Enum.map(fn key -> {key, Map.get(sections, key)} end)
       |> Enum.reject(fn {_k, v} -> is_nil(v) || v == [] end)
-      |> Enum.map(fn {key, data} -> render_digest_section(key, data, url, site_name) end)
+      |> Enum.map(fn {key, data} -> render_digest_section(key, data, url, site_name, branding) end)
       |> Enum.join("\n")
 
     intro_html =
@@ -363,7 +389,7 @@ defmodule Nexus.Mailer do
     |> deliver_dynamic()
   end
 
-  defp render_digest_section("posts", posts, url, _site_name) when is_list(posts) and posts != [] do
+  defp render_digest_section("posts", posts, url, _site_name, _branding) when is_list(posts) and posts != [] do
     rows =
       posts
       |> Enum.with_index(1)
@@ -394,7 +420,7 @@ defmodule Nexus.Mailer do
     """
   end
 
-  defp render_digest_section("leaderboard", %{top3: top3, points_name: points_name}, _url, _site_name) when top3 != [] do
+  defp render_digest_section("leaderboard", %{top3: top3, points_name: points_name}, _url, _site_name, branding) when top3 != [] do
     medals = ["🥇", "🥈", "🥉"]
     rows =
       top3
@@ -406,7 +432,7 @@ defmodule Nexus.Mailer do
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:28px;font-size:16px;">#{Enum.at(medals, i, "")}</td>
               <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;">#{u.username}</td>
-              <td style="text-align:right;font-size:13px;color:#a78bfa;font-weight:500;">#{u.score} #{points_name}</td>
+              <td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;">#{u.score} #{points_name}</td>
             </tr></table>
           </td>
         </tr>
@@ -421,7 +447,7 @@ defmodule Nexus.Mailer do
     """
   end
 
-  defp render_digest_section("badges", badges, _url, _site_name) when is_list(badges) and badges != [] do
+  defp render_digest_section("badges", badges, _url, _site_name, _branding) when is_list(badges) and badges != [] do
     rows =
       Enum.map(badges, fn b ->
         holders = Enum.join(b.holders, ", ")
@@ -452,7 +478,7 @@ defmodule Nexus.Mailer do
     """
   end
 
-  defp render_digest_section("members", members, _url, _site_name) when is_list(members) and members != [] do
+  defp render_digest_section("members", members, _url, _site_name, _branding) when is_list(members) and members != [] do
     names = members |> Enum.map(& &1.username) |> Enum.join(", ")
     count = length(members)
 
@@ -463,7 +489,7 @@ defmodule Nexus.Mailer do
     """
   end
 
-  defp render_digest_section("spaces", spaces, _url, _site_name) when is_list(spaces) and spaces != [] do
+  defp render_digest_section("spaces", spaces, _url, _site_name, _branding) when is_list(spaces) and spaces != [] do
     max_count = spaces |> Enum.map(& &1.post_count) |> Enum.max(fn -> 1 end)
 
     rows =
@@ -494,29 +520,89 @@ defmodule Nexus.Mailer do
     """
   end
 
+  # Extension pre-rendered HTML — injected verbatim
+  defp render_digest_section(_key, %{"_rendered_html" => html}, _url, _site_name, _branding) when is_binary(html) and html != "" do
+    html
+  end
+
   # Generic extension section renderer — handles list, leaderboard layouts
-  defp render_digest_section(_key, %{"title" => title, "items" => items} = data, url, _site_name)
+  defp render_digest_section(_key, %{"title" => title, "items" => items} = data, url, _site_name
        when is_list(items) and items != [] do
     layout = data["layout"] || "list"
     cta    = data["cta"]
 
-    rows = case layout do
+    body_html = case layout do
+      "game_cards" ->
+        # 3-column cover art grid
+        cols = 3
+        rows = items
+          |> Enum.chunk_every(cols)
+          |> Enum.map_join("", fn row ->
+            cells = row |> Enum.map_join("", fn item ->
+              label    = item["label"] || ""
+              sublabel = item["sublabel"] || ""
+              value    = item["value"]
+              badge    = item["badge"]
+              cover    = item["cover_image_url"]
+              item_url = item["url"]
+              href_open  = if item_url, do: "<a href=\"" <> url <> item_url <> "\" style=\"text-decoration:none;\">", else: "<span>"
+              href_close = if item_url, do: "</a>", else: "</span>"
+              badge_html =
+                if badge do
+                  color = item["badge_color"] || "#34d399"
+                  "<div style=\"margin-top:4px;display:inline-block;background:" <> color <>
+                  "22;color:" <> color <> ";font-size:9px;font-weight:700;padding:2px 5px;" <>
+                  "border-radius:3px;letter-spacing:.04em;\">" <> badge <> "</div>"
+                else "" end
+              value_html =
+                if value do
+                  "<div style=\"font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px;\">" <> value <> "</div>"
+                else "" end
+              cover_html =
+                if cover do
+                  "<img src=\"" <> cover <> "\" width=\"80\" height=\"107\" " <>
+                  "style=\"width:80px;height:107px;object-fit:cover;border-radius:6px;" <>
+                  "display:block;border:0.5px solid rgba(255,255,255,0.1);\" />"
+                else
+                  "<div style=\"width:80px;height:107px;border-radius:6px;background:rgba(255,255,255,0.06);" <>
+                  "border:0.5px solid rgba(255,255,255,0.1);display:flex;align-items:center;" <>
+                  "justify-content:center;color:rgba(255,255,255,0.2);font-size:24px;\">&#9670;</div>"
+                end
+              "<td style=\"width:33%;padding:0 6px 16px;vertical-align:top;\">" <>
+              href_open <>
+              cover_html <>
+              "<div style=\"margin-top:6px;font-size:11px;font-weight:500;color:#e8e4ff;" <>
+              "line-height:1.3;\">" <> label <> "</div>" <>
+              "<div style=\"font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;\">" <> sublabel <> "</div>" <>
+              badge_html <> value_html <>
+              href_close <>
+              "</td>"
+            end)
+            # Pad incomplete rows
+            pad = cols - length(row)
+            padding = if pad > 0, do: String.duplicate("<td style=\"width:33%;padding:0 6px;\"></td>", pad), else: ""
+            "<tr>" <> cells <> padding <> "</tr>"
+          end)
+        "<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:8px;\">" <> rows <> "</table>"
+
       "leaderboard" ->
-        Enum.with_index(items, 1) |> Enum.map_join("", fn {item, i} ->
-          label = item["label"] || ""
-          value = item["value"] || ""
+        rows = Enum.with_index(items, 1) |> Enum.map_join("", fn {item, i} ->
+          label    = item["label"] || ""
+          value    = item["value"] || ""
           item_url = item["url"]
-          href  = if item_url, do: " href=\"" <> url <> item_url <> "\"", else: ""
+          href = if item_url, do: " href=\"" <> url <> item_url <> "\"", else: ""
           "<tr>" <>
           "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);\">" <>
           "<span style=\"color:rgba(255,255,255,0.4);margin-right:8px;\">" <> to_string(i) <> ".</span>" <>
           "<a" <> href <> " style=\"color:#c4b5fd;text-decoration:none;\">" <> label <> "</a>" <>
           "</td>" <>
-          "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);text-align:right;color:rgba(255,255,255,0.6);font-size:13px;\">" <>
-          value <> "</td></tr>"
+          "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);" <>
+          "text-align:right;color:rgba(255,255,255,0.6);font-size:13px;\">" <> value <> "</td></tr>"
         end)
+        "<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:8px;\">" <> rows <> "</table>"
+
       _ ->
-        Enum.map_join(items, "", fn item ->
+        rows = Enum.map_join(items, "", fn item ->
           label    = item["label"] || ""
           sublabel = item["sublabel"] || ""
           badge    = item["badge"]
@@ -535,9 +621,9 @@ defmodule Nexus.Mailer do
             else "" end
           "<tr><td style=\"padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);\">" <>
           "<a" <> href <> " style=\"color:#e8e4ff;text-decoration:none;font-weight:500;\">" <>
-          label <> "</a>" <> badge_html <> sublabel_html <>
-          "</td></tr>"
+          label <> "</a>" <> badge_html <> sublabel_html <> "</td></tr>"
         end)
+        "<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:8px;\">" <> rows <> "</table>"
     end
 
     cta_html = if cta do
@@ -549,14 +635,14 @@ defmodule Nexus.Mailer do
 
     """
     <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">#{title}</p>
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:8px;">#{rows}</table>
+    #{body_html}
     #{cta_html}
     #{divider()}
     """
   end
 
   # Fallback for empty/nil sections
-  defp render_digest_section(_key, _data, _url, _site_name), do: ""
+  defp render_digest_section(_key, _data, _url, _site_name, _branding), do: ""
 
   defp build_digest_text(user, digest, site_name, url) do
     period = digest.period_label

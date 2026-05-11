@@ -327,7 +327,7 @@ defmodule Nexus.Digest do
 
   If the request fails or times out, the section is silently omitted.
   """
-  def collect_extension_sections(frequency, context) do
+  def collect_extension_sections(frequency, context, branding \\ %{}) do
     require Logger
     cfg = settings()
 
@@ -344,7 +344,7 @@ defmodule Nexus.Digest do
     |> Enum.reduce(%{}, fn %{key: key, extension_slug: slug}, acc ->
       with :enabled <- check_enabled(cfg, key),
            module   <- Nexus.Extensions.Registry.get_module(slug),
-           true     <- not is_nil(module) and function_exported?(module, :handle_digest_section, 3) do
+           true     <- not is_nil(module) and (function_exported?(module, :handle_digest_section, 4) or function_exported?(module, :handle_digest_section, 3)) do
 
         settings =
           case Nexus.Extensions.get_extension_by_slug(slug) do
@@ -353,7 +353,12 @@ defmodule Nexus.Digest do
           end
 
         try do
-          result = module.handle_digest_section(key, period, settings)
+          result =
+            if function_exported?(module, :handle_digest_section, 4) do
+              module.handle_digest_section(key, period, settings, branding)
+            else
+              module.handle_digest_section(key, period, settings)
+            end
           Logger.debug("Digest section #{key} from #{slug}: #{inspect(Map.keys(result))}")
           if is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) do
             # Normalise to string keys (deep) so the mailer can pattern-match consistently
