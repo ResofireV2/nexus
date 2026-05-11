@@ -326,14 +326,15 @@ defmodule Nexus.Extensions do
         if tarball_url do
           case Nexus.Extensions.Loader.load_from_url(tarball_url, slug) do
             {:ok, module} ->
-              # Derive js_bundle_url from the loaded module rather than the manifest.
-              # This is the canonical URL — manifest.json never needs a js_bundle_url field.
+              # Derive js_bundle_url from the loaded module.
               bundle_url =
-                if function_exported?(module, :js_bundle_path, 0) do
+                try do
                   case module.js_bundle_path() do
                     nil  -> nil
                     path -> "/ext/#{slug}/assets/#{path}"
                   end
+                rescue
+                  _ -> nil
                 end
 
               if bundle_url do
