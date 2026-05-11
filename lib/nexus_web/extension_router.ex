@@ -65,23 +65,32 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_api(conn, slug, path_parts) do
-    module = Registry.get_module(slug)
-
-    if is_nil(module) do
-      conn
-      |> put_status(404)
-      |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
+    # If the request accepts HTML it's a browser navigation — hard refresh or
+    # direct link (e.g. from a digest email). Delegate to PageController.home
+    # via an internal forward so the full browser pipeline (session, layout,
+    # CSRF headers) runs correctly and the SPA shell is served.
+    accept = get_req_header(conn, "accept") |> List.first("")
+    if String.contains?(accept, "text/html") do
+      NexusWeb.PageController.call(conn, NexusWeb.PageController.init(:home))
     else
-      routes = Registry.routes_for(slug)
+      module = Registry.get_module(slug)
 
-      if routes == [] do
+      if is_nil(module) do
         conn
         |> put_status(404)
-        |> json(%{error: "Extension \"#{slug}\" has no API routes"})
+        |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
       else
-        path = "/" <> Enum.join(path_parts, "/")
-        conn = %{conn | path_info: path_parts, request_path: path}
-        dispatch_to_routes(conn, routes, slug)
+        routes = Registry.routes_for(slug)
+
+        if routes == [] do
+          conn
+          |> put_status(404)
+          |> json(%{error: "Extension \"#{slug}\" has no API routes"})
+        else
+          path = "/" <> Enum.join(path_parts, "/")
+          conn = %{conn | path_info: path_parts, request_path: path}
+          dispatch_to_routes(conn, routes, slug)
+        end
       end
     end
   end
