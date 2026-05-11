@@ -17,7 +17,10 @@ defmodule NexusWeb.Router do
     plug NexusWeb.Plugs.LoadUser
   end
 
-  pipeline :authenticated do
+  pipeline :extension_api do
+    plug :fetch_cookies
+    plug NexusWeb.Plugs.LoadUser
+  end
     plug NexusWeb.Plugs.RequireAuth
     plug NexusWeb.Plugs.ActivityTracker
   end
@@ -326,8 +329,10 @@ defmodule NexusWeb.Router do
   end
 
   # Extension API routes — XHR/fetch calls from extension JS bundles.
+  # Uses extension_api pipeline which loads user context but doesn't restrict
+  # Accept header — extensions may receive various content types.
   scope "/ext" do
-    pipe_through :api
+    pipe_through :extension_api
     get    "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
     post   "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
     put    "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
