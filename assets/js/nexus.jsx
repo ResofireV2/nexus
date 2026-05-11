@@ -4372,6 +4372,10 @@ function PostFooterSlot({postId}) {
 // Extensions register via:
 //   window.NexusExtensions.registerSlot("profile_sidebar", MyComponent, 50)
 // Each component receives { username, currentUser, navigate }.
+// Profile tabs — inject a tab into the user profile tab bar:
+//   window.NexusExtensions.registerSlot("profile_tab", MyPageComponent, 50)
+// MyPageComponent.tabLabel must be set (e.g. GamelogPage.tabLabel = "Gamelog").
+// The component receives { username, currentUser, navigate, userId }.
 function ProfileSidebarSlot({username, currentUser, navigate}) {
   const [, forceUpdate] = React.useReducer(x => x+1, 0);
   useEffect(() => {
@@ -4830,12 +4834,20 @@ function ProfilePage({username, currentUser, navigate}) {
   // Tabs — media only shown to owner or admin (or if media_public is on,
   // but we don't have that setting client-side, so we show it and let the
   // API return 403 if needed; we hide the tab for non-owners unless admin)
+  const extTabs = window.NexusExtensions.getSlot("profile_tab").map(({component}, i) => ({
+    id:        `ext_tab_${i}`,
+    label:     component.tabLabel || "More",
+    component: component,
+    isExt:     true,
+  }));
+
   const tabs = [
     {id:"posts",     label:"Posts"},
     {id:"replies",   label:"Replies"},
     {id:"reactions", label:"Reactions"},
     ...(isOwn||isAdmin ? [{id:"media", label:"Media"}] : []),
     {id:"mentions",  label:"Mentions"},
+    ...extTabs,
   ];
 
   const TabEmpty = ({msg}) => (
@@ -5020,6 +5032,12 @@ function ProfilePage({username, currentUser, navigate}) {
                   ? <PostCard key={`post-${item.post.id}`} p={item.post}/>
                   : <ReplyCard key={`reply-${item.reply.id}`} r={item.reply}/>
               ))
+          )}
+
+          {/* Extension profile tabs */}
+          {extTabs.map(t => tab===t.id
+            ? <t.component key={t.id} username={username} currentUser={currentUser} navigate={navigate} userId={user?.id} user_id={user?.id}/>
+            : null
           )}
 
         </div>
