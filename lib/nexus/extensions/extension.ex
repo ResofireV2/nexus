@@ -42,7 +42,6 @@ defmodule Nexus.Extensions.Extension do
     |> validate_required([:name, :slug, :version])
     |> validate_format(:slug, ~r/^[a-z0-9\-]+$/, message: "only lowercase letters, numbers, and hyphens")
     |> validate_format(:webhook_url,   ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
-    |> validate_format(:js_bundle_url, ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> validate_format(:manifest_url,  ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> validate_format(:service_url,   ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)
     |> unique_constraint(:slug)
