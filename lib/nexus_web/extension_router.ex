@@ -69,7 +69,7 @@ defmodule NexusWeb.ExtensionRouter do
       conn
       |> Plug.Conn.put_resp_header("content-type", mime_type)
       |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
-      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=86400")
+      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=300")
       |> Plug.Conn.send_file(200, asset_path)
       |> halt()
     else

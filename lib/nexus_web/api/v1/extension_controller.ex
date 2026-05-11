@@ -180,7 +180,10 @@ defmodule NexusWeb.API.V1.ExtensionController do
     bundles =
       Extensions.list_extensions()
       |> Enum.filter(& &1.enabled && &1.js_bundle_url)
-      |> Enum.map(& &1.js_bundle_url)
+      |> Enum.map(fn ext ->
+        vsn = ext.installed_version || ext.version || "0"
+        "#{ext.js_bundle_url}?v=#{vsn}"
+      end)
       |> Enum.uniq()
 
     json(conn, %{bundles: bundles})
