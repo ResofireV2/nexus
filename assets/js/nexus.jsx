@@ -368,10 +368,7 @@ function RefPreviewPopup() {
       onMouseLeave={()=>{ _refHideTimer = setTimeout(()=>{ _refPopupSetState && _refPopupSetState(null); }, 120); }}
     >
       <div className="ref-popup-meta">
-        {data.avatar_url
-          ? <img src={data.avatar_url} className="ref-popup-av" alt={data.username}/>
-          : <div className="ref-popup-av" style={{background:col}}>{(data.username||"?").slice(0,2).toUpperCase()}</div>
-        }
+        <RsAv user={{username:data.username,avatar_url:data.avatar_url,avatar_color:data.userAvatarColor}} size={26} noCard />
         <span className="ref-popup-username">{data.username}</span>
         <span className="ref-popup-time">{ago(data.inserted_at)}</span>
         <button onClick={()=>_refPopupSetState&&_refPopupSetState(null)}
@@ -1780,10 +1777,7 @@ function ReactionsModal({postId, replyId, onClose}) {
             <div style={{display:"flex",flexDirection:"column",gap:2,marginTop:8}}>
               {visibleUsers.map((u, i) => (
                 <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",borderRadius:8}}>
-                  {u.avatar_url
-                    ? <img src={u.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
-                    : <div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:userColor(u),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff",flexShrink:0}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>
-                  }
+                  <RsAv user={u} size={32} noCard />
                   <span style={{fontSize:13,color:"var(--t2)",fontWeight:500,flex:1}}>{u.username}</span>
                   {activeTab === "all" && <span style={{fontSize:18,lineHeight:1}}>{u.emoji}</span>}
                 </div>
@@ -2184,9 +2178,7 @@ function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=fa
           {mentionDrop.users.map((u,i)=>(
             <div key={u.id} className={`mention-item ${i===mentionDrop.selIdx?"sel":""}`}
               onMouseDown={e=>{e.preventDefault();insertMention(u.username);}}>
-              {u.avatar_url
-                ?<img className="mention-av" src={u.avatar_url} alt={u.username}/>
-                :<div className="mention-av" style={{background:userColor(u)}}>{u.username.slice(0,2).toUpperCase()}</div>}
+              <Av user={u} size={28} />
               <span className="mention-name">@{u.username}</span>
             </div>
           ))}
@@ -2617,9 +2609,7 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
         <div className="rw-label">posted by</div>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}
           onClick={()=>navigate("profile",{username:author.username})}>
-          {author.avatar_url
-            ?<img src={author.avatar_url} style={{width:38,height:38,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={author.username}/>
-            :<div style={{width:38,height:38,borderRadius:"var(--av-radius)",background:userColor(author),display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:500,color:"#fff",flexShrink:0}}>{(author.username||"?").slice(0,2).toUpperCase()}</div>}
+          <RsAv user={author} size={38} />
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{author.username}</div>
             {author.role&&author.role!=="member"&&<div style={{fontSize:10,color:"var(--ac)",textTransform:"capitalize"}}>{author.role}</div>}
@@ -2651,9 +2641,7 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
           {participants.map(u=>(
             <div key={u.id} title={u.username} style={{cursor:"pointer"}}
               onClick={()=>navigate("profile",{username:u.username})}>
-              {u.avatar_url
-                ?<img src={u.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",border:"1px solid rgba(255,255,255,0.08)"}} alt={u.username}/>
-                :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(u),display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:500,color:"#fff"}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+              <RsAv user={u} size={28} noCard />
             </div>
           ))}
         </div>
@@ -2741,9 +2729,7 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
           ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
           :liveEvents.slice(0,4).map((e,i)=>(
             <div key={i} className="live-row">
-              {e.avatarUrl
-                ?<img src={e.avatarUrl} className="l-av" style={{objectFit:"cover"}} alt={e.username}/>
-                :<div className="l-av" style={{background:userColor({id:e.userId,avatar_color:e.avatarColor}),color:"#fff"}}>{(e.username||"?").slice(0,2).toUpperCase()}</div>}
+              <RsAv user={{username:e.username,avatar_url:e.avatarUrl,avatar_color:e.avatarColor,id:e.userId}} size={22} noCard />
               <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
               <div className="l-ago">{ago(e.at)}</div>
             </div>
@@ -2976,9 +2962,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="av-stack">
                             {/* OP avatar */}
                             <div className="av-tip" data-tip={p.user?.username||""}>
-                              {p.user?.avatar_url
-                                ?<img src={p.user.avatar_url} style={{width:26,height:26,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",marginRight:-8,flexShrink:0}} alt={p.user.username}/>
-                                :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                              <RsAv user={p.user} size={26} noCard />
                             </div>
                             {/* Recent participant avatars — up to 3, deduplicated against OP */}
                             {(p.recent_users||[])
@@ -2986,9 +2970,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                               .slice(0,3)
                               .map(u=>(
                                 <div key={u.id} className="av-tip" data-tip={u.username||""}>
-                                  {u.avatar_url
-                                    ?<img src={u.avatar_url} style={{width:26,height:26,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",marginRight:-8,flexShrink:0}} alt={u.username}/>
-                                    :<div className="pav" style={{background:userColor(u)}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
+                                  <RsAv user={u} size={26} noCard />
                                 </div>
                               ))
                             }
@@ -3014,9 +2996,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         <div className="thread-last">
                           {(()=>{
                             const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
-                            return lastUser?.avatar_url
-                              ? <img src={lastUser.avatar_url} style={{width:26,height:26,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)"}} alt={lastUser.username}/>
-                              : <div className="last-av" style={{background:userColor(lastUser)}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
+                            return <RsAv user={lastUser} size={26} noCard />;
                           })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
@@ -3927,9 +3907,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               </div>}
               {r._historyOpen&&<EditHistoryModal replyId={{id:r.id,postId:postId}} editCount={r.edit_count||0} onClose={()=>setReplies(p=>p.map(x=>x.id===r.id?{...x,_historyOpen:false}:x))}/>}
               <div className="reply-meta">
-                {r.user?.avatar_url
-                  ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
-                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff",marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                <RsAv user={r.user} size={48} />
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
@@ -4677,9 +4655,7 @@ function ProfilePage({username, currentUser, navigate}) {
         <div className="profile-info-wrap">
           <div className="profile-av-row">
             <div style={{position:"relative",display:"inline-block"}}>
-              {user?.avatar_url
-                ?<img src={user.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
-                :<div className="profile-av-ring" style={{background:userColor(user)}}>{(username||"?").slice(0,2).toUpperCase()}</div>}
+              <RsAv user={user} size={96} noCard />
               {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:"var(--av-radius)",background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
                 onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
@@ -6633,11 +6609,7 @@ function LeaderboardPageSidebar({currentUser, navigate}) {
             :streaks.map((u,i)=>(
               <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:i<streaks.length-1?"0.5px solid var(--b1)":"none",cursor:"pointer"}}
                 onClick={()=>navigate("profile",{username:u.username})}>
-                {u.avatar_url
-                  ?<img src={u.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
-                  :<div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:userColor({id:u.user_id,avatar_color:u.avatar_color}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:500,color:"#fff",flexShrink:0}}>
-                    {(u.username||"?").slice(0,2).toUpperCase()}
-                  </div>}
+                <RsAv user={{username:u.username,avatar_url:u.avatar_url,avatar_color:u.avatar_color,id:u.user_id}} size={32} noCard />
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:500,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.username}</div>
                 </div>
@@ -7382,11 +7354,7 @@ function BadgesPageSidebar({currentUser, navigate}) {
             :earners.map((e,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:i<earners.length-1?"0.5px solid var(--b1)":"none"}}>
                 {/* User avatar */}
-                {e.avatar_url
-                  ?<img src={e.avatar_url} style={{width:32,height:32,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={e.username}/>
-                  :<div style={{width:32,height:32,borderRadius:"var(--av-radius)",background:userColor({id:e.user_id,avatar_color:e.avatar_color}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:500,color:"#fff",flexShrink:0}}>
-                    {(e.username||"?").slice(0,2).toUpperCase()}
-                  </div>}
+                <RsAv user={{username:e.username,avatar_url:e.avatar_url,avatar_color:e.avatar_color,id:e.user_id}} size={32} noCard />
                 {/* Info */}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:500,color:"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}
@@ -7768,9 +7736,7 @@ function AdminBadgesPanel() {
               ? <div style={{textAlign:"center",padding:"24px 0",color:"var(--t5)",fontSize:13}}>No one has earned this badge yet.</div>
               : holders.list.map((h,i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"0.5px solid var(--b1)"}}>
-                    {h.user?.avatar_url
-                      ?<img src={h.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt=""/>
-                      :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(h.user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:500,color:"#fff"}}>{(h.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                    <Av user={h.user} size={28} />
                     <div style={{flex:1}}>
                       <div style={{fontSize:13,color:"var(--t2)"}}>{h.user?.username}</div>
                       <div style={{fontSize:11,color:"var(--t5)"}}>
@@ -9648,11 +9614,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                     :(stats?.extended?.top_contributors||[]).map((u,i,arr)=>(
                       <div key={u.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",borderBottom:i<arr.length-1?"0.5px solid var(--b1)":"none"}}>
                         <div style={{width:7,height:7,borderRadius:"50%",background:"var(--ac)",opacity:1-(i*0.15),flexShrink:0}}/>
-                        {u.avatar_url
-                          ?<img src={u.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt={u.username}/>
-                          :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor({id:u.user_id,avatar_color:u.avatar_color}),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:600,flexShrink:0}}>
-                            {(u.username||"?").slice(0,2).toUpperCase()}
-                          </div>}
+                        <Av user={{username:u.username,avatar_url:u.avatar_url,avatar_color:u.avatar_color,id:u.user_id}} size={28} />
                         <span style={{flex:1,fontSize:12,color:"var(--t2)"}}>{u.username}</span>
                         <span style={{fontSize:11,color:"var(--t4)"}}>{u.count} post{u.count!==1?"s":""}</span>
                       </div>
@@ -10866,9 +10828,7 @@ function SavedPage({navigate, currentUser}) {
             return (
               <div key={`reply-${r.id}`} className="p-reply-card" style={{padding:"14px 28px",cursor:"pointer",borderBottom:"0.5px solid var(--b1)"}} onClick={()=>r.post&&navigate("post",{id:r.post.id})}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                  {r.user?.avatar_url
-                    ?<img src={r.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt=""/>
-                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(r.user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,color:"#fff",flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                  <Av user={r.user} size={28} />
                   <div style={{flex:1,minWidth:0}}>
                     <div className="p-reply-body"><Md text={r.body}/></div>
                     <div className="p-reply-meta">
@@ -10981,11 +10941,7 @@ function MemberCard({m, navigate, currentUser}) {
       {/* Cover */}
       <div style={{height:90,position:"relative",background:cover_url?`url(${cover_url}) center/cover`:"var(--s3)"}}>
         <div style={{position:"absolute",bottom:-36,left:16}}>
-          {m.avatar_url
-            ?<img src={m.avatar_url} style={{width:72,height:72,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",objectFit:"cover"}} alt={m.username}/>
-            :<div style={{width:72,height:72,borderRadius:"var(--av-radius)",border:"3px solid var(--s2)",background:col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:600,color:"#fff"}}>
-              {m.username.slice(0,2).toUpperCase()}
-            </div>}
+          <RsAv user={m} size={72} noCard />
         </div>
       </div>
       {/* Body */}
@@ -11337,9 +11293,7 @@ function MobileTabBar({currentUser, navigate, page, notifCount, msgCount, onComp
           <span className="mob-tab-label">Search</span>
         </button>
         <button className="mob-tab" onClick={onProfile}>
-          {currentUser.avatar_url
-            ? <img src={currentUser.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt={currentUser.username}/>
-            : <i className="fa-solid fa-circle-user"/>}
+          <Av user={currentUser} size={28} />
           <span className="mob-tab-label">Profile</span>
         </button>
       </div>
@@ -11369,9 +11323,7 @@ function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
         <button className="mob-icon-btn" onClick={onClose}><i className="fa-solid fa-xmark"/></button>
       </div>
       <div style={{padding:"20px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:14}}>
-        {user.avatar_url
-          ? <img src={user.avatar_url} style={{width:56,height:56,borderRadius:"var(--av-radius)",objectFit:"cover"}} alt={user.username}/>
-          : <div style={{width:56,height:56,borderRadius:"var(--av-radius)",background:userColor(user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:600,color:"#fff"}}>{(user.username||"?").slice(0,2).toUpperCase()}</div>}
+        <RsAv user={user} size={56} noCard />
         <div>
           <div style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>{user.username}</div>
           <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>@{user.username?.toLowerCase()} · {user.role}</div>
