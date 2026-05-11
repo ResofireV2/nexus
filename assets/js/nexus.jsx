@@ -6631,12 +6631,21 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
       React.createElement(DragList, {
         items: orderedList("explore_items", [...EXPLORE_ITEMS, ...window.NexusExtensions.getExploreItems()]),
         onChange: function(items){update("explore_items", items);},
-        renderItem: function(item) {
+        renderItem: function(item, idx, allItems, onChange) {
           return React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10,flex:1}},
             React.createElement('i', {className:"fa-solid "+item.icon, style:{fontSize:13,color:"var(--t4)",width:16,textAlign:"center"}}),
             React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label),
             item.authOnly && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(255,255,255,0.05)",padding:"1px 7px",borderRadius:20,border:"0.5px solid var(--b1)"}}, "logged in only"),
-            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension")
+            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
+            item._ext && React.createElement('button', {
+              onClick: function(e){
+                e.stopPropagation();
+                var current = orderedList("explore_items", [...EXPLORE_ITEMS, ...window.NexusExtensions.getExploreItems()]);
+                update("explore_items", current.filter(function(i){return i.id !== item.id;}));
+              },
+              style:{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:"2px 6px",fontSize:12,lineHeight:1},
+              title:"Remove"
+            }, React.createElement('i', {className:"fa-solid fa-xmark"}))
           );
         }
       })
@@ -6652,7 +6661,16 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
         renderItem: function(item) {
           return React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10,flex:1}},
             React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label),
-            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension")
+            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
+            item._ext && React.createElement('button', {
+              onClick: function(e){
+                e.stopPropagation();
+                var current = orderedList("right_widgets", [...RIGHT_WIDGETS, ...window.NexusExtensions.getRightWidgets()]);
+                update("right_widgets", current.filter(function(i){return i.id !== item.id;}));
+              },
+              style:{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:"2px 6px",fontSize:12,lineHeight:1},
+              title:"Remove"
+            }, React.createElement('i', {className:"fa-solid fa-xmark"}))
           );
         }
       })

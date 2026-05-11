@@ -175,7 +175,42 @@ defmodule Nexus.Extensions do
     Nexus.Extensions.Storage.delete_all(ext.slug)
 
     # Remove DB record
-    Repo.delete(ext)
+    result = Repo.delete(ext)
+
+    # Clean up any layout config entries registered by this extension.
+    # explore_items, right_widgets, and toolbar entries with _ext flag
+    # matching this slug are removed from the saved layout settings.
+    purge_from_layout(ext.slug)
+
+    result
+  end
+
+  # Removes all layout entries that belong to the uninstalled extension.
+  # Extension items have an "ext_slug" key or an id prefixed with the slug.
+  defp purge_from_layout(slug) do
+    layout = Nexus.Admin.get_setting("layout") || %{}
+
+    cleaned = layout
+      |> maybe_filter_layout_list("explore_items", slug)
+      |> maybe_filter_layout_list("right_widgets", slug)
+      |> maybe_filter_layout_list("toolbar", slug)
+
+    if cleaned != layout do
+      Nexus.Admin.update_setting("layout", cleaned)
+    end
+  end
+
+  defp maybe_filter_layout_list(layout, key, slug) do
+    case Map.get(layout, key) do
+      nil  -> layout
+      list ->
+        filtered = Enum.reject(list, fn item ->
+          ext_slug = item["ext_slug"] || item[:ext_slug]
+          item_id  = to_string(item["id"] || item[:id] || "")
+          ext_slug == slug || String.starts_with?(item_id, "#{slug}-") || String.starts_with?(item_id, "#{slug}_")
+        end)
+        Map.put(layout, key, filtered)
+    end
   end
 
   def sync_manifest(%Extension{manifest_url: nil}), do: {:error, "No manifest URL stored for this extension"}
