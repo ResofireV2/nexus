@@ -754,7 +754,16 @@ async function loadExtensionBundles() {
     const {bundles} = await d.json();
     for (const url of (bundles || [])) {
       try {
-        await import(/* @vite-ignore */ url);
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = url;
+          script.onload = resolve;
+          script.onerror = (e) => {
+            console.warn("Failed to load extension bundle:", url, e);
+            resolve(); // don't block other bundles
+          };
+          document.head.appendChild(script);
+        });
       } catch (e) {
         console.warn("Failed to load extension bundle:", url, e);
       }
