@@ -2859,6 +2859,15 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
   const col = post?.space ? spaceColor(post.space) : "var(--ac)";
 
   return <>
+
+    {/* post_sidebar slot: priority 0–99 (above Posted By) */}
+    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
+      .filter(function(s){ return s.priority >= 0 && s.priority < 100; })
+      .map(function(s){
+        return React.createElement(s.component, {
+          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
+        });
+      })}
     {/* Author card */}
     {author&&(
       <div className="rw">
@@ -2891,6 +2900,15 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
       </div>
     )}
 
+
+    {/* post_sidebar slot: priority 100–199 (between Posted By and Participants) */}
+    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
+      .filter(function(s){ return s.priority >= 100 && s.priority < 200; })
+      .map(function(s){
+        return React.createElement(s.component, {
+          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
+        });
+      })}
     {/* Participants */}
     {participants.length>0&&(
       <div className="rw">
@@ -2908,6 +2926,15 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
       </div>
     )}
 
+
+    {/* post_sidebar slot: priority 200–299 (between Participants and More in General) */}
+    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
+      .filter(function(s){ return s.priority >= 200 && s.priority < 300; })
+      .map(function(s){
+        return React.createElement(s.component, {
+          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
+        });
+      })}
     {/* Related posts in same space */}
     {related.length>0&&post?.space&&(
       <div className="rw">
@@ -2929,16 +2956,15 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
       </div>
     )}
 
-    {/* Extension post_sidebar slot — rendered before live activity */}
-    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar").map(function(s) {
-      return React.createElement(s.component, {
-        key:         s.extension_slug,
-        postId:      postId,
-        currentUser: currentUser,
-        navigate:    navigate,
-      });
-    })}
 
+    {/* post_sidebar slot: priority 300+ (after More in General) */}
+    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
+      .filter(function(s){ return s.priority >= 300 && s.priority < 9999; })
+      .map(function(s){
+        return React.createElement(s.component, {
+          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
+        });
+      })}
     {/* Live activity — from global widgets */}
     {liveActivityWidget}
   </>;
