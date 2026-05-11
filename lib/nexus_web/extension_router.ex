@@ -1,55 +1,50 @@
 defmodule NexusWeb.ExtensionRouter do
   @moduledoc """
-  Dynamic router that serves extension API routes and static assets.
-
-  Extensions mount their routes at /ext/:slug/api/* and serve static assets
-  (JS bundles, images) at /ext/:slug/assets/*.
-
-  Unlike Phoenix's compile-time router, this router reads from the
-  ExtensionRegistry at request time so routes are available immediately
-  after an extension is loaded — no restart needed.
-
-  This plug is mounted in NexusWeb.Router under the /ext scope.
+  Handles extension asset serving and API route dispatching.
+  Works as both a Phoenix controller (for named actions from the router)
+  and a Plug (legacy, kept for compatibility).
   """
 
-  @behaviour Plug
+  use Phoenix.Controller, formats: [:json]
 
   import Plug.Conn
 
   alias Nexus.Extensions.Registry
+
+  # ---------------------------------------------------------------------------
+  # Phoenix controller actions (called from router.ex)
+  # ---------------------------------------------------------------------------
+
+  def serve_asset_action(conn, %{"slug" => slug, "path" => path_parts}) do
+    serve_asset(conn, slug, path_parts)
+  end
+
+  def api_action(conn, %{"slug" => slug, "path" => path_parts}) do
+    serve_api(conn, slug, path_parts)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Plug implementation (kept for any remaining forward usage)
+  # ---------------------------------------------------------------------------
+
+  @behaviour Plug
 
   @impl Plug
   def init(opts), do: opts
 
   @impl Plug
   def call(%Plug.Conn{path_info: [slug | rest]} = conn, _opts) do
-    # Browser hard-refresh on an extension SPA route: Accept contains text/html
-    # and the path is not an asset. Pass through so the browser scope serves
-    # the HTML shell and React boots client-side.
-    accepts_html = conn
-      |> Plug.Conn.get_req_header("accept")
-      |> List.first("")
-      |> String.contains?("text/html")
-
-    is_asset = match?(["assets" | _], rest)
-
-    cond do
-      is_asset ->
-        serve_asset(conn, slug, tl(rest))
-
-      accepts_html ->
-        # Not an asset and browser wants HTML — let the SPA catch-all handle it
-        conn
-
-      true ->
-        serve_api(conn, slug, rest)
+    if match?(["assets" | _], rest) do
+      serve_asset(conn, slug, tl(rest))
+    else
+      serve_api(conn, slug, rest)
     end
   end
 
   def call(conn, _opts) do
     conn
     |> put_status(404)
-    |> Phoenix.Controller.json(%{error: "Not found"})
+    |> json(%{error: "Not found"})
     |> halt()
   end
 
@@ -58,8 +53,8 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_asset(conn, slug, path_parts) do
-    filename   = Path.join(path_parts)
-    asset_dir  = Path.join([
+    filename  = Path.join(path_parts)
+    asset_dir = Path.join([
       Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
       "extensions", slug, "assets"
     ])
@@ -87,7 +82,7 @@ defmodule NexusWeb.ExtensionRouter do
     else
       conn
       |> put_status(404)
-      |> Phoenix.Controller.json(%{error: "Asset not found"})
+      |> json(%{error: "Asset not found"})
       |> halt()
     end
   end
@@ -102,7 +97,7 @@ defmodule NexusWeb.ExtensionRouter do
     if is_nil(module) do
       conn
       |> put_status(404)
-      |> Phoenix.Controller.json(%{error: "Extension \"#{slug}\" not found or not loaded"})
+      |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
       |> halt()
     else
       routes = Registry.routes_for(slug)
@@ -110,14 +105,11 @@ defmodule NexusWeb.ExtensionRouter do
       if routes == [] do
         conn
         |> put_status(404)
-        |> Phoenix.Controller.json(%{error: "Extension \"#{slug}\" has no API routes"})
+        |> json(%{error: "Extension \"#{slug}\" has no API routes"})
         |> halt()
       else
-        # Reconstruct the path for the extension's internal router
         path = "/" <> Enum.join(path_parts, "/")
         conn = %{conn | path_info: path_parts, request_path: path}
-
-        # Try each declared route plug in order
         dispatch_to_routes(conn, routes, slug)
       end
     end
@@ -126,7 +118,7 @@ defmodule NexusWeb.ExtensionRouter do
   defp dispatch_to_routes(conn, [], slug) do
     conn
     |> put_status(404)
-    |> Phoenix.Controller.json(%{error: "No route matched in extension \"#{slug}\""})
+    |> json(%{error: "No route matched in extension \"#{slug}\""})
     |> halt()
   end
 
@@ -135,10 +127,8 @@ defmodule NexusWeb.ExtensionRouter do
       |> String.trim_leading("/")
       |> String.split("/", trim: true)
 
-    path_info = conn.path_info
-
-    if List.starts_with?(path_info, prefix_parts) do
-      stripped = Enum.drop(path_info, length(prefix_parts))
+    if List.starts_with?(conn.path_info, prefix_parts) do
+      stripped = Enum.drop(conn.path_info, length(prefix_parts))
       conn = %{conn | path_info: stripped}
 
       try do
@@ -150,7 +140,7 @@ defmodule NexusWeb.ExtensionRouter do
           Logger.error("ExtensionRouter: #{plug_module} raised: #{inspect(e)}")
           conn
           |> put_status(500)
-          |> Phoenix.Controller.json(%{error: "Internal extension error"})
+          |> json(%{error: "Internal extension error"})
           |> halt()
       end
     else

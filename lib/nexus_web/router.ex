@@ -319,10 +319,16 @@ defmodule NexusWeb.Router do
     get "/extensions/:slug/assets/*path", ExtensionController, :serve_asset
   end
 
-  # Extension API and asset routes — handled dynamically by ExtensionRouter.
-  # Extensions mount their routes under /ext/:slug/ with no Caddyfile changes.
+  # Extension asset and API routes — handled dynamically by ExtensionRouter.
+  # These are non-browser requests (XHR, fetch) to /ext/:slug/assets/* or API paths.
   scope "/ext" do
-    forward "/", NexusWeb.ExtensionRouter
+    pipe_through :api
+    get  "/:slug/assets/*path", NexusWeb.ExtensionRouter, :serve_asset_action
+    get  "/:slug/*path",        NexusWeb.ExtensionRouter, :api_action
+    post "/:slug/*path",        NexusWeb.ExtensionRouter, :api_action
+    put  "/:slug/*path",        NexusWeb.ExtensionRouter, :api_action
+    patch "/:slug/*path",       NexusWeb.ExtensionRouter, :api_action
+    delete "/:slug/*path",      NexusWeb.ExtensionRouter, :api_action
   end
 
   if Application.compile_env(:nexus, :dev_routes) do
