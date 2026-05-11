@@ -297,13 +297,15 @@ defmodule Nexus.Extensions do
       slug        = manifest["slug"]
 
       # Get the installed version and tarball URL from GitHub Releases API.
-      # The manifest version field is ignored — the release tag is always
-      # the source of truth for version tracking.
+      # We construct the tarball URL from the tag rather than using the API's
+      # tarball_url field, which requires authentication even for public repos.
       {installed_version, tarball_url} =
         if github_repo do
           case Nexus.Extensions.GitHub.latest_release(github_repo, token) do
             {:ok, release} ->
-              {String.trim_leading(release.tag, "v"), Map.get(release, :tarball_url)}
+              clean = String.trim_leading(release.tag, "v")
+              url   = "https://github.com/#{github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
+              {clean, url}
             _ ->
               {"0.0.0", nil}
           end
