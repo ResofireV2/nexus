@@ -78,7 +78,7 @@ mdRenderer.paragraph = function(text) {
   // breaks:true means single-newline lines arrive as <br>-separated chunks
   const BR = /<br\s*\/?>\n?/i;
   if (BR.test(text)) {
-    const parts = out = text.split(BR).map(part => {
+    const parts = text.split(BR).map(part => {
       const url = extractBareUrl(part.trim());
       if (url) { const embed = tryMediaEmbed(url); if (embed) return embed; }
       return part;

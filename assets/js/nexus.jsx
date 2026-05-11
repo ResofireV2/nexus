@@ -1531,6 +1531,29 @@ function applyBranding(app={}, gen={}) {
   setBrandingState(newBranding);
 }
 
+// ── Layout constants ──────────────────────────────────────────────────────────
+// These define the default items for the sidebar, explore section, and right
+// panel. Admins can reorder them via the Layout admin panel.
+const EXPLORE_ITEMS = [
+  {id:"everything",   label:"Everything",    icon:"fa-border-all"},
+  {id:"notifications",label:"Notifications", icon:"fa-bell",    authOnly:true},
+  {id:"messages",     label:"Messages",      icon:"fa-message", authOnly:true},
+  {id:"members",      label:"Members",       icon:"fa-users"},
+  {id:"tags",         label:"Tags",          icon:"fa-tag"},
+  {id:"leaderboard",  label:"Leaderboard",   icon:"fa-trophy"},
+  {id:"badges",       label:"Badges",        icon:"fa-medal"},
+];
+const RIGHT_WIDGETS = [
+  {id:"live_activity",    label:"Live Activity"},
+  {id:"spaces_by_pulse",  label:"Spaces by Pulse"},
+  {id:"stats",            label:"Stats"},
+];
+const SIDEBAR_SECTIONS = [
+  {id:"explore", label:"Explore"},
+  {id:"spaces",  label:"Spaces"},
+  {id:"you",     label:"You"},
+];
+
 // ── Avatar dropdown ───────────────────────────────────────────────────────────
 function AvatarMenu({user, navigate, onLogout}) {
   const [open,setOpen]=useState(false); const ref=useRef();
