@@ -174,18 +174,17 @@ defmodule Nexus.Extensions.Loader do
       else
         Logger.info("Loader: compiling #{length(ex_files)} file(s) for #{slug}")
 
-        try do
-          compiled = Enum.flat_map(ex_files, fn file ->
-            Code.compile_file(file)
-          end)
+        # Use Kernel.ParallelCompiler which resolves inter-module dependencies
+        # automatically — schemas compile before contexts that reference them.
+        case Kernel.ParallelCompiler.compile(ex_files) do
+          {:ok, modules, _warnings} ->
+            find_extension_module(modules, slug)
 
-          modules = Enum.map(compiled, fn {mod, _bytecode} -> mod end)
-          find_extension_module(modules, slug)
-        rescue
-          e in CompileError ->
-            {:error, "Compilation failed: #{Exception.message(e)}"}
-          e ->
-            {:error, "Unexpected compile error: #{inspect(e)}"}
+          {:error, errors, _warnings} ->
+            messages = Enum.map(errors, fn {file, line, msg} ->
+              "#{Path.basename(file)}:#{line}: #{msg}"
+            end) |> Enum.join(", ")
+            {:error, "Compilation failed: #{messages}"}
         end
       end
     end
