@@ -8687,7 +8687,7 @@ function AdminExtensionsPanel() {
                     {/* Name + version */}
                     <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
                       <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",lineHeight:1.2}}>{item.name}</div>
-                      {item.version&&<div style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>v{item.version.replace(/^v/,"")}</div>}
+                      {(item.installed_version||item.version)&&<div style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>v{(item.installed_version||item.version).replace(/^v/,"")}</div>}
                       {item.update_available&&item.latest_version&&(
                         <div style={{fontSize:11,color:"#fb923c",flexShrink:0}}>
                           → v{(item.latest_version||"").replace(/^v/,"")} available

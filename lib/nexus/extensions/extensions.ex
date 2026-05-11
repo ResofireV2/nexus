@@ -296,23 +296,26 @@ defmodule Nexus.Extensions do
       token       = Nexus.Extensions.GitHub.get_token()
       slug        = manifest["slug"]
 
-      # Get the latest release for version tracking and tarball URL
+      # Get the installed version and tarball URL from GitHub Releases API.
+      # The manifest version field is ignored — the release tag is always
+      # the source of truth for version tracking.
       {installed_version, tarball_url} =
         if github_repo do
           case Nexus.Extensions.GitHub.latest_release(github_repo, token) do
             {:ok, release} ->
               {String.trim_leading(release.tag, "v"), Map.get(release, :tarball_url)}
             _ ->
-              {manifest["version"], nil}
+              {"0.0.0", nil}
           end
         else
-          {manifest["version"], nil}
+          {"0.0.0", nil}
         end
 
       attrs = manifest
         |> Map.merge(%{
           "manifest_url"      => url,
           "github_repo"       => github_repo,
+          "version"           => installed_version,
           "installed_version" => installed_version,
         })
 
@@ -701,7 +704,7 @@ defmodule Nexus.Extensions do
   defp parse_manifest(_), do: {:error, "Unexpected manifest format"}
 
   defp validate_manifest(manifest) do
-    required = ["name", "slug", "version"]
+    required = ["name", "slug"]
     missing  = Enum.filter(required, &(not Map.has_key?(manifest, &1)))
 
     if missing == [] do
