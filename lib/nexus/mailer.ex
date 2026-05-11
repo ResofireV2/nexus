@@ -494,6 +494,62 @@ defmodule Nexus.Mailer do
     """
   end
 
+  # Generic extension section renderer — handles list, leaderboard layouts
+  defp render_digest_section(_key, %{"title" => title, "items" => items} = data, url, _site_name)
+       when is_list(items) and items != [] do
+    layout = data["layout"] || "list"
+    cta    = data["cta"]
+
+    rows = case layout do
+      "leaderboard" ->
+        Enum.with_index(items, 1) |> Enum.map_join("", fn {item, i} ->
+          label = item["label"] || ""
+          value = item["value"] || ""
+          href  = if item["url"], do: ~s( href="#{url}#{item["url"]}"), else: ""
+          """
+          <tr>
+            <td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+              <span style="color:rgba(255,255,255,0.4);margin-right:8px;">#{i}.</span>
+              <a#{href} style="color:#c4b5fd;text-decoration:none;">#{label}</a>
+            </td>
+            <td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);text-align:right;color:rgba(255,255,255,0.6);font-size:13px;">#{value}</td>
+          </tr>
+          """
+        end)
+      _ ->
+        Enum.map_join(items, "", fn item ->
+          label    = item["label"] || ""
+          sublabel = item["sublabel"] || ""
+          badge    = item["badge"]
+          href     = if item["url"], do: ~s( href="#{url}#{item["url"]}"), else: ""
+          badge_html = if badge do
+            color = item["badge_color"] || "#34d399"
+            ~s(<span style="background:#{color}22;color:#{color};font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px;">#{badge}</span>)
+          else "" end
+          """
+          <tr>
+            <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+              <a#{href} style="color:#e8e4ff;text-decoration:none;font-weight:500;">#{label}</a>#{badge_html}
+              #{if sublabel != "", do: ~s(<br><span style="color:rgba(255,255,255,0.4);font-size:12px;">#{sublabel}</span>), else: ""}
+            </td>
+          </tr>
+          """
+        end)
+    end
+
+    cta_html = if cta do
+      href = if cta["url"], do: url <> cta["url"], else: url
+      ~s(<p style="margin:12px 0 0;"><a href="#{href}" style="color:#c4b5fd;font-size:13px;">#{cta["label"]} →</a></p>)
+    else "" end
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">#{title}</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:8px;">#{rows}</table>
+    #{cta_html}
+    #{divider()}
+    """
+  end
+
   # Fallback for empty/nil sections
   defp render_digest_section(_key, _data, _url, _site_name), do: ""
 
@@ -527,6 +583,14 @@ defmodule Nexus.Mailer do
         {"spaces", spaces} when is_list(spaces) and spaces != [] ->
           space_lines = Enum.map(spaces, fn s -> "#{s.name}: #{s.post_count} posts" end)
           ["TRENDING SPACES", ""] ++ space_lines ++ [""]
+        {_key, %{"title" => title, "items" => items}} when is_list(items) and items != [] ->
+          item_lines = Enum.map(items, fn item ->
+            label = item["label"] || ""
+            value = if item["value"], do: " — #{item["value"]}", else: ""
+            href  = if item["url"], do: " (#{url}#{item["url"]})", else: ""
+            "#{label}#{value}#{href}"
+          end)
+          [String.upcase(title), ""] ++ item_lines ++ [""]
         _ -> []
       end
     end)

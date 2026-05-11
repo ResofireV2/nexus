@@ -356,7 +356,9 @@ defmodule Nexus.Digest do
           result = module.handle_digest_section(key, period, settings)
           Logger.debug("Digest section #{key} from #{slug}: #{inspect(Map.keys(result))}")
           if is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) do
-            Map.put(acc, key, Map.put(result, "_ext_slug", slug))
+            # Normalise to string keys (deep) so the mailer can pattern-match consistently
+            normalised = deep_stringify(result) |> Map.put("_ext_slug", slug)
+            Map.put(acc, key, normalised)
           else
             Logger.warning("Digest section #{key} from #{slug} returned no items: #{inspect(result)}")
             acc
@@ -384,6 +386,12 @@ defmodule Nexus.Digest do
       where: fragment("?->>'digest_frequency' = ?", u.preferences, ^frequency)
     )
   end
+
+  defp deep_stringify(map) when is_map(map) do
+    Map.new(map, fn {k, v} -> {to_string(k), deep_stringify(v)} end)
+  end
+  defp deep_stringify(list) when is_list(list), do: Enum.map(list, &deep_stringify/1)
+  defp deep_stringify(val), do: val
 
   defp check_enabled(cfg, key) do
     if cfg["include_ext_#{key}"] == false, do: {:skip, :disabled}, else: :enabled
