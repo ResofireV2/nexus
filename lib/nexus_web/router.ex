@@ -300,6 +300,7 @@ defmodule NexusWeb.Router do
     # Digest (admin)
     get    "/digest/settings",         DigestController, :get_settings
     patch  "/digest/settings",         DigestController, :update_settings
+    get    "/digest/sections",         DigestController, :get_sections
     post   "/digest/test",             DigestController, :send_test
 
     # PWA (admin)

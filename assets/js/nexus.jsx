@@ -7324,9 +7324,16 @@ const TIMEZONES = [
 
 function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
   const [sendingTest, setSendingTest] = useState(false);
+  const [allSections, setAllSections] = useState(DIGEST_SECTIONS);
 
   const cfg = digestCfg;
   const set = (k,v) => setDigestCfg(p=>({...p,[k]:v}));
+
+  useEffect(() => {
+    api.get("/admin/digest/sections").then(d => {
+      if(d.sections && d.sections.length) setAllSections(d.sections);
+    }).catch(() => {});
+  }, []);
 
   const enabledFreqs = cfg.frequencies || ["weekly"];
   const toggleFreq = (f) => {
@@ -7336,7 +7343,7 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
     set("frequencies", next);
   };
 
-  const sectionOrder = cfg.section_order || DIGEST_SECTIONS.map(s=>s.id);
+  const sectionOrder = cfg.section_order || allSections.map(s=>s.id);
   const moveSection = (id, dir) => {
     const idx = sectionOrder.indexOf(id);
     if(idx === -1) return;
@@ -7442,17 +7449,18 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
         <div style={{fontSize:12,color:"var(--t4)",marginBottom:16}}>Toggle sections on/off and reorder them with the arrows.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {sectionOrder.map((id,idx)=>{
-            const sec = DIGEST_SECTIONS.find(s=>s.id===id);
+            const sec = allSections.find(s=>s.id===id);
             if(!sec) return null;
-            const includeKey = {leaderboard:"include_leaderboard",badges:"include_badges",members:"include_new_members",spaces:"include_trending_spaces"}[id];
-            const included = includeKey ? cfg[includeKey]!==false : true;
+            const includeKey = sec.cfg_key || {leaderboard:"include_leaderboard",badges:"include_badges",members:"include_new_members",spaces:"include_trending_spaces"}[id];
+            const extKey = sec.ext ? "include_ext_"+id : null;
+            const included = sec.toggleable===false ? true : (includeKey ? cfg[includeKey]!==false : (extKey ? cfg[extKey]!==false : true));
             return (
               <div key={id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:8}}>
                 <i className={`fa-solid ${sec.icon}`} style={{fontSize:13,color:"var(--t4)",width:16,textAlign:"center"}}/>
                 <span style={{flex:1,fontSize:13,color:included?"var(--t2)":"var(--t5)"}}>{sec.label}</span>
-                {includeKey&&(
+                {sec.toggleable!==false&&(
                   <div style={{position:"relative",width:32,height:18,borderRadius:9,background:included?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
-                    onClick={()=>set(includeKey,!included)}>
+                    onClick={()=>{ const k=includeKey||(sec.ext?"include_ext_"+id:null); if(k) set(k,!included); }}>
                     <div style={{position:"absolute",top:2,left:included?14:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
                   </div>
                 )}

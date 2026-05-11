@@ -19,8 +19,33 @@ defmodule NexusWeb.API.V1.DigestController do
     end
   end
 
+  # GET /api/v1/admin/digest/sections
+  def get_sections(conn, _params) do
+    builtin = [
+      %{id: "posts",       label: "Top posts",       icon: "fa-pen-to-square", toggleable: false},
+      %{id: "leaderboard", label: "Leaderboard",     icon: "fa-trophy",        toggleable: true,  cfg_key: "include_leaderboard"},
+      %{id: "badges",      label: "Badges awarded",  icon: "fa-medal",         toggleable: true,  cfg_key: "include_badges"},
+      %{id: "members",     label: "New members",     icon: "fa-users",         toggleable: true,  cfg_key: "include_new_members"},
+      %{id: "spaces",      label: "Trending spaces", icon: "fa-layer-group",   toggleable: true,  cfg_key: "include_trending_spaces"},
+    ]
+    ext_sections =
+      Nexus.Extensions.Registry.all_modules()
+      |> Enum.flat_map(fn {_slug, module} ->
+        if function_exported?(module, :digest_sections, 0) do
+          try do
+            module.digest_sections()
+            |> Enum.map(fn s ->
+              %{id: s[:key]||s["key"], label: s[:label]||s["label"]||s[:key]||s["key"],
+                icon: s[:icon]||s["icon"]||"fa-puzzle-piece", toggleable: true, ext: true}
+            end)
+          rescue _ -> []
+          end
+        else [] end
+      end)
+    json(conn, %{sections: builtin ++ ext_sections})
+  end
+
   # POST /api/v1/admin/digest/test
-  # Sends a test digest to the current admin user using the current settings.
   def send_test(conn, %{"frequency" => frequency}) do
     user   = conn.assigns.current_user
     digest = Digest.build(frequency)
@@ -31,7 +56,7 @@ defmodule NexusWeb.API.V1.DigestController do
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc ->
-        String.replace(acc, "%{#{k}}", to_string(v))
+        String.replace(acc, "%{" <> to_string(k) <> "}", to_string(v))
       end)
     end)
   end
