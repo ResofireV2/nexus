@@ -306,17 +306,16 @@ defmodule Nexus.Extensions.Loader do
   # ---------------------------------------------------------------------------
 
   defp purge_modules(root_module) do
-    # Purge the root module and any related modules from the same package.
-    # We identify related modules by their common prefix (the root module's app name).
-    prefix = root_module
-      |> Atom.to_string()
-      |> String.split(".")
-      |> List.first()
+    # Derive the top-level namespace from the root module name.
+    # e.g. Elixir.Gamepedia -> "Elixir.Gamepedia"
+    # Only purge modules whose full name starts with this exact prefix
+    # followed by "." or is exactly the prefix — never purge anything else.
+    prefix = root_module |> Atom.to_string()
 
     :code.all_loaded()
     |> Enum.filter(fn {mod, _} ->
       mod_str = Atom.to_string(mod)
-      String.starts_with?(mod_str, prefix)
+      mod_str == prefix || String.starts_with?(mod_str, prefix <> ".")
     end)
     |> Enum.each(fn {mod, _} ->
       :code.purge(mod)
