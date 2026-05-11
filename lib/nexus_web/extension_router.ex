@@ -65,33 +65,38 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_api(conn, slug, path_parts) do
-    # If the request accepts HTML it's a browser navigation — hard refresh or
-    # direct link (e.g. from a digest email). Delegate to PageController.home
-    # via an internal forward so the full browser pipeline (session, layout,
-    # CSRF headers) runs correctly and the SPA shell is served.
+    # Browser navigations (hard refresh, direct link, digest email link) send
+    # Accept: text/html. Redirect them to the same URL — Phoenix restarts the
+    # request, the browser SPA scope catches it, runs the full browser pipeline,
+    # and serves the HTML shell. React boots and handles the route client-side.
     accept = get_req_header(conn, "accept") |> List.first("")
-    if String.contains?(accept, "text/html") do
-      NexusWeb.PageController.call(conn, NexusWeb.PageController.init(:home))
+    if String.contains?(accept, "text/html") and not String.contains?(accept, "application/json") do
+      path = "/ext/" <> slug <> "/" <> Enum.join(path_parts, "/")
+      query = if conn.query_string != "", do: "?" <> conn.query_string, else: ""
+      conn
+      |> put_resp_header("location", path <> query)
+      |> send_resp(302, "")
+      |> halt()
     else
       module = Registry.get_module(slug)
 
-      if is_nil(module) do
+    if is_nil(module) do
+      conn
+      |> put_status(404)
+      |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
+    else
+      routes = Registry.routes_for(slug)
+
+      if routes == [] do
         conn
         |> put_status(404)
-        |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
+        |> json(%{error: "Extension \"#{slug}\" has no API routes"})
       else
-        routes = Registry.routes_for(slug)
-
-        if routes == [] do
-          conn
-          |> put_status(404)
-          |> json(%{error: "Extension \"#{slug}\" has no API routes"})
-        else
-          path = "/" <> Enum.join(path_parts, "/")
-          conn = %{conn | path_info: path_parts, request_path: path}
-          dispatch_to_routes(conn, routes, slug)
-        end
+        path = "/" <> Enum.join(path_parts, "/")
+        conn = %{conn | path_info: path_parts, request_path: path}
+        dispatch_to_routes(conn, routes, slug)
       end
+    end
     end
   end
 
