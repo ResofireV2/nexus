@@ -112,9 +112,12 @@ defmodule Nexus.Extensions.Loader do
 
     tarball_path = Path.join(build_dir, "release.tar.gz")
 
-    case Req.get(url, receive_timeout: 60_000, into: File.stream!(tarball_path)) do
-      {:ok, %{status: 200}} ->
-        extract_tarball(tarball_path, build_dir)
+    case Req.get(url, receive_timeout: 60_000) do
+      {:ok, %{status: 200, body: body}} ->
+        case File.write(tarball_path, body) do
+          :ok -> extract_tarball(tarball_path, build_dir)
+          {:error, reason} -> {:error, "Failed to write tarball: #{inspect(reason)}"}
+        end
 
       {:ok, %{status: status}} ->
         {:error, "Failed to download tarball: HTTP #{status}"}
@@ -125,14 +128,32 @@ defmodule Nexus.Extensions.Loader do
   end
 
   defp extract_tarball(tarball_path, build_dir) do
-    case System.cmd("tar", ["-xzf", tarball_path, "-C", build_dir, "--strip-components=1"],
-           stderr_to_stdout: true) do
-      {_, 0} ->
+    # Use Erlang's built-in :erl_tar instead of system tar to avoid
+    # depending on GNU tar features (--strip-components) not available
+    # in Alpine Linux's busybox tar.
+    case :erl_tar.extract(String.to_charlist(tarball_path), [:compressed, {:cwd, String.to_charlist(build_dir)}]) do
+      :ok ->
         File.rm(tarball_path)
-        :ok
+        # GitHub tarballs extract to a single top-level directory named
+        # "{repo}-{tag}/". Strip it by moving contents up one level.
+        case File.ls!(build_dir) do
+          [single_dir] ->
+            top = Path.join(build_dir, single_dir)
+            if File.dir?(top) do
+              File.ls!(top)
+              |> Enum.each(fn entry ->
+                File.rename(Path.join(top, entry), Path.join(build_dir, entry))
+              end)
+              File.rmdir(top)
+            end
+            :ok
 
-      {output, code} ->
-        {:error, "tar extraction failed (exit #{code}): #{output}"}
+          _ ->
+            :ok
+        end
+
+      {:error, reason} ->
+        {:error, "Tarball extraction failed: #{inspect(reason)}"}
     end
   end
 
