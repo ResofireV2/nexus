@@ -2929,6 +2929,16 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
       </div>
     )}
 
+    {/* Extension post_sidebar slot — rendered before live activity */}
+    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar").map(function(s) {
+      return React.createElement(s.component, {
+        key:         s.extension_slug,
+        postId:      postId,
+        currentUser: currentUser,
+        navigate:    navigate,
+      });
+    })}
+
     {/* Live activity — from global widgets */}
     {liveActivityWidget}
   </>;
