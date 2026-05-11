@@ -361,14 +361,11 @@ defmodule Nexus.Digest do
         with true     <- is_binary(key) and key != "",
              :enabled <- check_enabled(cfg, key) do
           try do
-            case module.handle_digest_section(key, period, settings) do
-              %{items: items} = result when is_list(items) ->
-                data = result |> Map.from_struct() |> Map.new(fn {k,v} -> {Atom.to_string(k), v} end) rescue result
-                Map.put(inner_acc, key, Map.put(data, "_ext_slug", slug))
-              result when is_map(result) ->
-                Map.put(inner_acc, key, Map.put(result, "_ext_slug", slug))
-              _ ->
-                inner_acc
+            result = module.handle_digest_section(key, period, settings)
+            if is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) do
+              Map.put(inner_acc, key, Map.put(result, "_ext_slug", slug))
+            else
+              inner_acc
             end
           rescue
             e ->
@@ -381,6 +378,18 @@ defmodule Nexus.Digest do
         end
       end)
     end)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Fetch users subscribed to a given digest frequency
+  # ---------------------------------------------------------------------------
+
+  def subscribers(frequency) do
+    Repo.all(
+      from u in User,
+      where: u.status == "active",
+      where: fragment("?->>'digest_frequency' = ?", u.preferences, ^frequency)
+    )
   end
 
   defp check_enabled(cfg, key) do
