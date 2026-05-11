@@ -21,6 +21,8 @@ defmodule NexusWeb.Router do
     plug :fetch_cookies
     plug NexusWeb.Plugs.LoadUser
   end
+
+  pipeline :authenticated do
     plug NexusWeb.Plugs.RequireAuth
     plug NexusWeb.Plugs.ActivityTracker
   end
