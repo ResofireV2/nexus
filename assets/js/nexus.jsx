@@ -2057,6 +2057,12 @@ function ReactionsModal({postId, replyId, onClose}) {
 
 function ReactionButton({postId, replyId, initialReactions=[], initialUserReaction=null, currentUser, authorId=null, onAuthRequired}) {
   const [open, setOpen] = useState(false);
+  const [postCfgLoaded, setPostCfgLoaded] = useState(!!window._postCfg);
+  useEffect(()=>{
+    if(window._postCfg){ setPostCfgLoaded(true); return; }
+    const t = setInterval(()=>{ if(window._postCfg){ setPostCfgLoaded(true); clearInterval(t); } }, 100);
+    return ()=>clearInterval(t);
+  },[]);
   const [reactions, setReactions] = useState(initialReactions);
   const [userReaction, setUserReaction] = useState(initialUserReaction);
   const ref = useRef();
@@ -2088,7 +2094,11 @@ function ReactionButton({postId, replyId, initialReactions=[], initialUserReacti
   const totalCount = reactions.reduce((s,r)=>s+(r.count||0),0);
 
   const isSelf = currentUser && authorId && currentUser.id === authorId;
-  const selfReactionsAllowed = window._postCfg?.allow_self_reactions !== false;
+  // If _postCfg isn't loaded yet, allow_self_reactions defaults to true (permissive).
+  // Once loaded, respect the setting. Either way, never show 403 to the user.
+  const selfReactionsAllowed = postCfgLoaded
+    ? window._postCfg.allow_self_reactions !== false
+    : true;
   const canReact = !isSelf || selfReactionsAllowed;
 
   return (
