@@ -4748,6 +4748,11 @@ function ProfilePage({username, currentUser, navigate}) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover,  setUploadingCover]  = useState(false);
   const [coverExpanded,   setCoverExpanded]   = useState(false);
+  const [, forceUpdate] = React.useReducer(x => x+1, 0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onChange(() => forceUpdate());
+    return unsub;
+  }, []);
 
   // Per-tab data — fetched lazily on first activation
   const [posts,       setPosts]       = useState(null);
