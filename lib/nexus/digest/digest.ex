@@ -251,8 +251,8 @@ defmodule Nexus.Digest do
     # Each extension webhook is called synchronously (with a short timeout)
     # and its response is merged into the sections map.
     extension_sections = collect_extension_sections(frequency, %{
-      from: DateTime.to_iso8601(from_dt),
-      to:   DateTime.to_iso8601(to_dt),
+      from: from_dt,
+      to:   to_dt,
       frequency: frequency,
       period_label: period_label
     })
