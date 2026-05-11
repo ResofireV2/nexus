@@ -244,7 +244,7 @@ defmodule Nexus.Extensions.Loader do
   # Private — static assets
   # ---------------------------------------------------------------------------
 
-  defp copy_static_assets(build_dir, slug, module) do
+  defp copy_static_assets(build_dir, slug, _module) do
     static_dir = Path.join(build_dir, "priv/static")
 
     if File.dir?(static_dir) do
@@ -252,14 +252,22 @@ defmodule Nexus.Extensions.Loader do
                             "extensions", slug, "assets"])
       File.mkdir_p!(dest_dir)
 
-      case File.cp_r(static_dir, dest_dir) do
-        {:ok, _} ->
-          Logger.info("Loader: copied static assets for #{slug}")
-          :ok
-        {:error, reason, _} ->
-          Logger.warning("Loader: failed to copy static assets for #{slug}: #{inspect(reason)}")
-          :ok  # Non-fatal — extension may have no static assets
-      end
+      # Copy each file individually so contents land directly in dest_dir,
+      # not nested inside a "static" subdirectory.
+      static_dir
+      |> File.ls!()
+      |> Enum.each(fn filename ->
+        src  = Path.join(static_dir, filename)
+        dest = Path.join(dest_dir, filename)
+        case File.cp_r(src, dest) do
+          {:ok, _} -> :ok
+          {:error, reason, _} ->
+            Logger.warning("Loader: failed to copy #{filename} for #{slug}: #{inspect(reason)}")
+        end
+      end)
+
+      Logger.info("Loader: copied static assets for #{slug} to #{dest_dir}")
+      :ok
     else
       :ok
     end

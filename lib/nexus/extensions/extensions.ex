@@ -324,7 +324,24 @@ defmodule Nexus.Extensions do
         if tarball_url do
           case Nexus.Extensions.Loader.load_from_url(tarball_url, slug) do
             {:ok, module} ->
+              # Derive js_bundle_url from the loaded module rather than the manifest.
+              # This is the canonical URL — manifest.json never needs a js_bundle_url field.
+              bundle_url =
+                if function_exported?(module, :js_bundle_path, 0) do
+                  case module.js_bundle_path() do
+                    nil  -> nil
+                    path -> "/ext/#{slug}/assets/#{path}"
+                  end
+                end
+
+              if bundle_url do
+                ext
+                |> Extension.changeset(%{"js_bundle_url" => bundle_url})
+                |> Repo.update()
+              end
+
               on_install_safe(module, ext.settings || %{})
+
             {:error, reason} ->
               require Logger
               Logger.warning("install_from_url: saved #{slug} to DB but compile failed: #{inspect(reason)}")
@@ -475,6 +492,21 @@ defmodule Nexus.Extensions do
         # Reload the extension in the VM — stop old, compile new, restart
         case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module) do
           {:ok, new_module} ->
+            # Update bundle URL from reloaded module
+            bundle_url =
+              if function_exported?(new_module, :js_bundle_path, 0) do
+                case new_module.js_bundle_path() do
+                  nil  -> nil
+                  path -> "/ext/#{ext.slug}/assets/#{path}"
+                end
+              end
+
+            if bundle_url do
+              updated
+              |> Extension.changeset(%{"js_bundle_url" => bundle_url})
+              |> Repo.update()
+            end
+
             # Call on_update lifecycle callback
             if function_exported?(new_module, :on_update, 2) do
               Task.start(fn ->
