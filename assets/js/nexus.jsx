@@ -2105,7 +2105,9 @@ function ReactionButton({postId, replyId, initialReactions=[], initialUserReacti
     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
       {/* React trigger button */}
       <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
-        <span style={{fontSize:16,lineHeight:1}}>{userReaction||"❤️"}</span>
+        {userReaction
+          ? <span style={{fontSize:16,lineHeight:1}}>{userReaction}</span>
+          : <i className="fa-solid fa-heart" style={{fontSize:14,color:"var(--ac)"}}/>}
         {totalCount>0&&<span>{totalCount}</span>}
         {open&&(
           <div className="rx-picker" onClick={e=>e.stopPropagation()}>
