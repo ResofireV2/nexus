@@ -10313,6 +10313,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
             <div className="fgt" style={{marginTop:20}}>Posting</div>
             <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum. Disabling redirects guests to login." on={postCfg.guest_browsing!==false} onChange={v=>setPostCfg(p=>({...p,guest_browsing:v}))}/>
+            <Tgl label="Allow self-reactions" desc="Users can react to their own posts and replies. Disable to prevent self-promotion." on={postCfg.allow_self_reactions!==false} onChange={v=>setPostCfg(p=>({...p,allow_self_reactions:v}))}/>
             <Tgl label="New users can post immediately" desc="If off, new user posts are queued for moderator approval." on={postCfg.instant_post!==false} onChange={v=>setPostCfg(p=>({...p,instant_post:v}))}/>
             <F label="Max posts per hour" hint="Per-user rate limit. 0 = unlimited.">
               <div style={{display:"flex",alignItems:"center",gap:8}}>
