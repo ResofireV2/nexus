@@ -18,10 +18,10 @@
       <%= assigns[:page_title] || "Forum" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-    <%= for url <- @extension_bundle_urls do %>
-    <script type="text/javascript" src={url}></script>
-    <% end %>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
+    <%= for url <- @extension_bundle_urls do %>
+    <script defer type="text/javascript" src={url}></script>
+    <% end %>
 
     <script>
       if ('serviceWorker' in navigator) {
