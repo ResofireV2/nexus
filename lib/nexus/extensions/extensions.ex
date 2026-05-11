@@ -227,7 +227,7 @@ defmodule Nexus.Extensions do
 
       update_attrs = %{
         "name"          => manifest["name"],
-        "version"       => manifest["version"],
+        "version"       => ext.version,
         "description"   => manifest["description"],
         "author"        => manifest["author"],
         "homepage"      => manifest["homepage"],
@@ -486,7 +486,7 @@ defmodule Nexus.Extensions do
 
       update_attrs = %{
         "name"              => manifest["name"],
-        "version"           => manifest["version"],
+        "version"           => clean_tag,
         "description"       => manifest["description"],
         "author"            => manifest["author"],
         "homepage"          => manifest["homepage"],
