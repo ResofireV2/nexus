@@ -505,44 +505,46 @@ defmodule Nexus.Mailer do
         Enum.with_index(items, 1) |> Enum.map_join("", fn {item, i} ->
           label = item["label"] || ""
           value = item["value"] || ""
-          href  = if item["url"], do: ~s( href="#{url}#{item["url"]}"), else: ""
-          """
-          <tr>
-            <td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
-              <span style="color:rgba(255,255,255,0.4);margin-right:8px;">#{i}.</span>
-              <a#{href} style="color:#c4b5fd;text-decoration:none;">#{label}</a>
-            </td>
-            <td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);text-align:right;color:rgba(255,255,255,0.6);font-size:13px;">#{value}</td>
-          </tr>
-          """
+          item_url = item["url"]
+          href  = if item_url, do: " href=\"" <> url <> item_url <> "\"", else: ""
+          "<tr>" <>
+          "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);\">" <>
+          "<span style=\"color:rgba(255,255,255,0.4);margin-right:8px;\">" <> to_string(i) <> ".</span>" <>
+          "<a" <> href <> " style=\"color:#c4b5fd;text-decoration:none;\">" <> label <> "</a>" <>
+          "</td>" <>
+          "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);text-align:right;color:rgba(255,255,255,0.6);font-size:13px;\">" <>
+          value <> "</td></tr>"
         end)
       _ ->
         Enum.map_join(items, "", fn item ->
           label    = item["label"] || ""
           sublabel = item["sublabel"] || ""
           badge    = item["badge"]
-          href     = if item["url"], do: ~s( href="#{url}#{item["url"]}"), else: ""
-          badge_html = if badge do
-            color = item["badge_color"] || "#34d399"
-            ~s(<span style="background:#{color}22;color:#{color};font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px;">#{badge}</span>)
-          else "" end
-          sublabel_html = if sublabel != "" do
-            ~s(<br><span style="color:rgba(255,255,255,0.4);font-size:12px;">#{sublabel}</span>)
-          else "" end
-          """
-          <tr>
-            <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
-              <a#{href} style="color:#e8e4ff;text-decoration:none;font-weight:500;">#{label}</a>#{badge_html}
-              #{sublabel_html}
-            </td>
-          </tr>
-          """
+          item_url = item["url"]
+          href     = if item_url, do: " href=\"" <> url <> item_url <> "\"", else: ""
+          badge_html =
+            if badge do
+              color = item["badge_color"] || "#34d399"
+              "<span style=\"background:" <> color <> "22;color:" <> color <>
+              ";font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px;\">" <>
+              badge <> "</span>"
+            else "" end
+          sublabel_html =
+            if sublabel != "" do
+              "<br><span style=\"color:rgba(255,255,255,0.4);font-size:12px;\">" <> sublabel <> "</span>"
+            else "" end
+          "<tr><td style=\"padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);\">" <>
+          "<a" <> href <> " style=\"color:#e8e4ff;text-decoration:none;font-weight:500;\">" <>
+          label <> "</a>" <> badge_html <> sublabel_html <>
+          "</td></tr>"
         end)
     end
 
     cta_html = if cta do
-      href = if cta["url"], do: url <> cta["url"], else: url
-      ~s(<p style="margin:12px 0 0;"><a href="#{href}" style="color:#c4b5fd;font-size:13px;">#{cta["label"]} →</a></p>)
+      cta_href  = if cta["url"], do: url <> cta["url"], else: url
+      cta_label = cta["label"] || ""
+      "<p style=\"margin:12px 0 0;\"><a href=\"" <> cta_href <>
+      "\" style=\"color:#c4b5fd;font-size:13px;\">" <> cta_label <> " →</a></p>"
     else "" end
 
     """
