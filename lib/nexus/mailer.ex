@@ -525,121 +525,6 @@ defmodule Nexus.Mailer do
     html
   end
 
-  # Generic extension section renderer — handles list, leaderboard layouts
-  defp render_digest_section(_key, %{"title" => title, "items" => items} = data, url, _site_name
-       when is_list(items) and items != [] do
-    layout = data["layout"] || "list"
-    cta    = data["cta"]
-
-    body_html = case layout do
-      "game_cards" ->
-        # 3-column cover art grid
-        cols = 3
-        rows = items
-          |> Enum.chunk_every(cols)
-          |> Enum.map_join("", fn row ->
-            cells = row |> Enum.map_join("", fn item ->
-              label    = item["label"] || ""
-              sublabel = item["sublabel"] || ""
-              value    = item["value"]
-              badge    = item["badge"]
-              cover    = item["cover_image_url"]
-              item_url = item["url"]
-              href_open  = if item_url, do: "<a href=\"" <> url <> item_url <> "\" style=\"text-decoration:none;\">", else: "<span>"
-              href_close = if item_url, do: "</a>", else: "</span>"
-              badge_html =
-                if badge do
-                  color = item["badge_color"] || "#34d399"
-                  "<div style=\"margin-top:4px;display:inline-block;background:" <> color <>
-                  "22;color:" <> color <> ";font-size:9px;font-weight:700;padding:2px 5px;" <>
-                  "border-radius:3px;letter-spacing:.04em;\">" <> badge <> "</div>"
-                else "" end
-              value_html =
-                if value do
-                  "<div style=\"font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px;\">" <> value <> "</div>"
-                else "" end
-              cover_html =
-                if cover do
-                  "<img src=\"" <> cover <> "\" width=\"80\" height=\"107\" " <>
-                  "style=\"width:80px;height:107px;object-fit:cover;border-radius:6px;" <>
-                  "display:block;border:0.5px solid rgba(255,255,255,0.1);\" />"
-                else
-                  "<div style=\"width:80px;height:107px;border-radius:6px;background:rgba(255,255,255,0.06);" <>
-                  "border:0.5px solid rgba(255,255,255,0.1);display:flex;align-items:center;" <>
-                  "justify-content:center;color:rgba(255,255,255,0.2);font-size:24px;\">&#9670;</div>"
-                end
-              "<td style=\"width:33%;padding:0 6px 16px;vertical-align:top;\">" <>
-              href_open <>
-              cover_html <>
-              "<div style=\"margin-top:6px;font-size:11px;font-weight:500;color:#e8e4ff;" <>
-              "line-height:1.3;\">" <> label <> "</div>" <>
-              "<div style=\"font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;\">" <> sublabel <> "</div>" <>
-              badge_html <> value_html <>
-              href_close <>
-              "</td>"
-            end)
-            # Pad incomplete rows
-            pad = cols - length(row)
-            padding = if pad > 0, do: String.duplicate("<td style=\"width:33%;padding:0 6px;\"></td>", pad), else: ""
-            "<tr>" <> cells <> padding <> "</tr>"
-          end)
-        "<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:8px;\">" <> rows <> "</table>"
-
-      "leaderboard" ->
-        rows = Enum.with_index(items, 1) |> Enum.map_join("", fn {item, i} ->
-          label    = item["label"] || ""
-          value    = item["value"] || ""
-          item_url = item["url"]
-          href = if item_url, do: " href=\"" <> url <> item_url <> "\"", else: ""
-          "<tr>" <>
-          "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);\">" <>
-          "<span style=\"color:rgba(255,255,255,0.4);margin-right:8px;\">" <> to_string(i) <> ".</span>" <>
-          "<a" <> href <> " style=\"color:#c4b5fd;text-decoration:none;\">" <> label <> "</a>" <>
-          "</td>" <>
-          "<td style=\"padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);" <>
-          "text-align:right;color:rgba(255,255,255,0.6);font-size:13px;\">" <> value <> "</td></tr>"
-        end)
-        "<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:8px;\">" <> rows <> "</table>"
-
-      _ ->
-        rows = Enum.map_join(items, "", fn item ->
-          label    = item["label"] || ""
-          sublabel = item["sublabel"] || ""
-          badge    = item["badge"]
-          item_url = item["url"]
-          href     = if item_url, do: " href=\"" <> url <> item_url <> "\"", else: ""
-          badge_html =
-            if badge do
-              color = item["badge_color"] || "#34d399"
-              "<span style=\"background:" <> color <> "22;color:" <> color <>
-              ";font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px;\">" <>
-              badge <> "</span>"
-            else "" end
-          sublabel_html =
-            if sublabel != "" do
-              "<br><span style=\"color:rgba(255,255,255,0.4);font-size:12px;\">" <> sublabel <> "</span>"
-            else "" end
-          "<tr><td style=\"padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);\">" <>
-          "<a" <> href <> " style=\"color:#e8e4ff;text-decoration:none;font-weight:500;\">" <>
-          label <> "</a>" <> badge_html <> sublabel_html <> "</td></tr>"
-        end)
-        "<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:8px;\">" <> rows <> "</table>"
-    end
-
-    cta_html = if cta do
-      cta_href  = if cta["url"], do: url <> cta["url"], else: url
-      cta_label = cta["label"] || ""
-      "<p style=\"margin:12px 0 0;\"><a href=\"" <> cta_href <>
-      "\" style=\"color:#c4b5fd;font-size:13px;\">" <> cta_label <> " →</a></p>"
-    else "" end
-
-    """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">#{title}</p>
-    #{body_html}
-    #{cta_html}
-    #{divider()}
-    """
-  end
 
   # Fallback for empty/nil sections
   defp render_digest_section(_key, _data, _url, _site_name, _branding), do: ""
@@ -674,14 +559,6 @@ defmodule Nexus.Mailer do
         {"spaces", spaces} when is_list(spaces) and spaces != [] ->
           space_lines = Enum.map(spaces, fn s -> "#{s.name}: #{s.post_count} posts" end)
           ["TRENDING SPACES", ""] ++ space_lines ++ [""]
-        {_key, %{"title" => title, "items" => items}} when is_list(items) and items != [] ->
-          item_lines = Enum.map(items, fn item ->
-            label = item["label"] || ""
-            value = if item["value"], do: " — #{item["value"]}", else: ""
-            href  = if item["url"], do: " (#{url}#{item["url"]})", else: ""
-            "#{label}#{value}#{href}"
-          end)
-          [String.upcase(title), ""] ++ item_lines ++ [""]
         _ -> []
       end
     end)
