@@ -23,12 +23,24 @@ defmodule NexusWeb.ExtensionRouter do
 
   @impl Plug
   def call(%Plug.Conn{path_info: [slug | rest]} = conn, _opts) do
+    # Browser hard-refresh on an extension SPA route: Accept contains text/html
+    # and the path is not an asset. Pass through so the browser scope serves
+    # the HTML shell and React boots client-side.
+    accepts_html = conn
+      |> Plug.Conn.get_req_header("accept")
+      |> List.first("")
+      |> String.contains?("text/html")
+
+    is_asset = match?(["assets" | _], rest)
+
     cond do
-      # Static assets: /ext/:slug/assets/*
-      match?(["assets" | _], rest) ->
+      is_asset ->
         serve_asset(conn, slug, tl(rest))
 
-      # API routes: /ext/:slug/api/* or /ext/:slug/*
+      accepts_html ->
+        # Not an asset and browser wants HTML — let the SPA catch-all handle it
+        conn
+
       true ->
         serve_api(conn, slug, rest)
     end
