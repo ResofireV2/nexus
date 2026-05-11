@@ -1,19 +1,18 @@
 defmodule NexusWeb.ExtensionRouter do
   @moduledoc """
   Handles extension asset serving and API route dispatching.
-  Works as both a Phoenix controller (for named actions from the router)
-  and a Plug (legacy, kept for compatibility).
   """
 
-  use Phoenix.Controller, formats: [:json]
-
   import Plug.Conn
+  import Phoenix.Controller, only: [json: 2]
 
   alias Nexus.Extensions.Registry
 
   # ---------------------------------------------------------------------------
   # Phoenix controller actions (called from router.ex)
   # ---------------------------------------------------------------------------
+
+  def init(opts), do: opts
 
   def serve_asset_action(conn, %{"slug" => slug, "path" => path_parts}) do
     serve_asset(conn, slug, path_parts)
@@ -23,16 +22,7 @@ defmodule NexusWeb.ExtensionRouter do
     serve_api(conn, slug, path_parts)
   end
 
-  # ---------------------------------------------------------------------------
-  # Plug implementation (kept for any remaining forward usage)
-  # ---------------------------------------------------------------------------
-
-  @behaviour Plug
-
-  @impl Plug
-  def init(opts), do: opts
-
-  @impl Plug
+  # Also handle when called as a Plug
   def call(%Plug.Conn{path_info: [slug | rest]} = conn, _opts) do
     if match?(["assets" | _], rest) do
       serve_asset(conn, slug, tl(rest))
@@ -74,15 +64,15 @@ defmodule NexusWeb.ExtensionRouter do
       end
 
       conn
-      |> Plug.Conn.put_resp_header("content-type", mime_type)
-      |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
-      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=300")
-      |> Plug.Conn.send_file(200, asset_path)
+      |> put_resp_header("content-type", mime_type)
+      |> put_resp_header("access-control-allow-origin", "*")
+      |> put_resp_header("cache-control", "public, max-age=300")
+      |> send_file(200, asset_path)
       |> halt()
     else
       conn
-      |> put_status(404)
-      |> json(%{error: "Asset not found"})
+      |> put_resp_content_type("application/json")
+      |> send_resp(404, Jason.encode!(%{error: "Asset not found"}))
       |> halt()
     end
   end
@@ -96,16 +86,16 @@ defmodule NexusWeb.ExtensionRouter do
 
     if is_nil(module) do
       conn
-      |> put_status(404)
-      |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
+      |> put_resp_content_type("application/json")
+      |> send_resp(404, Jason.encode!(%{error: "Extension \"#{slug}\" not found or not loaded"}))
       |> halt()
     else
       routes = Registry.routes_for(slug)
 
       if routes == [] do
         conn
-        |> put_status(404)
-        |> json(%{error: "Extension \"#{slug}\" has no API routes"})
+        |> put_resp_content_type("application/json")
+        |> send_resp(404, Jason.encode!(%{error: "Extension \"#{slug}\" has no API routes"}))
         |> halt()
       else
         path = "/" <> Enum.join(path_parts, "/")
@@ -117,8 +107,8 @@ defmodule NexusWeb.ExtensionRouter do
 
   defp dispatch_to_routes(conn, [], slug) do
     conn
-    |> put_status(404)
-    |> json(%{error: "No route matched in extension \"#{slug}\""})
+    |> put_resp_content_type("application/json")
+    |> send_resp(404, Jason.encode!(%{error: "No route matched in extension \"#{slug}\""}))
     |> halt()
   end
 
@@ -139,8 +129,8 @@ defmodule NexusWeb.ExtensionRouter do
           require Logger
           Logger.error("ExtensionRouter: #{plug_module} raised: #{inspect(e)}")
           conn
-          |> put_status(500)
-          |> json(%{error: "Internal extension error"})
+          |> put_resp_content_type("application/json")
+          |> send_resp(500, Jason.encode!(%{error: "Internal extension error"}))
           |> halt()
       end
     else
