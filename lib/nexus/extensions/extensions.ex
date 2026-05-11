@@ -329,18 +329,28 @@ defmodule Nexus.Extensions do
               # Derive js_bundle_url from the loaded module.
               bundle_url =
                 try do
-                  case module.js_bundle_path() do
+                  path = module.js_bundle_path()
+                  require Logger
+                  Logger.info("install_from_url: #{slug} js_bundle_path() = #{inspect(path)}, module = #{inspect(module)}")
+                  case path do
                     nil  -> nil
                     path -> "/ext/#{slug}/assets/#{path}"
                   end
                 rescue
-                  _ -> nil
+                  e ->
+                    require Logger
+                    Logger.error("install_from_url: js_bundle_path() raised for #{slug}: #{inspect(e)}")
+                    nil
                 end
 
+              require Logger
+              Logger.info("install_from_url: #{slug} bundle_url = #{inspect(bundle_url)}")
+
               if bundle_url do
-                ext
-                |> Extension.changeset(%{"js_bundle_url" => bundle_url})
-                |> Repo.update()
+                result = ext
+                  |> Extension.changeset(%{"js_bundle_url" => bundle_url})
+                  |> Repo.update()
+                Logger.info("install_from_url: #{slug} bundle_url update result = #{inspect(result)}")
               end
 
               on_install_safe(module, ext.settings || %{})
