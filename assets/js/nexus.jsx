@@ -5598,16 +5598,7 @@ function UpdatesPanel() {
 function F({label, hint, children}) {
   return <div style={{marginBottom:14}}><label className="f-label">{label}</label>{children}{hint&&<div className="f-hint">{hint}</div>}</div>;
 }
-function Tgl({on, onChange, label, desc}) {
-  return (
-    <div className="toggle-row">
-      <div><div style={{fontSize:15,color:"var(--t2)"}}>{label}</div>{desc&&<div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>{desc}</div>}</div>
-      <div className="tgl" style={{background:on?"var(--ac)":"var(--tgl-off)"}} onClick={()=>onChange(!on)}>
-        <div className="tgl-knob" style={{left:on?23:3,background:on?"#fff":"var(--tgl-knob-off)"}}/>
-      </div>
-    </div>
-  );
-}
+
 
 function TagsAdmin({tags, onRefresh}) {
   const [editing,setEditing]=useState(null);
@@ -5779,10 +5770,10 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
       <div style={{marginBottom:12}}><label className="f-label">Description</label><input className="fi" value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Optional description"/></div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
         <div><label className="f-label">Visibility</label>
-          <select className="fi" value={form.visibility} onChange={e=>setForm(p=>({...p,visibility:e.target.value}))}>
+          <Select value={form.visibility} onChange={v=>setForm(p=>({...p,visibility:v}))}>
             <option value="public">Public</option>
             <option value="private">Private</option>
-          </select>
+          </Select>
         </div>
         <div><label className="f-label">Icon <span style={{fontSize:10,color:"var(--t5)"}}>(Font Awesome class)</span></label>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -6060,11 +6051,11 @@ function ModerationPage({currentUser, navigate}) {
                 {s} <span style={{opacity:0.6}}>{statusFilter===s?reports.length:""}</span>
               </div>
             ))}
-            <select value={sort} onChange={e=>setSort(e.target.value)}
+            <Select value={sort} onChange={setSort}
               style={{marginLeft:"auto",fontSize:12,color:"var(--t4)",background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"5px 10px",fontFamily:"inherit",outline:"none"}}>
               <option value="newest">newest first</option>
               <option value="oldest">oldest first</option>
-            </select>
+            </Select>
           </div>
           {loading?<div style={{color:"var(--t5)",fontSize:13,padding:"20px 0"}}>Loading…</div>
             :reports.length===0?<div style={{textAlign:"center",padding:"40px 0",color:"var(--t5)",fontSize:13}}>
@@ -6196,11 +6187,11 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
               {s}
             </div>
           ))}
-          <select value={sort} onChange={e=>setSort(e.target.value)}
+          <Select value={sort} onChange={setSort}
             style={{marginLeft:"auto",fontSize:12,color:"var(--t4)",background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"5px 10px",fontFamily:"inherit",outline:"none"}}>
             <option value="newest">newest first</option>
             <option value="oldest">oldest first</option>
-          </select>
+          </Select>
         </div>
         {sorted.length===0
           ?<div style={{padding:"24px 0",color:"var(--t5)",fontSize:13}}>✓ No {statusFilter} reports</div>
@@ -6848,7 +6839,7 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
 
       {tab==="settings"&&<>
         <div className="fgt">StopForumSpam</div>
-        <Tgl label="Enable SFS check at registration" desc="Checks IP, email and username against StopForumSpam.org on every registration. Fails open — if SFS is unreachable, registration proceeds normally." on={!!spamCfg.sfs_enabled} onChange={v=>setSpamCfg(p=>({...p,sfs_enabled:v}))}/>
+        <Toggle label="Enable SFS check at registration" hint="Checks IP, email and username against StopForumSpam.org on every registration. Fails open — if SFS is unreachable, registration proceeds normally." value={!!spamCfg.sfs_enabled} onChange={v=>setSpamCfg(p=>({...p,sfs_enabled:v}))}/>
         <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:8}}>
           <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
             Frequency threshold
@@ -7127,13 +7118,13 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
           <div style={{marginBottom:16}}>
             <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Timezone</div>
-            <select style={fi} value={cfg.timezone||"UTC"} onChange={e=>set("timezone",e.target.value)}>
+            <Select style={fi} value={cfg.timezone||"UTC"} onChange={v=>set("timezone",v)}>
               {TIMEZONES.map(g=>(
                 <optgroup key={g.group} label={g.group}>
                   {g.zones.map(z=><option key={z} value={z}>{z.replace(/_/g," ")}</option>)}
                 </optgroup>
               ))}
-            </select>
+            </Select>
           </div>
           <div style={{marginBottom:16}}>
             <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Send time</div>
@@ -7142,17 +7133,17 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
           {enabledFreqs.includes("weekly")&&(
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Weekly send day</div>
-              <select style={fi} value={cfg.weekly_day||"monday"} onChange={e=>set("weekly_day",e.target.value)}>
+              <Select style={fi} value={cfg.weekly_day||"monday"} onChange={v=>set("weekly_day",v)}>
                 {weekDays.map(d=><option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
-              </select>
+              </Select>
             </div>
           )}
           {enabledFreqs.includes("monthly")&&(
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Monthly send day</div>
-              <select style={fi} value={cfg.monthly_day||1} onChange={e=>set("monthly_day",parseInt(e.target.value))}>
+              <Select style={fi} value={cfg.monthly_day||1} onChange={v=>set("monthly_day",parseInt(v))}>
                 {Array.from({length:28},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
-              </select>
+              </Select>
             </div>
           )}
         </div>
@@ -7695,24 +7686,24 @@ function AdminBadgesPanel() {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Rarity</div>
-                <select style={fi} value={form.rarity} onChange={e=>setForm(p=>({...p,rarity:e.target.value}))}>
+                <Select style={fi} value={form.rarity} onChange={v=>setForm(p=>({...p,rarity:v}))}>
                   {["common","rare","epic","legendary"].map(r=><option key={r} value={r}>{r}</option>)}
-                </select>
+                </Select>
               </div>
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Award type</div>
-                <select style={fi} value={form.award_type} onChange={e=>setForm(p=>({...p,award_type:e.target.value}))}>
+                <Select style={fi} value={form.award_type} onChange={v=>setForm(p=>({...p,award_type:v}))}>
                   <option value="auto">Automatic</option>
                   <option value="manual">Manual</option>
-                </select>
+                </Select>
               </div>
             </div>
             {form.award_type==="auto"&&<>
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Trigger condition</div>
-                <select style={fi} value={form.trigger_type} onChange={e=>setForm(p=>({...p,trigger_type:e.target.value}))}>
+                <Select style={fi} value={form.trigger_type} onChange={v=>setForm(p=>({...p,trigger_type:v}))}>
                   {Object.entries(TRIGGER_TYPE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-                </select>
+                </Select>
               </div>
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Threshold (must reach this value)</div>
@@ -7806,18 +7797,15 @@ function ExtensionSettingsForm({ext, onSaved}) {
         {field.type === "boolean" && (
           <div className="toggle-row" style={{marginBottom:0}}>
             <div/>
-            <div className="tgl" style={{background:val?"var(--ac)":"var(--tgl-off)"}}
-              onClick={()=>set(!val)}>
-              <div className="tgl-knob" style={{left:val?23:3,background:val?"#fff":"var(--tgl-knob-off)"}}/>
-            </div>
+            <Toggle value={val} onChange={set}/>
           </div>
         )}
         {field.type === "select" && (
-          <select className="fi" value={val} onChange={e=>set(e.target.value)}>
+          <Select className="fi" value={val} onChange={set}>
             {(field.options||[]).map(o=>(
               <option key={o.value??o} value={o.value??o}>{o.label??o}</option>
             ))}
-          </select>
+          </Select>
         )}
         {field.type === "text" && (
           <textarea className="fi" rows={4} value={val}
@@ -7947,11 +7935,7 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
             <span style={{fontSize:12,color:"var(--t4)"}}>
               {ext.enabled?"Enabled":"Disabled"}
             </span>
-            <div className="tgl" style={{background:ext.enabled?"var(--ac)":"var(--tgl-off)"}}
-              onClick={toggle}>
-              <div className="tgl-knob" style={{left:ext.enabled?23:3,
-                background:ext.enabled?"#fff":"rgba(255,255,255,0.4)"}}/>
-            </div>
+            <Toggle value={ext.enabled} onChange={toggle}/>
           </div>
         </div>
       </div>
@@ -8788,18 +8772,15 @@ function ExtensionFieldRenderer({ field, value, onChange }) {
       {type==="boolean"&&(
         <div className="toggle-row" style={{marginBottom:0}}>
           <div/>
-          <div className="tgl" style={{background:value?"var(--ac)":"var(--tgl-off)"}}
-            onClick={()=>onChange(!value)}>
-            <div className="tgl-knob" style={{left:value?23:3,background:value?"#fff":"var(--tgl-knob-off)"}}/>
-          </div>
+          <Toggle value={value} onChange={onChange}/>
         </div>
       )}
       {type==="select"&&(
-        <select id={id} className="fi" value={value??""} onChange={e=>onChange(e.target.value)}>
+        <Select id={id} value={value??""} onChange={onChange}>
           {options.map(o=>(
             <option key={o.value??o} value={o.value??o}>{o.label??o}</option>
           ))}
-        </select>
+        </Select>
       )}
       {type==="text"&&(
         <textarea id={id} className="fi" rows={4} value={value??""} placeholder={placeholder||""}
@@ -9163,7 +9144,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
         </F>
 
         <div className="fgt" style={{marginTop:20}}>Behavior</div>
-        <Tgl label="Force portrait orientation" desc="Prevents the installed app from rotating to landscape mode." on={!!pwaCfg.force_portrait} onChange={v=>setPwaCfg(p=>({...p,force_portrait:v}))}/>
+        <Toggle label="Force portrait orientation" hint="Prevents the installed app from rotating to landscape mode." value={!!pwaCfg.force_portrait} onChange={v=>setPwaCfg(p=>({...p,force_portrait:v}))}/>
       </>}
 
       {/* ── Icons tab ── */}
@@ -9272,9 +9253,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
               <div style={{fontSize:15,color:"var(--t2)"}}>Show iOS install prompt</div>
               <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Shown only in Safari on iOS/iPadOS. Not shown when the app is already installed.</div>
             </div>
-            <div className="tgl" style={{background:pwaCfg.ios_prompt_enabled?"var(--ac)":"var(--tgl-off)"}} onClick={()=>setPwaCfg(p=>({...p,ios_prompt_enabled:!p.ios_prompt_enabled}))}>
-              <div className="tgl-knob" style={{left:pwaCfg.ios_prompt_enabled?23:3,background:pwaCfg.ios_prompt_enabled?"#fff":"rgba(255,255,255,0.4)"}}/>
-            </div>
+            <Toggle value={pwaCfg.ios_prompt_enabled} onChange={v=>setPwaCfg(p=>({...p,ios_prompt_enabled:v}))}/>
           </div>
         </div>
 
@@ -9291,28 +9270,24 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
               <div style={{fontSize:15,color:"var(--t2)"}}>Auto-detect share button position</div>
               <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Points the arrow toward Safari's share button based on device and orientation.</div>
             </div>
-            <div className="tgl" style={{background:pwaCfg.ios_auto_detect_orientation!==false?"var(--ac)":"var(--tgl-off)"}} onClick={()=>setPwaCfg(p=>({...p,ios_auto_detect_orientation:p.ios_auto_detect_orientation===false}))}>
-              <div className="tgl-knob" style={{left:pwaCfg.ios_auto_detect_orientation!==false?23:3,background:pwaCfg.ios_auto_detect_orientation!==false?"#fff":"rgba(255,255,255,0.4)"}}/>
-            </div>
+            <Toggle value={pwaCfg.ios_auto_detect_orientation!==false} onChange={v=>setPwaCfg(p=>({...p,ios_auto_detect_orientation:v}))}/>
           </div>
           <div className="toggle-row" style={{marginBottom:14}}>
             <div>
               <div style={{fontSize:15,color:"var(--t2)"}}>Always point up on iPad</div>
               <div style={{fontSize:13,color:"var(--t5)",marginTop:3}}>Safari's share button is always in the top bar on iPad.</div>
             </div>
-            <div className="tgl" style={{background:pwaCfg.ios_pad_always_up!==false?"var(--ac)":"var(--tgl-off)"}} onClick={()=>setPwaCfg(p=>({...p,ios_pad_always_up:p.ios_pad_always_up===false}))}>
-              <div className="tgl-knob" style={{left:pwaCfg.ios_pad_always_up!==false?23:3,background:pwaCfg.ios_pad_always_up!==false?"#fff":"rgba(255,255,255,0.4)"}}/>
-            </div>
+            <Toggle value={pwaCfg.ios_pad_always_up!==false} onChange={v=>setPwaCfg(p=>({...p,ios_pad_always_up:v}))}/>
           </div>
         </>}
 
         <div className="fgt" style={{marginTop:20}}>Status bar</div>
         <F label="Status bar style" hint="Controls iOS status bar appearance when running in standalone mode.">
-          <select className="fi" style={{maxWidth:260}} value={pwaCfg.status_bar_style||"black-translucent"} onChange={e=>setPwaCfg(p=>({...p,status_bar_style:e.target.value}))}>
+          <Select style={{maxWidth:260}} value={pwaCfg.status_bar_style||"black-translucent"} onChange={v=>setPwaCfg(p=>({...p,status_bar_style:v}))}>
             <option value="default">Default</option>
             <option value="black">Black</option>
             <option value="black-translucent">Black translucent</option>
-          </select>
+          </Select>
         </F>
         <div style={{fontSize:12,color:"var(--t5)",marginTop:-8,marginBottom:14}}>Requires a redeploy to take effect — the value is written into the HTML head.</div>
       </>}
@@ -9925,7 +9900,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                 <tbody>{(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
                   <tr key={u.id}>
                     <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
-                    <td><select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async e=>{await api.patch(`/admin/users/${u.id}/role`,{role:e.target.value});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></select></td>
+                    <td><Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{await api.patch(`/admin/users/${u.id}/role`,{role:v});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select></td>
                     <td style={{color:"var(--t5)",fontSize:11}}>{fmtDate(u.inserted_at)}</td>
                     <td><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12}}><span style={{width:6,height:6,borderRadius:"50%",background:u.status==="active"?"var(--green)":"var(--red)"}}></span>{u.status}</span></td>
                     <td style={{textAlign:"right"}}>
@@ -9953,12 +9928,12 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           {sec==="email"&&<>
             <div className="fgt">Delivery provider</div>
             <F label="Provider">
-              <select className="fi" value={emailCfg.provider||"smtp"} onChange={e=>setEmailCfg(p=>({...p,provider:e.target.value}))}>
+              <Select value={emailCfg.provider||"smtp"} onChange={v=>setEmailCfg(p=>({...p,provider:v}))}>
                 <option value="smtp">SMTP</option>
                 <option value="postmark">Postmark</option>
                 <option value="resend">Resend</option>
                 <option value="mailgun">Mailgun</option>
-              </select>
+              </Select>
             </F>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <F label="From address"><input className="fi" value={emailCfg.from_address||""} onChange={e=>setEmailCfg(p=>({...p,from_address:e.target.value}))} placeholder="hello@yourdomain.com"/></F>
@@ -9970,11 +9945,11 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 <F label="Port"><input className="fi" value={emailCfg.smtp_port||""} onChange={e=>setEmailCfg(p=>({...p,smtp_port:e.target.value}))} placeholder="587"/></F>
                 <F label="Encryption">
-                  <select className="fi" value={emailCfg.smtp_encryption||"tls"} onChange={e=>setEmailCfg(p=>({...p,smtp_encryption:e.target.value}))}>
+                  <Select value={emailCfg.smtp_encryption||"tls"} onChange={v=>setEmailCfg(p=>({...p,smtp_encryption:v}))}>
                     <option value="tls">STARTTLS (587)</option>
                     <option value="ssl">SSL/TLS (465)</option>
                     <option value="none">None (25)</option>
-                  </select>
+                  </Select>
                 </F>
               </div>
               <F label="SMTP username"><input className="fi" value={emailCfg.smtp_username||""} onChange={e=>setEmailCfg(p=>({...p,smtp_username:e.target.value}))} placeholder="username or email"/></F>
@@ -10011,8 +9986,8 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
 
           {sec==="permissions"&&<>
             <div className="fgt">Registration</div>
-            <Tgl label="Allow public registration" desc="Anyone can sign up for an account" on={regCfg.open!==false} onChange={v=>setRegCfg(p=>({...p,open:v}))}/>
-            <Tgl label="Require email verification" desc="Users must verify their email before posting" on={!!regCfg.require_email_verification} onChange={v=>setRegCfg(p=>({...p,require_email_verification:v}))}/>
+            <Toggle label="Allow public registration" hint="Anyone can sign up for an account" value={regCfg.open!==false} onChange={v=>setRegCfg(p=>({...p,open:v}))}/>
+            <Toggle label="Require email verification" hint="Users must verify their email before posting" value={!!regCfg.require_email_verification} onChange={v=>setRegCfg(p=>({...p,require_email_verification:v}))}/>
             <F label="Minimum account age to post" hint="Hours a new account must exist before posting. 0 = no minimum.">
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <input className="fi" type="number" min="0" max="8760" style={{width:80}} value={regCfg.min_account_age_hours||0} onChange={e=>setRegCfg(p=>({...p,min_account_age_hours:parseInt(e.target.value)||0}))}/>
@@ -10021,13 +9996,13 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
             </F>
 
             <div className="fgt" style={{marginTop:20}}>Profiles</div>
-            <Tgl label="Enable question posts" desc="Allows users to mark a post as a question. The OP or mods can then mark a reply as the accepted answer." on={!!postCfg.questions_enabled} onChange={v=>setPostCfg(p=>({...p,questions_enabled:v}))}/>
-            <Tgl label="Public media tabs" desc="Allow anyone to view the Media tab on other users' profiles. Off by default — users can only see their own media." on={!!postCfg.media_public} onChange={v=>setPostCfg(p=>({...p,media_public:v}))}/>
+            <Toggle label="Enable question posts" hint="Allows users to mark a post as a question. The OP or mods can then mark a reply as the accepted answer." value={!!postCfg.questions_enabled} onChange={v=>setPostCfg(p=>({...p,questions_enabled:v}))}/>
+            <Toggle label="Public media tabs" hint="Allow anyone to view the Media tab on other users' profiles. Off by default — users can only see their own media." value={!!postCfg.media_public} onChange={v=>setPostCfg(p=>({...p,media_public:v}))}/>
 
             <div className="fgt" style={{marginTop:20}}>Posting</div>
-            <Tgl label="Allow guest browsing" desc="Non-logged-in users can read the forum. Disabling redirects guests to login." on={postCfg.guest_browsing!==false} onChange={v=>setPostCfg(p=>({...p,guest_browsing:v}))}/>
-            <Tgl label="Allow self-reactions" desc="Users can react to their own posts and replies. Disable to prevent self-promotion." on={postCfg.allow_self_reactions!==false} onChange={v=>setPostCfg(p=>({...p,allow_self_reactions:v}))}/>
-            <Tgl label="New users can post immediately" desc="If off, new user posts are queued for moderator approval." on={postCfg.instant_post!==false} onChange={v=>setPostCfg(p=>({...p,instant_post:v}))}/>
+            <Toggle label="Allow guest browsing" hint="Non-logged-in users can read the forum. Disabling redirects guests to login." value={postCfg.guest_browsing!==false} onChange={v=>setPostCfg(p=>({...p,guest_browsing:v}))}/>
+            <Toggle label="Allow self-reactions" hint="Users can react to their own posts and replies. Disable to prevent self-promotion." value={postCfg.allow_self_reactions!==false} onChange={v=>setPostCfg(p=>({...p,allow_self_reactions:v}))}/>
+            <Toggle label="New users can post immediately" hint="If off, new user posts are queued for moderator approval." value={postCfg.instant_post!==false} onChange={v=>setPostCfg(p=>({...p,instant_post:v}))}/>
             <F label="Max posts per hour" hint="Per-user rate limit. 0 = unlimited.">
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <input className="fi" type="number" min="0" max="100" style={{width:80}} value={postCfg.max_posts_per_hour||0} onChange={e=>setPostCfg(p=>({...p,max_posts_per_hour:parseInt(e.target.value)||0}))}/>
@@ -10035,18 +10010,18 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               </div>
             </F>
             <F label="Who can create spaces">
-              <select className="fi" value={postCfg.who_can_create_spaces||"admin"} onChange={e=>setPostCfg(p=>({...p,who_can_create_spaces:e.target.value}))}>
+              <Select value={postCfg.who_can_create_spaces||"admin"} onChange={v=>setPostCfg(p=>({...p,who_can_create_spaces:v}))}>
                 <option value="admin">Admins only</option>
                 <option value="moderator">Moderators and admins</option>
                 <option value="member">All members</option>
-              </select>
+              </Select>
             </F>
             <F label="Who can upload images">
-              <select className="fi" value={postCfg.who_can_upload||"member"} onChange={e=>setPostCfg(p=>({...p,who_can_upload:e.target.value}))}>
+              <Select value={postCfg.who_can_upload||"member"} onChange={v=>setPostCfg(p=>({...p,who_can_upload:v}))}>
                 <option value="admin">Admins only</option>
                 <option value="moderator">Moderators and admins</option>
                 <option value="member">All members</option>
-              </select>
+              </Select>
             </F>
             <div style={{display:"flex",gap:8,marginTop:8}}>
 
@@ -10086,8 +10061,8 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
                 ))}
               </div>}
             <div className="fgt">Content rules</div>
-            <Tgl label="Auto-hide reported content" desc="Content with 3+ reports is automatically hidden pending review" on={!!general.auto_hide_reported} onChange={v=>setGeneral(p=>({...p,auto_hide_reported:v}))}/>
-            <Tgl label="Notify mods of new reports" desc="Send email to moderators when content is reported" on={!!general.notify_mods_reports} onChange={v=>setGeneral(p=>({...p,notify_mods_reports:v}))}/>
+            <Toggle label="Auto-hide reported content" hint="Content with 3+ reports is automatically hidden pending review" value={!!general.auto_hide_reported} onChange={v=>setGeneral(p=>({...p,auto_hide_reported:v}))}/>
+            <Toggle label="Notify mods of new reports" hint="Send email to moderators when content is reported" value={!!general.notify_mods_reports} onChange={v=>setGeneral(p=>({...p,notify_mods_reports:v}))}/>
             <div className="fgt" style={{marginTop:16}}>Audit log</div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
               {modLogs.length===0?<div style={{padding:"16px 14px",color:"var(--t5)",fontSize:13}}>No actions yet</div>
@@ -10125,7 +10100,7 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
               </div>
             </F>
             <F label="Convert to WebP" hint="Serve smaller WebP versions embedded in posts. Originals are always kept.">
-              <Tgl label="Enabled" on={uploadCfg.convert_to_webp!==false} onChange={v=>setUploadCfg(p=>({...p,convert_to_webp:v}))}/>
+              <Toggle label="Enabled" value={uploadCfg.convert_to_webp!==false} onChange={v=>setUploadCfg(p=>({...p,convert_to_webp:v}))}/>
             </F>
             {uploadCfg.convert_to_webp!==false&&<F label="WebP quality" hint="1–100. 80–90 is a good balance of size and quality.">
               <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -10243,9 +10218,9 @@ function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLay
           <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Email</label><input className="fi" type="email" value={newUser.email} onChange={e=>setNewUser(p=>({...p,email:e.target.value}))} placeholder="user@example.com"/></div>
           <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Password</label><input className="fi" type="password" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="Temporary password"/></div>
           <div><label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6}}>Role</label>
-            <select className="fi" value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))} style={{fontFamily:"inherit"}}>
+            <Select value={newUser.role} onChange={v=>setNewUser(p=>({...p,role:v}))} style={{fontFamily:"inherit"}}>
               <option value="member">Member</option><option value="moderator">Moderator</option><option value="admin">Admin</option>
-            </select>
+            </Select>
           </div>
           <div>
             <label style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:8}}>Email verification</label>
@@ -10598,14 +10573,14 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                   <div style={{fontSize:11,color:"var(--t5)"}}>{row.desc}</div>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
-                  <Toggle on={notifPrefs[row.k]?.web} onClick={()=>toggleNotif(row.k,"web")}/>
+                  <Toggle value={notifPrefs[row.k]?.web} onClick={()=>toggleNotif(row.k,"web")}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
-                  <Toggle on={notifPrefs[row.k]?.email&&!emailLocked} onClick={()=>toggleNotif(row.k,"email")} disabled={emailLocked}/>
+                  <Toggle value={notifPrefs[row.k]?.email&&!emailLocked} onClick={()=>toggleNotif(row.k,"email")} disabled={emailLocked}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
                   {pushSubscribed
-                    ?<Toggle on={notifPrefs[row.k]?.push} onClick={()=>toggleNotif(row.k,"push")}/>
+                    ?<Toggle value={notifPrefs[row.k]?.push} onClick={()=>toggleNotif(row.k,"push")}/>
                     :<div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>off</div>}
                 </div>
               </div>
@@ -10704,15 +10679,14 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                     You'll be notified when others reply to threads you start.
                   </div>
                 </div>
-                <div className="tgl"
-                  style={{background:(currentUser?.preferences?.auto_follow_own_posts!==false)?"var(--ac)":"rgba(255,255,255,0.1)"}}
-                  onClick={()=>{
+                <Toggle
+                  value={currentUser?.preferences?.auto_follow_own_posts!==false}
+                  onChange={()=>{
                     const next={...currentUser?.preferences||{},auto_follow_own_posts:currentUser?.preferences?.auto_follow_own_posts===false?true:false};
                     api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
                     toast("Preference saved");
-                  }}>
-                  <div className="tgl-knob" style={{left:(currentUser?.preferences?.auto_follow_own_posts!==false)?23:3,background:"#fff"}}/>
-                </div>
+                  }}
+                />
               </div>
               <div className="toggle-row" style={{marginTop:16,marginBottom:0}}>
                 <div>
@@ -10721,15 +10695,14 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                     You'll be notified of further replies on any thread you engage with.
                   </div>
                 </div>
-                <div className="tgl"
-                  style={{background:(currentUser?.preferences?.auto_follow_replied_posts!==false)?"var(--ac)":"rgba(255,255,255,0.1)"}}
-                  onClick={()=>{
+                <Toggle
+                  value={currentUser?.preferences?.auto_follow_replied_posts!==false}
+                  onChange={()=>{
                     const next={...currentUser?.preferences||{},auto_follow_replied_posts:currentUser?.preferences?.auto_follow_replied_posts===false?true:false};
                     api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
                     toast("Preference saved");
-                  }}>
-                  <div className="tgl-knob" style={{left:(currentUser?.preferences?.auto_follow_replied_posts!==false)?23:3,background:"#fff"}}/>
-                </div>
+                  }}
+                />
               </div>
             </div>
 
@@ -11021,9 +10994,9 @@ function MembersPage({navigate, currentUser}) {
             <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)"}}/>
             <input style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}} placeholder="Search members…" value={q} onChange={e=>setQ(e.target.value)}/>
           </div>
-          <select style={fi} value={sort} onChange={e=>setSort(e.target.value)}>
+          <Select style={fi} value={sort} onChange={setSort}>
             {SORTS.map(s=><option key={s.v} value={s.v}>{s.label}</option>)}
-          </select>
+          </Select>
         </div>
       </div>
       {/* Grid */}
