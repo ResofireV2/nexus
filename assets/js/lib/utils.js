@@ -1,0 +1,72 @@
+// ── Shared utility functions ──────────────────────────────────────────────────
+// Extracted from nexus.jsx. Import from here, never redefine inline.
+
+export const SPACE_COLORS = [
+  "#a78bfa","#f472b6","#34d399","#60a5fa","#fbbf24","#f87171",
+  "#ec4899","#10b981","#fb923c","#38bdf8","#a3e635","#e879f9"
+];
+
+export function spaceColor(space) {
+  return space?.color || SPACE_COLORS[(space?.id || 0) % SPACE_COLORS.length];
+}
+
+// Single source of truth for user avatar color.
+// Uses avatar_color stored at registration, falls back to deterministic hash.
+export function userColor(user) {
+  if (!user) return SPACE_COLORS[0];
+  if (user.avatar_color) return user.avatar_color;
+  const id = user.id ?? user.user_id ?? 0;
+  return SPACE_COLORS[id % SPACE_COLORS.length];
+}
+
+// Relative time — "just now", "5m", "3h", "2d", or locale date
+export function ago(d) {
+  if (!d) return "";
+  const s = Math.floor((Date.now() - new Date(d)) / 1000);
+  if (s < 60)     return "just now";
+  if (s < 3600)   return `${Math.floor(s / 60)}m`;
+  if (s < 86400)  return `${Math.floor(s / 3600)}h`;
+  if (s < 604800) return `${Math.floor(s / 86400)}d`;
+  return new Date(d).toLocaleDateString();
+}
+
+// "June 2025"
+export function fmtDate(d) {
+  if (!d) return "recently";
+  return new Date(d).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+// "3:42 PM"
+export function fmtMsgTime(d) {
+  if (!d) return "";
+  return new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+// "Today" / "Yesterday" / weekday / "June 5" / "June 5, 2024"
+export function fmtDaySep(d) {
+  if (!d) return "";
+  const date = new Date(d);
+  const now  = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const sameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth()    === b.getMonth()    &&
+    a.getDate()     === b.getDate();
+  if (sameDay(date, now))       return "Today";
+  if (sameDay(date, yesterday)) return "Yesterday";
+  if (now - date < 7 * 86400 * 1000)
+    return date.toLocaleDateString("en-US", { weekday: "long" });
+  if (date.getFullYear() === now.getFullYear())
+    return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+// "1.4 MB", "320 KB", etc.
+export function fmtBytes(b) {
+  if (!b) return "0 B";
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  while (b >= 1024 && i < 3) { b /= 1024; i++; }
+  return `${b.toFixed(i ? 1 : 0)} ${u[i]}`;
+}

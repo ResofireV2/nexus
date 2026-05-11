@@ -1,0 +1,103 @@
+// ── API layer ─────────────────────────────────────────────────────────────────
+// Extracted from nexus.jsx. Import `api` from here everywhere.
+//
+// Usage:
+//   import { api } from "../lib/api";
+//   const data = await api.get("/posts/1");
+//   await api.post("/posts", { title: "Hello" });
+
+// ---------------------------------------------------------------------------
+// PWA install prompt
+// beforeinstallprompt fires before any React renders, so we capture it here
+// at module scope and expose it via window so Sidebar can read it reactively.
+// ---------------------------------------------------------------------------
+window._installPrompt = null;
+window._installPromptListeners = [];
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  window._installPrompt = e;
+  window._installPromptListeners.forEach(fn => fn(e));
+});
+window.addEventListener("appinstalled", () => {
+  window._installPrompt = null;
+  window._installPromptListeners.forEach(fn => fn(null));
+});
+window.onInstallPromptChange = function (fn) {
+  window._installPromptListeners.push(fn);
+  return () => {
+    window._installPromptListeners = window._installPromptListeners.filter(f => f !== fn);
+  };
+};
+
+export const api = {
+  token: localStorage.getItem("nexus_token"),
+  refreshing: false,
+
+  setToken(t) {
+    this.token = t;
+    t ? localStorage.setItem("nexus_token", t) : localStorage.removeItem("nexus_token");
+  },
+
+  async request(method, path, body, retry = true, silentAuth = false) {
+    const h = { "Content-Type": "application/json" };
+    if (this.token) h["Authorization"] = `Bearer ${this.token}`;
+    try {
+      const res = await fetch(`/api/v1${path}`, {
+        method,
+        headers: h,
+        body: body ? JSON.stringify(body) : undefined,
+        credentials: "include",
+      });
+
+      if (res.status === 401 && retry && path !== "/auth/refresh" && path !== "/auth/login") {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) return this.request(method, path, body, false, silentAuth);
+        this.setToken(null);
+        localStorage.removeItem("nexus_user");
+        if (!silentAuth) window.dispatchEvent(new Event("nexus:logout"));
+        return {};
+      }
+
+      // Guard against non-JSON responses (e.g. 502 Bad Gateway returns HTML)
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) return {};
+      return res.json();
+    } catch {
+      return {};
+    }
+  },
+
+  async tryRefresh() {
+    if (this.refreshing) return false;
+    this.refreshing = true;
+    try {
+      const res = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.access_token) { this.setToken(d.access_token); return true; }
+      }
+      // Only treat as a hard failure if the server explicitly says the token is invalid.
+      // A 503, network error, or "temporarily unavailable" should not clear the session.
+      if (res.status === 401) {
+        const d = await res.json().catch(() => ({}));
+        if (d.error === "Invalid or expired refresh token") {
+          this.setToken(null);
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      this.refreshing = false;
+    }
+  },
+
+  get:    (p)    => api.request("GET",    p),
+  post:   (p, b) => api.request("POST",   p, b),
+  patch:  (p, b) => api.request("PATCH",  p, b),
+  delete: (p, b) => api.request("DELETE", p, b),
+};
