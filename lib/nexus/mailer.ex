@@ -526,11 +526,14 @@ defmodule Nexus.Mailer do
             color = item["badge_color"] || "#34d399"
             ~s(<span style="background:#{color}22;color:#{color};font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;margin-left:6px;">#{badge}</span>)
           else "" end
+          sublabel_html = if sublabel != "" do
+            ~s(<br><span style="color:rgba(255,255,255,0.4);font-size:12px;">#{sublabel}</span>)
+          else "" end
           """
           <tr>
             <td style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
               <a#{href} style="color:#e8e4ff;text-decoration:none;font-weight:500;">#{label}</a>#{badge_html}
-              #{if sublabel != "", do: ~s(<br><span style="color:rgba(255,255,255,0.4);font-size:12px;">#{sublabel}</span>), else: ""}
+              #{sublabel_html}
             </td>
           </tr>
           """
