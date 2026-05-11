@@ -303,13 +303,19 @@ defmodule Nexus.Extensions do
         if github_repo do
           case Nexus.Extensions.GitHub.latest_release(github_repo, token) do
             {:ok, release} ->
-              clean = String.trim_leading(release.tag, "v")
-              url   = "https://github.com/#{github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
-              {clean, url}
-            _ ->
+              clean       = String.trim_leading(release.tag, "v")
+              tarball_url = "https://github.com/#{github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
+              require Logger
+              Logger.info("install_from_url: #{slug} tarball_url=#{tarball_url}")
+              {clean, tarball_url}
+            {:error, reason} ->
+              require Logger
+              Logger.warning("install_from_url: #{slug} latest_release failed: #{inspect(reason)}")
               {"0.0.0", nil}
           end
         else
+          require Logger
+          Logger.warning("install_from_url: #{slug} no github_repo derived from #{url}")
           {"0.0.0", nil}
         end
 
