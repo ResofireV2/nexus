@@ -74,10 +74,16 @@ defmodule NexusWeb.API.V1.UserContentController do
             order_by: [desc: r.inserted_at],
             limit: ^limit,
             offset: ^offset,
-            select: %{emoji: r.emoji, reacted_at: r.inserted_at, post: p},
-            preload: [post: [:space, :user]]
+            select: %{emoji: r.emoji, reacted_at: r.inserted_at, post_id: p.id}
           )
           |> Repo.all()
+          |> then(fn rows ->
+            post_ids = Enum.map(rows, & &1.post_id)
+            posts = from(p in Post, where: p.id in ^post_ids, preload: [:space, :user]) |> Repo.all()
+            posts_by_id = Map.new(posts, & {&1.id, &1})
+            Enum.map(rows, fn row -> Map.put(row, :post, posts_by_id[row.post_id]) end)
+            |> Enum.reject(& is_nil(&1.post))
+          end)
 
         json(conn, %{
           reactions: Enum.map(reacted_posts, fn row ->
