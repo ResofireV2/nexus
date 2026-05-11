@@ -4442,7 +4442,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
       else if(d.post){
         // Link any games selected via extension toolbar
         if(linkedGames.length>0){
-          try{ await fetch(`/ext/gamepedia/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${localStorage.getItem("nexus_token")||""}`},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
+          try{ await fetch(`/ext/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${localStorage.getItem("nexus_token")||""}`},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
         }
         toast("Post published!");navigate("post",{id:d.post.id});
       }
