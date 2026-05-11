@@ -8623,9 +8623,11 @@ function AdminExtensionsPanel() {
           </div>
         )}
         <button onClick={checkForUpdates} disabled={checkingUpdates}
-          style={{marginLeft:tab==="url"?"auto":8,background:"none",border:"none",
-            color:"var(--ac)",cursor:checkingUpdates?"default":"pointer",padding:"4px 8px",fontSize:12,flexShrink:0,
-            display:"flex",alignItems:"center",gap:5,opacity:checkingUpdates?0.6:1}}
+          style={{marginLeft:tab==="url"?"auto":8,background:"rgba(139,92,246,.12)",
+            border:"0.5px solid rgba(139,92,246,.3)",borderRadius:8,
+            color:"var(--ac)",cursor:checkingUpdates?"default":"pointer",
+            padding:"6px 12px",fontSize:12,flexShrink:0,fontFamily:"inherit",fontWeight:500,
+            display:"flex",alignItems:"center",gap:6,opacity:checkingUpdates?0.6:1}}
           title="Check for updates">
           <i className={`fa-solid fa-arrow-up-right-dots${checkingUpdates?" fa-beat":""}`} style={{fontSize:12}}/>
           {checkingUpdates?"Checking…":"Check for updates"}
