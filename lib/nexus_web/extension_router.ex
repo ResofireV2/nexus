@@ -46,18 +46,31 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_asset(conn, slug, path_parts) do
-    filename = Path.join(path_parts)
-    asset_dir = Path.join([
+    filename   = Path.join(path_parts)
+    asset_dir  = Path.join([
       Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
       "extensions", slug, "assets"
     ])
     asset_path = Path.join(asset_dir, filename)
 
     if File.exists?(asset_path) do
+      mime_type = case Path.extname(filename) do
+        ".js"   -> "application/javascript"
+        ".css"  -> "text/css"
+        ".webp" -> "image/webp"
+        ".png"  -> "image/png"
+        ".jpg"  -> "image/jpeg"
+        ".jpeg" -> "image/jpeg"
+        ".svg"  -> "image/svg+xml"
+        ".json" -> "application/json"
+        _       -> "application/octet-stream"
+      end
+
       conn
-      |> put_resp_header("access-control-allow-origin", "*")
-      |> put_resp_header("cache-control", "public, max-age=86400")
-      |> send_file(200, asset_path)
+      |> Plug.Conn.put_resp_header("content-type", mime_type)
+      |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
+      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=86400")
+      |> Plug.Conn.send_file(200, asset_path)
       |> halt()
     else
       conn
