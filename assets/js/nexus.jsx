@@ -2055,7 +2055,7 @@ function ReactionsModal({postId, replyId, onClose}) {
   );
 }
 
-function ReactionButton({postId, replyId, initialReactions=[], initialUserReaction=null, currentUser, onAuthRequired}) {
+function ReactionButton({postId, replyId, initialReactions=[], initialUserReaction=null, currentUser, authorId=null, onAuthRequired}) {
   const [open, setOpen] = useState(false);
   const [reactions, setReactions] = useState(initialReactions);
   const [userReaction, setUserReaction] = useState(initialUserReaction);
@@ -2087,10 +2087,14 @@ function ReactionButton({postId, replyId, initialReactions=[], initialUserReacti
 
   const totalCount = reactions.reduce((s,r)=>s+(r.count||0),0);
 
+  const isSelf = currentUser && authorId && currentUser.id === authorId;
+  const selfReactionsAllowed = window._postCfg?.allow_self_reactions !== false;
+  const canReact = !isSelf || selfReactionsAllowed;
+
   return (
     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
       {/* React trigger button */}
-      <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
+      {canReact && <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
         {userReaction
           ? <span style={{fontSize:16,lineHeight:1}}>{userReaction}</span>
           : <i className="fa-solid fa-heart" style={{fontSize:14,color:"inherit"}}/>}
@@ -2105,7 +2109,7 @@ function ReactionButton({postId, replyId, initialReactions=[], initialUserReacti
             ))}
           </div>
         )}
-      </div>
+      </div>}
       {/* Count pills for each reaction type */}
       {reactions.filter(r=>r.count>0).map(r=>(
         <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
@@ -4061,7 +4065,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                   <i className="fa-solid fa-reply" style={{fontSize:9,marginRight:4}}/>Reply
                 </button>
               )}
-              <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
+              <ReactionButton postId={post.id} initialReactions={post.reactions||[]} initialUserReaction={userReaction} currentUser={currentUser} authorId={post.user?.id} onAuthRequired={onAuthRequired}/>
               {currentUser&&(currentUser.id===post.user?.id||isMod||currentUser.id!==post.user?.id)&&(
                 <div style={{position:"relative"}}>
                   <button
@@ -4228,7 +4232,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                     <i className="fa-solid fa-reply" style={{fontSize:9,marginRight:4}}/>Reply
                   </button>
                 )}
-                <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} onAuthRequired={onAuthRequired}/>
+                <ReactionButton replyId={r.id} initialReactions={r.reactions||[]} initialUserReaction={r.user_reaction||null} currentUser={currentUser} authorId={r.user?.id} onAuthRequired={onAuthRequired}/>
                 {currentUser&&<button title={savedReplyIds.has(r.id)?"Saved":"Save"} onClick={()=>toggleSaveReply(r.id)}
                   className="row-menu-btn"
                   style={{color:savedReplyIds.has(r.id)?"var(--ac)":"var(--t4)",opacity:savedReplyIds.has(r.id)?1:undefined}}>

@@ -53,4 +53,9 @@ defmodule Nexus.Permissions do
   def can_post_immediately?(user) do
     instant_post?() && account_old_enough?(user)
   end
+
+  @doc "Check if users are allowed to react to their own posts and replies."
+  def allow_self_reactions? do
+    Admin.get_setting("posting")["allow_self_reactions"] != false
+  end
 end

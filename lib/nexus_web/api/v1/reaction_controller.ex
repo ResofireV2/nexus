@@ -29,6 +29,21 @@ defmodule NexusWeb.API.V1.ReactionController do
       "reply_id" => params["reply_id"]
     }
 
+    # Check self-reaction permission
+    target_author_id = cond do
+      params["post_id"]  ->
+        post = Forum.get_post(String.to_integer(to_string(params["post_id"])))
+        post && post.user_id
+      params["reply_id"] ->
+        reply = Forum.get_reply(String.to_integer(to_string(params["reply_id"])))
+        reply && reply.user_id
+      true -> nil
+    end
+
+    if target_author_id == user.id && !Nexus.Permissions.allow_self_reactions?() do
+      conn |> put_status(:forbidden) |> json(%{error: "You cannot react to your own posts"})
+    else
+
     case Forum.add_reaction(user.id, attrs) do
       {:ok, reaction} ->
         Task.start(fn ->
@@ -77,6 +92,7 @@ defmodule NexusWeb.API.V1.ReactionController do
 
       {:error, changeset} ->
         conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+    end
     end
   end
 
