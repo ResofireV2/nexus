@@ -65,20 +65,7 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_api(conn, slug, path_parts) do
-    # Browser navigations (hard refresh, direct link, digest email link) send
-    # Accept: text/html. Redirect them to the same URL — Phoenix restarts the
-    # request, the browser SPA scope catches it, runs the full browser pipeline,
-    # and serves the HTML shell. React boots and handles the route client-side.
-    accept = get_req_header(conn, "accept") |> List.first("")
-    if String.contains?(accept, "text/html") and not String.contains?(accept, "application/json") do
-      path = "/ext/" <> slug <> "/" <> Enum.join(path_parts, "/")
-      query = if conn.query_string != "", do: "?" <> conn.query_string, else: ""
-      conn
-      |> put_resp_header("location", path <> query)
-      |> send_resp(302, "")
-      |> halt()
-    else
-      module = Registry.get_module(slug)
+    module = Registry.get_module(slug)
 
     if is_nil(module) do
       conn
@@ -96,7 +83,6 @@ defmodule NexusWeb.ExtensionRouter do
         conn = %{conn | path_info: path_parts, request_path: path}
         dispatch_to_routes(conn, routes, slug)
       end
-    end
     end
   end
 

@@ -333,15 +333,16 @@ defmodule NexusWeb.Router do
   end
 
   # Extension API routes — XHR/fetch calls from extension JS bundles.
-  # Uses extension_api pipeline which loads user context but doesn't restrict
-  # Accept header — extensions may receive various content types.
+  # All extension API calls must use the /api sub-prefix so they are cleanly
+  # separated from extension SPA page routes. This lets the SPA catch-all below
+  # serve the HTML shell for any /ext/:slug/* page route without conflict.
   scope "/ext" do
     pipe_through :extension_api
-    get    "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
-    post   "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
-    put    "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
-    patch  "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
-    delete "/:slug/*path",   NexusWeb.ExtensionRouter, :api_action
+    get    "/:slug/api/*path",   NexusWeb.ExtensionRouter, :api_action
+    post   "/:slug/api/*path",   NexusWeb.ExtensionRouter, :api_action
+    put    "/:slug/api/*path",   NexusWeb.ExtensionRouter, :api_action
+    patch  "/:slug/api/*path",   NexusWeb.ExtensionRouter, :api_action
+    delete "/:slug/api/*path",   NexusWeb.ExtensionRouter, :api_action
   end
 
   if Application.compile_env(:nexus, :dev_routes) do
