@@ -360,13 +360,17 @@ defmodule Nexus.Digest do
               module.handle_digest_section(key, period, settings)
             end
           Logger.debug("Digest section #{key} from #{slug}: #{inspect(Map.keys(result))}")
-          if is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) do
-            # Normalise to string keys (deep) so the mailer can pattern-match consistently
-            normalised = deep_stringify(result) |> Map.put("_ext_slug", slug)
-            Map.put(acc, key, normalised)
-          else
-            Logger.warning("Digest section #{key} from #{slug} returned no items: #{inspect(result)}")
-            acc
+          cond do
+            # Pre-rendered HTML — store directly
+            is_map(result) and Map.has_key?(result, "_rendered_html") ->
+              Map.put(acc, key, Map.put(result, "_ext_slug", slug))
+            # Structured data — normalise keys for mailer pattern matching
+            is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) ->
+              normalised = deep_stringify(result) |> Map.put("_ext_slug", slug)
+              Map.put(acc, key, normalised)
+            true ->
+              Logger.warning("Digest section #{key} from #{slug} returned no usable data: #{inspect(result)}")
+              acc
           end
         rescue
           e ->
