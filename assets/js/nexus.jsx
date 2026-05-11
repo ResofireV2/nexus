@@ -156,47 +156,29 @@ function renderMd(t) {
 }
 function Md({ text }) { return <div dangerouslySetInnerHTML={{__html: renderMd(text)}} className="md-body" />; }
 
-// ── Lightbox ──────────────────────────────────────────────────────────────────
-function Lightbox({src, originalSrc, slides, slideIndex, onClose}) {
-  const [idx, setIdx] = useState(slideIndex ?? 0);
-  const isSlideshow = slides && slides.length > 1;
-  const current = isSlideshow ? slides[idx] : {src, originalSrc};
-  const displaySrc = current.originalSrc || current.src;
+// ── Lightbox — powered by Fancybox 5 ─────────────────────────────────────────
+// The Lightbox component is now a no-op stub kept for compatibility.
+// All lightbox calls go through openFancybox() which delegates to Fancybox 5.
+function Lightbox() { return null; }
 
-  const prev = (e) => { e.stopPropagation(); setIdx(i => (i - 1 + slides.length) % slides.length); };
-  const next = (e) => { e.stopPropagation(); setIdx(i => (i + 1) % slides.length); };
-
-  useEffect(()=>{
-    const fn=e=>{
-      if(e.key==="Escape")  onClose();
-      if(e.key==="ArrowLeft"  && isSlideshow) setIdx(i=>(i-1+slides.length)%slides.length);
-      if(e.key==="ArrowRight" && isSlideshow) setIdx(i=>(i+1)%slides.length);
-    };
-    document.addEventListener("keydown",fn);
-    return ()=>document.removeEventListener("keydown",fn);
-  },[isSlideshow]);
-
-  return (
-    <div className="lb-overlay" onMouseDown={e=>{if(e.button===0)onClose();}}>
-      <span className="lb-close" onMouseDown={e=>{e.stopPropagation();onClose();}}>×</span>
-      <img src={displaySrc} alt="" onMouseDown={e=>e.stopPropagation()}/>
-      {isSlideshow && <>
-        <button className="lb-nav lb-nav-prev" onMouseDown={prev}>
-          <i className="fa-solid fa-chevron-left"/>
-        </button>
-        <button className="lb-nav lb-nav-next" onMouseDown={next}>
-          <i className="fa-solid fa-chevron-right"/>
-        </button>
-        <div className="lb-counter" onMouseDown={e=>e.stopPropagation()}>
-          {idx + 1} / {slides.length}
-        </div>
-      </>}
-      {current.originalSrc&&current.originalSrc!==current.src&&
-        <a className="lb-orig" href={current.originalSrc} target="_blank" rel="noopener" onMouseDown={e=>e.stopPropagation()}>
-          <i className="fa-solid fa-arrow-up-right-from-square" style={{marginRight:4}}></i>open original
-        </a>}
-    </div>
-  );
+function openFancybox(items, startIndex) {
+  if (!window.Fancybox) return;
+  const gallery = items.map(item => ({
+    src:     item.originalSrc || item.src,
+    thumb:   item.src,
+    type:    "image",
+  }));
+  window.Fancybox.show(gallery, {
+    startIndex: startIndex || 0,
+    Thumbs: { type: "classic" },
+    Toolbar: {
+      display: {
+        left:   ["infobar"],
+        middle: [],
+        right:  ["slideshow","fullscreen","thumbs","close"],
+      },
+    },
+  });
 }
 
 // YouTube lite embed — click thumbnail to load and play video
@@ -212,12 +194,18 @@ document.addEventListener("click", e => {
   iframe.allowFullscreen = true;
   yt.appendChild(iframe);
 });
+// useLightbox is kept as a no-op for compatibility — Fancybox 5 handles everything
 let _lbSetState = null;
 function useLightbox() {
-  const [lb, setLb] = useState(null);
-  useEffect(()=>{ _lbSetState = setLb; window._lbSetState = setLb; return ()=>{ _lbSetState=null; window._lbSetState=null; }; }, []);
-  return [lb, setLb];
+  return [null, () => {}];
 }
+// Global trigger for external callers (extensions etc.)
+window._lbSetState = (item) => {
+  if (!item) return;
+  const items = item.slides || [item];
+  openFancybox(items, item.slideIndex || 0);
+};
+_lbSetState = window._lbSetState;
 
 // ── Reply reference preview popup ─────────────────────────────────────────────
 let _refPopupSetState = null;
@@ -343,7 +331,12 @@ document.addEventListener("click", e => {
   e.preventDefault();
   e.stopPropagation();
   const originalSrc = img.getAttribute("data-original") || img.src;
-  if (_lbSetState) _lbSetState({ src: img.src, originalSrc });
+  // Collect all images in the same .md-body for gallery mode
+  const body = img.closest(".md-body");
+  const allImgs = body ? [...body.querySelectorAll("img:not(.yt-lite img)")] : [img];
+  const items = allImgs.map(i => ({ src: i.src, originalSrc: i.getAttribute("data-original") || i.src }));
+  const startIdx = allImgs.indexOf(img);
+  openFancybox(items, startIdx < 0 ? 0 : startIdx);
 });
 
 function useRefPreview() {
@@ -1419,16 +1412,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 .yt-lite.active .yt-thumb,.yt-lite.active .yt-play{display:none;}
 .yt-lite.active iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
 /* Lightbox */
-.lb-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;}
-.lb-overlay img{max-width:calc(100vw - 48px);max-height:calc(100vh - 80px);border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
-.lb-close{position:fixed;top:16px;right:20px;font-size:24px;color:rgba(255,255,255,.7);cursor:pointer;line-height:1;z-index:10000;}
-.lb-close:hover{color:#fff;}
-.lb-orig{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;}
-.lb-nav{position:fixed;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.45);border:0.5px solid rgba(255,255,255,.15);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:16px;cursor:pointer;z-index:10000;transition:background .15s,color .15s;}
-.lb-nav:hover{background:rgba(0,0,0,.75);color:#fff;}
-.lb-nav-prev{left:20px;}
-.lb-nav-next{right:20px;}
-.lb-counter{position:fixed;bottom:20px;right:20px;font-size:12px;color:rgba(255,255,255,.45);z-index:10000;}
+/* Lightbox CSS removed — Fancybox 5 handles styling */
+
+
 /* User card popover */
 .ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
 .ucard-wrap.visible{pointer-events:auto;}
@@ -1441,7 +1427,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Quote tooltip */
 .quote-tooltip{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--t2);cursor:pointer;z-index:9000;display:flex;align-items:center;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.6);user-select:none;}
 .quote-tooltip:hover{background:var(--s3);color:var(--t1);}
-.lb-orig:hover{color:rgba(255,255,255,.85);}
+
 /* Composer image upload button */
 .comp-img-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t4);cursor:pointer;padding:4px 8px;border-radius:6px;border:0.5px solid var(--b2);background:var(--bg2);transition:color .15s,border-color .15s;}
 .comp-img-btn:hover{color:var(--t2);border-color:var(--b3);}
@@ -5032,9 +5018,12 @@ function ProfilePage({username, currentUser, navigate}) {
             : !media ? null
             : media.length===0 ? <TabEmpty msg="No media uploaded yet"/>
             : <div className="p-media-grid">
-                {media.map(u=>(
+                {media.map((u,i)=>(
                   <div key={u.id} style={{aspectRatio:"1",overflow:"hidden",borderRadius:8,background:"var(--s2)",cursor:"zoom-in"}}
-                    onClick={()=>{ if(_lbSetState) _lbSetState({src:u.url, originalSrc:u.original_url||u.url}); }}>
+                    onClick={()=>{
+                      const items = media.map(m=>({ src: m.url, originalSrc: m.original_url||m.url }));
+                      openFancybox(items, i);
+                    }}>
                     <img src={u.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
                       onError={e=>e.target.style.display="none"}/>
                   </div>
@@ -11963,7 +11952,7 @@ function App() {
 
   const logout=()=>{api.post("/auth/logout",{});api.setToken(null);updateCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};
 
-  const [lb, setLb] = useLightbox();
+  useLightbox(); // no-op kept for hook rules
   const [userCard, setUserCard] = useUserCard();
 
   if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
@@ -12039,7 +12028,7 @@ function App() {
         <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
       </div>
       </div>
-      {lb&&<Lightbox src={lb.src} originalSrc={lb.originalSrc} slides={lb.slides} slideIndex={lb.slideIndex} onClose={()=>setLb(null)}/>}
+      {/* Lightbox handled by Fancybox 5 */}
       {userCard&&<UserCardPopover card={userCard} setCard={setUserCard} currentUser={currentUser} navigate={navigate}/>}
       <RefPreviewPopup/>
       {authModal&&(

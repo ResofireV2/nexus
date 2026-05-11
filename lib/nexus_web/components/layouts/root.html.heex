@@ -18,6 +18,8 @@
       <%= assigns[:page_title] || "Forum" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <link rel="stylesheet" href="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css" />
+    <script src="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
     <%= for url <- @extension_bundle_urls do %>
     <script defer type="text/javascript" src={url}></script>
