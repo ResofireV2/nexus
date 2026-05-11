@@ -112,7 +112,7 @@ defmodule Nexus.Extensions.Loader do
 
     tarball_path = Path.join(build_dir, "release.tar.gz")
 
-    case Req.get(url, receive_timeout: 60_000) do
+    case Req.get(url, receive_timeout: 60_000, decode_body: false) do
       {:ok, %{status: 200, body: body}} ->
         case File.write(tarball_path, body) do
           :ok -> extract_tarball(tarball_path, build_dir)
@@ -267,29 +267,37 @@ defmodule Nexus.Extensions.Loader do
 
   defp copy_static_assets(build_dir, slug, _module) do
     static_dir = Path.join(build_dir, "priv/static")
-
-    if File.dir?(static_dir) do
-      dest_dir = Path.join([Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
+    dest_dir   = Path.join([Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
                             "extensions", slug, "assets"])
-      File.mkdir_p!(dest_dir)
 
-      # Copy each file individually so contents land directly in dest_dir,
-      # not nested inside a "static" subdirectory.
-      static_dir
-      |> File.ls!()
-      |> Enum.each(fn filename ->
-        src  = Path.join(static_dir, filename)
-        dest = Path.join(dest_dir, filename)
-        case File.cp_r(src, dest) do
-          {:ok, _} -> :ok
-          {:error, reason, _} ->
-            Logger.warning("Loader: failed to copy #{filename} for #{slug}: #{inspect(reason)}")
-        end
-      end)
-
-      Logger.info("Loader: copied static assets for #{slug} to #{dest_dir}")
+    unless File.dir?(static_dir) do
+      Logger.warning("Loader: no priv/static/ found for #{slug}")
       :ok
     else
+      File.mkdir_p!(dest_dir)
+
+      # Copy all files from priv/static/ directly into assets dir.
+      # logo.webp and banner.webp are required by convention — no manifest URLs needed.
+      copied =
+        static_dir
+        |> File.ls!()
+        |> Enum.map(fn filename ->
+          src  = Path.join(static_dir, filename)
+          dest = Path.join(dest_dir, filename)
+          case File.cp(src, dest) do
+            :ok ->
+              Logger.info("Loader: copied #{filename} for #{slug}")
+              :ok
+            {:error, reason} ->
+              Logger.warning("Loader: failed to copy #{filename} for #{slug}: #{inspect(reason)}")
+              :error
+          end
+        end)
+
+      if Enum.any?(copied, & &1 == :ok) do
+        Logger.info("Loader: static assets copied for #{slug} → #{dest_dir}")
+      end
+
       :ok
     end
   end
