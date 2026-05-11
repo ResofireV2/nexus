@@ -4291,7 +4291,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>}
           <div className="desk-composer" style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} toolbarItems={TB_BTNS}/>
               <div className="reply-box-foot">
                 <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
@@ -4313,7 +4313,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",flexShrink:0}} onClick={()=>setMobReplyOpen(true)}>Reply</button>
             </div>
           : <div>
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={160} currentUser={currentUser} autoFocus={true}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={160} currentUser={currentUser} autoFocus={true} toolbarItems={TB_BTNS}/>
               <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"6px 12px",borderTop:"0.5px solid var(--b1)"}}>
                 <button className="btn-ghost" style={{fontSize:12}} onClick={()=>{setMobReplyOpen(false);setReplyBody("");}}>Cancel</button>
                 <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} disabled={submitting||!replyBody.trim()} onClick={async()=>{await submitReply();setMobReplyOpen(false);}}>Reply</button>
@@ -4406,7 +4406,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
       else if(d.post){
         // Link any games selected via extension toolbar
         if(linkedGames.length>0){
-          try{ await fetch(`/api/v1/extensions/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
+          try{ await fetch(`/ext/gamepedia/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${localStorage.getItem("nexus_token")||""}`},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
         }
         toast("Post published!");navigate("post",{id:d.post.id});
       }
