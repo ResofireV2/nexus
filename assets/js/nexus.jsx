@@ -7343,7 +7343,13 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
     set("frequencies", next);
   };
 
-  const sectionOrder = cfg.section_order || allSections.map(s=>s.id);
+  // Merge saved order with any new sections from extensions not yet in the saved list
+  const baseSectionOrder = cfg.section_order || allSections.map(s=>s.id);
+  const knownIds = new Set(baseSectionOrder);
+  const sectionOrder = [
+    ...baseSectionOrder,
+    ...allSections.map(s=>s.id).filter(id => !knownIds.has(id))
+  ];
   const moveSection = (id, dir) => {
     const idx = sectionOrder.indexOf(id);
     if(idx === -1) return;
