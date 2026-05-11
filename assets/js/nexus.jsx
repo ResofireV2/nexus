@@ -2871,19 +2871,10 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
           </div>
         </div>
         {author.bio&&<div style={{fontSize:12,color:"var(--t4)",lineHeight:1.55,marginBottom:10}}>{author.bio.slice(0,120)}{author.bio.length>120?"…":""}</div>}
-        <div style={{display:"flex",gap:16}}>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:14,fontWeight:500,color:"var(--t2)"}}>{author.post_count||0}</div>
-            <div style={{fontSize:10,color:"var(--t5)"}}>posts</div>
-          </div>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:14,fontWeight:500,color:"var(--t2)"}}>{author.reply_count||0}</div>
-            <div style={{fontSize:10,color:"var(--t5)"}}>replies</div>
-          </div>
-          {author.reactions_received>0&&<div style={{textAlign:"center"}}>
-            <div style={{fontSize:14,fontWeight:500,color:"var(--ac)"}}>{author.reactions_received}</div>
-            <div style={{fontSize:10,color:"var(--t5)"}}>reactions</div>
-          </div>}
+        <div style={{display:"flex",gap:6}}>
+          <div className="ucard-stat"><div className="ucard-stat-n">{author.post_count||0}</div><div className="ucard-stat-l">posts</div></div>
+          <div className="ucard-stat"><div className="ucard-stat-n">{author.reply_count||0}</div><div className="ucard-stat-l">replies</div></div>
+          <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{author.reactions_received||0}</div><div className="ucard-stat-l">reactions</div></div>
         </div>
       </div>
     )}
