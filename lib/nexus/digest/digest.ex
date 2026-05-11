@@ -327,67 +327,53 @@ defmodule Nexus.Digest do
 
   If the request fails or times out, the section is silently omitted.
   """
-  def collect_extension_sections(_frequency, context) do
-    import Ecto.Query
-
-    # Load all enabled extensions that have digest_sections in their manifest
-    extensions =
-      Repo.all(
-        from e in Nexus.Extensions.Extension,
-        where: e.enabled == true and not is_nil(e.webhook_url)
-      )
-
+  def collect_extension_sections(frequency, context) do
     cfg = settings()
 
-    Enum.reduce(extensions, %{}, fn ext, acc ->
-      digest_sections = get_in(ext.manifest, ["digest_sections"]) || []
+    Nexus.Extensions.Registry.all_modules()
+    |> Enum.reduce(%{}, fn {slug, module}, acc ->
+      sections =
+        if function_exported?(module, :digest_sections, 0) do
+          try do
+            module.digest_sections()
+          rescue
+            _ -> []
+          end
+        else
+          []
+        end
 
-      Enum.reduce(digest_sections, acc, fn section_def, inner_acc ->
-        # Use `with` for guard-then-proceed: any {:skip} clause returns inner_acc unchanged.
-        with {:ok, key}          <- valid_string(section_def["key"]),
-             {:ok, webhook_path} <- valid_string(section_def["webhook_path"]),
-             :enabled            <- check_enabled(cfg, key),
-             {:ok, full_url}     <- build_section_url(ext.webhook_url, webhook_path) do
+      period = %{
+        from:         context.from,
+        to:           context.to,
+        frequency:    frequency,
+        period_label: context.period_label,
+      }
 
-          body = Jason.encode!(Map.merge(context, %{settings: ext.settings, extension: ext.slug}))
+      settings =
+        case Nexus.Extensions.get_extension_by_slug(slug) do
+          nil -> %{}
+          ext -> ext.settings || %{}
+        end
 
-          case Req.post(full_url,
-                 body: body,
-                 headers: [{"Content-Type", "application/json"}, {"X-Nexus-Event", "digest_section"}],
-                 receive_timeout: 8_000) do
-            {:ok, %{status: status, body: resp_body}} when status in 200..299 ->
-              parsed =
-                cond do
-                  is_map(resp_body) -> {:ok, resp_body}
-                  is_binary(resp_body) ->
-                    case Jason.decode(resp_body) do
-                      {:ok, m} -> {:ok, m}
-                      _        -> {:error, :bad_json}
-                    end
-                  true -> {:error, :bad_response}
-                end
-
-              case parsed do
-                {:ok, section_data} when is_map(section_data) ->
-                  if Map.has_key?(section_data, "title") and Map.has_key?(section_data, "items") do
-                    Map.put(inner_acc, key, Map.put(section_data, "_ext_slug", ext.slug))
-                  else
-                    require Logger
-                    Logger.warning("Digest section #{key} from #{ext.slug} missing title or items")
-                    inner_acc
-                  end
-                _ ->
-                  inner_acc
-              end
-
-            {:ok, %{status: status}} ->
+      Enum.reduce(sections, acc, fn section, inner_acc ->
+        key = section[:key] || section["key"]
+        with true     <- is_binary(key) and key != "",
+             :enabled <- check_enabled(cfg, key) do
+          try do
+            case module.handle_digest_section(key, period, settings) do
+              %{items: items} = result when is_list(items) ->
+                data = result |> Map.from_struct() |> Map.new(fn {k,v} -> {Atom.to_string(k), v} end) rescue result
+                Map.put(inner_acc, key, Map.put(data, "_ext_slug", slug))
+              result when is_map(result) ->
+                Map.put(inner_acc, key, Map.put(result, "_ext_slug", slug))
+              _ ->
+                inner_acc
+            end
+          rescue
+            e ->
               require Logger
-              Logger.warning("Digest section #{key} from #{ext.slug} returned HTTP #{status}")
-              inner_acc
-
-            {:error, reason} ->
-              require Logger
-              Logger.warning("Digest section #{key} from #{ext.slug} failed: #{inspect(reason)}")
+              Logger.warning("Digest section \#{key} from \#{slug} raised: \#{inspect(e)}")
               inner_acc
           end
         else
@@ -397,37 +383,7 @@ defmodule Nexus.Digest do
     end)
   end
 
-  # ---------------------------------------------------------------------------
-  # Fetch users subscribed to a given digest frequency
-  # ---------------------------------------------------------------------------
-
-  def subscribers(frequency) do
-    Repo.all(
-      from u in User,
-      where: u.status == "active",
-      where: fragment("?->>'digest_frequency' = ?", u.preferences, ^frequency)
-    )
-  end
-
-  # ---------------------------------------------------------------------------
-  # Private helpers for collect_extension_sections
-  # ---------------------------------------------------------------------------
-
-  defp valid_string(val) when is_binary(val) and val != "", do: {:ok, val}
-  defp valid_string(_), do: {:error, :invalid}
-
   defp check_enabled(cfg, key) do
     if cfg["include_ext_#{key}"] == false, do: {:skip, :disabled}, else: :enabled
-  end
-
-  defp build_section_url(webhook_url, webhook_path) do
-    if String.match?(webhook_path, ~r|^https?://|) do
-      {:ok, webhook_path}
-    else
-      uri = URI.parse(webhook_url)
-      port_str = if uri.port && uri.port not in [80, 443], do: ":#{uri.port}", else: ""
-      base = "#{uri.scheme}://#{uri.host}#{port_str}"
-      {:ok, base <> webhook_path}
-    end
   end
 end
