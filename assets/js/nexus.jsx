@@ -8576,6 +8576,7 @@ function AdminExtensionsPanel() {
   const q = filter.trim().toLowerCase();
   const visibleItems = allItems.filter(item=>{
     if(tab==="installed" && !installedSlugs.has(item.slug)) return false;
+    if(tab==="all" && installedSlugs.has(item.slug)) return false;
     if(q) return (
       item.name?.toLowerCase().includes(q) ||
       item.description?.toLowerCase().includes(q) ||
@@ -8681,9 +8682,10 @@ function AdminExtensionsPanel() {
             <div style={{padding:"60px 0",textAlign:"center",color:"var(--t5)"}}>
               <i className="fa-solid fa-puzzle-piece" style={{fontSize:28,opacity:.3,marginBottom:12,display:"block"}}/>
               <div style={{fontSize:14,marginBottom:4}}>
-                {tab==="installed"?"No extensions installed yet":"No extensions found"}
+                {tab==="installed"?"No extensions installed yet":tab==="all"?"No extensions available":"No extensions found"}
               </div>
-              {tab==="installed"&&<div style={{fontSize:12}}>Switch to All extensions to browse the store.</div>}
+              {tab==="installed"&&<div style={{fontSize:12}}>Browse the All extensions tab to find something to install.</div>}
+              {tab==="all"&&<div style={{fontSize:12}}>All available extensions are already installed.</div>}
             </div>
           )}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
