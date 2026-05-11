@@ -747,32 +747,9 @@ window.NexusExtensions = {
 
 // Load all enabled extension JS bundles declared in slot assignments.
 // Each bundle is a plain ES module that calls NexusExtensions.registerSlot().
-async function loadExtensionBundles() {
-  try {
-    const d = await fetch("/api/v1/slots/all");
-    if (!d.ok) return;
-    const {bundles} = await d.json();
-    for (const url of (bundles || [])) {
-      try {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = url;
-          script.onload = resolve;
-          script.onerror = (e) => {
-            console.warn("Failed to load extension bundle:", url, e);
-            resolve(); // don't block other bundles
-          };
-          document.head.appendChild(script);
-        });
-      } catch (e) {
-        console.warn("Failed to load extension bundle:", url, e);
-      }
-    }
-  } catch {}
-}
-
-// Run after initial render so it doesn't block the app
-setTimeout(loadExtensionBundles, 500);
+// Extension bundles are now injected as <script> tags in root.html.heex
+// by NexusWeb.Plugs.ExtensionBundles, so they load synchronously before
+// React mounts. No deferred fetch needed.
 
 // ── Global CSS ───────────────────────────────────────────────────────────────
 const S = document.createElement("style");

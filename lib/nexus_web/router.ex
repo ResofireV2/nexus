@@ -9,6 +9,7 @@ defmodule NexusWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug NexusWeb.Plugs.PwaSettings
+    plug NexusWeb.Plugs.ExtensionBundles
   end
 
   pipeline :api do
