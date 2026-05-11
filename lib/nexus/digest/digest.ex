@@ -328,57 +328,50 @@ defmodule Nexus.Digest do
   If the request fails or times out, the section is silently omitted.
   """
   def collect_extension_sections(frequency, context) do
+    require Logger
     cfg = settings()
 
-    Nexus.Extensions.Registry.all_modules()
-    |> Enum.reduce(%{}, fn {slug, module}, acc ->
-      sections =
-        if function_exported?(module, :digest_sections, 0) do
-          try do
-            module.digest_sections()
-          rescue
-            _ -> []
+    period = %{
+      from:         context.from,
+      to:           context.to,
+      frequency:    frequency,
+      period_label: context.period_label,
+    }
+
+    # Use the Registry's already-populated digest section list.
+    # Sections are stored when each extension is loaded/registered.
+    Nexus.Extensions.Registry.all_digest_sections()
+    |> Enum.reduce(%{}, fn %{key: key, extension_slug: slug}, acc ->
+      with :enabled <- check_enabled(cfg, key),
+           module   <- Nexus.Extensions.Registry.get_module(slug),
+           true     <- not is_nil(module) and function_exported?(module, :handle_digest_section, 3) do
+
+        settings =
+          case Nexus.Extensions.get_extension_by_slug(slug) do
+            nil -> %{}
+            ext -> ext.settings || %{}
           end
-        else
-          []
-        end
 
-      period = %{
-        from:         context.from,
-        to:           context.to,
-        frequency:    frequency,
-        period_label: context.period_label,
-      }
-
-      settings =
-        case Nexus.Extensions.get_extension_by_slug(slug) do
-          nil -> %{}
-          ext -> ext.settings || %{}
-        end
-
-      Enum.reduce(sections, acc, fn section, inner_acc ->
-        key = section[:key] || section["key"]
-        with true     <- is_binary(key) and key != "",
-             :enabled <- check_enabled(cfg, key) do
-          try do
-            result = module.handle_digest_section(key, period, settings)
-            if is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) do
-              Map.put(inner_acc, key, Map.put(result, "_ext_slug", slug))
-            else
-              inner_acc
-            end
-          rescue
-            e ->
-              require Logger
-              Logger.warning("Digest section \#{key} from \#{slug} raised: \#{inspect(e)}")
-              inner_acc
+        try do
+          result = module.handle_digest_section(key, period, settings)
+          Logger.debug("Digest section #{key} from #{slug}: #{inspect(Map.keys(result))}")
+          if is_map(result) and (Map.has_key?(result, :items) or Map.has_key?(result, "items")) do
+            Map.put(acc, key, Map.put(result, "_ext_slug", slug))
+          else
+            Logger.warning("Digest section #{key} from #{slug} returned no items: #{inspect(result)}")
+            acc
           end
-        else
-          _ -> inner_acc
+        rescue
+          e ->
+            Logger.warning("Digest section #{key} from #{slug} raised: #{inspect(e)}")
+            acc
         end
-      end)
+      else
+        _ -> acc
+      end
     end)
   end
+
 
   # ---------------------------------------------------------------------------
   # Fetch users subscribed to a given digest frequency
