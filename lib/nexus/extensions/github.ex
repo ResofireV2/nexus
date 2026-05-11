@@ -30,6 +30,7 @@ defmodule Nexus.Extensions.GitHub do
           name:         body["name"] || body["tag_name"],
           body:         body["body"] || "",
           published_at: body["published_at"],
+          tarball_url:  body["tarball_url"],
         }}
 
       {:ok, %{status: 404}} ->

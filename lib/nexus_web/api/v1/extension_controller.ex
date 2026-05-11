@@ -132,10 +132,40 @@ defmodule NexusWeb.API.V1.ExtensionController do
         nil -> conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
         ext ->
           case Extensions.update_extension_from_release(ext) do
-            {:ok, updated} -> json(conn, %{extension: extension_json(updated)})
-            {:error, reason} -> conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+            {:ok, updated} ->
+              # rebuilding is true when the extension has a service_url
+              # (meaning a deploy webhook was fired to trigger a rebuild)
+              json(conn, %{
+                extension: extension_json(updated),
+                rebuilding: not is_nil(updated.service_url)
+              })
+            {:error, reason} ->
+              conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
           end
       end
+    end
+  end
+
+  # GET /api/v1/extensions/:slug/assets/*path
+  # Serves static assets from the extension's uploaded assets directory.
+  # Used for the JS bundle URL stored in slots/all.
+  def serve_asset(conn, %{"slug" => slug, "path" => path_parts}) do
+    filename  = Path.join(path_parts)
+    asset_dir = Path.join([
+      Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
+      "extensions", slug, "assets"
+    ])
+    asset_path = Path.join(asset_dir, filename)
+
+    if File.exists?(asset_path) do
+      conn
+      |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
+      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=86400")
+      |> Plug.Conn.send_file(200, asset_path)
+    else
+      conn
+      |> put_status(:not_found)
+      |> json(%{error: "Asset not found"})
     end
   end
 

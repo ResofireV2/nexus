@@ -8261,6 +8261,90 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 // ── Admin Extensions Panel ────────────────────────────────────────────────────
 // Unified extensions page — store, installed state, and install-from-URL
 // all live on one screen. No separate "browse store" view.
+// ── RebuildingOverlay ────────────────────────────────────────────────────────
+// Shown after an extension update is applied to a service-backed extension.
+// Polls the extension's health endpoint every 4 seconds until the reported
+// version matches the expected new version, then calls onDone.
+function RebuildingOverlay({slug, onDone, onError}) {
+  const [elapsed, setElapsed] = React.useState(0);
+  const [status, setStatus]   = React.useState("Waiting for rebuild to start…");
+  const MAX_WAIT = 300; // 5 minutes max
+
+  React.useEffect(() => {
+    let cancelled = false;
+    let seconds   = 0;
+
+    const tick = async () => {
+      if(cancelled) return;
+      seconds += 4;
+      setElapsed(seconds);
+
+      if(seconds > MAX_WAIT) {
+        onError("Rebuild timed out after 5 minutes. Check the server logs.");
+        return;
+      }
+
+      try {
+        const r = await fetch(`/api/v1/extensions/${slug}/api/health`, {
+          headers: {"Accept": "application/json"}
+        });
+
+        if(r.ok) {
+          const data = await r.json();
+          const version = data.version || data.vsn;
+          setStatus(`Service is up — detected version ${version || "unknown"}`);
+          if(version) {
+            onDone(version);
+            return;
+          }
+        } else {
+          setStatus("Service restarting… waiting to come back online");
+        }
+      } catch {
+        setStatus("Service is down — rebuild in progress…");
+      }
+
+      setTimeout(tick, 4000);
+    };
+
+    // Give the service a moment before first poll — rebuild takes time to start
+    setStatus("Deploy triggered — waiting for rebuild to begin…");
+    setTimeout(tick, 6000);
+
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  const mins  = Math.floor(elapsed / 60);
+  const secs  = elapsed % 60;
+  const timer = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  return (
+    <div style={{
+      position:"absolute", inset:0, zIndex:100,
+      background:"var(--bg)", borderRadius:12,
+      display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center",
+      gap:20, padding:48, textAlign:"center",
+      border:"0.5px solid var(--b1)",
+    }}>
+      <i className="fa-solid fa-spinner fa-spin" style={{fontSize:36,color:"var(--ac)"}}/>
+      <div>
+        <div style={{fontSize:16,fontWeight:500,color:"var(--t1)",marginBottom:8}}>
+          Rebuilding extension service
+        </div>
+        <div style={{fontSize:13,color:"var(--t4)",marginBottom:4}}>{status}</div>
+        {elapsed > 0&&(
+          <div style={{fontSize:12,color:"var(--t5)"}}>Waiting {timer}…</div>
+        )}
+      </div>
+      <div style={{fontSize:12,color:"var(--t5)",maxWidth:420,lineHeight:1.7}}>
+        The service is being pulled from GitHub and rebuilt. This typically takes 30–90 seconds.
+        The overlay will dismiss automatically when the new version is detected.
+      </div>
+    </div>
+  );
+}
+
 function AdminExtensionsPanel() {
   const [tab, setTab]                   = useState("all");       // "all" | "installed" | "url"
   const [extensions, setExtensions]     = useState(null);        // installed extensions
@@ -8334,8 +8418,8 @@ function AdminExtensionsPanel() {
     const d = await api.post(`/admin/extensions/${slug}/update`);
     setUpdatingSlug(null);
     if(d.extension) {
-      toast(`${d.extension.name} updated to ${d.extension.installed_version}`);
       setUpdates(prev=>(prev||[]).filter(u=>u.slug!==slug));
+      toast(`${d.extension.name} updated to v${(d.extension.installed_version||"").replace(/^v/,"")}`);
       loadExtensions();
     } else {
       toast(d.error||"Update failed","err");
@@ -8436,7 +8520,7 @@ function AdminExtensionsPanel() {
   ];
 
   return (
-    <div>
+    <div style={{position:"relative"}}>
       {/* Tab bar + search */}
       <div style={{display:"flex",alignItems:"center",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:24}}>
         {TABS.map(t=>(
@@ -8585,10 +8669,10 @@ function AdminExtensionsPanel() {
                     {/* Name + version */}
                     <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
                       <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",lineHeight:1.2}}>{item.name}</div>
-                      {item.version&&<div style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>v{item.version}</div>}
+                      {item.version&&<div style={{fontSize:11,color:"var(--t5)",flexShrink:0}}>v{item.version.replace(/^v/,"")}</div>}
                       {item.update_available&&item.latest_version&&(
                         <div style={{fontSize:11,color:"#fb923c",flexShrink:0}}>
-                          → {item.latest_version} available
+                          → v{(item.latest_version||"").replace(/^v/,"")} available
                         </div>
                       )}
                     </div>
@@ -8701,7 +8785,7 @@ function AdminExtensionsPanel() {
                                 fontFamily:"inherit",fontWeight:500,
                                 opacity:updatingSlug===item.slug?0.6:1}}>
                               <i className="fa-solid fa-arrow-up" style={{marginRight:5,fontSize:11}}/>
-                              {updatingSlug===item.slug?"Updating…":`Update to ${item.latest_version}`}
+                              {updatingSlug===item.slug?"Updating…":`Update to v${(item.latest_version||"").replace(/^v/,"")}`}
                             </button>
                           )}
                           {item.manifest_url&&(

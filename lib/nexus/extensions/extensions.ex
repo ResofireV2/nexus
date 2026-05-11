@@ -65,6 +65,32 @@ defmodule Nexus.Extensions do
 
   def get_extension_by_slug(slug), do: Repo.get_by(Extension, slug: slug) |> Repo.preload([:hooks, :slots])
 
+  @doc """
+  Loads all enabled extensions from the DB into the VM on startup.
+  Called once by Application after the supervision tree is running.
+  """
+  def load_all_enabled do
+    require Logger
+
+    enabled = from(e in Extension, where: e.enabled == true) |> Repo.all()
+    Logger.info("Extensions: loading #{length(enabled)} enabled extension(s)")
+
+    for ext <- enabled do
+      case build_tarball_url(ext) do
+        {:ok, url} ->
+          case Nexus.Extensions.Loader.load_from_url(url, ext.slug) do
+            {:ok, _module} ->
+              Logger.info("Extensions: loaded #{ext.slug}")
+            {:error, reason} ->
+              Logger.error("Extensions: failed to load #{ext.slug}: #{inspect(reason)}")
+          end
+
+        {:error, reason} ->
+          Logger.warning("Extensions: cannot determine tarball URL for #{ext.slug}: #{reason}")
+      end
+    end
+  end
+
   def install_extension(attrs) do
     Repo.transaction(fn ->
       # Store settings_schema, settings_tabs, logo_url and banner_url inside the manifest field
@@ -122,6 +148,33 @@ defmodule Nexus.Extensions do
   end
 
   def uninstall_extension(%Extension{} = ext) do
+    module = Nexus.Extensions.Registry.get_module(ext.slug)
+
+    # Call on_uninstall before removing anything
+    if module && function_exported?(module, :on_uninstall, 0) do
+      try do
+        module.on_uninstall()
+      rescue
+        e ->
+          require Logger
+          Logger.error("on_uninstall/0 raised for #{ext.slug}: #{inspect(e)}")
+      end
+    end
+
+    # Roll back database migrations
+    if module do
+      Nexus.Extensions.Loader.rollback_migrations(module)
+    end
+
+    # Unload from VM
+    if module do
+      Nexus.Extensions.Loader.unload(ext.slug, module)
+    end
+
+    # Delete extension files
+    Nexus.Extensions.Storage.delete_all(ext.slug)
+
+    # Remove DB record
     Repo.delete(ext)
   end
 
@@ -201,30 +254,47 @@ defmodule Nexus.Extensions do
     raw_url = to_raw_manifest_url(url)
 
     with {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
-         {:ok, manifest} <- parse_manifest(body),
-         :ok             <- validate_manifest(manifest) do
+         {:ok, manifest}    <- parse_manifest(body),
+         :ok                <- validate_manifest(manifest) do
 
       github_repo = Nexus.Extensions.GitHub.repo_from_url(url)
+      token       = Nexus.Extensions.GitHub.get_token()
+      slug        = manifest["slug"]
 
-      # If we can identify a GitHub repo, try to get the latest release tag
-      # so we record what version was installed from the start.
-      installed_version =
+      # Get the latest release for version tracking and tarball URL
+      {installed_version, tarball_url} =
         if github_repo do
-          token = Nexus.Extensions.GitHub.get_token()
           case Nexus.Extensions.GitHub.latest_release(github_repo, token) do
-            {:ok, %{tag: tag}} -> tag
-            _ -> manifest["version"]
+            {:ok, release} ->
+              {String.trim_leading(release.tag, "v"), Map.get(release, :tarball_url)}
+            _ ->
+              {manifest["version"], nil}
           end
         else
-          manifest["version"]
+          {manifest["version"], nil}
         end
 
       attrs = manifest
-        |> Map.merge(%{"manifest_url" => url})
-        |> Map.merge(%{"github_repo" => github_repo})
-        |> Map.merge(%{"installed_version" => installed_version})
+        |> Map.merge(%{
+          "manifest_url"      => url,
+          "github_repo"       => github_repo,
+          "installed_version" => installed_version,
+        })
 
-      install_extension(attrs)
+      with {:ok, ext} <- install_extension(attrs) do
+        # Load the extension into the VM if we have a tarball URL
+        if tarball_url do
+          case Nexus.Extensions.Loader.load_from_url(tarball_url, slug) do
+            {:ok, module} ->
+              on_install_safe(module, ext.settings || %{})
+            {:error, reason} ->
+              require Logger
+              Logger.warning("install_from_url: saved #{slug} to DB but compile failed: #{inspect(reason)}")
+          end
+        end
+
+        {:ok, Repo.preload(Repo.reload!(ext), [:hooks, :slots])}
+      end
     else
       {:ok, %{status: status}} ->
         {:error, "Could not fetch manifest (HTTP #{status}). Check the URL is correct and the repo is public."}
@@ -237,6 +307,38 @@ defmodule Nexus.Extensions do
 
       {:error, reason} ->
         {:error, "Failed to install extension: #{inspect(reason)}"}
+    end
+  end
+
+  defp on_install_safe(module, settings) do
+    if function_exported?(module, :on_install, 1) do
+      try do
+        module.on_install(settings)
+      rescue
+        e ->
+          require Logger
+          Logger.error("on_install/1 raised for #{module}: #{inspect(e)}")
+      end
+    end
+  end
+
+  defp build_tarball_url(ext) do
+    cond do
+      ext.github_repo && ext.installed_version ->
+        tag = "v#{ext.installed_version}"
+        {:ok, "https://github.com/#{ext.github_repo}/archive/refs/tags/#{tag}.tar.gz"}
+
+      ext.github_repo ->
+        token = Nexus.Extensions.GitHub.get_token()
+        case Nexus.Extensions.GitHub.latest_release(ext.github_repo, token) do
+          {:ok, %{tag: tag}} ->
+            {:ok, "https://github.com/#{ext.github_repo}/archive/refs/tags/#{tag}.tar.gz"}
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      true ->
+        {:error, "No github_repo configured for #{ext.slug}"}
     end
   end
 
@@ -258,7 +360,7 @@ defmodule Nexus.Extensions do
       case Nexus.Extensions.GitHub.latest_release(ext.github_repo, token) do
         {:ok, release} ->
           current = ext.installed_version || ext.version
-          latest  = release.tag
+          latest  = String.trim_leading(release.tag, "v")
 
           # Store the latest version and release notes on the extension record
           ext
@@ -304,6 +406,10 @@ defmodule Nexus.Extensions do
          {:ok, manifest} <- Nexus.Extensions.GitHub.manifest_at_tag(ext.github_repo, release.tag, token),
          :ok             <- validate_manifest(manifest) do
 
+      # Strip leading "v" from the tag so version strings are consistent.
+      # e.g. "v0.2.0" → "0.2.0" — the UI adds "v" prefix for display.
+      clean_tag = String.trim_leading(release.tag, "v")
+
       update_attrs = %{
         "name"              => manifest["name"],
         "version"           => manifest["version"],
@@ -313,8 +419,8 @@ defmodule Nexus.Extensions do
         "webhook_url"       => manifest["webhook_url"],
         "js_bundle_url"     => manifest["js_bundle_url"],
         "service_url"       => manifest["service_url"],
-        "installed_version" => release.tag,
-        "latest_version"    => release.tag,
+        "installed_version" => clean_tag,
+        "latest_version"    => clean_tag,
         "release_notes"     => release.body,
         "manifest"          => Map.merge(ext.manifest || %{}, %{
           "settings_schema" => manifest["settings_schema"] || %{},
@@ -324,11 +430,37 @@ defmodule Nexus.Extensions do
         }),
       }
 
-      ext
-      |> Extension.changeset(update_attrs)
-      |> Repo.update()
+      tarball_url = "https://github.com/#{ext.github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
+      old_module  = Nexus.Extensions.Registry.get_module(ext.slug)
+
+      with {:ok, updated} <- ext |> Extension.changeset(update_attrs) |> Repo.update() do
+        # Reload the extension in the VM — stop old, compile new, restart
+        case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module) do
+          {:ok, new_module} ->
+            # Call on_update lifecycle callback
+            if function_exported?(new_module, :on_update, 2) do
+              Task.start(fn ->
+                try do
+                  new_module.on_update(ext.installed_version || "0.0.0", clean_tag)
+                rescue
+                  e ->
+                    require Logger
+                    Logger.error("on_update/2 raised for #{ext.slug}: #{inspect(e)}")
+                end
+              end)
+            end
+
+          {:error, reason} ->
+            require Logger
+            Logger.error("Failed to reload #{ext.slug} after update: #{inspect(reason)}")
+        end
+
+        {:ok, updated}
+      end
     end
   end
+
+
 
   # ---------------------------------------------------------------------------
   # Store — fetch the community registry
@@ -380,18 +512,22 @@ defmodule Nexus.Extensions do
   # ---------------------------------------------------------------------------
 
   def fire(event, payload \\ %{}) when event in @hook_events do
-    hooks =
-      from(h in Hook,
-        join: e in Extension, on: h.extension_id == e.id,
-        where: h.event == ^event and h.enabled == true and e.enabled == true
-              and not is_nil(e.webhook_url),
-        order_by: [asc: h.priority],
-        preload: :extension
-      )
-      |> Repo.all()
+    # Call extension handle_event/3 directly — no HTTP, no serialization overhead.
+    # Each call runs in its own supervised Task so a crashing extension can't
+    # affect the caller or other extensions.
+    for {slug, module} <- Nexus.Extensions.Registry.hooks_for(event) do
+      ext = get_extension_by_slug(slug)
+      settings = if ext, do: ext.settings || %{}, else: %{}
 
-    for hook <- hooks do
-      Task.start(fn -> deliver_webhook(hook.extension, event, payload) end)
+      Task.start(fn ->
+        try do
+          module.handle_event(event, payload, settings)
+        rescue
+          e ->
+            require Logger
+            Logger.error("Extension #{slug} raised in handle_event(#{event}): #{inspect(e)}")
+        end
+      end)
     end
 
     :ok
@@ -404,20 +540,7 @@ defmodule Nexus.Extensions do
   # ---------------------------------------------------------------------------
 
   def slots_for(slot_name) when slot_name in @ui_slots do
-    from(s in Slot,
-      join: e in Extension, on: s.extension_id == e.id,
-      where: s.slot == ^slot_name and s.enabled == true and e.enabled == true,
-      order_by: [asc: s.priority],
-      select: %{
-        id: s.id,
-        slot: s.slot,
-        component: s.component,
-        priority: s.priority,
-        extension_slug: e.slug,
-        js_bundle_url: e.js_bundle_url
-      }
-    )
-    |> Repo.all()
+    Nexus.Extensions.Registry.slots_for(slot_name)
   end
 
   def slots_for(_), do: []

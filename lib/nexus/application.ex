@@ -23,6 +23,10 @@ defmodule Nexus.Application do
       Nexus.Presence,
       {Finch, name: Nexus.Finch},
       {Oban, Application.fetch_env!(:nexus, Oban)},
+      # Extension infrastructure — must start before the endpoint so that
+      # extension routes are available when the first request arrives.
+      Nexus.Extensions.Registry,
+      Nexus.Extensions.ExtensionSupervisor,
       NexusWeb.Endpoint
     ]
 
@@ -38,6 +42,16 @@ defmodule Nexus.Application do
           if File.exists?(seed_file), do: Code.eval_file(seed_file)
         rescue
           _ -> :ok
+        end
+      end)
+
+      # Load all enabled extensions from the DB after startup
+      Task.start(fn ->
+        :timer.sleep(3000)
+        try do
+          Nexus.Extensions.load_all_enabled()
+        rescue
+          e -> require Logger; Logger.error("Failed to load extensions on startup: #{inspect(e)}")
         end
       end)
     end

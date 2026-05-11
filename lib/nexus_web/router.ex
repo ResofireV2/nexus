@@ -314,14 +314,15 @@ defmodule NexusWeb.Router do
     pipe_through :api
     get "/slots/:slot", ExtensionController, :slots
 
-    # Extension proxy — forwards requests to extension service_url
-    # No Caddyfile changes needed for any extension
-    get    "/extensions/:slug/assets/*path", ExtensionProxyController, :assets
-    get    "/extensions/:slug/api/*path",    ExtensionProxyController, :api
-    post   "/extensions/:slug/api/*path",    ExtensionProxyController, :api
-    put    "/extensions/:slug/api/*path",    ExtensionProxyController, :api
-    patch  "/extensions/:slug/api/*path",    ExtensionProxyController, :api
-    delete "/extensions/:slug/api/*path",    ExtensionProxyController, :api
+    # Extension bundle URLs — served from the extension's static assets directory.
+    # No proxy, no separate service — assets live inside the Nexus uploads directory.
+    get "/extensions/:slug/assets/*path", ExtensionController, :serve_asset
+  end
+
+  # Extension API and asset routes — handled dynamically by ExtensionRouter.
+  # Extensions mount their routes under /ext/:slug/ with no Caddyfile changes.
+  scope "/ext" do
+    forward "/", NexusWeb.ExtensionRouter
   end
 
   if Application.compile_env(:nexus, :dev_routes) do
