@@ -7,6 +7,7 @@ import { Select } from "../components/Select";
 import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
 import { RichTextArea, TB_BTNS } from "../components/RichTextArea";
+import { useDraftAutosave } from "./DraftsPage";
 function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
   var trackRef = useRef(null);
   var saveTimer = useRef(null);
@@ -352,9 +353,9 @@ function EditHistoryPairs({edits, postId, replyId}) {
   );
 }
 
-function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply}) {
+function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply, resumeDraft=null}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
-  const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
+  const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState(resumeDraft?.body||"");
   const [submitting,setSubmitting]=useState(false);
   const [userReaction,setUserReaction]=useState(null);
   const [reportTarget,setReportTarget]=useState(null);
@@ -363,11 +364,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [reporting,setReporting]=useState(false);
   const [quoteTooltip,setQuoteTooltip]=useState(null);
   const [typingUsers,setTypingUsers]=useState([]);
-  const [lastReadReplyId, setLastReadReplyId] = useState(undefined); // undefined = not yet fetched
+  const [lastReadReplyId, setLastReadReplyId] = useState(undefined);
   const [lastReadCount, setLastReadCount] = useState(0);
   const repliesContainerRef = useRef(null);
   const [mobSheetOpen, setMobSheetOpen] = useState(false);
-  const [mobReplyOpen, setMobReplyOpen] = useState(false); // usernames currently typing
+  const [mobReplyOpen, setMobReplyOpen] = useState(false);
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
@@ -375,6 +376,14 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [postFollowed, setPostFollowed] = useState(false);
   const [savedReplyIds, setSavedReplyIds] = useState(new Set());
   useEffect(()=>{ replyBodyRef.current = replyBody; },[replyBody]);
+
+  // Reply draft autosave
+  const { lastSaved: draftLastSaved, saveDraft, clearDraft } = useDraftAutosave({
+    type: "reply",
+    postId: parseInt(postId),
+    enabled: !!currentUser,
+    initialDraftId: resumeDraft?.id || null,
+  });
 
   useEffect(()=>{
     if (post) {
@@ -507,11 +516,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     if(!replyBody.trim())return; setSubmitting(true);
     sendEvent?.(`post:${postId}`,"typing_stop",{});
     try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
-      if(d.reply&&d.pending){setReplyBody("");toast("Your reply is pending moderator approval");}
+      if(d.reply&&d.pending){setReplyBody("");await clearDraft();toast("Your reply is pending moderator approval");}
       else if(d.reply){
-        // Add optimistically but dedup against WS event which will also arrive
         setReplies(p=>p.some(r=>r.id===d.reply.id)?p:[...p,d.reply]);
         setReplyBody("");
+        await clearDraft();
         setPost(p=>({...p,reply_count:(p.reply_count||0)+1}));
       }
       else toast(d.error||"Failed","err"); }
@@ -992,8 +1001,14 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>}
           <div className="desk-composer" style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} toolbarItems={TB_BTNS}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});if(v.trim())saveDraft({body:v});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} toolbarItems={TB_BTNS}/>
               <div className="reply-box-foot">
+                {draftLastSaved && (
+                  <span style={{fontSize:11, color:"var(--t5)", display:"flex", alignItems:"center", gap:4}}>
+                    <i className="fa-solid fa-cloud-arrow-up" style={{fontSize:10, color:"var(--green)"}}/>
+                    Draft saved
+                  </span>
+                )}
                 <button className="btn-primary" style={{marginLeft:"auto",fontSize:13,padding:"7px 20px"}} onClick={submitReply} disabled={submitting||!replyBody.trim()}>{submitting?"…":"Reply"}</button>
               </div>
             </div>
