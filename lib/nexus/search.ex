@@ -202,7 +202,8 @@ defmodule Nexus.Search do
   end
   defp attach_post_highlights(posts, tsquery) do
     ids = Enum.map(posts, & &1.id)
-    headlines =
+
+    body_headlines =
       Repo.all(
         from p in Post,
           where: p.id in ^ids,
@@ -211,7 +212,22 @@ defmodule Nexus.Search do
             p.body, ^tsquery
           )}
       ) |> Map.new()
-    Enum.map(posts, fn p -> Map.put(p, :highlight, Map.get(headlines, p.id, trim_body(p.body))) end)
+
+    title_headlines =
+      Repo.all(
+        from p in Post,
+          where: p.id in ^ids,
+          select: {p.id, fragment(
+            "ts_headline('english', ?, to_tsquery('english', ?), 'HighlightAll=true')",
+            p.title, ^tsquery
+          )}
+      ) |> Map.new()
+
+    Enum.map(posts, fn p ->
+      p
+      |> Map.put(:highlight, Map.get(body_headlines, p.id, trim_body(p.body)))
+      |> Map.put(:title_highlight, Map.get(title_headlines, p.id))
+    end)
   end
 
   defp attach_reply_highlights(replies, nil) do

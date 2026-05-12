@@ -441,12 +441,15 @@ window.NexusExtensions = {
   //     label:     "Recent Games",          // shown in Layout admin drag list
   //     component: MyWidget,               // React component, receives ({ navigate, currentUser })
   //     priority:  50,                     // lower = higher up (optional, default 50)
+  //     pages:     ["ext-route:gamepedia"], // optional — restrict to specific pages.
+  //                                        // Format: "page" or "ext-route:patternPrefix"
+  //                                        // Omit to show on all pages (default behaviour).
   //   });
   //
   // The widget appears in the right panel and in the Layout admin drag-to-reorder list.
-  registerRightWidget({ id, label, component, priority=50 }) {
+  registerRightWidget({ id, label, component, priority=50, pages=null }) {
     this._rightWidgets = this._rightWidgets.filter(w => w.id !== id);
-    this._rightWidgets.push({ id, label, component, priority, _ext: true });
+    this._rightWidgets.push({ id, label, component, priority, pages, _ext: true });
     this._rightWidgets.sort((a, b) => (a.priority||50) - (b.priority||50));
     this._rightWidgetListeners.forEach(fn => fn());
   },
@@ -2548,8 +2551,19 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
     <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
       {widgets.map(function(w){
         if(widgetMap[w.id]) return widgetMap[w.id];
-        // Extension-registered widget — render its component inside the standard rw card
+        // Extension-registered widget — render only if it matches the current page
         if(w._ext && w.component) {
+          // If the widget declares page restrictions, check them
+          if(w.pages && w.pages.length > 0) {
+            const matches = w.pages.some(function(p) {
+              if(p.startsWith("ext-route:")) {
+                const prefix = p.slice("ext-route:".length);
+                return page === "ext-route" && pageProps?._match?.pattern?.includes(prefix);
+              }
+              return p === page;
+            });
+            if(!matches) return null;
+          }
           return (
             <div className="rw" key={w.id}>
               <div className="rw-label">{w.label.toLowerCase()}</div>

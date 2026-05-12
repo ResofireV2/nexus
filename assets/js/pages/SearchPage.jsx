@@ -235,7 +235,11 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                     <RsAv user={p.user} size={34} color={userColor(p.user)}/>
                     <div className="thread-body">
                       <div className="thread-top">
-                        <div className="thread-title">{p.title}</div>
+                        <div className="thread-title">
+                          {p.title_highlight
+                            ? <Highlight text={p.title_highlight}/>
+                            : p.title}
+                        </div>
                         {p.space && (
                           <div className="thread-tag" style={{background:`${col}20`, color:col}}>
                             {p.space.name}

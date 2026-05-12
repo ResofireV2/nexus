@@ -38,6 +38,7 @@ defmodule NexusWeb.API.V1.SearchController do
     %{
       id:             post.id,
       title:          post.title,
+      title_highlight: Map.get(post, :title_highlight),
       body:           excerpt(post.body),
       highlight:      Map.get(post, :highlight),
       type:           post.type,
