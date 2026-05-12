@@ -94,13 +94,17 @@ function hydrateXEmbeds(root) {
     const id = node.getAttribute("data-tweet-id");
     const url = `https://publish.twitter.com/oembed?url=https://twitter.com/x/status/${id}&omit_script=true&dnt=true`;
     fetch(url)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error("unavailable");
+        return r.json();
+      })
       .then(data => {
-        node.innerHTML = data.html || "";
+        if (!data.html) throw new Error("empty");
+        node.innerHTML = data.html;
         if (window.twttr && window.twttr.widgets) window.twttr.widgets.load(node);
       })
       .catch(() => {
-        node.innerHTML = `<a href="https://twitter.com/i/web/status/${id}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:14px;font-size:13px;color:var(--t3);text-decoration:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> View on X</a>`;
+        node.innerHTML = `<a href="https://x.com/i/status/${id}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:14px;font-size:13px;color:var(--t3);text-decoration:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> View post on X</a>`;
       });
   });
 }
