@@ -1,7 +1,9 @@
-defmodule Nexus.Repo.Migrations.CreateLinkPreviews do
+defmodule Nexus.Repo.Migrations.FixLinkPreviewsPrimaryKey do
   use Ecto.Migration
 
   def change do
+    drop_if_exists table(:link_previews)
+
     create table(:link_previews, primary_key: false) do
       add :id,           :binary_id, primary_key: true
       add :url,          :text,   null: false
