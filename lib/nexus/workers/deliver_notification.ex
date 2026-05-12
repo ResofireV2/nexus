@@ -34,8 +34,8 @@ defmodule Nexus.Workers.DeliverNotification do
             n.user_id  == ^user_id and
             n.actor_id == ^actor_id and
             n.type     == ^type and
-            n.post_id  == ^post_id and
-            n.reply_id == ^reply_id,
+            fragment("? IS NOT DISTINCT FROM ?", n.post_id,  ^post_id) and
+            fragment("? IS NOT DISTINCT FROM ?", n.reply_id, ^reply_id),
           limit: 1
       )
 
