@@ -749,7 +749,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               })}
             </div>
             <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:20}}>
-              <button onClick={()=>setPinModal(false)} style={{fontSize:13,padding:"7px 16px"}}>Cancel</button>
+              <button onClick={()=>setPinModal(false)} style={{fontSize:13,padding:"7px 16px",background:"var(--bg2)",color:"var(--t3)",border:"0.5px solid var(--b2)"}}>Cancel</button>
               {post.pinned&&(
                 <button onClick={submitUnpin} style={{fontSize:13,padding:"7px 16px",background:"rgba(248,113,113,0.1)",color:"var(--red)",border:"0.5px solid var(--red)"}}>
                   <i className="fa-solid fa-thumbtack" style={{fontSize:12,marginRight:5}}/>Unpin
