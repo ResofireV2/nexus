@@ -46,6 +46,7 @@ function AppearanceTab() {
   </>);
 }
 
+
 function SettingsPage({currentUser, onUpdate, navigate}) {
   const [tab,setTab]=useState("profile");
   const [profile,setProfile]=useState({username:currentUser?.username||"",bio:currentUser?.bio||""});
@@ -324,14 +325,14 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                   <div style={{fontSize:11,color:"var(--t5)"}}>{row.desc}</div>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
-                  <Toggle value={notifPrefs[row.k]?.web} onClick={()=>toggleNotif(row.k,"web")}/>
+                  <Toggle on={notifPrefs[row.k]?.web} onClick={()=>toggleNotif(row.k,"web")}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
-                  <Toggle value={notifPrefs[row.k]?.email&&!emailLocked} onClick={()=>toggleNotif(row.k,"email")} disabled={emailLocked}/>
+                  <Toggle on={notifPrefs[row.k]?.email&&!emailLocked} onClick={()=>toggleNotif(row.k,"email")} disabled={emailLocked}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"center"}}>
                   {pushSubscribed
-                    ?<Toggle value={notifPrefs[row.k]?.push} onClick={()=>toggleNotif(row.k,"push")}/>
+                    ?<Toggle on={notifPrefs[row.k]?.push} onClick={()=>toggleNotif(row.k,"push")}/>
                     :<div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>off</div>}
                 </div>
               </div>
@@ -430,14 +431,15 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                     You'll be notified when others reply to threads you start.
                   </div>
                 </div>
-                <Toggle
-                  value={currentUser?.preferences?.auto_follow_own_posts!==false}
-                  onChange={()=>{
+                <div className="tgl"
+                  style={{background:(currentUser?.preferences?.auto_follow_own_posts!==false)?"var(--ac)":"rgba(255,255,255,0.1)"}}
+                  onClick={()=>{
                     const next={...currentUser?.preferences||{},auto_follow_own_posts:currentUser?.preferences?.auto_follow_own_posts===false?true:false};
                     api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
                     toast("Preference saved");
-                  }}
-                />
+                  }}>
+                  <div className="tgl-knob" style={{left:(currentUser?.preferences?.auto_follow_own_posts!==false)?23:3,background:"#fff"}}/>
+                </div>
               </div>
               <div className="toggle-row" style={{marginTop:16,marginBottom:0}}>
                 <div>
@@ -446,14 +448,15 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                     You'll be notified of further replies on any thread you engage with.
                   </div>
                 </div>
-                <Toggle
-                  value={currentUser?.preferences?.auto_follow_replied_posts!==false}
-                  onChange={()=>{
+                <div className="tgl"
+                  style={{background:(currentUser?.preferences?.auto_follow_replied_posts!==false)?"var(--ac)":"rgba(255,255,255,0.1)"}}
+                  onClick={()=>{
                     const next={...currentUser?.preferences||{},auto_follow_replied_posts:currentUser?.preferences?.auto_follow_replied_posts===false?true:false};
                     api.patch("/auth/me",{preferences:next}).then(d=>{if(d.user)onUpdate(d.user);});
                     toast("Preference saved");
-                  }}
-                />
+                  }}>
+                  <div className="tgl-knob" style={{left:(currentUser?.preferences?.auto_follow_replied_posts!==false)?23:3,background:"#fff"}}/>
+                </div>
               </div>
             </div>
 
@@ -480,8 +483,10 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           </>}
         </div>
       </div>
-
+    </div>
   );
 }
 
+
+// ── Exports ───────────────────────────────────────────────────────────────────
 export { AppearanceTab, SettingsPage };
