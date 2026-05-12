@@ -263,12 +263,14 @@ document.addEventListener("click", e => {
   if (!img) return;
   // Don't intercept YouTube lite embed thumbnails — let the yt handler take it
   if (img.closest(".yt-lite")) return;
+  // Don't intercept link preview card images — the wrapping <a> handles the click
+  if (img.closest(".md-link-preview")) return;
   e.preventDefault();
   e.stopPropagation();
   const originalSrc = img.getAttribute("data-original") || img.src;
   // Collect all images in the same .md-body for gallery mode
   const body = img.closest(".md-body");
-  const allImgs = body ? [...body.querySelectorAll("img:not(.yt-lite img)")] : [img];
+  const allImgs = body ? [...body.querySelectorAll("img:not(.yt-lite img):not(.md-link-preview img)")] : [img];
   const items = allImgs.map(i => ({ src: i.src, originalSrc: i.getAttribute("data-original") || i.src }));
   const startIdx = allImgs.indexOf(img);
   openFancybox(items, startIdx < 0 ? 0 : startIdx);
