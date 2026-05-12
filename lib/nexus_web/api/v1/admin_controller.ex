@@ -454,10 +454,13 @@ defmodule NexusWeb.API.V1.AdminController do
     case Nexus.Updates.check_for_update() do
       {:ok, result} ->
         json(conn, %{
-          current:    result.current,
-          latest:     result.latest,
-          up_to_date: result.up_to_date,
-          release:    result.release
+          ok:     true,
+          update: %{
+            current:    result.current,
+            latest:     result.latest,
+            up_to_date: result.up_to_date,
+            release:    result.release
+          }
         })
 
       {:error, reason} ->
