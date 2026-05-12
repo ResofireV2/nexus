@@ -86,6 +86,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
     wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
     api.post(`/threads/${threadId}/read`,{}).then(()=>{ onRead?.(); }).catch(()=>{});
+    api.post(`/notifications/mark-read-by-thread`, {thread_id: threadId}).catch(()=>{});
     // Fetch thread metadata to get name and image_url (covers refresh case where props are missing)
     api.get(`/threads/${threadId}`).then(d=>{
       if(d.thread){

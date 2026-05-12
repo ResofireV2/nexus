@@ -55,6 +55,31 @@ defmodule NexusWeb.API.V1.NotificationController do
     json(conn, %{ok: true})
   end
 
+  # POST /api/v1/notifications/mark-read-by-thread
+  # Marks all unread DM notifications for a given thread as read.
+  # Called when the user opens a DM thread.
+  def mark_read_by_thread(conn, %{"thread_id" => thread_id}) do
+    user_id    = conn.assigns.current_user.id
+    now        = DateTime.utc_now() |> DateTime.truncate(:second)
+    thread_str = to_string(thread_id)
+
+    from(n in Nexus.Notifications.Notification,
+      where: n.user_id == ^user_id and n.read == false and n.type == "dm" and
+             fragment("(?->>'thread_id') = ?", n.data, ^thread_str)
+    )
+    |> Repo.update_all(set: [read: true, read_at: now])
+
+    count = Nexus.Notifications.unread_count(user_id)
+
+    Phoenix.PubSub.broadcast(
+      Nexus.PubSub,
+      "notifications:#{user_id}",
+      {:unread_count, count}
+    )
+
+    json(conn, %{ok: true})
+  end
+
   # POST /api/v1/notifications/mark-read-by-post
   # Silently marks all unread notifications for a given post as read.
   # Called when the user navigates to a post regardless of how they got there.
