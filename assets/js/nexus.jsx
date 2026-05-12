@@ -2797,11 +2797,11 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           if (event === "new_post" && topic === "feed:global") onNewPostRef.current?.(payload);
           if (event === "link_preview_ready" && topic === "feed:global") onLinkPreviewReady(payload?.url);
           if (event === "new_notification" && topic === `notifications:${userId}`) {
-            if (payload?.type === "dm") onNewMsgRef.current?.();
             // Dispatch to NotificationsPage if it's open
             window.dispatchEvent(new CustomEvent("nexus:notification", {detail: payload}));
             // Don't increment here — the backend pushes a real unread_count
             // immediately after, which corrects the badge to the actual DB count.
+            // DM badge is handled separately by the new_message event below.
           }
           if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCountRef.current?.(payload?.count||0);
           // Retry failed channel joins (rejected at join time)
@@ -2822,6 +2822,8 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           if (event === "new_message" && (topic.startsWith("dm:") || topic === `notifications:${userId}`)) {
             const threadId = payload?.thread_id ?? topic.split(":")[1];
             window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: String(threadId), message: payload}}));
+            // Poll the real unread thread count rather than blind-incrementing
+            api.get("/threads/unread").then(d=>setMsgCount(d.unread||0)).catch(()=>{});
           }
           // DM typing
           if ((event === "typing_start" || event === "typing_stop") && topic.startsWith("dm:")) {
