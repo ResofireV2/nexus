@@ -90,6 +90,88 @@ document.addEventListener("click", e => {
   yt.appendChild(iframe);
 });
 
+// ── CompositionTracker ────────────────────────────────────────────────────────
+// Attached to a textarea or contenteditable element when the composer mounts.
+// Records typing cadence, keystrokes, and paste events. Call snapshot() on
+// submit to get the metadata object sent alongside the post/reply body.
+class CompositionTracker {
+  constructor(el) {
+    this._el = el;
+    this._openedAt = Date.now();
+    this._activeMs = 0;
+    this._activeStart = null;
+    this._keystrokes = 0;
+    this._firstKeystroke = null;
+    this._pasteEvents = [];
+    this._focusCount = 0;
+    this._hasFocus = false;
+    this._visible = document.visibilityState !== "hidden";
+
+    this._onFocus     = () => { this._hasFocus = true;  this._focusCount++; this._startActive(); };
+    this._onBlur      = () => { this._hasFocus = false; this._pauseActive(); };
+    this._onKeydown   = (e) => {
+      if (["Shift","Control","Alt","Meta","CapsLock","Tab"].includes(e.key)) return;
+      this._keystrokes++;
+      if (!this._firstKeystroke) this._firstKeystroke = Date.now();
+    };
+    this._onPaste     = (e) => {
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      this._pasteEvents.push({ at: Date.now(), chars: text.length });
+    };
+    this._onVisibility = () => {
+      this._visible = document.visibilityState !== "hidden";
+      this._visible ? this._startActive() : this._pauseActive();
+    };
+
+    el.addEventListener("focus",     this._onFocus);
+    el.addEventListener("blur",      this._onBlur);
+    el.addEventListener("keydown",   this._onKeydown);
+    el.addEventListener("paste",     this._onPaste);
+    document.addEventListener("visibilitychange", this._onVisibility);
+  }
+
+  _startActive() {
+    if (this._hasFocus && this._visible && !this._activeStart) {
+      this._activeStart = Date.now();
+    }
+  }
+
+  _pauseActive() {
+    if (this._activeStart) {
+      this._activeMs += Date.now() - this._activeStart;
+      this._activeStart = null;
+    }
+  }
+
+  snapshot() {
+    const now = Date.now();
+    let activeMs = this._activeMs;
+    if (this._activeStart) activeMs += now - this._activeStart;
+    return {
+      schemaVersion:    1,
+      composerOpenedAt: this._openedAt,
+      submittedAt:      now,
+      activeMs,
+      keystrokeCount:   this._keystrokes,
+      firstKeystrokeAt: this._firstKeystroke,
+      pasteEvents:      [...this._pasteEvents],
+      focusGainedCount: this._focusCount,
+      finalCharCount:   (this._el.value !== undefined)
+                          ? this._el.value.length
+                          : (this._el.textContent || "").length,
+    };
+  }
+
+  destroy() {
+    this._pauseActive();
+    this._el.removeEventListener("focus",     this._onFocus);
+    this._el.removeEventListener("blur",      this._onBlur);
+    this._el.removeEventListener("keydown",   this._onKeydown);
+    this._el.removeEventListener("paste",     this._onPaste);
+    document.removeEventListener("visibilitychange", this._onVisibility);
+  }
+}
+
 // X / Twitter oEmbed — hydrate .md-x-embed placeholders using Twitter's oEmbed API
 function hydrateXEmbeds(root) {
   const nodes = (root || document).querySelectorAll(".md-x-embed[data-tweet-id]:not([data-loaded])");
@@ -128,6 +210,9 @@ const _xObserver = new MutationObserver(() => {
   if (document.querySelector(".md-x-embed[data-tweet-id]:not([data-loaded])")) { loadTwttrScript(); hydrateXEmbeds(); }
 });
 _xObserver.observe(document.body, { childList: true, subtree: true });
+
+// Expose CompositionTracker so page components can instantiate it
+window.CompositionTracker = CompositionTracker;
 // useLightbox is kept as a no-op for compatibility — Fancybox 5 handles everything
 let _lbSetState = null;
 function useLightbox() {

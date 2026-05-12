@@ -302,6 +302,12 @@ defmodule NexusWeb.API.V1.AdminController do
         if post do
           {:ok, updated} = post |> Ecto.Changeset.change(pending_approval: false) |> Repo.update()
           NexusWeb.FeedChannel.broadcast_new_post(updated)
+          # If this was a composition hold, log the approval to the audit log
+          Task.start(fn ->
+            if Nexus.Repo.exists?(from v in Nexus.AntiSpam.CompositionVerdict, where: v.post_id == ^post.id) do
+              Nexus.Moderation.log_spam_outcome(conn.assigns.current_user.id, post.id, post.user_id, :approved)
+            end
+          end)
           json(conn, %{ok: true})
         else
           conn |> put_status(:not_found) |> json(%{error: "Not found"})
@@ -310,6 +316,11 @@ defmodule NexusWeb.API.V1.AdminController do
         reply = Repo.get(Nexus.Forum.Reply, id)
         if reply do
           {:ok, _} = reply |> Ecto.Changeset.change(pending_approval: false) |> Repo.update()
+          Task.start(fn ->
+            if Nexus.Repo.exists?(from v in Nexus.AntiSpam.CompositionVerdict, where: v.reply_id == ^reply.id) do
+              Nexus.Moderation.log_spam_outcome(conn.assigns.current_user.id, reply.post_id, reply.user_id, :approved)
+            end
+          end)
           json(conn, %{ok: true})
         else
           conn |> put_status(:not_found) |> json(%{error: "Not found"})
@@ -320,14 +331,29 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # DELETE /api/v1/admin/pending/:type/:id
   def reject_pending(conn, %{"type" => type, "id" => id}) do
+    import Ecto.Query
     alias Nexus.Repo
     case type do
       "post"  ->
         post = Repo.get(Nexus.Forum.Post, id)
-        if post, do: Repo.delete(post)
+        if post do
+          Task.start(fn ->
+            if Nexus.Repo.exists?(from v in Nexus.AntiSpam.CompositionVerdict, where: v.post_id == ^post.id) do
+              Nexus.Moderation.log_spam_outcome(conn.assigns.current_user.id, post.id, post.user_id, :rejected)
+            end
+          end)
+          Repo.delete(post)
+        end
       "reply" ->
         reply = Repo.get(Nexus.Forum.Reply, id)
-        if reply, do: Repo.delete(reply)
+        if reply do
+          Task.start(fn ->
+            if Nexus.Repo.exists?(from v in Nexus.AntiSpam.CompositionVerdict, where: v.reply_id == ^reply.id) do
+              Nexus.Moderation.log_spam_outcome(conn.assigns.current_user.id, reply.post_id, reply.user_id, :rejected)
+            end
+          end)
+          Repo.delete(reply)
+        end
       _ -> nil
     end
     json(conn, %{ok: true})
@@ -456,6 +482,13 @@ defmodule NexusWeb.API.V1.AdminController do
       _ -> default
     end
   end
+
+  # GET /api/v1/admin/composition-stats
+  def composition_stats(conn, _params) do
+    stats = Nexus.AntiSpam.CompositionAnalyser.stats()
+    json(conn, %{stats: stats})
+  end
+
   def check_update(conn, _params) do
     case Nexus.Updates.check_for_update() do
       {:ok, result} ->

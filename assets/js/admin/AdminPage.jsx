@@ -1023,13 +1023,41 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             <div className="fgt" style={{marginTop:16}}>Audit log</div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
               {modLogs.length===0?<div style={{padding:"16px 14px",color:"var(--t5)",fontSize:13}}>No actions yet</div>
-                :modLogs.slice(0,20).map(l=>(
-                  <div key={l.id} style={{display:"flex",alignItems:"baseline",gap:10,padding:"9px 14px",borderBottom:"0.5px solid var(--b1)"}}>
-                    <div style={{fontSize:11,color:"var(--t5)",minWidth:70}}>{ago(l.inserted_at)}</div>
-                    <div style={{fontSize:12,color:"var(--ac-text)",minWidth:90}}>{l.moderator?.username}</div>
-                    <div style={{fontSize:12,color:"var(--t3)",flex:1}}>{l.action}{l.reason&&` — ${l.reason}`}</div>
-                  </div>
-                ))}
+                :modLogs.slice(0,20).map(l=>{
+                  const HOLD_REASON_LABELS = {
+                    implausibly_fast:   "typed implausibly fast",
+                    no_keystrokes:      "no keystrokes detected",
+                    dominated_by_paste: "content dominated by paste",
+                    metadata_missing:   "no composition metadata",
+                  };
+                  const ACTION_LABELS = {
+                    post_hold:          {text:"Post held by spam filter",   color:"var(--amber)"},
+                    post_hold_logged:   {text:"Post flagged (report-only)", color:"var(--t4)"},
+                    post_hold_approved: {text:"Held post approved",         color:"var(--green)"},
+                    post_hold_rejected: {text:"Held post rejected",         color:"var(--red)"},
+                  };
+                  const isHoldAction = l.action in ACTION_LABELS;
+                  const holdMeta = ACTION_LABELS[l.action];
+                  return (
+                    <div key={l.id} style={{display:"flex",alignItems:"baseline",gap:10,padding:"9px 14px",borderBottom:"0.5px solid var(--b1)"}}>
+                      <div style={{fontSize:11,color:"var(--t5)",minWidth:70}}>{ago(l.inserted_at)}</div>
+                      <div style={{fontSize:12,color:"var(--ac-text)",minWidth:90}}>
+                        {isHoldAction ? (l.moderator?.username||"system") : l.moderator?.username}
+                      </div>
+                      <div style={{fontSize:12,flex:1}}>
+                        {isHoldAction
+                          ? <><span style={{color:holdMeta.color}}>{holdMeta.text}</span>
+                              {l.reason && HOLD_REASON_LABELS[l.reason] &&
+                                <span style={{color:"var(--t5)"}}> — {HOLD_REASON_LABELS[l.reason]}</span>}
+                              {l.target_user && <span style={{color:"var(--t4)"}}> · {l.target_user.username}</span>}
+                            </>
+                          : <span style={{color:"var(--t3)"}}>{l.action}{l.reason&&` — ${l.reason}`}</span>
+                        }
+                      </div>
+                    </div>
+                  );
+                })
+              }
             </div>
           </>}
 

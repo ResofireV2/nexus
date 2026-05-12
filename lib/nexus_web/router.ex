@@ -329,6 +329,7 @@ defmodule NexusWeb.Router do
     # Updates
     get    "/updates/check",           AdminController,  :check_update
     post   "/updates/apply",           AdminController,  :apply_update
+    get    "/composition-stats",       AdminController,  :composition_stats
   end
 
   # Public slot endpoint

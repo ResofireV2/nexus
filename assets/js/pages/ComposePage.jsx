@@ -40,6 +40,15 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const typeDdRef=useRef(); const spaceDdRef=useRef();
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const selectedSpace=spaces.find(s=>String(s.id)===String(spaceId));
+
+  // Attach composition tracker to the textarea once it mounts
+  useEffect(()=>{
+    const el = document.querySelector(".comp-ta");
+    if (el && window.CompositionTracker) {
+      window._composeTracker = new window.CompositionTracker(el);
+    }
+    return () => { window._composeTracker?.destroy(); window._composeTracker = null; };
+  }, []);
   const TYPE_OPTS=[{v:"discussion",label:"Discussion",icon:"fa-comments"},{v:"question",label:"Question",icon:"fa-circle-question"}];
   const selectedType=TYPE_OPTS.find(t=>t.v===postType)||TYPE_OPTS[0];
 
@@ -73,7 +82,8 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
     if(!title.trim()){toast("Title required","err");return;}
     if(!spaceId){toast("Select a space","err");return;}
     setLoading(true);
-    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
+    const compositionSignals = window._composeTracker ? window._composeTracker.snapshot() : null;
+    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags,compositionSignals});
       if(d.post&&d.pending){await clearDraft();toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
         await clearDraft();

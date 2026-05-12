@@ -33,8 +33,39 @@ defmodule NexusWeb.API.V1.ReplyController do
         post ->
           pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
+          # Composition spam check
+          composition_signals = params["compositionSignals"]
+          content = params["body"] || ""
+          {pending, composition_result} =
+            case Nexus.AntiSpam.CompositionAnalyser.check(user, content, composition_signals) do
+              {:hold, verdict, details} -> {true,  {:held, verdict, details}}
+              {:log,  verdict, details} -> {pending, {:logged, verdict, details}}
+              :pass                     -> {pending, :pass}
+            end
+
           case Forum.create_reply(post, Map.put(params, "pending_approval", pending), user) do
             {:ok, reply} ->
+              # Record verdict for composition holds
+              case composition_result do
+                {:held, verdict, details} ->
+                  Task.start(fn ->
+                    Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                      post_id: post.id, reply_id: reply.id, user_id: user.id,
+                      verdict: verdict, details: details, report_only: false
+                    })
+                    Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, false)
+                  end)
+                {:logged, verdict, details} ->
+                  Task.start(fn ->
+                    Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                      post_id: post.id, reply_id: reply.id, user_id: user.id,
+                      verdict: verdict, details: details, report_only: true
+                    })
+                    Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, true)
+                  end)
+                :pass -> :ok
+              end
+
               if pending do
                 conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
               else

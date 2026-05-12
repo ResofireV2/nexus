@@ -536,10 +536,21 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     }
   },[replies.length, scrollToReply, lastReadReplyId]);
 
+  // Attach composition tracker when the reply textarea becomes visible
+  useEffect(()=>{
+    const el = document.querySelector(".comp-ta");
+    if (el && window.CompositionTracker) {
+      window._replyTracker?.destroy();
+      window._replyTracker = new window.CompositionTracker(el);
+    }
+    return () => { window._replyTracker?.destroy(); window._replyTracker = null; };
+  }, []);
+
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
     sendEvent?.(`post:${postId}`,"typing_stop",{});
-    try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
+    const compositionSignals = window._replyTracker ? window._replyTracker.snapshot() : null;
+    try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody,compositionSignals});
       if(d.reply&&d.pending){setReplyBody("");await clearDraft();toast("Your reply is pending moderator approval");}
       else if(d.reply){
         if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(d.reply.body));

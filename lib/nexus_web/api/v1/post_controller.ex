@@ -33,8 +33,39 @@ defmodule NexusWeb.API.V1.PostController do
       # Determine if post needs approval
       pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
+      # Composition spam check — may upgrade pending to true even if user can normally post
+      composition_signals = params["compositionSignals"]
+      content = params["body"] || ""
+      {pending, composition_result} =
+        case Nexus.AntiSpam.CompositionAnalyser.check(user, content, composition_signals) do
+          {:hold, verdict, details} -> {true,  {:held, verdict, details}}
+          {:log,  verdict, details} -> {pending, {:logged, verdict, details}}
+          :pass                     -> {pending, :pass}
+        end
+
       case Forum.create_post(Map.put(params, "pending_approval", pending), user, tag_ids) do
         {:ok, post} ->
+          # Record verdict and audit log entry for composition holds
+          case composition_result do
+            {:held, verdict, details} ->
+              Task.start(fn ->
+                Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                  post_id: post.id, user_id: user.id,
+                  verdict: verdict, details: details, report_only: false
+                })
+                Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, false)
+              end)
+            {:logged, verdict, details} ->
+              Task.start(fn ->
+                Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                  post_id: post.id, user_id: user.id,
+                  verdict: verdict, details: details, report_only: true
+                })
+                Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, true)
+              end)
+            :pass -> :ok
+          end
+
           if pending do
             conn |> put_status(:created) |> json(%{post: post_json(post), pending: true, message: "Your post is pending approval"})
           else

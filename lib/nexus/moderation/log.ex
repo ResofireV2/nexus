@@ -4,7 +4,8 @@ defmodule Nexus.Moderation.Log do
 
   @actions ~w(ban unban mute unmute suspend unsuspend
               space_restrict space_unrestrict
-              post_hide post_delete reply_hide reply_delete)
+              post_hide post_delete reply_hide reply_delete
+              post_hold post_hold_logged post_hold_approved post_hold_rejected)
 
   schema "moderation_logs" do
     field :action,   :string

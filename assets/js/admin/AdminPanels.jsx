@@ -32,10 +32,14 @@ function AdminIntegrationsPanel({cfg, setCfg}) {
 function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
   const [tab, setTab]         = useState("settings");
   const [blocked, setBlocked] = useState(null);
+  const [compStats, setCompStats] = useState(null);
 
   useEffect(() => {
     if (tab === "log" && blocked === null) {
       api.get("/admin/blocked-registrations").then(d => setBlocked(d.blocked || []));
+    }
+    if (tab === "composition" && compStats === null) {
+      api.get("/admin/composition-stats").then(d => setCompStats(d.stats || {})).catch(()=>setCompStats({}));
     }
   }, [tab]);
 
@@ -46,13 +50,30 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
     border: active ? "0.5px solid var(--ac)" : "0.5px solid transparent",
   });
 
+  const numInput = (key, def, opts={}) => (
+    <input type="number" value={spamCfg[key]??def}
+      onChange={e=>setSpamCfg(p=>({...p,[key]:parseFloat(e.target.value)||def}))}
+      style={{width:opts.wide?110:80,padding:"5px 10px",background:"var(--s2)",
+        border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",fontSize:13,outline:"none"}}
+      {...opts.extra}/>
+  );
+
+  const VERDICT_LABELS = {
+    implausibly_fast:   "Implausibly fast",
+    no_keystrokes:      "No keystrokes",
+    dominated_by_paste: "Dominated by paste",
+    metadata_missing:   "No metadata",
+  };
+
   return (
     <div>
       <div style={{display:"flex",gap:8,marginBottom:24}}>
-        <button style={tabStyle(tab==="settings")} onClick={()=>setTab("settings")}>Settings</button>
-        <button style={tabStyle(tab==="log")} onClick={()=>setTab("log")}>Blocked registrations</button>
+        <button style={tabStyle(tab==="settings")}     onClick={()=>setTab("settings")}>Settings</button>
+        <button style={tabStyle(tab==="composition")}  onClick={()=>setTab("composition")}>Composition analysis</button>
+        <button style={tabStyle(tab==="log")}          onClick={()=>setTab("log")}>Blocked registrations</button>
       </div>
 
+      {/* ── Settings tab ── */}
       {tab==="settings"&&<>
         <div className="fgt">StopForumSpam</div>
         <Toggle label="Enable SFS check at registration" hint="Checks IP, email and username against StopForumSpam.org on every registration. Fails open — if SFS is unreachable, registration proceeds normally." value={!!spamCfg.sfs_enabled} onChange={v=>setSpamCfg(p=>({...p,sfs_enabled:v}))}/>
@@ -77,6 +98,92 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
         </div>
       </>}
 
+      {/* ── Composition analysis tab ── */}
+      {tab==="composition"&&<>
+        <div className="fgt">Detection</div>
+        <Toggle label="Enable composition analysis"
+          hint="Analyses how posts are written — typing speed, keystrokes, paste events — to detect automated submissions. New users only; established members are exempt."
+          value={!!spamCfg.composition_enabled}
+          onChange={v=>setSpamCfg(p=>({...p,composition_enabled:v}))}/>
+        <Toggle label="Report-only mode"
+          hint="Log verdicts to the audit log but do not hold posts for approval. Use this when first enabling to check for false positives before enforcing."
+          value={!!spamCfg.composition_report_only}
+          onChange={v=>setSpamCfg(p=>({...p,composition_report_only:v}))}/>
+
+        <div className="fgt" style={{marginTop:16}}>Graduation — who is screened</div>
+        <div style={{fontSize:13,color:"var(--t4)",marginBottom:12,lineHeight:1.6}}>
+          A user graduates out of screening once <em>both</em> thresholds are met.
+          Admins and moderators are never screened.
+        </div>
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:4}}>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Approved posts required
+            {numInput("composition_approved_threshold", 5)}
+            <span style={{fontSize:11,color:"var(--t5)"}}>Posts that passed approval</span>
+          </label>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Minimum account age (days)
+            {numInput("composition_min_account_age_days", 3)}
+            <span style={{fontSize:11,color:"var(--t5)"}}>Days since registration</span>
+          </label>
+        </div>
+
+        <div className="fgt" style={{marginTop:16}}>Detection thresholds</div>
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:4}}>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Max typing speed (chars/sec)
+            {numInput("composition_velocity_cps", 10, {extra:{step:"0.5"}})}
+            <span style={{fontSize:11,color:"var(--t5)"}}>Hold if faster than this</span>
+          </label>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Min length for velocity check
+            {numInput("composition_min_len_velocity", 100)}
+            <span style={{fontSize:11,color:"var(--t5)"}}>Characters</span>
+          </label>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Max paste ratio (0.0 – 1.0)
+            {numInput("composition_paste_ratio", 0.8, {extra:{step:"0.05",min:"0",max:"1"}})}
+            <span style={{fontSize:11,color:"var(--t5)"}}>Hold if pasted chars exceed this fraction</span>
+          </label>
+          <label style={{fontSize:12,color:"var(--t3)",display:"flex",flexDirection:"column",gap:4}}>
+            Min length for paste check
+            {numInput("composition_min_len_paste", 150)}
+            <span style={{fontSize:11,color:"var(--t5)"}}>Characters</span>
+          </label>
+        </div>
+
+        <div style={{marginTop:12}}>
+          <Toggle label="Hold posts with no metadata"
+            hint="Posts submitted with no composition signals (API clients, bots with JS disabled) are held for approval. Off by default to avoid blocking legitimate API use."
+            value={!!spamCfg.composition_hold_missing}
+            onChange={v=>setSpamCfg(p=>({...p,composition_hold_missing:v}))}/>
+        </div>
+
+        {/* Stats block */}
+        <div className="fgt" style={{marginTop:20}}>Activity</div>
+        {compStats===null
+          ? <div style={{fontSize:13,color:"var(--t5)"}}>Loading…</div>
+          : <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              {[
+                {label:"Total held",      val: compStats.total ?? 0},
+                {label:"Pending review",  val: compStats.pending ?? 0},
+              ].map(({label,val})=>(
+                <div key={label} style={{background:"var(--bg3)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"12px 18px",minWidth:110}}>
+                  <div style={{fontSize:22,fontWeight:600,color:"var(--t1)",letterSpacing:-0.5}}>{val}</div>
+                  <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{label}</div>
+                </div>
+              ))}
+              {Object.entries(compStats.by_verdict||{}).filter(([,n])=>n>0).map(([v,n])=>(
+                <div key={v} style={{background:"var(--bg3)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"12px 18px",minWidth:110}}>
+                  <div style={{fontSize:22,fontWeight:600,color:"var(--t1)",letterSpacing:-0.5}}>{n}</div>
+                  <div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>{VERDICT_LABELS[v]||v}</div>
+                </div>
+              ))}
+            </div>
+        }
+      </>}
+
+      {/* ── Blocked registrations tab ── */}
       {tab==="log"&&<>
         {blocked===null
           ? <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>

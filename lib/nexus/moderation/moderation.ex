@@ -231,6 +231,42 @@ defmodule Nexus.Moderation do
   # Moderation log
   # ---------------------------------------------------------------------------
 
+  @doc """
+  Write a spam hold event to the audit log.
+  Called by CompositionAnalyser when a post/reply is held or logged.
+  moderator_id is nil for system-generated holds (no human moderator involved).
+  """
+  def log_spam_hold(user_id, post_id, verdict, report_only) do
+    action = if report_only, do: "post_hold_logged", else: "post_hold"
+    %Log{}
+    |> Log.changeset(%{
+      action:         action,
+      moderator_id:   nil,
+      target_user_id: user_id,
+      post_id:        post_id,
+      reason:         verdict
+    })
+    |> Repo.insert()
+    :ok
+  end
+
+  @doc """
+  Write a spam hold approval or rejection event to the audit log.
+  Called when an admin approves or rejects a held post from the pending queue.
+  """
+  def log_spam_outcome(moderator_id, post_id, user_id, outcome) do
+    action = if outcome == :approved, do: "post_hold_approved", else: "post_hold_rejected"
+    %Log{}
+    |> Log.changeset(%{
+      action:         action,
+      moderator_id:   moderator_id,
+      target_user_id: user_id,
+      post_id:        post_id
+    })
+    |> Repo.insert()
+    :ok
+  end
+
   def list_logs(opts \\ []) do
     query = Log |> order_by([l], [desc: l.inserted_at]) |> preload([:moderator, :target_user])
 
