@@ -1,0 +1,337 @@
+import { useState, useEffect, useRef } from "react";
+import { api } from "../lib/api";
+import { ago, fmtDate, fmtBytes, userColor } from "../lib/utils";
+import { toast } from "../components/Toasts";
+import { RsAv, Av } from "../components/Avatar";
+import { Md } from "../components/Markdown";
+import { ReactionsModal } from "../components/Reactions";
+import { Select } from "../components/Select";
+
+const openFancybox = (...args) => window._openFancybox && window._openFancybox(...args);
+
+// ── ProfilePage ───────────────────────────────────────────────────────────────
+
+  );
+}
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+function ProfilePage({username, currentUser, navigate}) {
+  const [user,          setUser]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [tab,           setTab]           = useState("posts");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover,  setUploadingCover]  = useState(false);
+  const [coverExpanded,   setCoverExpanded]   = useState(false);
+  const [, forceUpdate] = React.useReducer(x => x+1, 0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onChange(() => forceUpdate());
+    return unsub;
+  }, []);
+
+  // Per-tab data — fetched lazily on first activation
+  const [posts,       setPosts]       = useState(null);
+  const [replies,     setReplies]     = useState(null);
+  const [reactions,   setReactions]   = useState(null);
+  const [media,       setMedia]       = useState(null);
+  const [mentions,    setMentions]    = useState(null);
+
+  // Per-tab loading state
+  const [tabLoading,  setTabLoading]  = useState({});
+
+  const isOwn  = currentUser?.username === username;
+  const isAdmin = currentUser?.role === "admin";
+
+  // Load user profile stats
+  useEffect(()=>{
+    setLoading(true);
+    setPosts(null); setReplies(null); setReactions(null); setMedia(null); setMentions(null);
+    setTab("posts");
+    api.get(`/users/${username}`).then(d=>{
+      setUser(d.user || {username});
+      setLoading(false);
+    }).catch(()=>{ setUser({username}); setLoading(false); });
+  },[username]);
+
+  // Lazy-load tab data on first activation
+  useEffect(()=>{
+    if(!user) return;
+
+    const load = async (key, fetcher) => {
+      setTabLoading(p=>({...p,[key]:true}));
+      try { const d = await fetcher(); return d; }
+      finally { setTabLoading(p=>({...p,[key]:false})); }
+    };
+
+    if(tab==="posts"     && posts     === null) load("posts",     ()=>api.get(`/feed?sort=latest&user=${encodeURIComponent(username)}`)).then(d=>setPosts(d.posts||[]));
+    if(tab==="replies"   && replies   === null) load("replies",   ()=>api.get(`/users/${username}/replies`)).then(d=>setReplies(d.replies||[]));
+    if(tab==="reactions" && reactions === null) load("reactions", ()=>api.get(`/users/${username}/reactions`)).then(d=>setReactions(d.reactions||[]));
+    if(tab==="media"     && media     === null) load("media",     ()=>api.get(`/users/${username}/uploads`)).then(d=>setMedia(d.uploads||[]));
+    if(tab==="mentions"  && mentions  === null) load("mentions",  ()=>api.get(`/users/${username}/mentions`)).then(d=>setMentions(d.mentions||[]));
+  },[tab, user, username]);
+
+  const col = userColor(user);
+
+  const handleAvatarUpload = async (file) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "avatar");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
+      const d = await r.json();
+      if (d.upload) { setUser(p=>({...p, avatar_url: d.url})); toast("Avatar updated"); }
+      else toast(d.error||"Upload failed", "err");
+    } finally { setUploadingAvatar(false); }
+  };
+
+  const handleCoverUpload = async (file) => {
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("type", "cover_image");
+      const token = localStorage.getItem("nexus_token");
+      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
+      const d = await r.json();
+      if (d.upload) { setUser(p=>({...p, cover_url: d.url})); toast("Cover updated"); }
+      else toast(d.error||"Upload failed", "err");
+    } finally { setUploadingCover(false); }
+  };
+
+  const startDM = async () => {
+    const d = await api.post("/threads/direct", {username});
+    if(d.thread) navigate("dm", {threadId:d.thread.id, threadName:username});
+    else toast(d.error||"Could not start conversation","err");
+  };
+
+  const statCards = [
+    {icon:"fa-pen-to-square", color:"#a78bfa", n: user?.post_count    ?? 0, label:"Posts"},
+    {icon:"fa-reply",         color:"#60a5fa", n: user?.reply_count   ?? 0, label:"Replies"},
+    {icon:"fa-heart",         color:"#f472b6", n: user?.reactions_received ?? 0, label:"Reactions received"},
+    {icon:"fa-heart-circle-plus", color:"#34d399", n: user?.reactions_given ?? 0, label:"Reactions given"},
+  ];
+
+  // Tabs — media only shown to owner or admin (or if media_public is on,
+  // but we don't have that setting client-side, so we show it and let the
+  // API return 403 if needed; we hide the tab for non-owners unless admin)
+  const extTabs = window.NexusExtensions.getSlot("profile_tab").map(({component}, i) => ({
+    id:        `ext_tab_${i}`,
+    label:     component.tabLabel || "More",
+    component: component,
+    isExt:     true,
+  }));
+
+  const tabs = [
+    {id:"posts",     label:"Posts"},
+    {id:"replies",   label:"Replies"},
+    {id:"reactions", label:"Reactions"},
+    ...(isOwn||isAdmin ? [{id:"media", label:"Media"}] : []),
+    {id:"mentions",  label:"Mentions"},
+    ...extTabs,
+  ];
+
+  const TabEmpty = ({msg}) => (
+    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>{msg}</div>
+  );
+
+  const TabSpinner = () => (
+    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>Loading…</div>
+  );
+
+  const PostCard = ({p}) => {
+    const pc = spaceColor(p.space||{id:p.id});
+    return (
+      <div className="thread" onClick={()=>navigate("post",{id:p.id})}>
+        <div className="thread-main">
+          <div className="thread-accent" style={{background:pc}}/>
+          <div style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
+          <div className="thread-body">
+            <div className="thread-top">
+              <div className="thread-title">{p.title}</div>
+              {p.space&&<div className="thread-tag" style={{background:`${pc}20`,color:pc}}>{p.space.name}</div>}
+            </div>
+            {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
+            <div className="participants-row"><span className="part-label">{p.reply_count} replies · {ago(p.inserted_at)}</span></div>
+          </div>
+          <div className="thread-meta">
+            <div className="meta-block"><div className="meta-n" style={{color:pc}}>{p.reaction_count||0}</div><div className="meta-l"><i className="fa-solid fa-thumbs-up" style={{fontSize:16}}/></div></div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ReplyCard = ({r}) => {
+    const pc = r.post ? spaceColor(r.post.space||{id:r.post.id}) : "var(--ac)";
+    return (
+      <div className="p-reply-card" onClick={()=>r.post&&navigate("post",{id:r.post.id})} style={{cursor:r.post?"pointer":"default"}}>
+        <div className="p-reply-body"><Md text={r.body}/></div>
+        <div className="p-reply-meta">
+          {r.post&&<><i className="fa-solid fa-arrow-right" style={{fontSize:9}}/><span style={{color:pc,fontWeight:500}}>{r.post.title}</span>{r.post.space&&<><span>·</span><span>{r.post.space.name}</span></>}</>}
+          <span style={{marginLeft:"auto"}}>{ago(r.inserted_at)}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{flex:1,overflowY:"auto"}}>
+        {/* Cover */}
+        <div className={`profile-cover${coverExpanded?" expanded":""}`}>
+          {user?.cover_url
+            ?<img src={user.cover_url} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} alt="cover"/>
+            :<svg viewBox="0 0 680 160" preserveAspectRatio="xMidYMid slice" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
+              <rect width="680" height="160" fill="#13121e"/>
+              {[0,40,80,120,160].map(y=><line key={y} x1="0" y1={y} x2="680" y2={y+160} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
+              {[0,80,160,240,320,400,480,560].map(x=><line key={x} x1={x} y1="0" x2={x+160} y2="160" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>)}
+              <circle cx="120" cy="60" r="60" fill="none" stroke={`${col}30`} strokeWidth="0.5"/>
+              <circle cx="480" cy="100" r="80" fill="none" stroke={`${col}20`} strokeWidth="0.5"/>
+            </svg>}
+          <div className="profile-cover-gradient"/>
+          {isOwn&&<label className="profile-cover-edit" style={{opacity:uploadingCover?.5:1}}>
+            <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleCoverUpload(e.target.files[0])}/>
+            {uploadingCover
+              ?<><i className="fa-solid fa-spinner fa-spin" style={{marginRight:5}}></i>Uploading…</>
+              :<><i className="fa-solid fa-camera" style={{marginRight:5}}></i>Edit cover</>}
+          </label>}
+          {user?.cover_url&&<div className="profile-cover-expand" onClick={()=>setCoverExpanded(p=>!p)}>
+            <i className={`fa-solid fa-${coverExpanded?"compress":"expand"}`} style={{fontSize:10}}></i>
+            {coverExpanded?"Collapse":"Expand"}
+          </div>}
+        </div>
+
+        {/* Info */}
+        <div className="profile-info-wrap">
+          <div className="profile-av-row">
+            <div style={{position:"relative",display:"inline-block"}}>
+              <RsAv user={user} size={96} noCard />
+              {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:"var(--av-radius)",background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
+                <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={e=>handleAvatarUpload(e.target.files[0])}/>
+                {uploadingAvatar
+                  ?<i className="fa-solid fa-spinner fa-spin" style={{color:"#fff",fontSize:16}}></i>
+                  :<i className="fa-solid fa-camera" style={{color:"#fff",fontSize:16,opacity:0,transition:"opacity .15s"}} ref={el=>{if(el){el.closest("label").onmouseenter=()=>el.style.opacity=1;el.closest("label").onmouseleave=()=>el.style.opacity=0;}}}></i>}
+              </label>}
+            </div>
+            {!isOwn&&<div style={{display:"flex",gap:8,marginBottom:4}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} onClick={startDM}>Message</button>
+            </div>}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+            <div className="profile-name">{username}</div>
+            {user?.role&&user.role!=="member"&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{user.role}</div>}
+          </div>
+          <div className="profile-handle">@{username?.toLowerCase()} · joined {fmtDate(user?.inserted_at)}</div>
+          {user?.bio&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,margin:"8px 0 12px",maxWidth:480}}>{user.bio}</div>}
+
+          {/* Stat cards */}
+          <div className="profile-stat-grid">
+            {statCards.map(c=>(
+              <div key={c.label} className="profile-stat-card">
+                <div className="psc-icon" style={{background:`${c.color}18`}}>
+                  <i className={`fa-solid ${c.icon}`} style={{color:c.color,fontSize:13}}/>
+                </div>
+                <div className="psc-n" style={{color:c.color}}>{Number(c.n).toLocaleString()}</div>
+                <div className="psc-l">{c.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* profile_sidebar slot — extension components rendered here */}
+        <ProfileSidebarSlot username={username} currentUser={currentUser} navigate={navigate}/>
+
+        {/* Tabs */}
+        <div className="profile-tabs">
+          {tabs.map(t=>(
+            <div key={t.id} className={`p-tab${tab===t.id?" active":""}`} onClick={()=>setTab(t.id)}>{t.label}</div>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div style={{padding:"0 28px"}}>
+
+          {/* Posts */}
+          {tab==="posts"&&(
+            tabLoading.posts ? <TabSpinner/>
+            : !posts ? null
+            : posts.length===0 ? <TabEmpty msg="No posts yet"/>
+            : posts.map(p=><PostCard key={p.id} p={p}/>)
+          )}
+
+          {/* Replies */}
+          {tab==="replies"&&(
+            tabLoading.replies ? <TabSpinner/>
+            : !replies ? null
+            : replies.length===0 ? <TabEmpty msg="No replies yet"/>
+            : replies.map(r=><ReplyCard key={r.id} r={r}/>)
+          )}
+
+          {/* Reactions */}
+          {tab==="reactions"&&(
+            tabLoading.reactions ? <TabSpinner/>
+            : !reactions ? null
+            : reactions.length===0 ? <TabEmpty msg="No reactions yet"/>
+            : reactions.map(({emoji, reacted_at, post})=>(
+                <div key={post.id} style={{position:"relative"}}>
+                  <div style={{position:"absolute",top:18,left:0,fontSize:16,zIndex:1,userSelect:"none"}}>{emoji}</div>
+                  <div style={{paddingLeft:28}}>
+                    <PostCard p={post}/>
+                  </div>
+                </div>
+              ))
+          )}
+
+          {/* Media */}
+          {tab==="media"&&(
+            tabLoading.media ? <TabSpinner/>
+            : !media ? null
+            : media.length===0 ? <TabEmpty msg="No media uploaded yet"/>
+            : <div className="p-media-grid">
+                {media.map((u,i)=>(
+                  <div key={u.id} style={{aspectRatio:"1",overflow:"hidden",borderRadius:8,background:"var(--s2)",cursor:"zoom-in"}}
+                    onClick={()=>{
+                      const items = media.map(m=>({ src: m.url, originalSrc: m.original_url||m.url }));
+                      openFancybox(items, i);
+                    }}>
+                    <img src={u.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                      onError={e=>e.target.style.display="none"}/>
+                  </div>
+                ))}
+              </div>
+          )}
+
+          {/* Mentions */}
+          {tab==="mentions"&&(
+            tabLoading.mentions ? <TabSpinner/>
+            : !mentions ? null
+            : mentions.length===0 ? <TabEmpty msg={`No mentions of @${username} found`}/>
+            : mentions.map((item,i)=>(
+                item.type==="post"
+                  ? <PostCard key={`post-${item.post.id}`} p={item.post}/>
+                  : <ReplyCard key={`reply-${item.reply.id}`} r={item.reply}/>
+              ))
+          )}
+
+          {/* Extension profile tabs */}
+          {extTabs.map(t => tab===t.id
+            ? <t.component key={t.id} username={username} currentUser={currentUser} navigate={navigate} userId={user?.id} user_id={user?.id}/>
+            : null
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Extension route page ──────────────────────────────────────────────────────
+// Generic wrapper rendered when the SPA lands on an extension-registered route.
+// Extensions call:
+//   window.NexusExtensions.registerRoute("/my-ext/users/:username", MyPage, { title: "My Page" });
+// MyPage receives ({ navigate, currentUser, ...params }) where params are the
+// named segments extracted from the URL (e.g. { username: "alice" }).
+
+
+export { ProfilePage };
