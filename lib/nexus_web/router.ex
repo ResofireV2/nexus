@@ -174,7 +174,9 @@ defmodule NexusWeb.Router do
     # Notifications
     get  "/notifications",          NotificationController, :index
     get  "/notifications/unread",   NotificationController, :unread
-    post "/notifications/read-all", NotificationController, :mark_all_read
+    post "/notifications/read-all",     NotificationController, :mark_all_read
+    post "/notifications/extension",         NotificationController, :create_extension
+    post "/notifications/mark-read-by-post", NotificationController, :mark_read_by_post
     patch "/notifications/:id/read", NotificationController, :mark_read
     delete "/notifications/:id",    NotificationController, :delete
     delete "/notifications",        NotificationController, :delete_all

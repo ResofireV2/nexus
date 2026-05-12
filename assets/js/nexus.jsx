@@ -3259,6 +3259,16 @@ function App() {
     return () => clearInterval(interval);
   },[currentUser]);
 
+  // Update document.title with unread notification count
+  useEffect(()=>{
+    const base = (appBranding?.site_name || "Nexus") + " · Nexus";
+    if(notifCount > 0) {
+      document.title = `(${notifCount > 99 ? "99+" : notifCount}) ${base}`;
+    } else {
+      document.title = base;
+    }
+  },[notifCount, appBranding]);
+
   useEffect(()=>{const fn=()=>{updateCurrentUser(null);setPage("feed");};window.addEventListener("nexus:logout",fn);return ()=>window.removeEventListener("nexus:logout",fn);},[]);
 
   const logout=()=>{api.post("/auth/logout",{});api.setToken(null);updateCurrentUser(null);window.history.pushState({},"","/");navigate("feed");};

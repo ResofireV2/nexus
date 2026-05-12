@@ -481,6 +481,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           api.get(`/posts/${postId}/follow`).then(d=>{
             if(d.followed !== undefined) setPostFollowed(d.followed);
           }).catch(()=>{}); // silently ignore until endpoint exists
+
+          // Mark any unread notifications for this post as read —
+          // the user is reading the content, no need to notify them again.
+          api.post(`/notifications/mark-read-by-post`, {post_id: postId}).catch(()=>{});
         }
       }
       finally { setLoading(false); }

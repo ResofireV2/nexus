@@ -1,7 +1,9 @@
 defmodule NexusWeb.API.V1.NotificationController do
   use NexusWeb, :controller
 
+  import Ecto.Query
   alias Nexus.Notifications
+  alias Nexus.Repo
 
   # GET /api/v1/notifications
   def index(conn, params) do
@@ -52,17 +54,69 @@ defmodule NexusWeb.API.V1.NotificationController do
     json(conn, %{ok: true})
   end
 
+  # POST /api/v1/notifications/mark-read-by-post
+  # Silently marks all unread notifications for a given post as read.
+  # Called when the user navigates to a post regardless of how they got there.
+  def mark_read_by_post(conn, %{"post_id" => post_id}) do
+    user_id = conn.assigns.current_user.id
+    now     = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(n in Nexus.Notifications.Notification,
+      where: n.user_id == ^user_id and n.post_id == ^post_id and n.read == false
+    )
+    |> Nexus.Repo.update_all(set: [read: true, read_at: now])
+
+    count = Nexus.Notifications.unread_count(user_id)
+
+    Phoenix.PubSub.broadcast(
+      Nexus.PubSub,
+      "notifications:#{user_id}",
+      {:unread_count, count}
+    )
+
+    json(conn, %{ok: true})
+  end
+  # Called by extension JS bundles to notify a specific user.
+  # The caller must supply target_user_id and a type string.
+  def create_extension(conn, params) do
+    actor    = conn.assigns.current_user
+    user_id  = params["target_user_id"]
+    type     = params["type"]
+    data     = params["data"] || %{}
+    post_id  = params["post_id"]
+    reply_id = params["reply_id"]
+
+    cond do
+      is_nil(user_id) or is_nil(type) ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "target_user_id and type are required"})
+
+      String.length(type) > 64 ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "type must be 64 characters or fewer"})
+
+      true ->
+        Notifications.notify_extension(user_id, type,
+          actor_id: actor.id,
+          post_id:  post_id,
+          reply_id: reply_id,
+          data:     data
+        )
+        json(conn, %{ok: true})
+    end
+  end
+
   defp notification_json(n) do
     %{
-      id: n.id,
-      type: n.type,
-      read: n.read,
-      read_at: n.read_at,
-      data: n.data,
-      inserted_at: n.inserted_at,
-      actor: user_json(n.actor),
-      post_id: n.post_id,
-      reply_id: n.reply_id
+      id:           n.id,
+      type:         n.type,
+      read:         n.read,
+      read_at:      n.read_at,
+      data:         n.data,
+      group_count:  n.group_count || 1,
+      group_actors: n.group_actors || [],
+      inserted_at:  n.inserted_at,
+      actor:        user_json(n.actor),
+      post_id:      n.post_id,
+      reply_id:     n.reply_id
     }
   end
 

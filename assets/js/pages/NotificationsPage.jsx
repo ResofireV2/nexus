@@ -38,9 +38,9 @@ function NotificationsPage({navigate, onCountChange}) {
     setNotifs(p=>{const next=p.filter(n=>n.id!==id);updateCount(next);return next;});
     api.delete(`/notifications/${id}`).catch(()=>{});
   };
-  const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement",badge:"you earned a badge"};
-  const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal"};
-  const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)"};
+  const TYPE={reply:"replied to your post",mention:"mentioned you",reaction:"reacted to your post",dm:"sent you a message",announcement:"posted an announcement",badge:"you earned a badge",followed_post:"replied to a post you follow",extension:"sent a notification"};
+  const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal",followed_post:"fa-bookmark",extension:"fa-bell"};
+  const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)",followed_post:"var(--ac)",extension:"var(--ac)"};
 
   const getIcon      = n => window.NexusExtensions.getNotifType(n.type)?.icon      || ICON[n.type]      || "fa-bell";
   const getIconColor = n => window.NexusExtensions.getNotifType(n.type)?.iconColor || ICON_COLOR[n.type]|| "var(--ac)";
@@ -48,6 +48,16 @@ function NotificationsPage({navigate, onCountChange}) {
     const extType = window.NexusExtensions.getNotifType(n.type);
     if (extType?.renderBody) return extType.renderBody(n);
     if (n.type==="badge") return <><strong style={{color:"var(--t1)"}}>{n.data?.badge_name||"A badge"}</strong> <span style={{color:"var(--t3)"}}>was awarded to you</span></>;
+    if (n.type==="extension") {
+      const extBodyType = window.NexusExtensions.getNotifType(n.data?.ext_type);
+      if (extBodyType?.renderBody) return extBodyType.renderBody(n);
+      return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{n.data?.ext_type||"sent a notification"}</span></>;
+    }
+    const count = n.group_count || 1;
+    if (count > 1) {
+      const others = count - 1;
+      return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>and </span><strong style={{color:"var(--t1)"}}>{others} other{others===1?"":"s"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></>;
+    }
     return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></>;
   };
   const handleClick  = async n => {

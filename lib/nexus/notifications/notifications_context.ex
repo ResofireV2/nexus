@@ -107,10 +107,6 @@ defmodule Nexus.Notifications do
     notify_mentions(reply.body, actor, post_id: post.id, reply_id: reply.id)
   end
 
-  def notify_mentions_in_post(post, actor) do
-    notify_mentions(post.body, actor, post_id: post.id)
-  end
-
   @doc """
   Notify a specific post follower that a new reply was posted on a post they follow.
   """
@@ -187,7 +183,6 @@ defmodule Nexus.Notifications do
               |> Map.merge(Map.new(source_ids))
 
             enqueue_notification(attrs)
-            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
           end
       end
     end
@@ -197,6 +192,26 @@ defmodule Nexus.Notifications do
     %{attrs: attrs}
     |> Nexus.Workers.DeliverNotification.new()
     |> Oban.insert()
+  end
+
+  @doc """
+  Send a notification from an extension. The `type` string identifies the
+  notification within the extension (e.g. "new_review"). It is stored in
+  data["ext_type"] and the DB record uses the generic "extension" type,
+  keeping the schema valid while allowing unlimited extension-defined types.
+  Extensions register a frontend handler via registerNotificationType().
+  """
+  def notify_extension(user_id, type, opts \\ []) do
+    attrs = %{
+      type:     "extension",
+      user_id:  user_id,
+      actor_id: Keyword.get(opts, :actor_id),
+      post_id:  Keyword.get(opts, :post_id),
+      reply_id: Keyword.get(opts, :reply_id),
+      data:     Map.merge(%{"ext_type" => type}, Keyword.get(opts, :data, %{}))
+    }
+
+    enqueue_notification(attrs)
   end
 
   # ---------------------------------------------------------------------------

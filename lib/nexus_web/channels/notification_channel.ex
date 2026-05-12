@@ -29,6 +29,11 @@ defmodule NexusWeb.NotificationChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:unread_count, count}, socket) do
+    push(socket, "unread_count", %{count: count})
+    {:noreply, socket}
+  end
+
   # Real-time DM message delivery via the stable per-user notification channel
   def handle_info({:new_dm_message, payload}, socket) do
     push(socket, "new_message", payload)

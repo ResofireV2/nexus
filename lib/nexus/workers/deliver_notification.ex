@@ -14,19 +14,81 @@ defmodule Nexus.Workers.DeliverNotification do
   alias Nexus.Notifications.Notification
   import Ecto.Query, only: [from: 2]
 
+  # Types that should be grouped (same type + same post = one notification row)
+  @groupable_types ~w(reaction reply followed_post)
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"attrs" => attrs}}) do
     # Atomize keys for Ecto
     attrs = for {k, v} <- attrs, into: %{}, do: {String.to_existing_atom(k), v}
 
-    # Idempotency guard — bind optional fields to variables first
-    # since ^Map.get() cannot be used directly inside a query macro.
     user_id  = attrs.user_id
     actor_id = attrs.actor_id
     type     = attrs.type
     post_id  = Map.get(attrs, :post_id)
     reply_id = Map.get(attrs, :reply_id)
 
+    if type in @groupable_types do
+      handle_groupable(attrs, user_id, actor_id, type, post_id, reply_id)
+    else
+      handle_unique(attrs, user_id, actor_id, type, post_id, reply_id)
+    end
+  end
+
+  # Group reactions/replies on the same post into a single notification row.
+  # Updates the existing unread row if found; otherwise creates a new one.
+  defp handle_groupable(attrs, user_id, actor_id, type, post_id, reply_id) do
+    existing =
+      Nexus.Repo.one(
+        from n in Notification,
+          where:
+            n.user_id == ^user_id and
+            n.type    == ^type    and
+            n.read    == false    and
+            fragment("? IS NOT DISTINCT FROM ?", n.post_id, ^post_id),
+          order_by: [desc: n.inserted_at],
+          limit: 1
+      )
+
+    case existing do
+      nil ->
+        # No existing unread group — create a fresh row
+        do_create(Map.put(attrs, :group_actors, [actor_id]))
+
+      notif ->
+        # Already have an unread group — add actor and increment count
+        # only if this actor isn't already in the group
+        new_actors =
+          if actor_id && actor_id not in (notif.group_actors || []) do
+            Enum.take([actor_id | (notif.group_actors || [])], 5)
+          else
+            notif.group_actors || []
+          end
+
+        # Exact duplicate (same actor, same type, same post) — skip silently
+        if actor_id in (notif.group_actors || []) and notif.group_count > 0 do
+          :ok
+        else
+          Nexus.Repo.update_all(
+            from(n in Notification, where: n.id == ^notif.id),
+            set: [
+              group_count:  notif.group_count + 1,
+              group_actors: new_actors,
+              inserted_at:  DateTime.utc_now() |> DateTime.truncate(:second)
+            ]
+          )
+          updated = Nexus.Repo.preload(
+            %{notif | group_count: notif.group_count + 1, group_actors: new_actors},
+            [:actor, :post, :reply]
+          )
+          broadcast_notification(updated)
+          :ok
+        end
+    end
+  end
+
+  # Non-groupable types — strict idempotency: skip if exact duplicate exists
+  defp handle_unique(attrs, user_id, actor_id, type, post_id, reply_id) do
     existing =
       Nexus.Repo.one(
         from n in Notification,
@@ -42,17 +104,21 @@ defmodule Nexus.Workers.DeliverNotification do
     if existing do
       :ok
     else
-      case Notifications.create_notification(attrs) do
-        {:ok, notification} ->
-          notification = Nexus.Repo.preload(notification, [:actor, :post, :reply])
-          broadcast_notification(notification)
-          maybe_send_push(notification)
-          maybe_send_email(notification)
-          :ok
+      do_create(attrs)
+    end
+  end
 
-        {:error, changeset} ->
-          {:error, changeset}
-      end
+  defp do_create(attrs) do
+    case Notifications.create_notification(attrs) do
+      {:ok, notification} ->
+        notification = Nexus.Repo.preload(notification, [:actor, :post, :reply])
+        broadcast_notification(notification)
+        maybe_send_push(notification)
+        maybe_send_email(notification)
+        :ok
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 
@@ -269,6 +335,12 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp push_content(%Notification{type: "announcement"}, site_name) do
     {"#{site_name}", "New announcement from the team", "/"}
+  end
+
+  defp push_content(%Notification{type: "extension", data: data}, site_name) do
+    label = get_in(data, ["push_body"]) || "You have a new notification"
+    url   = get_in(data, ["url"]) || "/"
+    {"#{site_name}", label, url}
   end
 
   defp push_content(_, site_name) do

@@ -138,8 +138,11 @@ defmodule NexusWeb.API.V1.PostController do
     # Enqueue score update for post author when pinned (not unpinned)
     if updated.pinned && post.user_id do
       %{"user_id" => post.user_id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
-      # Notify all users of this announcement (pinned post = announcement)
-      Task.start(fn -> Nexus.Notifications.notify_announcement(updated, actor) end)
+      # Notify all users of this announcement via a background fan-out worker
+      # so we never block the pin request on large user bases.
+      %{"post_id" => updated.id, "actor_id" => actor.id}
+      |> Nexus.Workers.FanOutAnnouncement.new()
+      |> Oban.insert()
     end
     json(conn, %{post: post_json(updated)})
   end
