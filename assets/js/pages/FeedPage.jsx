@@ -7,11 +7,8 @@ import { Md } from "../components/Markdown";
 import { Select } from "../components/Select";
 import { RichTextArea } from "../components/RichTextArea";
 
-const _brandingState     = () => (window._getBrandingState && window._getBrandingState()) || {};
-const onBrandingChange   = (fn) => window._onBrandingChange ? window._onBrandingChange(fn) : () => {};
-
-// ── FeedPage ──────────────────────────────────────────────────────────────────
-
+const _brandingState   = () => (window._getBrandingState && window._getBrandingState()) || {};
+const onBrandingChange = (fn) => window._onBrandingChange ? window._onBrandingChange(fn) : () => {};
 function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], onAuthRequired}) {
   const [sort,setSort]=useState(sortOverride||"latest");
   useEffect(()=>{setSort(sortOverride||"latest");},[sortOverride]);
@@ -154,7 +151,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           <div className="av-stack">
                             {/* OP avatar */}
                             <div className="av-tip" data-tip={p.user?.username||""}>
-                              <RsAv user={p.user} size={26} noCard />
+                              {p.user?.avatar_url
+                                ?<img src={p.user.avatar_url} style={{width:26,height:26,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",marginRight:-8,flexShrink:0}} alt={p.user.username}/>
+                                :<div className="pav" style={{background:userColor(p.user)}}>{(p.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                             </div>
                             {/* Recent participant avatars — up to 3, deduplicated against OP */}
                             {(p.recent_users||[])
@@ -162,7 +161,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                               .slice(0,3)
                               .map(u=>(
                                 <div key={u.id} className="av-tip" data-tip={u.username||""}>
-                                  <RsAv user={u} size={26} noCard />
+                                  {u.avatar_url
+                                    ?<img src={u.avatar_url} style={{width:26,height:26,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",marginRight:-8,flexShrink:0}} alt={u.username}/>
+                                    :<div className="pav" style={{background:userColor(u)}}>{(u.username||"?").slice(0,2).toUpperCase()}</div>}
                                 </div>
                               ))
                             }
@@ -188,7 +189,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                         <div className="thread-last">
                           {(()=>{
                             const lastUser = p.reply_count > 0 && p.last_reply_user ? p.last_reply_user : p.user;
-                            return <RsAv user={lastUser} size={26} noCard />;
+                            return lastUser?.avatar_url
+                              ? <img src={lastUser.avatar_url} style={{width:26,height:26,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)"}} alt={lastUser.username}/>
+                              : <div className="last-av" style={{background:userColor(lastUser)}}>{(lastUser?.username||"?").slice(0,2).toUpperCase()}</div>;
                           })()}
                           <div className="last-ago">{ago(p.last_reply_at||p.inserted_at)}</div>
                         </div>
@@ -242,7 +245,8 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
           </div>
       </div>
     </div>
-
+  );
 }
+
 
 export { FeedPage };

@@ -175,6 +175,7 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
       </div>
     </div>
 
+  );
 }
 
 export { ComposePage };

@@ -3,9 +3,6 @@ import { api } from "../lib/api";
 import { ago, userColor, spaceColor } from "../lib/utils";
 import { RsAv } from "../components/Avatar";
 import { Md } from "../components/Markdown";
-
-// ── SearchPage ────────────────────────────────────────────────────────────────
-
 function SearchPage({navigate, tags, initialQ=""}) {
   const [q,setQ]=useState(initialQ); const [results,setResults]=useState(null); const [loading,setLoading]=useState(false);
   const debounceRef=useRef();
@@ -82,7 +79,8 @@ function SearchPage({navigate, tags, initialQ=""}) {
         </>}
       </div>
     </div>
-
+  );
 }
+
 
 export { SearchPage };

@@ -61,6 +61,7 @@ function TagsPage({navigate, currentUser}) {
       </div>
     </div>
 
+  );
 }
 
 export { TagsPage };

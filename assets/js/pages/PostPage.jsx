@@ -7,9 +7,6 @@ import { Select } from "../components/Select";
 import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
 import { RichTextArea, TB_BTNS } from "../components/RichTextArea";
-
-// ── Post view ─────────────────────────────────────────────────────────────────
-
 function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
   var trackRef = useRef(null);
   var saveTimer = useRef(null);
@@ -166,7 +163,6 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
   );
 }
 
-// ── Edit History Modal ────────────────────────────────────────────────────────
 function lcs(a, b) {
   const m = a.length, n = b.length;
   const dp = Array.from({length:m+1}, ()=>new Array(n+1).fill(0));
@@ -356,7 +352,6 @@ function EditHistoryPairs({edits, postId, replyId}) {
   );
 }
 
-
 function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState("");
@@ -383,7 +378,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   useEffect(()=>{
     if (post) {
-      window._refDataMap[`#post-${post.id}`] = {
+      _refDataMap[`#post-${post.id}`] = {
         username: post.user?.username,
         avatar_url: post.user?.avatar_url,
         userId: post.user?.id,
@@ -392,7 +387,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
       };
     }
     replies.forEach(r => {
-      window._refDataMap[`#reply-${r.id}`] = {
+      _refDataMap[`#reply-${r.id}`] = {
         username: r.user?.username,
         avatar_url: r.user?.avatar_url,
         userId: r.user?.id,
@@ -863,7 +858,9 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               </div>}
               {r._historyOpen&&<EditHistoryModal replyId={{id:r.id,postId:postId}} editCount={r.edit_count||0} onClose={()=>setReplies(p=>p.map(x=>x.id===r.id?{...x,_historyOpen:false}:x))}/>}
               <div className="reply-meta">
-                <RsAv user={r.user} size={48} />
+                {r.user?.avatar_url
+                  ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
+                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff",marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 <span className="reply-time">{ago(r.inserted_at)}</span>
                 {currentUser&&!post.locked&&<span className="reply-quote-btn" onClick={()=>insertQuote(r.body.trim())}><i className="fa-solid fa-quote-left" style={{fontSize:9}}></i>quote</span>}
@@ -1028,14 +1025,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   );
 }
 
-
-
-// ── Extension slot components ─────────────────────────────────────────────────
-
-// ── Extension slot components ────────────────────────────────────────────────
-
-// Renders all components registered for the post_footer slot.
-// Re-renders whenever an extension bundle registers a new component.
 function PostFooterSlot({postId}) {
   const [, forceUpdate] = React.useReducer(x => x+1, 0);
   useEffect(() => {
@@ -1053,14 +1042,6 @@ function PostFooterSlot({postId}) {
   );
 }
 
-// Renders all components registered for the profile_sidebar slot.
-// Extensions register via:
-//   window.NexusExtensions.registerSlot("profile_sidebar", MyComponent, 50)
-// Each component receives { username, currentUser, navigate }.
-// Profile tabs — inject a tab into the user profile tab bar:
-//   window.NexusExtensions.registerSlot("profile_tab", MyPageComponent, 50)
-// MyPageComponent.tabLabel must be set (e.g. GamelogPage.tabLabel = "Gamelog").
-// The component receives { username, currentUser, navigate, userId }.
 function ProfileSidebarSlot({username, currentUser, navigate}) {
   const [, forceUpdate] = React.useReducer(x => x+1, 0);
   useEffect(() => {
@@ -1077,12 +1058,6 @@ function ProfileSidebarSlot({username, currentUser, navigate}) {
     </div>
   );
 }
-
-// ── Composer ──────────────────────────────────────────────────────────────────
-
-
-// ── Mobile scrubber components ────────────────────────────────────────────────
-// These live here because they're only used by PostPage's mobile view.
 
 function MobileScrubberBar({replies, scrollPct, displayIdx, onClick}) {
   return (
@@ -1113,12 +1088,14 @@ function MobileScrubberSheet({open, onClose, replies, scrollPct, displayIdx, onJ
         <span style={{fontSize:12,color:"var(--t4)"}}>{displayIdx+1} of {replies.length}</span>
       </div>
       <div style={{display:"flex",gap:16,padding:"0 20px 20px",alignItems:"stretch"}}>
+        {/* Vertical track */}
         <div ref={trackRef} onClick={handleTrack}
           style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200}}>
           <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:4,transform:"translateX(-50%)",background:"rgba(255,255,255,0.08)",borderRadius:2}}/>
           <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:scrollPct+"%",borderRadius:2,transition:"height .2s"}}/>
           <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:scrollPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)"}}/>
         </div>
+        {/* Reply list */}
         <div style={{flex:1,overflow:"auto",maxHeight:260}}>
           {replies.map(function(r,i){
             var isActive = i===displayIdx;
@@ -1140,7 +1117,7 @@ function MobileScrubberSheet({open, onClose, replies, scrollPct, displayIdx, onJ
   );
 }
 
-// ── Exports ───────────────────────────────────────────────────────────────────
+
 export { PostScrubber, PostPage, PostFooterSlot, ProfileSidebarSlot,
          EditHistoryModal, lcs, wordDiff, DiffView,
          MobileScrubberBar, MobileScrubberSheet };

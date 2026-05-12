@@ -134,6 +134,7 @@ function MembersPage({navigate, currentUser}) {
       </div>
     </div>
 
+  );
 }
 
 export { MemberCard, MembersPage };

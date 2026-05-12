@@ -4,9 +4,6 @@ import { ago } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { RsAv, Av } from "../components/Avatar";
 import { Md } from "../components/Markdown";
-
-// ── SavedPage ─────────────────────────────────────────────────────────────────
-
 function SavedPage({navigate, currentUser}) {
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,7 +72,9 @@ function SavedPage({navigate, currentUser}) {
             return (
               <div key={`reply-${r.id}`} className="p-reply-card" style={{padding:"14px 28px",cursor:"pointer",borderBottom:"0.5px solid var(--b1)"}} onClick={()=>r.post&&navigate("post",{id:r.post.id})}>
                 <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                  <Av user={r.user} size={28} />
+                  {r.user?.avatar_url
+                    ?<img src={r.user.avatar_url} style={{width:28,height:28,borderRadius:"var(--av-radius)",objectFit:"cover",flexShrink:0}} alt=""/>
+                    :<div style={{width:28,height:28,borderRadius:"var(--av-radius)",background:userColor(r.user),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:500,color:"#fff",flexShrink:0}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                   <div style={{flex:1,minWidth:0}}>
                     <div className="p-reply-body"><Md text={r.body}/></div>
                     <div className="p-reply-meta">
@@ -94,7 +93,8 @@ function SavedPage({navigate, currentUser}) {
         })}
       </div>
     </div>
-
+  );
 }
+
 
 export { SavedPage };

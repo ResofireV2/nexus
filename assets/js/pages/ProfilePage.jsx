@@ -8,9 +8,6 @@ import { ReactionsModal } from "../components/Reactions";
 import { Select } from "../components/Select";
 
 const openFancybox = (...args) => window._openFancybox && window._openFancybox(...args);
-
-// ── ProfilePage ───────────────────────────────────────────────────────────────
-
 function ProfilePage({username, currentUser, navigate}) {
   const [user,          setUser]          = useState(null);
   const [loading,       setLoading]       = useState(true);
@@ -200,7 +197,9 @@ function ProfilePage({username, currentUser, navigate}) {
         <div className="profile-info-wrap">
           <div className="profile-av-row">
             <div style={{position:"relative",display:"inline-block"}}>
-              <RsAv user={user} size={96} noCard />
+              {user?.avatar_url
+                ?<img src={user.avatar_url} style={{width:96,height:96,borderRadius:"var(--av-radius)",objectFit:"cover",border:"2px solid var(--bg)",display:"block"}} alt={username}/>
+                :<div className="profile-av-ring" style={{background:userColor(user)}}>{(username||"?").slice(0,2).toUpperCase()}</div>}
               {isOwn&&<label style={{position:"absolute",inset:0,borderRadius:"var(--av-radius)",background:"rgba(0,0,0,0)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(0,0,0,.45)"}
                 onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0)"}>
@@ -321,13 +320,6 @@ function ProfilePage({username, currentUser, navigate}) {
     </div>
   );
 }
-
-// ── Extension route page ──────────────────────────────────────────────────────
-// Generic wrapper rendered when the SPA lands on an extension-registered route.
-// Extensions call:
-//   window.NexusExtensions.registerRoute("/my-ext/users/:username", MyPage, { title: "My Page" });
-// MyPage receives ({ navigate, currentUser, ...params }) where params are the
-// named segments extracted from the URL (e.g. { username: "alice" }).
 
 
 export { ProfilePage };

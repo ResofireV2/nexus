@@ -481,6 +481,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
         </div>
       </div>
 
+  );
 }
 
 export { AppearanceTab, SettingsPage };
