@@ -8,6 +8,9 @@ import { ReactionsModal } from "../components/Reactions";
 import { Select } from "../components/Select";
 
 import { ProfileSidebarSlot } from "./PostPage";
+
+const openFancybox = (...args) => window._openFancybox && window._openFancybox(...args);
+
 function ProfilePage({username, currentUser, navigate}) {
   const [user,          setUser]          = useState(null);
   const [loading,       setLoading]       = useState(true);
