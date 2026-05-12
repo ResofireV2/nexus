@@ -95,6 +95,7 @@ function ModerationPage({currentUser, navigate}) {
   const [reports, setReports] = useState([]);
   const [hidden, setHidden] = useState([]);
   const [banned, setBanned] = useState([]);
+  const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const isMod = currentUser?.role === "moderator" || currentUser?.role === "admin";
@@ -106,6 +107,9 @@ function ModerationPage({currentUser, navigate}) {
       if (tab === "reports") {
         const d = await api.get(`/reports?status=${statusFilter}&sort=${sort}`);
         setReports(d.reports || []);
+      } else if (tab === "pending") {
+        const d = await api.get("/admin/pending");
+        setPending(d.pending || []);
       } else if (tab === "flagged") {
         const d = await api.get("/moderation/hidden");
         setHidden(d.items || []);
@@ -134,11 +138,19 @@ function ModerationPage({currentUser, navigate}) {
     toast(action === "remove" ? "Content removed" : "Report dismissed");
   };
 
+  const HOLD_LABELS = {
+    implausibly_fast:   {text:"Typed implausibly fast", color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
+    no_keystrokes:      {text:"No keystrokes detected",  color:"#f87171", bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.3)"},
+    dominated_by_paste: {text:"Dominated by paste",      color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
+    metadata_missing:   {text:"No composition metadata", color:"#94a3b8", bg:"rgba(148,163,184,0.1)", border:"rgba(148,163,184,0.3)"},
+  };
+
   const pendingCount = reports.filter(r => r.status === "pending").length;
   const tabs = [
-    {k:"reports",  icon:"fa-flag",              label:"reports",         badge:pendingCount, badgeColor:"red"},
-    {k:"flagged",  icon:"fa-triangle-exclamation", label:"flagged posts", badge:hidden.length, badgeColor:"amber"},
-    {k:"banned",   icon:"fa-user-slash",         label:"banned members", badge:null},
+    {k:"pending",  icon:"fa-clock",              label:"pending approval", badge:pending.length,  badgeColor:"amber"},
+    {k:"reports",  icon:"fa-flag",               label:"reports",          badge:pendingCount,    badgeColor:"red"},
+    {k:"flagged",  icon:"fa-triangle-exclamation", label:"flagged posts",  badge:hidden.length,   badgeColor:"amber"},
+    {k:"banned",   icon:"fa-user-slash",          label:"banned members",  badge:null},
   ];
 
   return (
@@ -173,6 +185,53 @@ function ModerationPage({currentUser, navigate}) {
 
       {/* Body */}
       <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+
+        {tab==="pending"&&<>
+          {loading
+            ? <div style={{color:"var(--t5)",fontSize:13,padding:"20px 0"}}>Loading…</div>
+            : pending.length===0
+              ? <div style={{textAlign:"center",padding:"40px 0",color:"var(--t5)",fontSize:13}}>
+                  <i className="fa-solid fa-check-circle" style={{fontSize:28,display:"block",marginBottom:10,opacity:0.3}}/>
+                  No content pending approval
+                </div>
+              : <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                  {pending.map(item=>{
+                    const hl = item.hold_reason && HOLD_LABELS[item.hold_reason.verdict];
+                    return (
+                      <div key={`${item.type}-${item.id}`} style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"flex-start",gap:12}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                            <span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{item.type}</span>
+                            <span style={{fontSize:12,color:"var(--t4)"}}>{item.user?.username}</span>
+                            <span style={{fontSize:11,color:"var(--t5)"}}>{ago(item.inserted_at)}</span>
+                            {hl && <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                              background:hl.bg, color:hl.color, border:`0.5px solid ${hl.border}`}}>
+                              {item.hold_reason.report_only ? "⚑ " : "⏸ "}{hl.text}
+                            </span>}
+                          </div>
+                          {item.title&&<div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:4}}>{item.title}</div>}
+                          <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.body?.slice(0,200)}</div>
+                        </div>
+                        <div style={{display:"flex",gap:8,flexShrink:0}}>
+                          <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--green)"}} onClick={async()=>{
+                            await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                            setPending(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
+                            toast("Approved");
+                          }}>Approve</button>
+                          <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--red)"}} onClick={async()=>{
+                            if(!confirm("Reject and delete this content?"))return;
+                            await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                            setPending(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
+                            toast("Rejected");
+                          }}>Reject</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+          }
+        </>}
+
         {tab==="reports"&&<>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
             {["pending","actioned","dismissed"].map(s=>(

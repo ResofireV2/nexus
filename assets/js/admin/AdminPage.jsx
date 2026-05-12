@@ -990,13 +990,25 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             {pendingItems.length===0
               ?<div style={{fontSize:13,color:"var(--t5)",padding:"12px 0",marginBottom:16}}>No content pending approval</div>
               :<div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:20}}>
-                {pendingItems.map(item=>(
+                {pendingItems.map(item=>{
+                  const HOLD_LABELS = {
+                    implausibly_fast:   {text:"Typed implausibly fast", color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
+                    no_keystrokes:      {text:"No keystrokes detected",  color:"#f87171", bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.3)"},
+                    dominated_by_paste: {text:"Dominated by paste",      color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
+                    metadata_missing:   {text:"No composition metadata", color:"#94a3b8", bg:"rgba(148,163,184,0.1)", border:"rgba(148,163,184,0.3)"},
+                  };
+                  const hl = item.hold_reason && HOLD_LABELS[item.hold_reason.verdict];
+                  return (
                   <div key={`${item.type}-${item.id}`} style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"flex-start",gap:12}}>
                     <div style={{flex:1}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
                         <span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{item.type}</span>
                         <span style={{fontSize:12,color:"var(--t4)"}}>{item.user?.username}</span>
                         <span style={{fontSize:11,color:"var(--t5)"}}>{ago(item.inserted_at)}</span>
+                        {hl && <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                          background:hl.bg, color:hl.color, border:`0.5px solid ${hl.border}`}}>
+                          {item.hold_reason.report_only ? "⚑ " : "⏸ "}{hl.text}
+                        </span>}
                       </div>
                       {item.title&&<div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:4}}>{item.title}</div>}
                       <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.5}}>{item.body?.slice(0,200)}</div>
@@ -1015,7 +1027,8 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                       }}>Reject</button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>}
             <div className="fgt">Content rules</div>
             <Toggle label="Auto-hide reported content" hint="Content with 3+ reports is automatically hidden pending review" value={!!general.auto_hide_reported} onChange={v=>setGeneral(p=>({...p,auto_hide_reported:v}))}/>

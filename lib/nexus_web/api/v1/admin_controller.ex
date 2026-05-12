@@ -263,6 +263,7 @@ defmodule NexusWeb.API.V1.AdminController do
     import Ecto.Query
     alias Nexus.Repo
     alias Nexus.Forum.{Post, Reply}
+    alias Nexus.AntiSpam.CompositionVerdict
 
     posts = Repo.all(
       from p in Post,
@@ -271,8 +272,11 @@ defmodule NexusWeb.API.V1.AdminController do
       preload: [user: u, space: :space_subscriptions],
       order_by: [asc: p.inserted_at]
     ) |> Enum.map(fn p ->
+      verdict = Repo.one(from v in CompositionVerdict,
+        where: v.post_id == ^p.id, order_by: [desc: v.inserted_at], limit: 1)
       %{id: p.id, type: "post", title: p.title, body: p.body,
         user: p.user && %{id: p.user.id, username: p.user.username},
+        hold_reason: verdict && %{verdict: verdict.verdict, report_only: verdict.report_only},
         inserted_at: p.inserted_at}
     end)
 
@@ -283,8 +287,11 @@ defmodule NexusWeb.API.V1.AdminController do
       preload: [user: u],
       order_by: [asc: r.inserted_at]
     ) |> Enum.map(fn r ->
+      verdict = Repo.one(from v in CompositionVerdict,
+        where: v.reply_id == ^r.id, order_by: [desc: v.inserted_at], limit: 1)
       %{id: r.id, type: "reply", body: r.body, post_id: r.post_id,
         user: r.user && %{id: r.user.id, username: r.user.username},
+        hold_reason: verdict && %{verdict: verdict.verdict, report_only: verdict.report_only},
         inserted_at: r.inserted_at}
     end)
 
