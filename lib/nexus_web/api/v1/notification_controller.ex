@@ -4,6 +4,7 @@ defmodule NexusWeb.API.V1.NotificationController do
   import Ecto.Query
   alias Nexus.Notifications
   alias Nexus.Repo
+  alias Nexus.Forum.Reply
 
   # GET /api/v1/notifications
   def index(conn, params) do
@@ -61,10 +62,22 @@ defmodule NexusWeb.API.V1.NotificationController do
     user_id = conn.assigns.current_user.id
     now     = DateTime.utc_now() |> DateTime.truncate(:second)
 
+    # Collect reply IDs that belong to this post so we can also mark
+    # notifications that have reply_id set but post_id nil (e.g. reply reactions)
+    reply_ids =
+      from(r in Nexus.Forum.Reply,
+        where: r.post_id == ^post_id,
+        select: r.id
+      )
+      |> Repo.all()
+
     from(n in Nexus.Notifications.Notification,
-      where: n.user_id == ^user_id and n.post_id == ^post_id and n.read == false
+      where: n.user_id == ^user_id and n.read == false and (
+        n.post_id == ^post_id or
+        (is_nil(n.post_id) and n.reply_id in ^reply_ids)
+      )
     )
-    |> Nexus.Repo.update_all(set: [read: true, read_at: now])
+    |> Repo.update_all(set: [read: true, read_at: now])
 
     count = Nexus.Notifications.unread_count(user_id)
 

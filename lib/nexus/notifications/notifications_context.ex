@@ -101,9 +101,20 @@ defmodule Nexus.Notifications do
   end
 
   def notify_reply(post, reply, actor) do
-    # No blanket "someone replied to your post" notification —
-    # post authors get notified via the follow system instead.
-    # Only notify @mentioned users.
+    # Notify the post author directly if they're not the one replying.
+    # This is separate from the follow system so authors always get notified
+    # regardless of their follow preferences.
+    if post.user_id && post.user_id != actor.id do
+      enqueue_notification(%{
+        type:     "reply",
+        user_id:  post.user_id,
+        actor_id: actor.id,
+        post_id:  post.id,
+        reply_id: reply.id
+      })
+    end
+
+    # Also notify @mentioned users
     notify_mentions(reply.body, actor, post_id: post.id, reply_id: reply.id)
   end
 
@@ -111,13 +122,17 @@ defmodule Nexus.Notifications do
   Notify a specific post follower that a new reply was posted on a post they follow.
   """
   def notify_followed_post_reply(post, reply, actor, follower_id) do
-    enqueue_notification(%{
-      type:     "followed_post",
-      user_id:  follower_id,
-      actor_id: actor.id,
-      post_id:  post.id,
-      reply_id: reply.id
-    })
+    # Skip the post author — they already receive a direct "reply" notification.
+    # Skip the actor — they don't need to be notified of their own reply.
+    if follower_id != actor.id && follower_id != post.user_id do
+      enqueue_notification(%{
+        type:     "followed_post",
+        user_id:  follower_id,
+        actor_id: actor.id,
+        post_id:  post.id,
+        reply_id: reply.id
+      })
+    end
   end
 
   @doc """
