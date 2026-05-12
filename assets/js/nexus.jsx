@@ -1223,6 +1223,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Search */
 .search-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
 .search-bar{display:flex;gap:10px;margin-bottom:20px;}
+@media(max-width:767.99px){.mob-only{display:flex!important;}}
 
 /* Markdown */
 .md-body{font-size:var(--fs-content);color:var(--t3);line-height:1.75;}
@@ -1645,6 +1646,7 @@ window._onBrandingChange = onBrandingChange;
 // panel. Admins can reorder them via the Layout admin panel.
 const EXPLORE_ITEMS = [
   {id:"everything",   label:"Everything",    icon:"fa-border-all"},
+  {id:"search",       label:"Search",        icon:"fa-magnifying-glass"},
   {id:"notifications",label:"Notifications", icon:"fa-bell",    authOnly:true},
   {id:"messages",     label:"Messages",      icon:"fa-message", authOnly:true},
   {id:"members",      label:"Members",       icon:"fa-users"},
@@ -1844,6 +1846,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 
           var exploreMap = {
             everything: <SbItem key="everything" icon="fa-border-all" label="Everything" targetPage="feed" targetProps={{}}/>,
+            search:     <SbItem key="search" icon="fa-magnifying-glass" label="Search" targetPage="search" targetProps={{}}/>,
             notifications: currentUser&&<SbItem key="notifications" icon="fa-bell" label="Notifications" targetPage="notifications" badge={notifCount}/>,
             messages:   currentUser&&<SbItem key="messages" icon="fa-message" label="Messages" targetPage="messages" badge={msgCount}/>,
             members:    <SbItem key="members" icon="fa-users" label="Members" targetPage="members"/>,
@@ -2158,7 +2161,242 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
   </>;
 }
 
-function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate, page, pageProps}) {
+// ── Search filter panel ───────────────────────────────────────────────────────
+// Renders in the right sidebar on the search page.
+// Communicates filter changes to SearchPage via a window custom event so the
+// two components don't need to be coupled through shared state.
+function SearchFilterPanel({spaces=[], tags=[], navigate}) {
+  const [kind,      setKind]      = useState("all");
+  const [sort,      setSort]      = useState("relevance");
+  const [space,     setSpace]     = useState("");
+  const [tag,       setTag]       = useState("");
+  const [author,    setAuthor]    = useState("");
+  const [authorObj, setAuthorObj] = useState(null); // selected user object
+  const [authorQ,   setAuthorQ]   = useState("");
+  const [authorRes, setAuthorRes] = useState([]);
+  const [authorSearching, setAuthorSearching] = useState(false);
+  const [dateFrom,  setDateFrom]  = useState("");
+  const [dateTo,    setDateTo]    = useState("");
+  const authorDebRef = useRef();
+  const authorInputRef = useRef();
+
+  const dispatch = (overrides={}) => {
+    const filters = {kind, sort, space, tag, author, date_from: dateFrom, date_to: dateTo, ...overrides};
+    window.dispatchEvent(new CustomEvent("nexus:search-filter", {detail: filters}));
+  };
+
+  const setAndDispatch = (key, val) => {
+    const updates = {[key]: val};
+    const state = {kind, sort, space, tag, author, date_from: dateFrom, date_to: dateTo, ...updates};
+    window.dispatchEvent(new CustomEvent("nexus:search-filter", {detail: state}));
+  };
+
+  const onKind  = v => { setKind(v);  setAndDispatch("kind", v);  };
+  const onSort  = v => { setSort(v);  setAndDispatch("sort", v);  };
+  const onSpace = v => { setSpace(v); setAndDispatch("space", v); };
+  const onTag   = v => { setTag(v);   setAndDispatch("tag", v);   };
+
+  const onDateFrom = e => {
+    setDateFrom(e.target.value);
+    dispatch({date_from: e.target.value});
+  };
+  const onDateTo = e => {
+    setDateTo(e.target.value);
+    dispatch({date_to: e.target.value});
+  };
+
+  const onAuthorInput = e => {
+    const val = e.target.value;
+    setAuthorQ(val);
+    clearTimeout(authorDebRef.current);
+    if (!val.trim()) { setAuthorRes([]); return; }
+    setAuthorSearching(true);
+    authorDebRef.current = setTimeout(async () => {
+      try {
+        const d = await api.get(`/users?q=${encodeURIComponent(val)}`);
+        setAuthorRes((d.members||[]).slice(0,6));
+      } finally { setAuthorSearching(false); }
+    }, 200);
+  };
+
+  const selectAuthor = user => {
+    setAuthorObj(user);
+    setAuthor(user.username);
+    setAuthorQ("");
+    setAuthorRes([]);
+    setAndDispatch("author", user.username);
+  };
+
+  const clearAuthor = () => {
+    setAuthorObj(null);
+    setAuthor("");
+    setAuthorQ("");
+    setAuthorRes([]);
+    setAndDispatch("author", "");
+  };
+
+  const clearAll = () => {
+    setKind("all"); setSort("relevance"); setSpace(""); setTag("");
+    setAuthor(""); setAuthorObj(null); setAuthorQ(""); setAuthorRes([]);
+    setDateFrom(""); setDateTo("");
+    window.dispatchEvent(new CustomEvent("nexus:search-filter", {detail: {
+      kind:"all", sort:"relevance", space:"", tag:"", author:"", date_from:"", date_to:""
+    }}));
+  };
+
+  const activeCount = [
+    kind !== "all", sort !== "relevance", !!space, !!tag, !!author, !!dateFrom, !!dateTo
+  ].filter(Boolean).length;
+
+  const FilterPills = ({options, value, onChange}) => (
+    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+      {options.map(({v,label}) => (
+        <button key={v} onClick={()=>onChange(v)} style={{
+          fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
+          fontFamily:"inherit", border:"0.5px solid",
+          borderColor: value===v ? "var(--ac-border)" : "var(--b2)",
+          background:  value===v ? "var(--ac-bg)"     : "transparent",
+          color:       value===v ? "var(--ac-text)"   : "var(--t4)",
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+
+  const FilterSection = ({label, children}) => (
+    <div className="rw">
+      <div className="rw-label">{label}</div>
+      {children}
+    </div>
+  );
+
+  return (
+    <>
+      {activeCount > 0 && (
+        <div style={{display:"flex",justifyContent:"flex-end"}}>
+          <button onClick={clearAll} className="btn-ghost" style={{fontSize:11,padding:"4px 10px",color:"var(--t4)"}}>
+            Clear all filters
+          </button>
+        </div>
+      )}
+
+      <FilterSection label="show">
+        <FilterPills
+          options={[{v:"all",label:"Both"},{v:"posts",label:"Threads"},{v:"replies",label:"Replies"}]}
+          value={kind} onChange={onKind}
+        />
+      </FilterSection>
+
+      <FilterSection label="sort">
+        <FilterPills
+          options={[{v:"relevance",label:"Relevance"},{v:"latest",label:"Latest"},{v:"top",label:"Top"}]}
+          value={sort} onChange={onSort}
+        />
+      </FilterSection>
+
+      {spaces.length > 0 && (
+        <FilterSection label="space">
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            <button onClick={()=>onSpace("")} style={{
+              fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
+              fontFamily:"inherit", border:"0.5px solid",
+              borderColor: !space ? "var(--ac-border)" : "var(--b2)",
+              background:  !space ? "var(--ac-bg)"     : "transparent",
+              color:       !space ? "var(--ac-text)"   : "var(--t4)",
+            }}>All</button>
+            {spaces.map(s => (
+              <button key={s.id} onClick={()=>onSpace(space===s.slug?"":s.slug)} style={{
+                fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
+                fontFamily:"inherit", border:"0.5px solid",
+                borderColor: space===s.slug ? "var(--ac-border)" : "var(--b2)",
+                background:  space===s.slug ? "var(--ac-bg)"     : "transparent",
+                color:       space===s.slug ? "var(--ac-text)"   : "var(--t4)",
+              }}>{s.name}</button>
+            ))}
+          </div>
+        </FilterSection>
+      )}
+
+      {tags.length > 0 && (
+        <FilterSection label="tag">
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            <button onClick={()=>onTag("")} style={{
+              fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
+              fontFamily:"inherit", border:"0.5px solid",
+              borderColor: !tag ? "var(--ac-border)" : "var(--b2)",
+              background:  !tag ? "var(--ac-bg)"     : "transparent",
+              color:       !tag ? "var(--ac-text)"   : "var(--t4)",
+            }}>All</button>
+            {tags.map(t => (
+              <button key={t.id} onClick={()=>onTag(tag===t.slug?"":t.slug)} style={{
+                fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
+                fontFamily:"inherit", border:"0.5px solid",
+                borderColor: tag===t.slug ? "var(--ac-border)" : "var(--b2)",
+                background:  tag===t.slug ? "var(--ac-bg)"     : "transparent",
+                color:       tag===t.slug ? "var(--ac-text)"   : "var(--t4)",
+              }}>#{t.name}</button>
+            ))}
+          </div>
+        </FilterSection>
+      )}
+
+      <FilterSection label="author">
+        {authorObj ? (
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--s3)",borderRadius:8,padding:"6px 10px"}}>
+            <RsAv user={authorObj} size={20} noCard/>
+            <span style={{fontSize:12,color:"var(--t1)",flex:1}}>{authorObj.username}</span>
+            <button onClick={clearAuthor} style={{background:"none",border:"none",color:"var(--t4)",cursor:"pointer",fontSize:12,padding:0}}>
+              <i className="fa-solid fa-xmark"/>
+            </button>
+          </div>
+        ) : (
+          <div style={{position:"relative"}}>
+            <input
+              ref={authorInputRef}
+              className="fi"
+              placeholder="Username…"
+              value={authorQ}
+              onChange={onAuthorInput}
+              style={{fontSize:12,padding:"6px 12px",width:"100%"}}
+            />
+            {authorSearching && (
+              <i className="fa-solid fa-spinner fa-spin" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",color:"var(--t5)",fontSize:11}}/>
+            )}
+            {authorRes.length > 0 && (
+              <div style={{border:"0.5px solid var(--b1)",borderRadius:8,overflow:"hidden",marginTop:4,background:"var(--s2)"}}>
+                {authorRes.map((u,i) => (
+                  <div key={u.id} onClick={()=>selectAuthor(u)} style={{
+                    display:"flex",alignItems:"center",gap:8,padding:"7px 10px",cursor:"pointer",
+                    borderBottom:i<authorRes.length-1?"0.5px solid var(--b1)":"none",
+                  }}
+                  onMouseEnter={e=>e.currentTarget.style.background="var(--s3)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <RsAv user={u} size={22} noCard/>
+                    <span style={{fontSize:12,color:"var(--t1)"}}>{u.username}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </FilterSection>
+
+      <FilterSection label="date range">
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <input
+            type="date" className="fi" value={dateFrom} onChange={onDateFrom}
+            style={{fontSize:12,padding:"6px 10px",width:"100%"}}
+          />
+          <input
+            type="date" className="fi" value={dateTo} onChange={onDateTo}
+            style={{fontSize:12,padding:"6px 10px",width:"100%"}}
+          />
+        </div>
+      </FilterSection>
+    </>
+  );
+}
+
+function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate, page, pageProps}) {
   const [stats, setStats] = useState({members:0, threads:0});
   const [myRank, setMyRank] = useState(null);
   const [, forceWidgetUpdate] = useState(0);
@@ -2252,6 +2490,15 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
         <BadgesPageSidebar currentUser={currentUser} navigate={navigate}/>
         {liveActivityWidget}
         {statsWidget}
+      </div>
+    );
+  }
+
+  // Search page gets a filter panel in the right sidebar
+  if(page === "search") {
+    return (
+      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
+        <SearchFilterPanel spaces={spaces} tags={tags} navigate={navigate}/>
       </div>
     );
   }
@@ -2970,7 +3217,7 @@ function App() {
       case "badges":      return <BadgesPage currentUser={currentUser} navigate={navigate}/>;
       case "leaderboard": return <LeaderboardPage currentUser={currentUser} navigate={navigate}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply} resumeDraft={pageProps.resumeDraft||null}/>;
-      case "search":      return <SearchPage navigate={navigate} tags={tags} initialQ={pageProps?.q||""}/>;
+      case "search":      return <SearchPage navigate={navigate} tags={tags} spaces={spaces} initialQ={pageProps?.q||""}/>;
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
       case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
@@ -2997,7 +3244,7 @@ function App() {
             <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
-            <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
+            <RightPanel spaces={spaces} tags={tags} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
           </div>
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
@@ -3012,7 +3259,7 @@ function App() {
             {renderPage()}
           </div>
         </div>
-        <RightPanel spaces={spaces} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
+        <RightPanel spaces={spaces} tags={tags} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
       </div>
       </div>
       {/* Lightbox handled by Fancybox 5 */}
