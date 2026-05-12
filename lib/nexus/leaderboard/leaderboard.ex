@@ -134,22 +134,22 @@ defmodule Nexus.Leaderboard do
       Repo.one(from u in User, where: u.id == ^user_id, select: u.current_streak) || 0
 
     streak_multiplier = min(
-      cfg["streak_cap"] || 3.0,
-      1.0 + (streak * (cfg["streak_multiplier"] || 0.1))
+      Map.get(cfg, "streak_cap", 3.0),
+      1.0 + (streak * Map.get(cfg, "streak_multiplier", 0.1))
     )
 
-    login_raw = stats.active_days * to_float(cfg["login_points"] || 1)
+    login_raw = stats.active_days * to_float(Map.get(cfg, "login_points", 1))
     login_score = round(login_raw * streak_multiplier)
 
     score =
-      round(stats.posts              * to_float(cfg["post_points"] || 1)) +
-      round(stats.replies            * to_float(cfg["reply_points"] || 1)) +
-      round(stats.reactions_given    * to_float(cfg["reaction_given_points"] || 1)) +
-      round(stats.reactions_received * to_float(cfg["reaction_received_points"] || 1)) +
+      round(stats.posts              * to_float(Map.get(cfg, "post_points",               1))) +
+      round(stats.replies            * to_float(Map.get(cfg, "reply_points",              1))) +
+      round(stats.reactions_given    * to_float(Map.get(cfg, "reaction_given_points",     1))) +
+      round(stats.reactions_received * to_float(Map.get(cfg, "reaction_received_points",  1))) +
       login_score +
-      (badge_count * to_int(cfg["badge_points"] || 5)) +
-      (pin_count   * to_int(cfg["pin_points"] || 3)) +
-      (mention_count * to_int(cfg["mention_received_points"] || 1))
+      (badge_count   * to_int(Map.get(cfg, "badge_points",           5))) +
+      (pin_count     * to_int(Map.get(cfg, "pin_points",             3))) +
+      (mention_count * to_int(Map.get(cfg, "mention_received_points", 1)))
 
     max(0, score)
   end
