@@ -2798,7 +2798,8 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           if (event === "link_preview_ready" && topic === "feed:global") onLinkPreviewReady(payload?.url);
           if (event === "new_notification" && topic === `notifications:${userId}`) {
             if (payload?.type === "dm") onNewMsgRef.current?.();
-            else onNewNotifRef.current?.();
+            // Don't increment here — the backend pushes a real unread_count
+            // immediately after, which corrects the badge to the actual DB count.
           }
           if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCountRef.current?.(payload?.count||0);
           // Retry failed channel joins (rejected at join time)

@@ -216,6 +216,15 @@ defmodule Nexus.Workers.DeliverNotification do
       "notifications:#{notification.user_id}",
       {:new_notification, payload}
     )
+
+    # Push the real unread count so the badge always reflects actual DB state
+    # rather than relying on blind client-side increments.
+    count = Nexus.Notifications.unread_count(notification.user_id)
+    Phoenix.PubSub.broadcast(
+      Nexus.PubSub,
+      "notifications:#{notification.user_id}",
+      {:unread_count, count}
+    )
   end
 
   defp notification_json(n) do
