@@ -92,7 +92,7 @@ function hydrateXEmbeds(root) {
   nodes.forEach(node => {
     node.setAttribute("data-loaded", "1");
     const id = node.getAttribute("data-tweet-id");
-    const url = `https://publish.twitter.com/oembed?url=https://twitter.com/i/web/status/${id}&omit_script=true&dnt=true`;
+    const url = `https://publish.twitter.com/oembed?url=https://twitter.com/x/status/${id}&omit_script=true&dnt=true`;
     fetch(url)
       .then(r => r.json())
       .then(data => {
