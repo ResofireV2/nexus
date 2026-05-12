@@ -1649,7 +1649,7 @@ function applyBranding(app={}, gen={}) {
   if (app.fs_title)   r.style.setProperty("--fs-title",   `${app.fs_title}px`);
   if (app.fs_content) r.style.setProperty("--fs-content", `${app.fs_content}px`);
   if (app.fs_code)    r.style.setProperty("--fs-code",    `${app.fs_code}px`);
-  if (gen.site_name) document.title = gen.site_name + " · Nexus";
+  if (gen.site_name) document.title = gen.site_name === "Nexus" ? "Nexus" : gen.site_name + " · Nexus";
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
     _cssEl.textContent = app.custom_css;
@@ -3261,7 +3261,8 @@ function App() {
 
   // Update document.title with unread notification count
   useEffect(()=>{
-    const base = (appBranding?.site_name || "Nexus") + " · Nexus";
+    const siteName = appBranding?.site_name || "Nexus";
+    const base = siteName === "Nexus" ? "Nexus" : siteName + " · Nexus";
     if(notifCount > 0) {
       document.title = `(${notifCount > 99 ? "99+" : notifCount}) ${base}`;
     } else {
