@@ -194,7 +194,8 @@ function DraftCard({ draft, onResume, onDelete, deleting }) {
 // - clearDraft()    — call after successful publish to delete the draft
 
 export function useDraftAutosave({ type, postId = null, enabled = true }) {
-  const [draftId, setDraftId] = useState(null);
+  const [draftId,   setDraftId]   = useState(null);
+  const [lastSaved, setLastSaved] = useState(null); // Date | null
   const debounceRef = useRef(null);
   const draftIdRef  = useRef(null);
 
@@ -210,13 +211,15 @@ export function useDraftAutosave({ type, postId = null, enabled = true }) {
       const payload = { type, post_id: postId, ...attrs };
       if (draftIdRef.current) {
         // Update existing draft
-        await api.patch(`/drafts/${draftIdRef.current}`, payload).catch(() => {});
+        const d = await api.patch(`/drafts/${draftIdRef.current}`, payload).catch(() => null);
+        if (d?.ok) setLastSaved(new Date());
       } else {
         // Create new draft
         const d = await api.post("/drafts", payload).catch(() => null);
         if (d?.ok && d.draft?.id) {
           setDraftId(d.draft.id);
           draftIdRef.current = d.draft.id;
+          setLastSaved(new Date());
         }
       }
     }, 2000); // 2 second debounce
@@ -228,10 +231,11 @@ export function useDraftAutosave({ type, postId = null, enabled = true }) {
       await api.delete(`/drafts/${draftIdRef.current}`).catch(() => {});
       setDraftId(null);
       draftIdRef.current = null;
+      setLastSaved(null);
     }
   }, []);
 
-  return { draftId, saveDraft, clearDraft };
+  return { draftId, lastSaved, saveDraft, clearDraft };
 }
 
 export { DraftsPage as default };

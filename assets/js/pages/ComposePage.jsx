@@ -28,7 +28,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const selectedType=TYPE_OPTS.find(t=>t.v===postType)||TYPE_OPTS[0];
 
   // Auto-save draft — resume existing draft if navigated from Drafts page
-  const { draftId, saveDraft, clearDraft } = useDraftAutosave({
+  const { draftId, lastSaved, saveDraft, clearDraft } = useDraftAutosave({
     type: "post",
     enabled: !!currentUser,
   });
@@ -193,6 +193,12 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
         )}
         <div className="comp-footer">
           <span className="comp-char">{body.length} characters</span>
+          {lastSaved && (
+            <span style={{fontSize:12, color:"var(--t5)", display:"flex", alignItems:"center", gap:5, marginLeft:12}}>
+              <i className="fa-solid fa-cloud-arrow-up" style={{fontSize:11, color:"var(--green)"}}/>
+              Draft saved
+            </span>
+          )}
           <button className="btn-primary" style={{marginLeft:"auto"}} onClick={submit} disabled={loading||!title.trim()}>{loading?"Publishing…":"Publish"}</button>
         </div>
       </div>
