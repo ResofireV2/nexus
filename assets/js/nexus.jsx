@@ -1486,6 +1486,20 @@ function applyTheme(mode, app={}) {
       r.style.setProperty("--bg","#0d0d14"); r.style.setProperty("--s1","#13121e"); r.style.setProperty("--s2","#18182a"); r.style.setProperty("--s3","#1e1c2e");
     }
   }
+
+  // Cache the final computed CSS vars so the early-theme script can restore
+  // them synchronously on the next page load — before React mounts.
+  const varsToCache = [
+    "--bg","--s1","--s2","--s3",
+    "--t1","--t2","--t3","--t4","--t5",
+    "--b1","--b2","--b3",
+    "--ac","--ac-on","--ac-bg","--ac-border","--ac-text",
+  ];
+  const cached = { theme: mode };
+  varsToCache.forEach(v => {
+    cached[v] = r.style.getPropertyValue(v) || getComputedStyle(r).getPropertyValue(v).trim();
+  });
+  try { localStorage.setItem("nexus_appearance_vars", JSON.stringify(cached)); } catch {}
 }
 
 // Resolve which theme to show based on user pref, admin default, and OS
@@ -1551,6 +1565,18 @@ function applyBranding(app={}, gen={}) {
   }
   const newBranding = {logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null, hero_title: gen.hero_title||null, hero_body: gen.hero_body||null, hero_enabled: gen.hero_enabled||false};
   try { localStorage.setItem("nexus_branding", JSON.stringify(newBranding)); } catch {}
+  // Cache non-color appearance settings so the early script can restore them
+  try {
+    localStorage.setItem("nexus_appearance_app", JSON.stringify({
+      avatar_radius: app.avatar_radius ?? 22,
+      fs_ui:      app.fs_ui      || null,
+      fs_body:    app.fs_body    || null,
+      fs_title:   app.fs_title   || null,
+      fs_content: app.fs_content || null,
+      fs_code:    app.fs_code    || null,
+      custom_css: app.custom_css || null,
+    }));
+  } catch {}
   setBrandingState(newBranding);
 }
 
