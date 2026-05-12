@@ -458,6 +458,40 @@ window.NexusExtensions = {
     return () => { this._rightWidgetListeners = this._rightWidgetListeners.filter(f => f !== fn); };
   },
 
+  // Register a custom right sidebar layout for a specific extension page or
+  // pattern of pages. When the user is on a matching route, RightPanel renders
+  // exactly the widget IDs supplied (in order) instead of the default layout.
+  // Core built-in widget IDs: "live_activity", "spaces_by_pulse", "stats".
+  // Extension widgets are referenced by their registered id.
+  //
+  // pattern: a string prefix matched against the current ext-route pattern.
+  //   "/ext/gamepedia/"  matches any Gamepedia route
+  //   "/ext/gamepedia/browse" matches only the browse page
+  //
+  // widgetIds: ordered array of widget IDs to render. Any ID not found in the
+  //   built-in or registered widget maps is silently skipped.
+  //
+  // Usage from extension bundle:
+  //   NE.registerPageSidebar("/ext/gamepedia/", [
+  //     "live_activity",
+  //     "gamepedia-most-discussed",
+  //     "gamepedia-most-gamelogd",
+  //     "gamepedia-genre-explorer",
+  //     "stats",
+  //     "gamepedia-now-playing",
+  //   ]);
+  registerPageSidebar(pattern, widgetIds) {
+    this._pageSidebars = this._pageSidebars || [];
+    this._pageSidebars = this._pageSidebars.filter(p => p.pattern !== pattern);
+    this._pageSidebars.push({ pattern, widgetIds });
+    this._rightWidgetListeners.forEach(fn => fn());
+  },
+
+  getPageSidebar(routePattern) {
+    if (!this._pageSidebars || !routePattern) return null;
+    return this._pageSidebars.find(p => routePattern.startsWith(p.pattern)) || null;
+  },
+
   // Register an action button in the user card popover and mobile user menu.
   // Extensions call this from their bundle:
   //
@@ -2218,6 +2252,30 @@ function RightPanel({spaces, liveEvents=[], layoutCfg={}, mobile=false, currentU
         <BadgesPageSidebar currentUser={currentUser} navigate={navigate}/>
         {liveActivityWidget}
         {statsWidget}
+      </div>
+    );
+  }
+
+  // Extension page sidebar — if the current ext-route has a registered page
+  // sidebar layout, render exactly that widget list in order.
+  const extRoutePattern = page === "ext-route" ? pageProps?._match?.pattern : null;
+  const pageSidebar = window.NexusExtensions.getPageSidebar(extRoutePattern);
+  if (pageSidebar) {
+    const allExtWidgets = window.NexusExtensions.getRightWidgets();
+    const builtinMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
+    return (
+      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
+        {pageSidebar.widgetIds.map(id => {
+          if (builtinMap[id]) return builtinMap[id];
+          const w = allExtWidgets.find(w => w.id === id);
+          if (!w) return null;
+          return (
+            <div className="rw" key={w.id}>
+              <div className="rw-label">{w.label.toLowerCase()}</div>
+              {React.createElement(w.component, { navigate, currentUser })}
+            </div>
+          );
+        })}
       </div>
     );
   }
