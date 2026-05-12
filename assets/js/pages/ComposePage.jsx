@@ -38,6 +38,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const [loading,setLoading]=useState(false);
   const [linkedGames,setLinkedGames]=useState([]);
   const typeDdRef=useRef(); const spaceDdRef=useRef();
+  const submittingRef=useRef(false); // true while submit is in flight — suppresses autosave
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const selectedSpace=spaces.find(s=>String(s.id)===String(spaceId));
 
@@ -76,11 +77,13 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   },[]);
 
   // Trigger autosave whenever content changes
-  useEffect(()=>{ if(title||body) triggerSave(); },[title,body,postType,spaceId,selTags]);
+  // Trigger autosave whenever content changes — but never while submit is in flight
+  useEffect(()=>{ if((title||body) && !submittingRef.current) triggerSave(); },[title,body,postType,spaceId,selTags]);
 
   const submit=async()=>{
     if(!title.trim()){toast("Title required","err");return;}
     if(!spaceId){toast("Select a space","err");return;}
+    submittingRef.current = true;
     setLoading(true);
     const compositionSignals = window._composeTracker ? window._composeTracker.snapshot() : null;
     try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags,compositionSignals});

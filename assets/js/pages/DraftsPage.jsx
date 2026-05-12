@@ -198,6 +198,7 @@ export function useDraftAutosave({ type, postId = null, enabled = true, initialD
   const [lastSaved, setLastSaved] = useState(null);
   const debounceRef = useRef(null);
   const draftIdRef  = useRef(initialDraftId); // seeded with resumed draft ID if any
+  const clearedRef  = useRef(false);           // true after clearDraft — suppresses late debounce saves
 
   useEffect(() => { draftIdRef.current = draftId; }, [draftId]);
 
@@ -206,8 +207,10 @@ export function useDraftAutosave({ type, postId = null, enabled = true, initialD
 
   const saveDraft = useCallback((attrs) => {
     if (!enabled) return;
+    if (clearedRef.current) return; // post was submitted — ignore late saves
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
+      if (clearedRef.current) return; // double-check after the debounce wait
       const payload = { type, post_id: postId, ...attrs };
       if (draftIdRef.current) {
         // Update existing draft
@@ -226,6 +229,7 @@ export function useDraftAutosave({ type, postId = null, enabled = true, initialD
   }, [type, postId, enabled]);
 
   const clearDraft = useCallback(async () => {
+    clearedRef.current = true;       // set immediately — prevents any debounce that fires after this
     clearTimeout(debounceRef.current);
     if (draftIdRef.current) {
       await api.delete(`/drafts/${draftIdRef.current}`).catch(() => {});
