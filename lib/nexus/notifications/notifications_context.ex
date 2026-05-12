@@ -107,6 +107,10 @@ defmodule Nexus.Notifications do
     notify_mentions(reply.body, actor, post_id: post.id, reply_id: reply.id)
   end
 
+  def notify_mentions_in_post(post, actor) do
+    notify_mentions(post.body, actor, post_id: post.id)
+  end
+
   @doc """
   Notify a specific post follower that a new reply was posted on a post they follow.
   """
@@ -183,6 +187,7 @@ defmodule Nexus.Notifications do
               |> Map.merge(Map.new(source_ids))
 
             enqueue_notification(attrs)
+            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
           end
       end
     end
