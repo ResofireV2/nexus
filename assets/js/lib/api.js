@@ -96,6 +96,19 @@ export const api = {
     }
   },
 
+  // On PWA cold launch, iOS may not have the cookie jar ready on the very first
+  // fetch. Retry once after a short delay before giving up.
+  async tryRefreshWithRetry(maxAttempts = 2, delayMs = 800) {
+    for (let i = 0; i < maxAttempts; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, delayMs));
+      const ok = await this.tryRefresh();
+      if (ok) return true;
+      // If tryRefresh cleared the token (definitive server rejection), stop retrying
+      if (!this.token) return false;
+    }
+    return false;
+  },
+
   get:    (p)    => api.request("GET",    p),
   post:   (p, b) => api.request("POST",   p, b),
   patch:  (p, b) => api.request("PATCH",  p, b),

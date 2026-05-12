@@ -3175,7 +3175,18 @@ function App() {
     if (user) localStorage.setItem("nexus_user", JSON.stringify(user));
     else localStorage.removeItem("nexus_user");
   };
-  const [authChecked,setAuthChecked]=useState(()=>!!(localStorage.getItem("nexus_token")&&localStorage.getItem("nexus_user")));
+  const [authChecked,setAuthChecked]=useState(()=>{
+    // Fast-path: if we have a cached user AND a non-expired token, skip the
+    // loading screen entirely. If the token is expired we still have the cached
+    // user rendered (no flash of logged-out), but authChecked stays false so the
+    // loading overlay shows while the async refresh runs.
+    if (!localStorage.getItem("nexus_token") || !localStorage.getItem("nexus_user")) return false;
+    try {
+      const payload = JSON.parse(atob(localStorage.getItem("nexus_token").split(".")[1]));
+      const exp = payload?.exp ?? 0;
+      return (exp - Math.floor(Date.now() / 1000)) > 30; // token valid for > 30s
+    } catch { return false; }
+  });
   const [spaces,setSpaces]=useState([]);
   const [tags,setTags]=useState([]);
   const initial = urlToPage(window.location.pathname);
@@ -3266,33 +3277,36 @@ function App() {
       // On cold load (especially PWA/mobile), the access token may have expired
       // while the app was closed. Proactively attempt a refresh before hitting
       // /auth/me so we never encounter a 401 that clears credentials.
-      // If the refresh cookie is present this is transparent; if not, we fall
-      // through to the normal /auth/me check which will handle it.
+      //
+      // We use tryRefreshWithRetry rather than tryRefresh because iOS Safari PWA
+      // does not reliably send cookies on the very first fetch after a cold launch
+      // from the home screen — the cookie jar is loaded asynchronously. A single
+      // retry after 800ms covers this window without any visible delay to the user.
       const tokenPayload = (() => {
         try { return JSON.parse(atob(api.token.split(".")[1])); } catch { return null; }
       })();
       const expiresAt = tokenPayload?.exp ?? 0;
       const nowSec = Math.floor(Date.now() / 1000);
+      const expired = expiresAt <= nowSec;
       const expiresSoon = expiresAt - nowSec < 120; // refresh if < 2 min remaining
 
       if (expiresSoon) {
-        // Token is expired or about to — try refresh before /auth/me
-        await api.tryRefresh();
-        // If refresh failed, api.token is still set (tryRefresh doesn't clear it)
-        // so /auth/me below will return 401 and handle it normally
+        // Use retry variant: if the token is already expired, allow up to 3 attempts
+        // (covers slow iOS cookie jar init on cold PWA launch).
+        await api.tryRefreshWithRetry(expired ? 3 : 2, 800);
       }
 
       const d = await api.request("GET", "/auth/me", null, true, true).catch(()=>({}));
       if (d.user) {
         updateCurrentUser(d.user);
-      } else if (d.error) {
-        // Genuine auth failure — clear everything
+      } else if (d.error === "Authentication required" || d.error === "Invalid or expired refresh token") {
+        // Definitive server rejection — clear everything
         api.setToken(null);
         updateCurrentUser(null);
       }
-      // Empty response (network hiccup or 401 already handled by request()) —
-      // keep cached user visible; they'll be asked to log in on next API call
-      // if the token is truly gone.
+      // Any other failure (network error, empty response, 5xx) — keep the cached
+      // user. The next API call will re-attempt auth. This prevents a blip of
+      // logged-out state caused by a slow or temporarily unavailable server.
       setAuthChecked(true);
     };
     init();
