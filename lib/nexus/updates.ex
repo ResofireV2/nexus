@@ -213,7 +213,7 @@ defmodule Nexus.Updates do
   end
 
   # Simple semver comparison — returns true if a >= b.
-  # Only handles MAJOR.MINOR.PATCH, ignores pre-release suffixes.
+  # Handles MAJOR.MINOR.PATCH and pre-release suffixes like 0.1.Beta or 0.1.0-beta.
   defp version_gte?(a, b) do
     parse_ver(a) >= parse_ver(b)
   end
@@ -221,9 +221,14 @@ defmodule Nexus.Updates do
   defp parse_ver(v) do
     v
     |> String.trim_leading("v")
-    |> String.split(".")
+    |> String.split(~r/[-.]/)
     |> Enum.take(3)
-    |> Enum.map(&(Integer.parse(&1) |> elem(0)))
+    |> Enum.map(fn part ->
+      case Integer.parse(part) do
+        {n, _} -> n
+        :error  -> 0
+      end
+    end)
   rescue
     _ -> [0, 0, 0]
   end
