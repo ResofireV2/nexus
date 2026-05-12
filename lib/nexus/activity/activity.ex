@@ -76,11 +76,11 @@ defmodule Nexus.Activity do
   # ---------------------------------------------------------------------------
 
   def increment_stat(user_id, field) when field in [:posts_count, :replies_count, :reactions_given] do
-    Task.start(fn -> do_increment(user_id, field, 1) end)
+    do_increment(user_id, field, 1)
   end
 
   def increment_stat(user_id, :reactions_received) do
-    Task.start(fn -> do_increment(user_id, :reactions_received, 1) end)
+    do_increment(user_id, :reactions_received, 1)
   end
 
   defp do_increment(user_id, field, amount) do
