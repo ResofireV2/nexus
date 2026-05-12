@@ -7,7 +7,7 @@ import { Md } from "../components/Markdown";
 import { ReactionsModal } from "../components/Reactions";
 import { Select } from "../components/Select";
 
-const openFancybox = (...args) => window._openFancybox && window._openFancybox(...args);
+import { ProfileSidebarSlot } from "./PostPage";
 function ProfilePage({username, currentUser, navigate}) {
   const [user,          setUser]          = useState(null);
   const [loading,       setLoading]       = useState(true);
