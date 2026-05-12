@@ -304,6 +304,7 @@ defmodule NexusWeb.Router do
     get    "/leaderboard/settings",    LeaderboardController, :get_settings
     patch  "/leaderboard/settings",    LeaderboardController, :update_settings
     post   "/leaderboard/recalculate", LeaderboardController, :recalculate
+    get    "/leaderboard/debug",       LeaderboardController, :debug
 
     # Digest (admin)
     get    "/digest/settings",         DigestController, :get_settings

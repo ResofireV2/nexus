@@ -92,6 +92,43 @@ defmodule NexusWeb.API.V1.LeaderboardController do
     json(conn, %{ok: true, enqueued: count})
   end
 
+  # Admin — GET /api/v1/admin/leaderboard/debug
+  # Returns raw activity stats for the current user to diagnose scoring issues.
+  def debug(conn, _params) do
+    import Ecto.Query
+    user = conn.assigns.current_user
+    today = Date.utc_today()
+    week_start = Date.add(today, -7)
+
+    stats = Nexus.Repo.all(
+      from s in Nexus.Activity.UserDailyStat,
+      where: s.user_id == ^user.id and s.date >= ^week_start,
+      order_by: [desc: s.date],
+      select: %{
+        date: s.date,
+        posts_count: s.posts_count,
+        replies_count: s.replies_count,
+        reactions_given: s.reactions_given,
+        reactions_received: s.reactions_received
+      }
+    )
+
+    score_all = Leaderboard.compute_score(user.id, ~D[2000-01-01], today)
+    user_score = Nexus.Repo.one(
+      from s in Nexus.Leaderboard.UserScore,
+      where: s.user_id == ^user.id,
+      select: %{score_all: s.score_all, score_week: s.score_week, updated_at: s.updated_at}
+    )
+
+    json(conn, %{
+      user_id: user.id,
+      username: user.username,
+      daily_stats: stats,
+      computed_score_all: score_all,
+      stored_score: user_score
+    })
+  end
+
   # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------

@@ -85,37 +85,23 @@ defmodule Nexus.Activity do
 
   defp do_increment(user_id, field, amount) do
     today = Date.utc_today()
-    col   = Atom.to_string(field)
     now   = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    # Single atomic upsert. On insert, the target column starts at `amount`
-    # (not 0). On conflict, it increments by `amount`. This correctly handles
-    # both the first activity of the day AND concurrent requests.
-    #
-    # The previous Ecto approach (on_conflict: [inc: ...]) only ran the
-    # increment on conflict — a fresh INSERT set the column to 0, silently
-    # dropping the first activity of each day from leaderboard scores.
-    Repo.query!(
-      """
-      INSERT INTO user_daily_stats
-        (user_id, date, posts_count, replies_count,
-         reactions_given, reactions_received, inserted_at, updated_at)
-      VALUES (
-        $1, $2,
-        #{if col == "posts_count",        do: "$4", else: "0"},
-        #{if col == "replies_count",      do: "$4", else: "0"},
-        #{if col == "reactions_given",    do: "$4", else: "0"},
-        #{if col == "reactions_received", do: "$4", else: "0"},
-        $3, $3
-      )
-      ON CONFLICT (user_id, date) DO UPDATE
-        SET #{col} = user_daily_stats.#{col} + $4,
-            updated_at = EXCLUDED.updated_at
-      """,
-      [user_id, today, now, amount]
+    # Step 1: ensure a row exists for today (no-op if already present)
+    Repo.insert_all(
+      "user_daily_stats",
+      [%{user_id: user_id, date: today, posts_count: 0, replies_count: 0,
+         reactions_given: 0, reactions_received: 0, inserted_at: now, updated_at: now}],
+      on_conflict: :nothing,
+      conflict_target: [:user_id, :date]
     )
-  rescue
-    _ -> :ok
+
+    # Step 2: increment the target field atomically
+    Repo.update_all(
+      from(s in "user_daily_stats",
+        where: s.user_id == ^user_id and s.date == ^today),
+      inc: [{field, amount}], set: [updated_at: now]
+    )
   end
 
   # ---------------------------------------------------------------------------

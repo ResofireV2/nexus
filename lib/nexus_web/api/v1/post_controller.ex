@@ -38,15 +38,15 @@ defmodule NexusWeb.API.V1.PostController do
           if pending do
             conn |> put_status(:created) |> json(%{post: post_json(post), pending: true, message: "Your post is pending approval"})
           else
+            Nexus.Activity.increment_stat(user.id, :posts_count)
             NexusWeb.FeedChannel.broadcast_new_post(post)
             Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
-            Nexus.Activity.increment_stat(user.id, :posts_count)
             # Auto-follow if user preference is set (default: true)
             if Map.get(user.preferences || %{}, "auto_follow_own_posts", true) != false do
               Forum.follow_post(user.id, post.id)
             end
             %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
             conn |> put_status(:created) |> json(%{post: post_json(post)})
           end
 
