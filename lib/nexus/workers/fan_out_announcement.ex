@@ -25,7 +25,9 @@ defmodule Nexus.Workers.FanOutAnnouncement do
     user_ids =
       Repo.all(
         from u in User,
-          where: u.id != ^actor_id and u.status == "active" and u.id > ^after_id,
+          where: u.id != ^actor_id and u.status == "active" and u.id > ^after_id and
+                 # Skip users who have disabled announcement web notifications
+                 (fragment("(preferences->'notifications'->'announcement'->>'web')::boolean IS DISTINCT FROM false")),
           order_by: [asc: u.id],
           select: u.id,
           limit: @batch_size

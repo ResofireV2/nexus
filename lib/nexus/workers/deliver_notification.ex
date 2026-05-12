@@ -38,6 +38,10 @@ defmodule Nexus.Workers.DeliverNotification do
   # Group reactions/replies on the same post into a single notification row.
   # Updates the existing unread row if found; otherwise creates a new one.
   defp handle_groupable(attrs, user_id, actor_id, type, post_id, reply_id) do
+    user = Nexus.Accounts.get_user(user_id)
+    unless web_enabled_for?(user, type) do
+      :ok
+    else
     existing =
       Nexus.Repo.one(
         from n in Notification,
@@ -65,8 +69,8 @@ defmodule Nexus.Workers.DeliverNotification do
             notif.group_actors || []
           end
 
-        # Exact duplicate (same actor, same type, same post) — skip silently
-        if actor_id in (notif.group_actors || []) and notif.group_count > 0 do
+        # Exact duplicate — same actor already in this group, skip silently
+        if actor_id in (notif.group_actors || []) do
           :ok
         else
           Nexus.Repo.update_all(
@@ -85,6 +89,7 @@ defmodule Nexus.Workers.DeliverNotification do
           :ok
         end
     end
+    end # unless web_enabled_for?
   end
 
   # Non-groupable types — strict idempotency: skip if exact duplicate exists
@@ -109,16 +114,25 @@ defmodule Nexus.Workers.DeliverNotification do
   end
 
   defp do_create(attrs) do
-    case Notifications.create_notification(attrs) do
-      {:ok, notification} ->
-        notification = Nexus.Repo.preload(notification, [:actor, :post, :reply])
-        broadcast_notification(notification)
-        maybe_send_push(notification)
-        maybe_send_email(notification)
-        :ok
+    user = Nexus.Accounts.get_user(attrs.user_id)
 
-      {:error, changeset} ->
-        {:error, changeset}
+    # Respect the "web" (in-app) notification preference.
+    # If the user has disabled web notifications for this type, skip entirely —
+    # don't create the DB row, don't push, don't email.
+    if web_enabled_for?(user, attrs.type) do
+      case Notifications.create_notification(attrs) do
+        {:ok, notification} ->
+          notification = Nexus.Repo.preload(notification, [:actor, :post, :reply])
+          broadcast_notification(notification)
+          maybe_send_push(notification)
+          maybe_send_email(notification)
+          :ok
+
+        {:error, changeset} ->
+          {:error, changeset}
+      end
+    else
+      :ok
     end
   end
 
@@ -229,15 +243,17 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp notification_json(n) do
     %{
-      id: n.id,
-      type: n.type,
-      read: n.read,
-      data: n.data,
-      inserted_at: n.inserted_at,
-      actor: user_json(n.actor),
-      post_id: n.post_id,
-      reply_id: n.reply_id,
-      message_id: n.message_id
+      id:           n.id,
+      type:         n.type,
+      read:         n.read,
+      data:         n.data,
+      group_count:  Map.get(n, :group_count) || 1,
+      group_actors: Map.get(n, :group_actors) || [],
+      inserted_at:  n.inserted_at,
+      actor:        user_json(n.actor),
+      post_id:      n.post_id,
+      reply_id:     n.reply_id,
+      message_id:   n.message_id
     }
   end
 
@@ -327,10 +343,20 @@ defmodule Nexus.Workers.DeliverNotification do
     {"#{site_name}", "#{actor_name} mentioned you", post_url(post_id)}
   end
 
-  defp push_content(%Notification{type: "reaction", actor: actor, post_id: post_id, data: data}, site_name) do
+  defp push_content(%Notification{type: "reaction", actor: actor, post_id: post_id, reply_id: reply_id, data: data}, site_name) do
     actor_name = actor_display(actor)
     emoji      = get_in(data, ["type"]) || "❤️"
-    {"#{site_name}", "#{actor_name} reacted #{emoji} to your post", post_url(post_id)}
+    {target, url} = if post_id do
+      {"your post",  post_url(post_id)}
+    else
+      {"your reply", post_url_for_reply(reply_id)}
+    end
+    {"#{site_name}", "#{actor_name} reacted #{emoji} to #{target}", url}
+  end
+
+  defp push_content(%Notification{type: "followed_post", actor: actor, post_id: post_id}, site_name) do
+    actor_name = actor_display(actor)
+    {"#{site_name}", "#{actor_name} replied to a post you follow", post_url(post_id)}
   end
 
   defp push_content(%Notification{type: "dm", data: data}, site_name) do
@@ -362,6 +388,18 @@ defmodule Nexus.Workers.DeliverNotification do
   defp post_url(nil),     do: NexusWeb.Endpoint.url()
   defp post_url(post_id), do: "#{NexusWeb.Endpoint.url()}/posts/#{post_id}"
 
+  defp post_url_for_reply(nil), do: NexusWeb.Endpoint.url()
+  defp post_url_for_reply(reply_id) do
+    case Nexus.Repo.one(
+      from r in Nexus.Forum.Reply,
+        where: r.id == ^reply_id,
+        select: r.post_id
+    ) do
+      nil     -> NexusWeb.Endpoint.url()
+      post_id -> "#{NexusWeb.Endpoint.url()}/posts/#{post_id}"
+    end
+  end
+
   defp thread_url(nil),       do: "/messages"
   defp thread_url(thread_id), do: "/messages/#{thread_id}"
 
@@ -376,5 +414,13 @@ defmodule Nexus.Workers.DeliverNotification do
   defp push_enabled_for?(user, type) do
     prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
     Map.get(prefs, "push", true) != false
+  end
+
+  # Check whether the user has in-app (web) notifications enabled for this type.
+  # Default is true — only suppress if explicitly set to false.
+  defp web_enabled_for?(nil, _type), do: true
+  defp web_enabled_for?(user, type) do
+    prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
+    Map.get(prefs, "web", true) != false
   end
 end

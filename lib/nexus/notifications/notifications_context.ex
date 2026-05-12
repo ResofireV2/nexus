@@ -135,28 +135,6 @@ defmodule Nexus.Notifications do
     end
   end
 
-  @doc """
-  Notify all users who have announcements enabled when an admin posts one.
-  Dispatches one DeliverNotification job per user (batched, non-blocking).
-  """
-  def notify_announcement(post, actor) do
-    user_ids =
-      Nexus.Repo.all(
-        from u in Nexus.Accounts.User,
-          where: u.id != ^actor.id and u.status == "active",
-          select: u.id
-      )
-
-    Enum.each(user_ids, fn user_id ->
-      enqueue_notification(%{
-        type:     "announcement",
-        user_id:  user_id,
-        actor_id: actor.id,
-        post_id:  post.id
-      })
-    end)
-  end
-
   def notify_reaction(post_or_reply, actor, type) do
     owner_id =
       case post_or_reply do

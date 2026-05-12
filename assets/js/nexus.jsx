@@ -2798,6 +2798,8 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           if (event === "link_preview_ready" && topic === "feed:global") onLinkPreviewReady(payload?.url);
           if (event === "new_notification" && topic === `notifications:${userId}`) {
             if (payload?.type === "dm") onNewMsgRef.current?.();
+            // Dispatch to NotificationsPage if it's open
+            window.dispatchEvent(new CustomEvent("nexus:notification", {detail: payload}));
             // Don't increment here — the backend pushes a real unread_count
             // immediately after, which corrects the badge to the actual DB count.
           }

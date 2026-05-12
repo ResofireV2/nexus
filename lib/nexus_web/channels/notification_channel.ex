@@ -59,7 +59,8 @@ defmodule NexusWeb.NotificationChannel do
   def handle_in("mark_all_read", _payload, socket) do
     user_id = socket.assigns.current_user_id
     Notifications.mark_all_read(user_id)
-    push(socket, "unread_count", %{count: 0})
+    count = Notifications.unread_count(user_id)
+    push(socket, "unread_count", %{count: count})
     {:reply, :ok, socket}
   end
 end

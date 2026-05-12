@@ -9,20 +9,53 @@ import { toast } from "../components/Toasts";
 
 function NotificationsPage({navigate, onCountChange}) {
   const [notifs,setNotifs]=useState([]); const [loading,setLoading]=useState(true);
+  const [nextCursor,setNextCursor]=useState(null); const [loadingMore,setLoadingMore]=useState(false);
 
   const updateCount = (list) => {
     const unread = list.filter(n=>!n.read).length;
     onCountChange?.(unread);
   };
 
-  useEffect(()=>{
+  const loadNotifs = () => {
     api.get("/notifications").then(d=>{
       const list = d.notifications||[];
       setNotifs(list);
+      setNextCursor(d.next_cursor||null);
       setLoading(false);
       updateCount(list);
     });
+  };
+
+  useEffect(()=>{ loadNotifs(); },[]);
+
+  // Listen for real-time new_notification events and prepend to list
+  useEffect(()=>{
+    const handler = e => {
+      const n = e.detail;
+      if(!n) return;
+      setNotifs(p=>{
+        // If the notification is already in the list (grouped update), replace it
+        const idx = p.findIndex(x=>x.id===n.id);
+        if(idx>=0){
+          const next=[...p]; next[idx]={...p[idx],...n}; return next;
+        }
+        return [n,...p];
+      });
+    };
+    window.addEventListener("nexus:notification", handler);
+    return ()=>window.removeEventListener("nexus:notification", handler);
   },[]);
+
+  const loadMore = async () => {
+    if(!nextCursor||loadingMore) return;
+    setLoadingMore(true);
+    api.get(`/notifications?cursor=${encodeURIComponent(nextCursor)}`).then(d=>{
+      const more = d.notifications||[];
+      setNotifs(p=>{const next=[...p,...more]; updateCount(next); return next;});
+      setNextCursor(d.next_cursor||null);
+      setLoadingMore(false);
+    }).catch(()=>setLoadingMore(false));
+  };
 
   const markAll=async()=>{
     await api.post("/notifications/read-all",{});
@@ -106,6 +139,13 @@ function NotificationsPage({navigate, onCountChange}) {
               </div>
             </div>
           ))}
+        {nextCursor&&(
+          <div style={{padding:"16px",textAlign:"center"}}>
+            <button className="btn-ghost" style={{fontSize:13}} onClick={loadMore} disabled={loadingMore}>
+              {loadingMore?"Loading…":"Load more"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
 
