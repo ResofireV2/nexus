@@ -72,36 +72,36 @@ defmodule Nexus.LinkPreviews do
   def fetch_and_store(url) do
     domain = extract_domain(url)
 
-    case fetch_html(url) do
-      {:ok, html} ->
-        parsed  = parse_meta(html, url, domain)
-        image_path   = maybe_download_image(parsed.image_url, "linkpreviews")
-        favicon_path = maybe_download_favicon(parsed.favicon_url, domain)
+    result =
+      case fetch_html(url) do
+        {:ok, html} ->
+          try do
+            parsed       = parse_meta(html, url, domain)
+            image_path   = maybe_download_image(parsed.image_url, "linkpreviews")
+            favicon_path = maybe_download_favicon(parsed.favicon_url, domain)
 
-        attrs = %{
-          url:          url,
-          domain:       domain,
-          title:        parsed.title,
-          description:  parsed.description,
-          site_name:    parsed.site_name,
-          image_path:   image_path,
-          favicon_path: favicon_path,
-          fetched_at:   NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-        }
+            %{
+              url:          url,
+              domain:       domain,
+              title:        parsed.title,
+              description:  parsed.description,
+              site_name:    parsed.site_name,
+              image_path:   image_path,
+              favicon_path: favicon_path,
+              fetched_at:   NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+            }
+          rescue
+            _ ->
+              %{url: url, domain: domain, title: domain,
+                fetched_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
+          end
 
-        insert_preview(attrs)
+        {:error, _reason} ->
+          %{url: url, domain: domain, title: domain,
+            fetched_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
+      end
 
-      {:error, _reason} ->
-        # Store a minimal stub so we never retry a dead/slow URL
-        attrs = %{
-          url:        url,
-          domain:     domain,
-          title:      domain,
-          fetched_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-        }
-
-        insert_preview(attrs)
-    end
+    insert_preview(result)
   end
 
   # ---------------------------------------------------------------------------
@@ -150,7 +150,11 @@ defmodule Nexus.LinkPreviews do
   # ---------------------------------------------------------------------------
 
   defp parse_meta(html, url, domain) do
-    {:ok, doc} = Floki.parse_document(html)
+    doc =
+      case Floki.parse_document(html) do
+        {:ok, d}    -> d
+        {:error, _} -> []
+      end
 
     %{
       title:       extract_title(doc, domain),
