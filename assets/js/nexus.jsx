@@ -2161,6 +2161,34 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
   </>;
 }
 
+// Stable module-level components — must NOT be defined inside SearchFilterPanel
+// or any other component, otherwise React remounts them on every render and
+// inputs inside them lose focus after each keystroke.
+function FilterPills({options, value, onChange}) {
+  return (
+    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+      {options.map(({v,label}) => (
+        <button key={v} onClick={()=>onChange(v)} style={{
+          fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
+          fontFamily:"inherit", border:"0.5px solid",
+          borderColor: value===v ? "var(--ac-border)" : "var(--b2)",
+          background:  value===v ? "var(--ac-bg)"     : "transparent",
+          color:       value===v ? "var(--ac-text)"   : "var(--t4)",
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+function FilterSection({label, children}) {
+  return (
+    <div className="rw">
+      <div className="rw-label">{label}</div>
+      {children}
+    </div>
+  );
+}
+
 // ── Search filter panel ───────────────────────────────────────────────────────
 // Renders in the right sidebar on the search page.
 // Communicates filter changes to SearchPage via a window custom event so the
@@ -2247,27 +2275,6 @@ function SearchFilterPanel({spaces=[], tags=[], navigate}) {
   const activeCount = [
     kind !== "all", sort !== "relevance", !!space, !!tag, !!author, !!dateFrom, !!dateTo
   ].filter(Boolean).length;
-
-  const FilterPills = ({options, value, onChange}) => (
-    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-      {options.map(({v,label}) => (
-        <button key={v} onClick={()=>onChange(v)} style={{
-          fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
-          fontFamily:"inherit", border:"0.5px solid",
-          borderColor: value===v ? "var(--ac-border)" : "var(--b2)",
-          background:  value===v ? "var(--ac-bg)"     : "transparent",
-          color:       value===v ? "var(--ac-text)"   : "var(--t4)",
-        }}>{label}</button>
-      ))}
-    </div>
-  );
-
-  const FilterSection = ({label, children}) => (
-    <div className="rw">
-      <div className="rw-label">{label}</div>
-      {children}
-    </div>
-  );
 
   return (
     <>
