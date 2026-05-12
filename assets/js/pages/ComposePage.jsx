@@ -4,15 +4,17 @@ import { spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select } from "../components/Select";
 import { RichTextArea } from "../components/RichTextArea";
+import { useDraftAutosave } from "./DraftsPage";
 
 // ── ComposePage ───────────────────────────────────────────────────────────────
 
-function ComposePage({spaces, tags, navigate, currentUser}) {
-  const [title,setTitle]=useState(""); const [body,setBody]=useState("");
-  const [spaceId,setSpaceId]=useState(spaces[0]?.id||"");
-  const [postType,setPostType]=useState("discussion");
+function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
+  const resumeDraft = pageProps?.resumeDraft || null;
+  const [title,setTitle]=useState(resumeDraft?.title||""); const [body,setBody]=useState(resumeDraft?.body||"");
+  const [spaceId,setSpaceId]=useState(resumeDraft?.space_id||spaces[0]?.id||"");
+  const [postType,setPostType]=useState(resumeDraft?.post_type||"discussion");
   const [postBody,setPostBody]=useState("");
-  const [selTags,setSelTags]=useState([]);
+  const [selTags,setSelTags]=useState(resumeDraft?.tag_ids||[]);
   const [showTagModal,setShowTagModal]=useState(false);
   const [tagModalSel,setTagModalSel]=useState([]);
   const [showTypeDd,setShowTypeDd]=useState(false);
@@ -25,6 +27,22 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
   const TYPE_OPTS=[{v:"discussion",label:"Discussion",icon:"fa-comments"},{v:"question",label:"Question",icon:"fa-circle-question"}];
   const selectedType=TYPE_OPTS.find(t=>t.v===postType)||TYPE_OPTS[0];
 
+  // Auto-save draft — resume existing draft if navigated from Drafts page
+  const { draftId, saveDraft, clearDraft } = useDraftAutosave({
+    type: "post",
+    enabled: !!currentUser,
+  });
+  // If resuming a draft, set its ID so we update rather than create
+  const resumedRef = useRef(resumeDraft?.id || null);
+
+  const triggerSave = () => {
+    saveDraft({
+      title, body, post_type: postType,
+      space_id: spaceId ? parseInt(spaceId) : null,
+      tag_ids: selTags,
+    });
+  };
+
   useEffect(()=>{
     const fn=e=>{
       if(typeDdRef.current&&!typeDdRef.current.contains(e.target))setShowTypeDd(false);
@@ -33,13 +51,17 @@ function ComposePage({spaces, tags, navigate, currentUser}) {
     document.addEventListener("mousedown",fn); return ()=>document.removeEventListener("mousedown",fn);
   },[]);
 
+  // Trigger autosave whenever content changes
+  useEffect(()=>{ if(title||body) triggerSave(); },[title,body,postType,spaceId,selTags]);
+
   const submit=async()=>{
     if(!title.trim()){toast("Title required","err");return;}
     if(!spaceId){toast("Select a space","err");return;}
     setLoading(true);
     try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags});
-      if(d.post&&d.pending){toast("Your post is pending moderator approval","ok");navigate("feed");}
+      if(d.post&&d.pending){await clearDraft();toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
+        await clearDraft();
         // Link any games selected via extension toolbar
         if(linkedGames.length>0){
           try{ await fetch(`/ext/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${localStorage.getItem("nexus_token")||""}`},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }

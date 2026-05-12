@@ -190,6 +190,14 @@ defmodule NexusWeb.Router do
     delete "/posts/:id/save",                      SaveController, :unsave_post
     post   "/posts/:post_id/replies/:id/save",     SaveController, :save_reply
     delete "/posts/:post_id/replies/:id/save",     SaveController, :unsave_reply
+
+    # Drafts
+    get    "/drafts",       DraftController, :index
+    get    "/drafts/count", DraftController, :count
+    post   "/drafts",       DraftController, :create
+    patch  "/drafts/:id",   DraftController, :update
+    delete "/drafts/all",   DraftController, :delete_all
+    delete "/drafts/:id",   DraftController, :delete
   end
 
   # API v1 — moderator actions

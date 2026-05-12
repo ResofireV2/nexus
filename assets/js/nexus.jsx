@@ -42,6 +42,7 @@ import { AppearanceTab, SettingsPage }                     from "./pages/Setting
 import { SavedPage }                                       from "./pages/SavedPage";
 import { TagsPage }                                        from "./pages/TagsPage";
 import { MemberCard, MembersPage }                         from "./pages/MembersPage";
+import { DraftsPage, useDraftAutosave }                    from "./pages/DraftsPage";
 
 // Expose React and ReactDOM globally so extension bundles can access them
 window.React = React;
@@ -1272,6 +1273,7 @@ function urlToPage(pathname) {
   if (p === "/badges")                 return {page:"badges",      props:{}};
   if (p === "/leaderboard")            return {page:"leaderboard", props:{}};
   if (p === "/saved")                  return {page:"saved", props:{}};
+  if (p === "/drafts")                 return {page:"drafts", props:{}};
   const postM    = p.match(/^\/post\/(.+)$/);
   if (postM)  return {page:"post",    props:{id: postM[1]}};
   const profileM = p.match(/^\/profile\/(.+)$/);
@@ -1319,6 +1321,7 @@ function pageToUrl(page, props={}) {
     case "badges":        return "/badges";
     case "leaderboard":   return "/leaderboard";
     case "saved":         return "/saved";
+    case "drafts":        return "/drafts";
     default:              return "/";
   }
 }
@@ -1956,8 +1959,8 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
             <i className="fa-solid fa-message" style={{fontSize:16}}></i>
             {msgCount>0&&<div className="icon-badge green"/>}
           </div>
-          <div className="icon-btn" title="Docs">
-            <i className="fa-solid fa-file-lines" style={{fontSize:16}}></i>
+          <div className="icon-btn" onClick={()=>navigate("drafts")} title="Drafts">
+            <i className="fa-solid fa-file-pen" style={{fontSize:16}}></i>
           </div>
           <button className="write-btn" onClick={()=>navigate("compose")}>+ write</button>
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
@@ -2897,8 +2900,9 @@ function App() {
         return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} onAuthRequired={m=>setAuthModal(m)}/>;
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
       case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
+      case "drafts":      return requireAuth(<DraftsPage currentUser={currentUser} navigate={navigate}/>);
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
-      case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser}/>);
+      case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser} pageProps={pageProps}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate} onCountChange={setNotifCount}/>);
       case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} onRead={()=>pollMsgRef.current?.()}/>);
