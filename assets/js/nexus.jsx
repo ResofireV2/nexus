@@ -28,7 +28,8 @@ import { AdminPage, VerifyEmailPage }                      from "./admin/AdminPa
 import { LeaderboardPageSidebar,
          LeaderboardPage }                                 from "./pages/LeaderboardPage";
 import { PostScrubber, PostPage, PostFooterSlot,
-         ProfileSidebarSlot, EditHistoryModal }            from "./pages/PostPage";
+         ProfileSidebarSlot, EditHistoryModal,
+         MobileScrubberBar, MobileScrubberSheet }          from "./pages/PostPage";
 import { DMInboxPage, DMPage,
          GroupSettingsModal, DMNewPage }                   from "./pages/MessagesPage";
 
@@ -4460,63 +4461,6 @@ function MobileSearchOverlay({open, onClose, navigate}) {
 }
 
 // Mobile scrubber bottom sheet
-function MobileScrubberBar({replies, scrollPct, displayIdx, onClick}) {
-  return (
-    <div className="mob-scrubber-bar" onClick={onClick}>
-      <i className="fa-solid fa-list" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
-      <div className="mob-scrubber-track">
-        <div className="mob-scrubber-fill" style={{width:scrollPct+"%"}}/>
-      </div>
-      <span className="mob-scrubber-label">{displayIdx+1}/{replies.length}</span>
-      <i className="fa-solid fa-chevron-up" style={{fontSize:10,color:"var(--t5)",flexShrink:0}}/>
-    </div>
-  );
-}
-
-function MobileScrubberSheet({open, onClose, replies, scrollPct, displayIdx, onJump}) {
-  const trackRef = React.useRef();
-  function handleTrack(e) {
-    if(!trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const pct = Math.max(0,Math.min(100,((e.clientY-rect.top)/rect.height)*100));
-    onJump(Math.round((pct/100)*(replies.length-1)));
-  }
-  return (
-    <div className={`mob-sheet ${open?"open":""}`}>
-      <div className="mob-sheet-handle" onClick={onClose}/>
-      <div style={{padding:"0 20px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>Jump to reply</span>
-        <span style={{fontSize:12,color:"var(--t4)"}}>{displayIdx+1} of {replies.length}</span>
-      </div>
-      <div style={{display:"flex",gap:16,padding:"0 20px 20px",alignItems:"stretch"}}>
-        {/* Vertical track */}
-        <div ref={trackRef} onClick={handleTrack}
-          style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200}}>
-          <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:4,transform:"translateX(-50%)",background:"rgba(255,255,255,0.08)",borderRadius:2}}/>
-          <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:scrollPct+"%",borderRadius:2,transition:"height .2s"}}/>
-          <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:scrollPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)"}}/>
-        </div>
-        {/* Reply list */}
-        <div style={{flex:1,overflow:"auto",maxHeight:260}}>
-          {replies.map(function(r,i){
-            var isActive = i===displayIdx;
-            return React.createElement('div',{
-              key:r.id, onClick:function(){onJump(i);},
-              style:{padding:"10px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
-                background:isActive?"var(--ac-bg)":"rgba(255,255,255,0.03)",
-                border:"0.5px solid "+(isActive?"var(--ac-border)":"transparent")}
-            },
-              React.createElement('div',{style:{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}},
-                (r.user?.username||"?")),
-              React.createElement('div',{style:{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
-                r.body?.slice(0,50)||"")
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function App() {
   const [currentUser,setCurrentUser]=useState(()=>{
