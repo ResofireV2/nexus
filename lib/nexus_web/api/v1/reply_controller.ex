@@ -56,6 +56,10 @@ defmodule NexusWeb.API.V1.ReplyController do
                 Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
                 %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
                 %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+                Nexus.LinkPreviews.extract_urls(reply.body)
+                |> Enum.each(fn url ->
+                  %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
+                end)
 
                 # Broadcast to every subscriber of this post's notification channel.
                 # Using "post_viewers:{post_id}" as a lightweight PubSub topic that
@@ -87,7 +91,12 @@ defmodule NexusWeb.API.V1.ReplyController do
         if can_edit?(user, reply) do
           Forum.record_reply_edit(reply, user.id)
           case Forum.update_reply(reply, params) do
-            {:ok, updated} -> json(conn, %{reply: reply_json(updated)})
+            {:ok, updated} ->
+              Nexus.LinkPreviews.extract_urls(updated.body)
+              |> Enum.each(fn url ->
+                %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
+              end)
+              json(conn, %{reply: reply_json(updated)})
             {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
           end
         else

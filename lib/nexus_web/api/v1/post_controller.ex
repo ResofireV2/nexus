@@ -47,6 +47,10 @@ defmodule NexusWeb.API.V1.PostController do
             end
             %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
             %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+            Nexus.LinkPreviews.extract_urls(post.body)
+            |> Enum.each(fn url ->
+              %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
+            end)
             conn |> put_status(:created) |> json(%{post: post_json(post)})
           end
 
@@ -69,6 +73,10 @@ defmodule NexusWeb.API.V1.PostController do
           case Forum.update_post(post, params, tag_ids) do
             {:ok, updated} ->
               Task.start(fn -> Nexus.Extensions.fire("post_updated", %{post_id: updated.id}) end)
+              Nexus.LinkPreviews.extract_urls(updated.body)
+              |> Enum.each(fn url ->
+                %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
+              end)
               json(conn, %{post: post_json(updated)})
             {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
           end

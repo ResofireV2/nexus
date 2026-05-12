@@ -80,6 +80,19 @@ function tryMediaEmbed(url) {
   return null;
 }
 
+function isUnfurlable(url) {
+  if (!url) return false;
+  if (getYouTubeId(url) || getVimeoId(url) || getTwitterId(url) || getSpotifyEmbed(url)) return false;
+  if (isVideoUrl(url) || isAudioUrl(url)) return false;
+  if (/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(url)) return false;
+  return true;
+}
+
+function makeLinkPreviewSentinel(url) {
+  const encoded = url.replace(/"/g, "&quot;");
+  return `<div class="md-link-preview pending" data-url="${encoded}"></div>`;
+}
+
 // ── Custom marked renderer ────────────────────────────────────────────────────
 
 const mdRenderer = new marked.Renderer();
@@ -90,6 +103,7 @@ mdRenderer.paragraph = function(text) {
   if (bareUrl) {
     const embed = tryMediaEmbed(bareUrl);
     if (embed) return embed;
+    if (isUnfurlable(bareUrl)) return makeLinkPreviewSentinel(bareUrl);
   }
 
   // breaks:true means single-newline lines arrive as <br>-separated chunks
@@ -97,11 +111,15 @@ mdRenderer.paragraph = function(text) {
   if (BR.test(text)) {
     const parts = text.split(BR).map(part => {
       const url = extractBareUrl(part.trim());
-      if (url) { const embed = tryMediaEmbed(url); if (embed) return embed; }
+      if (url) {
+        const embed = tryMediaEmbed(url);
+        if (embed) return embed;
+        if (isUnfurlable(url)) return makeLinkPreviewSentinel(url);
+      }
       return part;
     });
-    const textParts  = parts.filter(p => !p.startsWith('<div class="yt-lite') && !p.startsWith('<div class="md-embed') && !p.startsWith('<audio') && !p.startsWith('<div class="md-embed-video') && !p.startsWith('<div class="md-x-embed') && !p.startsWith('<div class="md-spotify-embed'));
-    const embedParts = parts.filter(p =>  p.startsWith('<div class="yt-lite') ||  p.startsWith('<div class="md-embed') ||  p.startsWith('<audio') ||  p.startsWith('<div class="md-embed-video') ||  p.startsWith('<div class="md-x-embed') ||  p.startsWith('<div class="md-spotify-embed'));
+    const textParts  = parts.filter(p => !p.startsWith('<div class="yt-lite') && !p.startsWith('<div class="md-embed') && !p.startsWith('<audio') && !p.startsWith('<div class="md-embed-video') && !p.startsWith('<div class="md-x-embed') && !p.startsWith('<div class="md-spotify-embed') && !p.startsWith('<div class="md-link-preview'));
+    const embedParts = parts.filter(p =>  p.startsWith('<div class="yt-lite') ||  p.startsWith('<div class="md-embed') ||  p.startsWith('<audio') ||  p.startsWith('<div class="md-embed-video') ||  p.startsWith('<div class="md-x-embed') ||  p.startsWith('<div class="md-spotify-embed') ||  p.startsWith('<div class="md-link-preview'));
     if (embedParts.length > 0) {
       const textHtml = textParts.filter(p => p.trim()).join('<br>\n');
       return (textHtml ? `<p>${textHtml}</p>` : '') + embedParts.join('');
@@ -145,7 +163,7 @@ export function renderMd(t) {
   );
   return DOMPurify.sanitize(marked.parse(t), {
     ADD_TAGS: ["iframe","video","source","audio","svg","path","span"],
-    ADD_ATTR: ["data-original","data-lightbox-link","data-id","data-tweet-id","allowfullscreen","loading","frameborder","src","controls","preload","allow","viewBox","d","fill","width","height","class","onclick"]
+    ADD_ATTR: ["data-original","data-lightbox-link","data-id","data-tweet-id","data-url","allowfullscreen","loading","frameborder","src","controls","preload","allow","viewBox","d","fill","width","height","class","onclick"]
   });
 }
 

@@ -11,8 +11,16 @@ defmodule Nexus.Application do
         Path.join([:code.priv_dir(:nexus), "static", "uploads"])
       end
 
-    for dir <- ~w(posts avatars covers logos webp/posts webp/avatars webp/covers webp/logos) do
+    for dir <- ~w(posts avatars covers logos webp/posts webp/avatars webp/covers webp/logos linkpreviews linkpreviews/favicons webp/linkpreviews) do
       File.mkdir_p!(Path.join(uploads_dir, dir))
+    end
+
+    # Run outstanding migrations automatically on every release startup.
+    # Safe to run multiple times — Ecto.Migrator is idempotent.
+    if Application.get_env(:nexus, :env) == :prod do
+      {:ok, _} = Application.ensure_all_started(:postgrex)
+      {:ok, _} = Application.ensure_all_started(:ecto_sql)
+      Ecto.Migrator.with_repo(Nexus.Repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
 
     children = [

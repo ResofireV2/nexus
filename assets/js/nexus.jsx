@@ -8,6 +8,7 @@ import { RsAv, Av, openUserCard, useUserCard,
 import { Select, Toggle }                                  from "./components/Select";
 import { toast, Toasts }                                   from "./components/Toasts";
 import { Md, renderMd }                                    from "./components/Markdown";
+import "./components/LinkPreviewCard";
 import { REACTIONS, ReactionsModal, ReactionButton }       from "./components/Reactions";
 import { RichTextArea, getAllToolbarButtons,
          setActiveToolbar, TB_BTNS }                       from "./components/RichTextArea";
@@ -1311,6 +1312,9 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Spotify embed */
 .md-spotify-embed{margin:12px 0;border-radius:12px;overflow:hidden;border:0.5px solid var(--b1);}
 .md-spotify-embed iframe{width:100%;height:352px;display:block;border-radius:12px;}
+/* Link preview card */
+.md-link-preview{margin:12px 0;}
+.md-link-preview.loading{min-height:60px;background:var(--bg2);border:0.5px solid var(--b1);border-radius:12px;}
 /* Lightbox */
 /* Lightbox CSS removed — Fancybox 5 handles styling */
 
