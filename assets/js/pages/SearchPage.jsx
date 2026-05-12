@@ -6,10 +6,6 @@ import { Md } from "../components/Markdown";
 
 // ── SearchPage ────────────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Search ────────────────────────────────────────────────────────────────────
 function SearchPage({navigate, tags, initialQ=""}) {
   const [q,setQ]=useState(initialQ); const [results,setResults]=useState(null); const [loading,setLoading]=useState(false);
   const debounceRef=useRef();

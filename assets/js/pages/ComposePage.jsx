@@ -6,10 +6,6 @@ import { RichTextArea } from "../components/RichTextArea";
 
 // ── ComposePage ───────────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Composer ──────────────────────────────────────────────────────────────────
 function ComposePage({spaces, tags, navigate, currentUser}) {
   const [title,setTitle]=useState(""); const [body,setBody]=useState("");
   const [spaceId,setSpaceId]=useState(spaces[0]?.id||"");

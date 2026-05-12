@@ -6,10 +6,6 @@ import { Md } from "../components/Markdown";
 
 // ── NotificationsPage ─────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Notifications ─────────────────────────────────────────────────────────────
 function NotificationsPage({navigate, onCountChange}) {
   const [notifs,setNotifs]=useState([]); const [loading,setLoading]=useState(true);
 

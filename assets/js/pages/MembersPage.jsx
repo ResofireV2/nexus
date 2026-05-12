@@ -6,10 +6,6 @@ import { Select } from "../components/Select";
 
 // ── MembersPage ───────────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Members ───────────────────────────────────────────────────────────────────
 function MemberCard({m, navigate, currentUser}) {
   const col = userColor(m);
   const ROLE_COLOR = {admin:"var(--amber)", moderator:"var(--ac)", member:"var(--t5)"};

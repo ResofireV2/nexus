@@ -7,10 +7,6 @@ import { Md } from "../components/Markdown";
 
 // ── SavedPage ─────────────────────────────────────────────────────────────────
 
-    </div>
-  );
-}
-
 function SavedPage({navigate, currentUser}) {
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);

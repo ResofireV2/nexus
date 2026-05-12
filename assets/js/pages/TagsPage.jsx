@@ -5,10 +5,6 @@ import { toast } from "../components/Toasts";
 
 // ── TagsPage ──────────────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Tags ──────────────────────────────────────────────────────────────────────
 function TagsPage({navigate, currentUser}) {
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);

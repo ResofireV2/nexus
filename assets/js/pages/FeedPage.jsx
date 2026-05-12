@@ -12,10 +12,6 @@ const onBrandingChange   = (fn) => window._onBrandingChange ? window._onBranding
 
 // ── FeedPage ──────────────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Feed ──────────────────────────────────────────────────────────────────────
 function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], onAuthRequired}) {
   const [sort,setSort]=useState(sortOverride||"latest");
   useEffect(()=>{setSort(sortOverride||"latest");},[sortOverride]);

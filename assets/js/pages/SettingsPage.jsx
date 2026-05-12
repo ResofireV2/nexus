@@ -9,10 +9,6 @@ const resolveTheme = (...args) => window._resolveTheme && window._resolveTheme(.
 
 // ── SettingsPage + AppearanceTab ──────────────────────────────────────────────
 
-}
-
-// ── Saved ─────────────────────────────────────────────────────────────────────
-// ── Settings ──────────────────────────────────────────────────────────────────
 function AppearanceTab() {
   const darkOn  = window._darkEnabled  !== false;
   const lightOn = window._lightEnabled !== false;

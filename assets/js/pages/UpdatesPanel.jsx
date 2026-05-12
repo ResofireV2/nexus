@@ -4,10 +4,6 @@ import { toast } from "../components/Toasts";
 
 // ── UpdatesPanel ──────────────────────────────────────────────────────────────
 
-}
-
-// ── Updates panel ─────────────────────────────────────────────────────────────
-// Checks GitHub Releases for a newer version of Nexus and applies it.
 function UpdatesPanel() {
   const [status,   setStatus]   = useState("idle"); // idle | checking | up_to_date | update_available | applying | done | error
   const [info,     setInfo]     = useState(null);   // { current, latest, up_to_date, release }

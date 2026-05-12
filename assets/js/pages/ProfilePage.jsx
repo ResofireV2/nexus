@@ -11,10 +11,6 @@ const openFancybox = (...args) => window._openFancybox && window._openFancybox(.
 
 // ── ProfilePage ───────────────────────────────────────────────────────────────
 
-  );
-}
-
-// ── Profile ───────────────────────────────────────────────────────────────────
 function ProfilePage({username, currentUser, navigate}) {
   const [user,          setUser]          = useState(null);
   const [loading,       setLoading]       = useState(true);
