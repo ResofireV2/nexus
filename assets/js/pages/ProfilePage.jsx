@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useReducer } from "react";
 import { api } from "../lib/api";
-import { ago, fmtDate, fmtBytes, userColor } from "../lib/utils";
+import { ago, fmtDate, fmtBytes, userColor, spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { RsAv, Av } from "../components/Avatar";
 import { Md } from "../components/Markdown";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
-import { ago } from "../lib/utils";
+import { ago, spaceColor, userColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { RsAv, Av } from "../components/Avatar";
 import { Md } from "../components/Markdown";

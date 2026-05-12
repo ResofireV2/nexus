@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
+import { spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select } from "../components/Select";
 import { RichTextArea } from "../components/RichTextArea";
