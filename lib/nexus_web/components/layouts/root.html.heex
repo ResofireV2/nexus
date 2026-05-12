@@ -19,7 +19,7 @@
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <link rel="stylesheet" href="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css" />
-    <script src="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
+    <script defer src="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
     <%= for url <- @extension_bundle_urls do %>
     <script defer type="text/javascript" src={url}></script>
@@ -32,7 +32,8 @@
     </script>
     <script>
       // Apply theme immediately before React loads to prevent flash.
-      // Reads stored pref AND the admin-persisted config to validate what's allowed.
+      // This script is intentionally synchronous and placed after app.css
+      // but before any deferred scripts so it runs at parse time.
       (function() {
         try {
           var pref   = localStorage.getItem('nexus_theme_pref') || 'auto';
