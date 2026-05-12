@@ -65,4 +65,9 @@ defmodule NexusWeb.FeedChannel do
     push(socket, "new_post", payload)
     {:noreply, socket}
   end
+
+  def handle_info({:link_preview_ready, payload}, socket) do
+    push(socket, "link_preview_ready", payload)
+    {:noreply, socket}
+  end
 end

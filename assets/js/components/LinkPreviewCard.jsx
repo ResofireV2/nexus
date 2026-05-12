@@ -80,29 +80,43 @@ function renderLinkPreviewError(node, url) {
   node.classList.remove("pending");
 }
 
-function fetchWithRetry(url, node, attempt) {
-  const MAX_ATTEMPTS = 4;
-  const DELAYS = [3000, 6000, 12000, 0];
+// Map of url -> [node, ...] waiting for a preview_ready signal
+const _lpPending = new Map();
 
+function fetchPreview(url, node) {
   fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
     .then(r => {
-      if (r.status === 404 && attempt < MAX_ATTEMPTS) {
-        // Preview not ready yet — Oban job still in flight. Retry after delay.
-        setTimeout(() => fetchWithRetry(url, node, attempt + 1), DELAYS[attempt - 1] || 3000);
-        return null;
-      }
-      if (!r.ok) throw new Error("error");
+      if (!r.ok) throw new Error("not_found");
       return r.json();
     })
     .then(data => {
-      if (!data) return;
       if (!data.preview) throw new Error("empty");
       lpCacheSet(url, data.preview);
-      renderLinkPreviewCard(node, data.preview);
+      // Resolve all nodes waiting on this URL
+      const nodes = _lpPending.get(url) || [node];
+      _lpPending.delete(url);
+      nodes.forEach(n => renderLinkPreviewCard(n, data.preview));
     })
     .catch(() => {
+      _lpPending.delete(url);
       renderLinkPreviewError(node, url);
     });
+}
+
+// Called by nexus.jsx when a link_preview_ready WebSocket event arrives
+function onLinkPreviewReady(url) {
+  if (!_lpPending.has(url)) return;
+  const nodes = _lpPending.get(url);
+  _lpPending.delete(url);
+  // Fetch once for all waiting nodes
+  fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      if (!data.preview) return;
+      lpCacheSet(url, data.preview);
+      nodes.forEach(n => renderLinkPreviewCard(n, data.preview));
+    })
+    .catch(() => nodes.forEach(n => renderLinkPreviewError(n, url)));
 }
 
 function hydrateLinkPreviews(root) {
@@ -120,7 +134,25 @@ function hydrateLinkPreviews(root) {
       return;
     }
 
-    fetchWithRetry(url, node, 1);
+    // Try immediately — preview may already exist from a previous post
+    fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
+      .then(r => {
+        if (r.status === 404) {
+          // Not ready yet — register for WebSocket notification
+          if (!_lpPending.has(url)) _lpPending.set(url, []);
+          _lpPending.get(url).push(node);
+          return null;
+        }
+        if (!r.ok) throw new Error("error");
+        return r.json();
+      })
+      .then(data => {
+        if (!data) return;
+        if (!data.preview) throw new Error("empty");
+        lpCacheSet(url, data.preview);
+        renderLinkPreviewCard(node, data.preview);
+      })
+      .catch(() => renderLinkPreviewError(node, url));
   });
 }
 
@@ -136,4 +168,4 @@ document.addEventListener("DOMContentLoaded", () => {
   _lpObserver.observe(document.body, { childList: true, subtree: true });
 });
 
-export { hydrateLinkPreviews };
+export { hydrateLinkPreviews, onLinkPreviewReady };

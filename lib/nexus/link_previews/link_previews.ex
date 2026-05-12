@@ -311,6 +311,11 @@ defmodule Nexus.LinkPreviews do
   defp insert_preview(attrs) do
     case %LinkPreview{} |> LinkPreview.changeset(attrs) |> Repo.insert() do
       {:ok, preview} ->
+        Phoenix.PubSub.broadcast(
+          Nexus.PubSub,
+          "feed:global",
+          {:link_preview_ready, %{url: preview.url}}
+        )
         {:ok, preview}
 
       {:error, %Ecto.Changeset{errors: errors}} ->

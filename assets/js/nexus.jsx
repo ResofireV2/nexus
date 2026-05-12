@@ -9,6 +9,7 @@ import { Select, Toggle }                                  from "./components/Se
 import { toast, Toasts }                                   from "./components/Toasts";
 import { Md, renderMd }                                    from "./components/Markdown";
 import "./components/LinkPreviewCard";
+import { onLinkPreviewReady } from "./components/LinkPreviewCard";
 import { REACTIONS, ReactionsModal, ReactionButton }       from "./components/Reactions";
 import { RichTextArea, getAllToolbarButtons,
          setActiveToolbar, TB_BTNS }                       from "./components/RichTextArea";
@@ -2789,6 +2790,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
         try {
           const [, , topic, event, payload] = JSON.parse(e.data);
           if (event === "new_post" && topic === "feed:global") onNewPostRef.current?.(payload);
+          if (event === "link_preview_ready" && topic === "feed:global") onLinkPreviewReady(payload?.url);
           if (event === "new_notification" && topic === `notifications:${userId}`) {
             if (payload?.type === "dm") onNewMsgRef.current?.();
             else onNewNotifRef.current?.();
