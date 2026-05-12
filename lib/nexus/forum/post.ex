@@ -10,6 +10,7 @@ defmodule Nexus.Forum.Post do
     field :reply_count,   :integer, default: 0
     field :reaction_count, :integer, default: 0
     field :pinned,           :boolean, default: false
+    field :pin_scope,        :string   # "global" | "space" | nil
     field :locked,           :boolean, default: false
     field :hidden,           :boolean, default: false
     field :hidden_at,        :utc_datetime
@@ -45,8 +46,12 @@ defmodule Nexus.Forum.Post do
     |> change(hidden: true, hidden_at: DateTime.utc_now() |> DateTime.truncate(:second), hidden_by_id: moderator_id)
   end
 
-  def pin_changeset(post, pinned) do
-    change(post, pinned: pinned)
+  def pin_changeset(post, pinned, scope \\ nil) do
+    if pinned do
+      change(post, pinned: true, pin_scope: scope)
+    else
+      change(post, pinned: false, pin_scope: nil)
+    end
   end
 
   def lock_changeset(post, locked) do

@@ -70,6 +70,7 @@ defmodule NexusWeb.API.V1.FeedController do
       body: post.body,
       type: post.type,
       pinned: post.pinned,
+      pin_scope: post.pin_scope,
       locked: post.locked,
       type: post.type,
       accepted_reply_id: post.accepted_reply_id,

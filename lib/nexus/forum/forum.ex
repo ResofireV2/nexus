@@ -149,8 +149,8 @@ defmodule Nexus.Forum do
     |> Repo.update()
   end
 
-  def pin_post(%Post{} = post, pinned) do
-    post |> Post.pin_changeset(pinned) |> Repo.update()
+  def pin_post(%Post{} = post, pinned, scope \\ nil) do
+    post |> Post.pin_changeset(pinned, scope) |> Repo.update()
   end
 
   def lock_post(%Post{} = post, locked) do
@@ -434,6 +434,7 @@ defmodule Nexus.Forum do
       |> preload([:user, :space, :tags])
 
     query = filter_by_space(query, space_slug)
+    query = filter_pinned_for_context(query, space_slug)
     query = filter_by_tag(query, tag_slug)
     query = filter_by_visibility(query, user)
     query = if following && user, do: filter_by_following(query, user.id), else: query
@@ -459,6 +460,13 @@ defmodule Nexus.Forum do
   defp filter_by_space(query, slug) do
     join(query, :inner, [p], s in Space, on: p.space_id == s.id and s.slug == ^slug)
   end
+
+  # Global feed: exclude posts pinned only to a space (they'd appear without context)
+  # Space feed: include all posts — space-pinned and globally-pinned both float
+  defp filter_pinned_for_context(query, nil) do
+    where(query, [p], is_nil(p.pin_scope) or p.pin_scope == "global")
+  end
+  defp filter_pinned_for_context(query, _space_slug), do: query
 
   defp filter_by_tag(query, nil), do: query
   defp filter_by_tag(query, slug) do
@@ -515,19 +523,36 @@ defmodule Nexus.Forum do
     end
   end
 
-  defp apply_sort(query, "top"),      do: order_by(query, [p], [desc: p.reaction_count, desc: p.id])
+  # Pinned posts always float to the top, then normal sort applies.
+  # For space-filtered feeds, only space-pinned and globally-pinned posts float.
+  # For the global feed, only globally-pinned posts float.
+  defp apply_sort(query, "top") do
+    order_by(query, [p], [
+      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
+      desc: p.reaction_count, desc: p.id
+    ])
+  end
   defp apply_sort(query, sort) when sort in ["latest", "activity"] do
-    order_by(query, [p], [desc: fragment("COALESCE(?, ?)", p.last_reply_at, p.inserted_at), desc: p.id])
+    order_by(query, [p], [
+      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
+      desc: fragment("COALESCE(?, ?)", p.last_reply_at, p.inserted_at), desc: p.id
+    ])
   end
   defp apply_sort(query, "rising") do
-    order_by(query, [p],
+    order_by(query, [p], [
+      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
       fragment(
         "((? + ?) / power(extract(epoch from (now() - ?)) / 3600.0 + 2, 1.5)) DESC, ? DESC",
         p.reply_count, p.reaction_count, p.inserted_at, p.id
       )
-    )
+    ])
   end
-  defp apply_sort(query, _),          do: order_by(query, [p], [desc: p.inserted_at, desc: p.id])
+  defp apply_sort(query, _) do
+    order_by(query, [p], [
+      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
+      desc: p.inserted_at, desc: p.id
+    ])
+  end
 
   defp encode_cursor(post, "top") do
     %{"reaction_count" => post.reaction_count, "id" => post.id}

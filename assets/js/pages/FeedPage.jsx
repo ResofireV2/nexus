@@ -123,7 +123,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               :posts.map(p=>{
                 const col = spaceColor(p.space||{id:p.id});
                 return (
-                  <div key={p.id} className="thread" style={{position:"relative"}}
+                  <div key={p.id} className="thread" style={{position:"relative",
+                      background:p.pinned?"var(--ac-bg)":"var(--bg)",
+                      borderColor:p.pinned?"var(--ac-border)":"var(--b1)"}}
                     onMouseEnter={()=>setHoveredPost(p.id)}
                     onMouseLeave={()=>{setHoveredPost(null);if(openPostMenu===p.id)setOpenPostMenu(null);}}
                     onClick={e=>{if(e.target.closest(".feed-post-menu"))return;navigate("post",{id:p.id});}}>
@@ -134,11 +136,14 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                       <i className={`fa-${savedPostIds.has(p.id)?"solid":"regular"} fa-bookmark`}/>
                     </button>
                     <div className="thread-main">
-                      <div className="thread-accent" style={{background:col}}/>
+                      <div className="thread-accent" style={{background:p.pinned?"var(--ac)":col}}/>
                       <div style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
-                          <div className="thread-title">{p.title}</div>
+                          <div className="thread-title" style={{color:p.pinned?"var(--ac-text)":undefined}}>{p.title}</div>
+                          {p.pinned&&<div style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"2px 8px",borderRadius:20,background:"var(--ac-bg)",color:"var(--ac-text)",border:"0.5px solid var(--ac-border)",flexShrink:0,marginLeft:8}}>
+                            <i className="fa-solid fa-thumbtack" style={{fontSize:10}}/>{p.pin_scope==="global"?"Pinned":"Pinned to space"}
+                          </div>}
                         </div>
                         <div className="thread-tags-row">
                           {p.type==="question"&&<div className="thread-tag" style={{background:p.accepted_reply_id?"rgba(52,211,153,0.15)":"rgba(96,165,250,0.15)",color:p.accepted_reply_id?"#34d399":"#60a5fa",display:"flex",alignItems:"center",gap:4}}>
@@ -146,7 +151,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           </div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
-                        {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
+                        {p.body&&<div className="thread-preview" style={{color:p.pinned?"var(--ac-text)":undefined,opacity:p.pinned?0.8:1}}>{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
                             {/* OP avatar */}

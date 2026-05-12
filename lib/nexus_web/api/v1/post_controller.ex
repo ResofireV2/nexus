@@ -131,20 +131,33 @@ defmodule NexusWeb.API.V1.PostController do
   end
 
   # POST /api/v1/posts/:id/pin  (moderator+)
-  def pin(conn, %{"id" => id}) do
-    post = Forum.get_post!(id)
+  # params: scope — "global" | "space" | omitted (toggles off)
+  def pin(conn, %{"id" => id} = params) do
+    post  = Forum.get_post!(id)
     actor = conn.assigns.current_user
-    {:ok, updated} = Forum.pin_post(post, !post.pinned)
-    # Enqueue score update for post author when pinned (not unpinned)
-    if updated.pinned && post.user_id do
-      %{"user_id" => post.user_id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
-      # Notify all users of this announcement via a background fan-out worker
-      # so we never block the pin request on large user bases.
-      %{"post_id" => updated.id, "actor_id" => actor.id}
-      |> Nexus.Workers.FanOutAnnouncement.new()
-      |> Oban.insert()
+    scope = params["scope"]
+
+    # Only admins may pin globally; moderators may only pin to a space
+    if scope == "global" && !Nexus.Accounts.User.admin?(actor) do
+      conn |> put_status(:forbidden) |> json(%{error: "Only admins can pin globally"})
+    else
+      # If scope is omitted we're unpinning; otherwise pin with the given scope
+      pinned = !is_nil(scope)
+      {:ok, updated} = Forum.pin_post(post, pinned, scope)
+
+      if updated.pinned && post.user_id do
+        %{"user_id" => post.user_id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
+        # Only fan-out announcements for global pins — space pins are too narrow
+        # to warrant notifying every user on the forum.
+        if updated.pin_scope == "global" do
+          %{"post_id" => updated.id, "actor_id" => actor.id}
+          |> Nexus.Workers.FanOutAnnouncement.new()
+          |> Oban.insert()
+        end
+      end
+
+      json(conn, %{post: post_json(updated)})
     end
-    json(conn, %{post: post_json(updated)})
   end
 
   # POST /api/v1/posts/:id/lock  (moderator+)
@@ -173,6 +186,7 @@ defmodule NexusWeb.API.V1.PostController do
       body_format: post.body_format,
       type: post.type,
       pinned: post.pinned,
+      pin_scope: post.pin_scope,
       locked: post.locked,
       accepted_reply_id: post.accepted_reply_id,
       reply_count: post.reply_count,

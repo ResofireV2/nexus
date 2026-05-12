@@ -651,6 +651,24 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     toast(action.charAt(0).toUpperCase()+action.slice(1)+"d");
   };
 
+  const [pinModal,setPinModal]=useState(false);
+  const [pinScope,setPinScope]=useState("global");
+  const openPinModal=()=>{ setPinScope(post.pin_scope||"global"); setPostMenuOpen(false); setPinModal(true); };
+  const submitPin=async()=>{
+    const d = await api.post(`/posts/${post.id}/pin`,{scope:post.pinned&&pinScope===post.pin_scope?undefined:pinScope});
+    if(d.error){toast(d.error,"err");return;}
+    setPost(p=>({...p,pinned:d.post.pinned,pin_scope:d.post.pin_scope}));
+    setPinModal(false);
+    toast(d.post.pinned?"Post pinned":"Post unpinned");
+  };
+  const submitUnpin=async()=>{
+    const d = await api.post(`/posts/${post.id}/pin`,{});
+    if(d.error){toast(d.error,"err");return;}
+    setPost(p=>({...p,pinned:false,pin_scope:null}));
+    setPinModal(false);
+    toast("Post unpinned");
+  };
+
 
   const isMod = currentUser?.role==="admin"||currentUser?.role==="moderator";
   const [showPostMenu, setShowPostMenu] = useState(false);
@@ -685,6 +703,70 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   return (
     <div className="post-shell">
       {/* Report modal */}
+      {pinModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}} onClick={e=>e.target===e.currentTarget&&setPinModal(false)}>
+          <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:12,padding:24,width:"100%",maxWidth:420}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <i className="fa-solid fa-thumbtack" style={{fontSize:16,color:"var(--t4)"}}/>
+                <span style={{fontSize:15,fontWeight:500,color:"var(--t1)"}}>Pin post</span>
+              </div>
+              <button onClick={()=>setPinModal(false)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--t4)",padding:4}}><i className="fa-solid fa-xmark" style={{fontSize:15}}/></button>
+            </div>
+            <div style={{fontSize:12,color:"var(--t3)",marginBottom:16,padding:"9px 12px",background:"var(--bg2)",borderRadius:8}}>
+              <strong style={{color:"var(--t1)",fontWeight:500}}>{post.title}</strong>
+              <span style={{color:"var(--t5)"}}> · {post.user?.username}</span>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:4}}>
+              {["global","space"].map(s=>{
+                const isAdmin = currentUser?.role==="admin";
+                const disabled = s==="global"&&!isAdmin;
+                return (
+                  <div key={s} onClick={()=>!disabled&&setPinScope(s)}
+                    style={{display:"flex",alignItems:"flex-start",gap:14,padding:14,borderRadius:8,
+                      border:pinScope===s?"1.5px solid var(--ac-border)":"0.5px solid var(--b2)",
+                      background:pinScope===s?"var(--ac-bg)":"transparent",
+                      cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.45:1}}>
+                    <div style={{width:16,height:16,borderRadius:"50%",border:`1.5px solid ${pinScope===s?"var(--ac)":"var(--b2)"}`,flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center",background:pinScope===s?"var(--ac-bg)":"none"}}>
+                      {pinScope===s&&<div style={{width:7,height:7,borderRadius:"50%",background:"var(--ac)"}}/>}
+                    </div>
+                    <div style={{width:36,height:36,borderRadius:"50%",background:pinScope===s?"var(--ac-bg)":"var(--bg2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
+                      <i className={`fa-solid ${s==="global"?"fa-globe":"fa-layer-group"}`} style={{fontSize:16,color:pinScope===s?"var(--ac)":"var(--t4)"}}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:500,color:pinScope===s?"var(--ac-text)":"var(--t1)",marginBottom:3}}>
+                        {s==="global"?"Pin globally":"Pin to space"}
+                        {s==="global"&&!isAdmin&&<span style={{fontSize:11,color:"var(--t5)",fontWeight:400,marginLeft:6}}>(admin only)</span>}
+                      </div>
+                      <div style={{fontSize:12,color:pinScope===s?"var(--ac-text)":"var(--t3)",lineHeight:1.5,opacity:pinScope===s?0.85:1}}>
+                        {s==="global"
+                          ?"Appears at the top of all feeds. Best for site-wide announcements."
+                          :`Appears at the top of the ${post.space?.name||"space"} feed only.`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:20}}>
+              <button onClick={()=>setPinModal(false)} style={{fontSize:13,padding:"7px 16px"}}>Cancel</button>
+              {post.pinned&&(
+                <button onClick={submitUnpin} style={{fontSize:13,padding:"7px 16px",background:"rgba(248,113,113,0.1)",color:"var(--red)",border:"0.5px solid var(--red)"}}>
+                  <i className="fa-solid fa-thumbtack" style={{fontSize:12,marginRight:5}}/>Unpin
+                </button>
+              )}
+              <button onClick={submitPin} style={{fontSize:13,padding:"7px 16px",background:"var(--ac-bg)",color:"var(--ac-text)",border:"0.5px solid var(--ac-border)"}}>
+                <i className="fa-solid fa-thumbtack" style={{fontSize:12,marginRight:5}}/>{post.pinned?"Update pin":"Pin post"}
+              </button>
+            </div>
+            {post.pinned&&(
+              <div style={{borderTop:"0.5px solid var(--b1)",marginTop:16,paddingTop:12,fontSize:12,color:"var(--t5)"}}>
+                Currently pinned {post.pin_scope==="global"?"globally":`to ${post.space?.name||"space"}`}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {reportTarget&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}} onClick={e=>e.target===e.currentTarget&&setReportTarget(null)}>
           <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:12,padding:24,width:"100%",maxWidth:400}}>
@@ -805,10 +887,10 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                     </button>}
                     {/* Mod actions */}
                     {isMod&&<>
-                      <button onClick={()=>{setPostMenuOpen(false);modAction("pin");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:post.pinned?"var(--ac-text)":"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                      <button onClick={openPinModal} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:post.pinned?"var(--ac-text)":"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
                         onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                        <i className={`fa-solid ${post.pinned?"fa-thumbtack fa-rotate-90":"fa-thumbtack"}`} style={{fontSize:11,color:"var(--t4)",width:14}}/>{post.pinned?"Unpin":"Pin"}
+                        <i className={`fa-solid ${post.pinned?"fa-thumbtack fa-rotate-90":"fa-thumbtack"}`} style={{fontSize:11,color:"var(--t4)",width:14}}/>{post.pinned?"Edit pin":"Pin"}
                       </button>
                       <button onClick={()=>{setPostMenuOpen(false);modAction("lock");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:post.locked?"var(--amber)":"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
