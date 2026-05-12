@@ -1319,6 +1319,8 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Link preview card */
 .md-link-preview{margin:12px 0;}
 .md-link-preview.loading{min-height:60px;background:var(--bg2);border:0.5px solid var(--b1);border-radius:12px;}
+.md-link-preview a{cursor:pointer;}
+.md-link-preview img{cursor:pointer!important;border:none!important;border-radius:0!important;margin:0!important;background:none!important;}
 /* Lightbox */
 /* Lightbox CSS removed — Fancybox 5 handles styling */
 
