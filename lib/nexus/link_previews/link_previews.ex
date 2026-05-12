@@ -15,12 +15,12 @@ defmodule Nexus.LinkPreviews do
   # URLs matching these patterns already have rich dedicated embeds
   # and should never be unfurled as generic link preview cards.
   @skip_patterns [
-    ~r/(?:youtube\.com\/(?:watch|embed|shorts)|youtu\.be\/)/i,
-    ~r/vimeo\.com\/(?:video\/)?[0-9]+/i,
-    ~r/(?:twitter\.com|x\.com)\/[^/]+\/status/i,
-    ~r/open\.spotify\.com\/(?:track|album|playlist|episode)\//i,
-    ~r/\.(mp4|webm|ogg|mov|mp3|wav|flac|m4a)(\?.*)?$/i,
-    ~r/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i
+    ~r{(?:youtube\.com/(?:watch|embed|shorts)|youtu\.be/)}i,
+    ~r{vimeo\.com/(?:video/)?[0-9]+}i,
+    ~r{(?:twitter\.com|x\.com)/[^/]+/status}i,
+    ~r{open\.spotify\.com/(?:track|album|playlist|episode)/}i,
+    ~r{\.(mp4|webm|ogg|mov|mp3|wav|flac|m4a)(\?.*)?$}i,
+    ~r{\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$}i
   ]
 
   @max_urls_per_body 3
@@ -359,7 +359,7 @@ defmodule Nexus.LinkPreviews do
         "#{s}://#{h}#{url}"
       true ->
         base_dir = base |> URI.parse() |> Map.put(:query, nil) |> Map.put(:fragment, nil)
-                   |> to_string() |> String.replace(~r/[^/]+$/, "")
+                   |> to_string() |> String.replace(~r{[^/]+$}, "")
         "#{base_dir}#{url}"
     end
   end
