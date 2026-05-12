@@ -13,6 +13,7 @@ import { AdminIntegrationsPanel, AdminAntiSpamPanel, AdminLogsPanel,
 import { BadgesPage, AdminBadgesPanel } from "./AdminBadges";
 import { AdminExtensionsPanel, SimpleSettingsPanel, TabbedPanel } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
+import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
 function TagsAdmin({tags, onRefresh}) {
