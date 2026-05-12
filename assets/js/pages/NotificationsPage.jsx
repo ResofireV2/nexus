@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { ago } from "../lib/utils";
 import { RsAv } from "../components/Avatar";
 import { Md } from "../components/Markdown";
+import { toast } from "../components/Toasts";
 
 // ── NotificationsPage ─────────────────────────────────────────────────────────
 
