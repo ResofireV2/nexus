@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { ago, userColor, spaceColor } from "../lib/utils";
 import { RsAv } from "../components/Avatar";
