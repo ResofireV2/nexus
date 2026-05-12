@@ -27,13 +27,12 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const TYPE_OPTS=[{v:"discussion",label:"Discussion",icon:"fa-comments"},{v:"question",label:"Question",icon:"fa-circle-question"}];
   const selectedType=TYPE_OPTS.find(t=>t.v===postType)||TYPE_OPTS[0];
 
-  // Auto-save draft — resume existing draft if navigated from Drafts page
+  // Auto-save draft — if resuming, seed with existing draft ID so we PATCH not POST
   const { draftId, lastSaved, saveDraft, clearDraft } = useDraftAutosave({
     type: "post",
     enabled: !!currentUser,
+    initialDraftId: resumeDraft?.id || null,
   });
-  // If resuming a draft, set its ID so we update rather than create
-  const resumedRef = useRef(resumeDraft?.id || null);
 
   const triggerSave = () => {
     saveDraft({

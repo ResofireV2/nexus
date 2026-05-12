@@ -193,11 +193,11 @@ function DraftCard({ draft, onResume, onDelete, deleting }) {
 // - saveDraft(attrs) — debounced, call on every change
 // - clearDraft()    — call after successful publish to delete the draft
 
-export function useDraftAutosave({ type, postId = null, enabled = true }) {
-  const [draftId,   setDraftId]   = useState(null);
-  const [lastSaved, setLastSaved] = useState(null); // Date | null
+export function useDraftAutosave({ type, postId = null, enabled = true, initialDraftId = null }) {
+  const [draftId,   setDraftId]   = useState(initialDraftId);
+  const [lastSaved, setLastSaved] = useState(null);
   const debounceRef = useRef(null);
-  const draftIdRef  = useRef(null);
+  const draftIdRef  = useRef(initialDraftId); // seeded with resumed draft ID if any
 
   useEffect(() => { draftIdRef.current = draftId; }, [draftId]);
 
