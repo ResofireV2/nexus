@@ -35,12 +35,12 @@ function renderLinkPreviewCard(node, data) {
   const url      = data.url;
 
   const faviconHtml = favicon
-    ? `<img src="${favicon}" alt="" width="14" height="14" style="border-radius:2px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">`
+    ? `<img src="${escHtml(favicon)}" alt="" width="14" height="14" style="border-radius:2px;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none'">`
     : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
 
   const imageHtml = image
     ? `<div style="width:100%;aspect-ratio:1.91/1;overflow:hidden;background:var(--bg2);max-height:220px;">
-         <img src="${image}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" onerror="this.closest('[data-lp-img]').style.display='none'" />
+         <img src="${escHtml(image)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" onerror="this.closest('[data-lp-img]').style.display='none'" />
        </div>`
     : "";
 

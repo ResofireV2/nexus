@@ -31,6 +31,8 @@ defmodule Nexus.Application do
       Nexus.Presence,
       {Finch, name: Nexus.Finch},
       {Oban, Application.fetch_env!(:nexus, Oban)},
+      # Rate limiter — ETS table for auth endpoint throttling
+      Nexus.RateLimiter,
       # Extension infrastructure — must start before the endpoint so that
       # extension routes are available when the first request arrives.
       Nexus.Extensions.Registry,

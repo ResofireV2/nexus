@@ -13,6 +13,14 @@ defmodule NexusWeb.API.V1.AuthController do
     else
       ip = to_string(:inet.ntoa(conn.remote_ip))
 
+      case Nexus.RateLimiter.check("register:#{ip}", limit: 5, window_seconds: 60) do
+        {:deny, retry_after} ->
+          conn
+          |> put_resp_header("retry-after", to_string(retry_after))
+          |> put_status(:too_many_requests)
+          |> json(%{error: "Too many registration attempts. Please try again later."})
+        :allow ->
+
       case Nexus.AntiSpam.check_registration(ip, params["email"], params["username"], params) do
         {:block, reason} ->
           conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
@@ -51,6 +59,7 @@ defmodule NexusWeb.API.V1.AuthController do
               |> json(%{errors: format_errors(changeset)})
           end
       end
+      end # rate limit
     end
   end
 
@@ -60,6 +69,15 @@ defmodule NexusWeb.API.V1.AuthController do
   # ---------------------------------------------------------------------------
 
   def login(conn, %{"email" => email, "password" => password} = params) do
+    ip = to_string(:inet.ntoa(conn.remote_ip))
+
+    case Nexus.RateLimiter.check("login:#{ip}", limit: 10, window_seconds: 60) do
+      {:deny, retry_after} ->
+        conn
+        |> put_resp_header("retry-after", to_string(retry_after))
+        |> put_status(:too_many_requests)
+        |> json(%{error: "Too many login attempts. Please try again later."})
+      :allow ->
     remember_me = Map.get(params, "remember_me", true)
 
     case Accounts.authenticate_user(email, password) do
@@ -97,6 +115,7 @@ defmodule NexusWeb.API.V1.AuthController do
         |> put_status(:unprocessable_entity)
         |> json(%{error: "This account uses OAuth — please sign in with Google or GitHub"})
     end
+    end # rate limit
   end
 
   def login(conn, _params) do
@@ -165,9 +184,19 @@ defmodule NexusWeb.API.V1.AuthController do
   # ---------------------------------------------------------------------------
 
   def magic_link_request(conn, %{"email" => email}) do
-    Accounts.send_magic_link(email)
-    # Always returns ok to avoid email enumeration
-    json(conn, %{ok: true})
+    ip = to_string(:inet.ntoa(conn.remote_ip))
+
+    case Nexus.RateLimiter.check("magic_link:#{ip}", limit: 5, window_seconds: 60) do
+      {:deny, retry_after} ->
+        conn
+        |> put_resp_header("retry-after", to_string(retry_after))
+        |> put_status(:too_many_requests)
+        |> json(%{ok: true}) # same shape — don't reveal rate limiting to avoid enumeration
+      :allow ->
+        Accounts.send_magic_link(email)
+        # Always returns ok to avoid email enumeration
+        json(conn, %{ok: true})
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -273,39 +302,73 @@ defmodule NexusWeb.API.V1.AuthController do
   # ---------------------------------------------------------------------------
 
   def oauth_google(conn, _params) do
-    # Stage 3 stub — full OAuth in next iteration
-    # Redirect to Google with client_id, redirect_uri, scope
-    url = Nexus.Auth.OAuth.google_authorize_url()
-    redirect(conn, external: url)
+    state = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
+    url   = Nexus.Auth.OAuth.google_authorize_url(state)
+    conn
+    |> put_resp_cookie("_oauth_state", state,
+        http_only: true,
+        same_site: "Lax",
+        secure: Application.get_env(:nexus, :env) == :prod,
+        max_age: 600)
+    |> redirect(external: url)
   end
 
-  def oauth_google_callback(conn, %{"code" => code}) do
-    case Nexus.Auth.OAuth.exchange_google_code(code) do
-      {:ok, profile} ->
-        handle_oauth_callback(conn, "google", profile)
+  def oauth_google_callback(conn, %{"code" => code, "state" => state}) do
+    stored_state = conn.req_cookies["_oauth_state"]
 
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_gateway)
-        |> json(%{error: "Google OAuth failed: #{reason}"})
+    if is_nil(stored_state) or stored_state != state do
+      conn |> put_status(:bad_request) |> json(%{error: "Invalid OAuth state parameter"})
+    else
+      conn = delete_resp_cookie(conn, "_oauth_state")
+      case Nexus.Auth.OAuth.exchange_google_code(code) do
+        {:ok, profile} ->
+          handle_oauth_callback(conn, "google", profile)
+
+        {:error, reason} ->
+          conn
+          |> put_status(:bad_gateway)
+          |> json(%{error: "Google OAuth failed: #{reason}"})
+      end
     end
+  end
+
+  def oauth_google_callback(conn, _params) do
+    conn |> put_status(:bad_request) |> json(%{error: "Missing code or state"})
   end
 
   def oauth_github(conn, _params) do
-    url = Nexus.Auth.OAuth.github_authorize_url()
-    redirect(conn, external: url)
+    state = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
+    url   = Nexus.Auth.OAuth.github_authorize_url(state)
+    conn
+    |> put_resp_cookie("_oauth_state", state,
+        http_only: true,
+        same_site: "Lax",
+        secure: Application.get_env(:nexus, :env) == :prod,
+        max_age: 600)
+    |> redirect(external: url)
   end
 
-  def oauth_github_callback(conn, %{"code" => code}) do
-    case Nexus.Auth.OAuth.exchange_github_code(code) do
-      {:ok, profile} ->
-        handle_oauth_callback(conn, "github", profile)
+  def oauth_github_callback(conn, %{"code" => code, "state" => state}) do
+    stored_state = conn.req_cookies["_oauth_state"]
 
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_gateway)
-        |> json(%{error: "GitHub OAuth failed: #{reason}"})
+    if is_nil(stored_state) or stored_state != state do
+      conn |> put_status(:bad_request) |> json(%{error: "Invalid OAuth state parameter"})
+    else
+      conn = delete_resp_cookie(conn, "_oauth_state")
+      case Nexus.Auth.OAuth.exchange_github_code(code) do
+        {:ok, profile} ->
+          handle_oauth_callback(conn, "github", profile)
+
+        {:error, reason} ->
+          conn
+          |> put_status(:bad_gateway)
+          |> json(%{error: "GitHub OAuth failed: #{reason}"})
+      end
     end
+  end
+
+  def oauth_github_callback(conn, _params) do
+    conn |> put_status(:bad_request) |> json(%{error: "Missing code or state"})
   end
 
   defp handle_oauth_callback(conn, provider, profile) do

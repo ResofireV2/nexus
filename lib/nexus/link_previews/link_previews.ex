@@ -260,18 +260,26 @@ defmodule Nexus.LinkPreviews do
 
           File.mkdir_p!(Path.dirname(abs))
 
-          with :ok <- File.write(abs, body),
-               {:ok, img}     <- Image.open(abs),
-               {:ok, img}     <- autorotate(img),
-               {w, _h, _}     <- Image.shape(img),
+          # Write to a temp path first, validate the bytes are a real image,
+          # then move to the final path. This prevents non-image content from
+          # ever reaching the served uploads directory.
+          tmp_abs = abs <> ".tmp"
+
+          with :ok           <- File.write(tmp_abs, body),
+               {:ok, img}    <- Image.open(tmp_abs),
+               {:ok, img}    <- autorotate(img),
+               {w, _h, _}    <- Image.shape(img),
                {:ok, resized} <- maybe_resize(img, w),
                webp_rel       <- "webp/#{dir}/#{Path.rootname(name)}.webp",
                abs_webp       <- full_path(webp_rel),
                :ok            <- File.mkdir_p!(Path.dirname(abs_webp)),
-               {:ok, _}       <- Image.write(resized, abs_webp, quality: 85, suffix: ".webp") do
+               {:ok, _}       <- Image.write(resized, abs_webp, quality: 85, suffix: ".webp"),
+               :ok            <- File.rename(tmp_abs, abs) do
             webp_rel
           else
-            _ -> nil
+            _ ->
+              File.rm(tmp_abs)
+              nil
           end
         else
           nil

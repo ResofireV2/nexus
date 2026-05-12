@@ -58,7 +58,7 @@ defmodule NexusWeb.API.V1.AdminController do
       search: params["search"],
       role:   params["role"],
       status: params["status"],
-      page:   String.to_integer(params["page"] || "1")
+      page:   parse_int(params["page"], 1)
     ]
 
     %{users: users, total: total, page: page, pages: pages} = Admin.list_users(opts)
@@ -449,7 +449,13 @@ defmodule NexusWeb.API.V1.AdminController do
     end)
   end
 
-  # GET /api/v1/admin/updates/check
+  defp parse_int(nil, default), do: default
+  defp parse_int(val, default) do
+    case Integer.parse(to_string(val)) do
+      {n, _} when n > 0 -> n
+      _ -> default
+    end
+  end
   def check_update(conn, _params) do
     case Nexus.Updates.check_for_update() do
       {:ok, result} ->

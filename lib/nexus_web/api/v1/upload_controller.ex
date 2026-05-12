@@ -80,8 +80,8 @@ defmodule NexusWeb.API.V1.UploadController do
     opts = [
       upload_type: params["type"],
       user_id:     params["user_id"],
-      page:        String.to_integer(params["page"] || "1"),
-      limit:       String.to_integer(params["limit"] || "50")
+      page:        parse_int(params["page"], 1),
+      limit:       parse_int(params["limit"], 50)
     ]
 
     %{uploads: uploads, total: total, page: page, pages: pages} = Uploads.list_uploads(opts)
@@ -150,5 +150,13 @@ defmodule NexusWeb.API.V1.UploadController do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
+  end
+
+  defp parse_int(nil, default), do: default
+  defp parse_int(val, default) do
+    case Integer.parse(to_string(val)) do
+      {n, _} when n > 0 -> n
+      _ -> default
+    end
   end
 end

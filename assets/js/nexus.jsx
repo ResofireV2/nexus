@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom/client";
+import DOMPurify from "dompurify";
 import { api }                                              from "./lib/api";
 import { ago, fmtDate, fmtMsgTime, fmtDaySep, fmtBytes,
          SPACE_COLORS, userColor, spaceColor }             from "./lib/utils";
@@ -103,7 +104,7 @@ function hydrateXEmbeds(root) {
       })
       .then(data => {
         if (!data.html) throw new Error("empty");
-        node.innerHTML = data.html;
+        node.innerHTML = DOMPurify.sanitize(data.html, {ADD_TAGS: ["twitter-widget"], ADD_ATTR: ["async", "charset", "src"]});
         if (window.twttr && window.twttr.widgets) window.twttr.widgets.load(node);
       })
       .catch(() => {
@@ -1420,6 +1421,15 @@ function pageToUrl(page, props={}) {
   }
 }
 let _cssEl = null;
+
+// Strip CSS constructs that can be used to exfiltrate data:
+// @import, external url() references, and IE expression().
+function sanitizeCSS(css) {
+  return css
+    .replace(/@import\b[^;]*(;|$)/gi, '')
+    .replace(/url\s*\(\s*(?!['"]?(data:|\/|#))[^)]+\)/gi, '')
+    .replace(/expression\s*\(/gi, '');
+}
 // Initialize branding from cache immediately to avoid flash on load
 let _brandingState = (() => {
   try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : {logo_url:null,site_name:null,favicon_url:null,hero_title:null,hero_body:null,hero_enabled:false}; }
@@ -1652,7 +1662,7 @@ function applyBranding(app={}, gen={}) {
   if (gen.site_name) document.title = gen.site_name === "Nexus" ? "Nexus" : gen.site_name + " · Nexus";
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
-    _cssEl.textContent = app.custom_css;
+    _cssEl.textContent = sanitizeCSS(app.custom_css);
   }
   // Apply favicon
   if (gen.favicon_url) {

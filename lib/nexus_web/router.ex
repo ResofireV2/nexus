@@ -202,6 +202,10 @@ defmodule NexusWeb.Router do
     patch  "/drafts/:id",   DraftController, :update
     delete "/drafts/all",   DraftController, :delete_all
     delete "/drafts/:id",   DraftController, :delete
+
+    # Read position — any authenticated member can save their position
+    get  "/posts/:id/read-position",  PostController, :read_position
+    post "/posts/:id/read-position",  PostController, :save_read_position
   end
 
   # API v1 — moderator actions
@@ -220,8 +224,6 @@ defmodule NexusWeb.Router do
     post "/posts/:id/pin",  PostController, :pin
     post "/posts/:id/lock", PostController, :lock
     post "/posts/:id/hide",          PostController, :hide
-    get  "/posts/:id/read-position",  PostController, :read_position
-    post "/posts/:id/read-position",  PostController, :save_read_position
 
     # Reply moderation
     post "/posts/:post_id/replies/:id/hide", ReplyController, :hide

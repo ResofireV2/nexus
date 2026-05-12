@@ -268,9 +268,11 @@ defmodule Nexus.Accounts do
   end
 
   defp create_refresh_token(user, opts) do
-    raw_token  = generate_raw_token()
-    expires_at = DateTime.utc_now() |> DateTime.add(30 * 24 * 60 * 60, :second) |> DateTime.truncate(:second)
+    raw_token   = generate_raw_token()
     remember_me = Keyword.get(opts, :remember_me, true)
+    # Persistent sessions: 30 days. Session-only: 24 hours.
+    ttl_seconds = if remember_me, do: 30 * 24 * 60 * 60, else: 24 * 60 * 60
+    expires_at  = DateTime.utc_now() |> DateTime.add(ttl_seconds, :second) |> DateTime.truncate(:second)
 
     %RefreshToken{}
     |> RefreshToken.changeset(%{
@@ -302,24 +304,25 @@ defmodule Nexus.Accounts do
         {:ok, :sent}
 
       user ->
-        token = generate_raw_token()
+        raw_token = generate_raw_token()
 
         user
-        |> User.magic_token_changeset(token)
+        |> User.magic_token_changeset(hash_token(raw_token))
         |> Repo.update!()
 
-        Nexus.Mailer.send_magic_link(user, token)
+        Nexus.Mailer.send_magic_link(user, raw_token)
         {:ok, :sent}
     end
   end
 
   def authenticate_magic_link(token) do
+    token_hash          = hash_token(token)
     fifteen_minutes_ago = DateTime.utc_now() |> DateTime.add(-15 * 60, :second)
 
     user =
       Repo.one(
         from u in User,
-          where: u.magic_token == ^token,
+          where: u.magic_token == ^token_hash,
           where: u.magic_token_sent_at > ^fifteen_minutes_ago
       )
 
@@ -365,18 +368,19 @@ defmodule Nexus.Accounts do
   end
 
   def send_verification_email(user) do
-    token = generate_raw_token()
+    raw_token = generate_raw_token()
 
     user
-    |> User.email_verify_token_changeset(token)
+    |> User.email_verify_token_changeset(hash_token(raw_token))
     |> Repo.update!()
 
-    Nexus.Mailer.send_verification_email(user, token)
+    Nexus.Mailer.send_verification_email(user, raw_token)
     {:ok, :sent}
   end
 
   def verify_email(token) do
-    user = Repo.get_by(User, email_verify_token: token)
+    token_hash = hash_token(token)
+    user = Repo.get_by(User, email_verify_token: token_hash)
 
     case user do
       nil -> {:error, :invalid_token}
@@ -410,14 +414,24 @@ defmodule Nexus.Accounts do
     base = attrs[:username] || attrs["username"] || "user"
     base = base |> String.downcase() |> String.replace(~r/[^a-z0-9_]/, "_")
 
-    username =
-      if Repo.get_by(User, username: base) do
-        "#{base}_#{:rand.uniform(9999)}"
-      else
-        base
-      end
+    # Retry loop handles the race condition where two concurrent OAuth
+    # registrations pick the same username between check and insert.
+    username = find_unique_username(base, 0)
 
     Map.put(attrs, :username, username)
+  end
+
+  defp find_unique_username(base, attempt) when attempt < 10 do
+    candidate = if attempt == 0, do: base, else: "#{base}_#{:rand.uniform(9999)}"
+    if Repo.get_by(User, username: candidate) do
+      find_unique_username(base, attempt + 1)
+    else
+      candidate
+    end
+  end
+  defp find_unique_username(base, _attempt) do
+    # Fallback after 10 attempts — use a timestamp suffix which is effectively unique
+    "#{base}_#{System.system_time(:millisecond)}"
   end
 
   # ---------------------------------------------------------------------------

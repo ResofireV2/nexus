@@ -137,7 +137,13 @@
               if (app.fs_code)    r.style.setProperty('--fs-code',    app.fs_code + 'px');
               if (app.custom_css) {
                 var style = document.createElement('style');
-                style.textContent = app.custom_css;
+                // Strip CSS constructs that can exfiltrate data:
+                // @import, external url(), and CSS expressions.
+                var safe = app.custom_css
+                  .replace(/@import\b[^;]*(;|$)/gi, '')
+                  .replace(/url\s*\(\s*(?!['"]?(data:|\/|#))[^)]+\)/gi, '')
+                  .replace(/expression\s*\(/gi, '');
+                style.textContent = safe;
                 document.head.appendChild(style);
               }
             }

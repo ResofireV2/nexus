@@ -63,16 +63,22 @@ defmodule NexusWeb.API.V1.ExtensionProxyController do
         {body, []}
       end
 
-    method = conn.method |> String.downcase() |> String.to_atom()
+    known_methods = %{"get" => :get, "post" => :post, "put" => :put,
+                      "patch" => :patch, "delete" => :delete, "head" => :head,
+                      "options" => :options}
+    method = Map.get(known_methods, String.downcase(conn.method), :get)
 
-    # Strip hop-by-hop, conditional cache, and content headers we'll re-add
+    # Strip hop-by-hop, conditional cache, content headers we'll re-add,
+    # and Authorization — the JWT must not be forwarded to extension backends.
+    # Extensions receive the user identity via the x-nexus-user-id header instead.
     forward_headers =
       conn.req_headers
       |> Enum.reject(fn {k, _} ->
         k in ["host", "transfer-encoding", "connection",
               "if-none-match", "if-modified-since", "if-match",
               "if-unmodified-since", "if-range",
-              "content-type", "content-length"]
+              "content-type", "content-length",
+              "authorization"]
       end)
 
     nexus_headers = [

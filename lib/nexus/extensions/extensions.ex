@@ -288,7 +288,8 @@ defmodule Nexus.Extensions do
   def install_from_url(url) when is_binary(url) do
     raw_url = to_raw_manifest_url(url)
 
-    with {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
+    with :ok                <- Nexus.URLSafeGuard.validate(raw_url),
+         {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
          {:ok, manifest}    <- parse_manifest(body),
          :ok                <- validate_manifest(manifest) do
 
@@ -674,6 +675,12 @@ defmodule Nexus.Extensions do
   # ---------------------------------------------------------------------------
 
   defp deliver_webhook(extension, event, payload) do
+    case Nexus.URLSafeGuard.validate(extension.webhook_url) do
+      {:error, reason} ->
+        require Logger
+        Logger.warning("Extensions: blocked webhook delivery to #{extension.webhook_url}: #{reason}")
+        :ok
+      :ok ->
     body = %{
       event:      event,
       payload:    payload,
@@ -714,6 +721,7 @@ defmodule Nexus.Extensions do
         require Logger
         Logger.warning("Webhook delivery failed for #{extension.slug} on event #{event}: #{inspect(reason)}")
     end
+    end # URLSafeGuard
   end
 
   # ---------------------------------------------------------------------------

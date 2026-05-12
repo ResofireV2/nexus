@@ -10,14 +10,15 @@ defmodule Nexus.Auth.OAuth do
   # Google
   # ---------------------------------------------------------------------------
 
-  def google_authorize_url do
+  def google_authorize_url(state) do
     config = google_config()
     params = URI.encode_query(%{
       client_id: config[:client_id],
       redirect_uri: config[:redirect_uri],
       response_type: "code",
       scope: "openid email profile",
-      access_type: "offline"
+      access_type: "offline",
+      state: state
     })
     "https://accounts.google.com/o/oauth2/v2/auth?#{params}"
   end
@@ -71,12 +72,13 @@ defmodule Nexus.Auth.OAuth do
   # GitHub
   # ---------------------------------------------------------------------------
 
-  def github_authorize_url do
+  def github_authorize_url(state) do
     config = github_config()
     params = URI.encode_query(%{
       client_id: config[:client_id],
       redirect_uri: config[:redirect_uri],
-      scope: "user:email"
+      scope: "user:email",
+      state: state
     })
     "https://github.com/login/oauth/authorize?#{params}"
   end

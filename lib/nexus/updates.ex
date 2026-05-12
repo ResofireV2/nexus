@@ -175,12 +175,15 @@ defmodule Nexus.Updates do
     # those are instance-specific and must never be overwritten.
     protected = [".env", "docker-compose.yml", "docker-compose.prod.yml"]
 
-    case System.cmd("bash", ["-c", """
-      rsync -a --exclude='.env' \
-               --exclude='docker-compose.yml' \
-               --exclude='docker-compose.prod.yml' \
-               #{src}/ #{@install_dir}/
-    """], stderr_to_stdout: true) do
+    # Use the list form — never interpolate paths into a shell string.
+    case System.cmd("rsync", [
+      "-a",
+      "--exclude=.env",
+      "--exclude=docker-compose.yml",
+      "--exclude=docker-compose.prod.yml",
+      src <> "/",
+      @install_dir <> "/"
+    ], stderr_to_stdout: true) do
       {_, 0} ->
         :ok
       {_out, _} ->
