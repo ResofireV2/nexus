@@ -152,7 +152,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
 
   const totalCount = reactions.reduce((s,r)=>s+(r.count||0),0);
   const isSelf = currentUser && authorId && currentUser.id === authorId;
-  const selfReactionsAllowed = postCfgLoaded ? window._postCfg.allow_self_reactions !== false : true;
+  const selfReactionsAllowed = postCfgLoaded ? window._postCfg.allow_self_reactions !== false : false;
   const canReact = !isSelf || selfReactionsAllowed;
 
   return (
