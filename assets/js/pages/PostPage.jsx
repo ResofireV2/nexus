@@ -3,6 +3,25 @@ import { api } from "../lib/api";
 import { ago, fmtDate, userColor, spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { RsAv, Av, openUserCard } from "../components/Avatar";
+
+// Mirror of the backend/Markdown skip logic — extracts bare URLs that will
+// get link preview cards, so we can pre-register them as fresh before render.
+const _skipUnfurl = [
+  /(?:youtube\.com\/(?:watch|embed|shorts)|youtu\.be\/)/i,
+  /vimeo\.com\/(?:video\/)?[0-9]+/i,
+  /(?:twitter\.com|x\.com)\/[^/]+\/status/i,
+  /open\.spotify\.com\/(?:track|album|playlist|episode)\//i,
+  /\.(mp4|webm|ogg|mov|mp3|wav|flac|m4a)(\?.*)?$/i,
+  /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i,
+];
+function extractUnfurlableUrls(body) {
+  if (!body) return [];
+  const matches = body.match(/(?<![([![])(https?:\/\/[^\s<>")\]]+)/g) || [];
+  return [...new Set(matches)]
+    .filter(u => !_skipUnfurl.some(r => r.test(u)))
+    .slice(0, 3);
+}
+
 import { Select } from "../components/Select";
 import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
@@ -518,6 +537,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody});
       if(d.reply&&d.pending){setReplyBody("");await clearDraft();toast("Your reply is pending moderator approval");}
       else if(d.reply){
+        if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(d.reply.body));
         setReplies(p=>p.some(r=>r.id===d.reply.id)?p:[...p,d.reply]);
         setReplyBody("");
         await clearDraft();

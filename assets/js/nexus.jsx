@@ -9,7 +9,8 @@ import { Select, Toggle }                                  from "./components/Se
 import { toast, Toasts }                                   from "./components/Toasts";
 import { Md, renderMd }                                    from "./components/Markdown";
 import "./components/LinkPreviewCard";
-import { onLinkPreviewReady } from "./components/LinkPreviewCard";
+import { onLinkPreviewReady, registerFreshUrls } from "./components/LinkPreviewCard";
+window._lpRegisterFresh = registerFreshUrls;
 import { REACTIONS, ReactionsModal, ReactionButton }       from "./components/Reactions";
 import { RichTextArea, getAllToolbarButtons,
          setActiveToolbar, TB_BTNS }                       from "./components/RichTextArea";

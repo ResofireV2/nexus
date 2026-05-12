@@ -3,6 +3,22 @@ import { api } from "../lib/api";
 import { spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select } from "../components/Select";
+
+const _skipUnfurl = [
+  /(?:youtube\.com\/(?:watch|embed|shorts)|youtu\.be\/)/i,
+  /vimeo\.com\/(?:video\/)?[0-9]+/i,
+  /(?:twitter\.com|x\.com)\/[^/]+\/status/i,
+  /open\.spotify\.com\/(?:track|album|playlist|episode)\//i,
+  /\.(mp4|webm|ogg|mov|mp3|wav|flac|m4a)(\?.*)?$/i,
+  /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i,
+];
+function extractUnfurlableUrls(body) {
+  if (!body) return [];
+  const matches = body.match(/(?<![([![])(https?:\/\/[^\s<>"\)\]]+)/g) || [];
+  return [...new Set(matches)]
+    .filter(u => !_skipUnfurl.some(r => r.test(u)))
+    .slice(0, 3);
+}
 import { RichTextArea } from "../components/RichTextArea";
 import { useDraftAutosave } from "./DraftsPage";
 
@@ -65,6 +81,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
         if(linkedGames.length>0){
           try{ await fetch(`/ext/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${localStorage.getItem("nexus_token")||""}`},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
         }
+        if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(body));
         toast("Post published!");navigate("post",{id:d.post.id});
       }
       else toast(d.error||"Failed","err"); }

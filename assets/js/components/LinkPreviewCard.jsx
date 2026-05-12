@@ -83,6 +83,15 @@ function renderLinkPreviewError(node, url) {
 // Map of url -> [node, ...] waiting for a preview_ready signal
 const _lpPending = new Map();
 
+// Call this with extracted URLs immediately after a post/reply is submitted,
+// before the DOM nodes exist. hydrateLinkPreviews will then skip the initial
+// API call for these URLs and wait for the WebSocket signal instead.
+function registerFreshUrls(urls) {
+  (urls || []).forEach(url => {
+    if (!_lpPending.has(url)) _lpPending.set(url, []);
+  });
+}
+
 function fetchPreview(url, node) {
   fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
     .then(r => {
@@ -134,7 +143,14 @@ function hydrateLinkPreviews(root) {
       return;
     }
 
-    // Try immediately — preview may already exist from a previous post
+    // If this URL was pre-registered as fresh (just submitted), skip the
+    // immediate API call entirely and wait for the WebSocket signal.
+    if (_lpPending.has(url)) {
+      _lpPending.get(url).push(node);
+      return;
+    }
+
+    // Otherwise try immediately — preview likely already exists in DB.
     fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
       .then(r => {
         if (r.status === 404) {
@@ -168,4 +184,4 @@ document.addEventListener("DOMContentLoaded", () => {
   _lpObserver.observe(document.body, { childList: true, subtree: true });
 });
 
-export { hydrateLinkPreviews, onLinkPreviewReady };
+export { hydrateLinkPreviews, onLinkPreviewReady, registerFreshUrls };
