@@ -90,6 +90,7 @@ _lbSetState = window._lbSetState;
 // ── Reply reference preview popup ─────────────────────────────────────────────
 let _refPopupSetState = null;
 const _refDataMap = {};
+window._refDataMap = _refDataMap;
 function stripMd(text) {
   if (!text) return "";
   return text

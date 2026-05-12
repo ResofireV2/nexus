@@ -383,7 +383,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   useEffect(()=>{
     if (post) {
-      _refDataMap[`#post-${post.id}`] = {
+      window._refDataMap[`#post-${post.id}`] = {
         username: post.user?.username,
         avatar_url: post.user?.avatar_url,
         userId: post.user?.id,
@@ -392,7 +392,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
       };
     }
     replies.forEach(r => {
-      _refDataMap[`#reply-${r.id}`] = {
+      window._refDataMap[`#reply-${r.id}`] = {
         username: r.user?.username,
         avatar_url: r.user?.avatar_url,
         userId: r.user?.id,
