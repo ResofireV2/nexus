@@ -448,4 +448,34 @@ defmodule NexusWeb.API.V1.AdminController do
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
   end
+
+  # GET /api/v1/admin/updates/check
+  def check_update(conn, _params) do
+    case Nexus.Updates.check_for_update() do
+      {:ok, result} ->
+        json(conn, %{
+          current:    result.current,
+          latest:     result.latest,
+          up_to_date: result.up_to_date,
+          release:    result.release
+        })
+
+      {:error, reason} ->
+        conn |> put_status(:internal_server_error) |> json(%{error: reason})
+    end
+  end
+
+  # POST /api/v1/admin/updates/apply
+  def apply_update(conn, _params) do
+    case Nexus.Updates.apply_update() do
+      {:ok, log} ->
+        json(conn, %{ok: true, log: log})
+
+      {:error, {reason, log}} ->
+        conn |> put_status(:internal_server_error) |> json(%{error: reason, log: log})
+
+      {:error, reason} ->
+        conn |> put_status(:internal_server_error) |> json(%{error: reason})
+    end
+  end
 end
