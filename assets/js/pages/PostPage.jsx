@@ -6,7 +6,7 @@ import { RsAv, Av, openUserCard } from "../components/Avatar";
 import { Select } from "../components/Select";
 import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
-import { RichTextArea } from "../components/RichTextArea";
+import { RichTextArea, TB_BTNS } from "../components/RichTextArea";
 
 // ── Post view ─────────────────────────────────────────────────────────────────
 
