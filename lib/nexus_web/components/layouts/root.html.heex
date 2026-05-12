@@ -45,45 +45,67 @@
 
           // Resolve theme respecting allowed options
           var theme;
-          if (pref === 'light' && lightEnabled)      { theme = 'light'; }
-          else if (pref === 'dark' && darkEnabled)   { theme = 'dark';  }
+          if (pref === 'light' && lightEnabled)       { theme = 'light'; }
+          else if (pref === 'dark' && darkEnabled)    { theme = 'dark';  }
           else if (pref === 'light' && !lightEnabled) { theme = darkEnabled ? 'dark' : 'dark'; }
           else if (pref === 'dark'  && !darkEnabled)  { theme = lightEnabled ? 'light' : 'dark'; }
           else {
             // auto or unset: use admin default, else OS, else dark
-            if (defaultTheme === 'light' && lightEnabled)     { theme = 'light'; }
-            else if (defaultTheme === 'dark' && darkEnabled)  { theme = 'dark';  }
+            if (defaultTheme === 'light' && lightEnabled)    { theme = 'light'; }
+            else if (defaultTheme === 'dark' && darkEnabled) { theme = 'dark';  }
             else if (darkEnabled && lightEnabled) { theme = osDark ? 'dark' : 'light'; }
             else if (lightEnabled) { theme = 'light'; }
             else { theme = 'dark'; }
           }
 
+          var r = document.documentElement;
           if (theme === 'light') {
-            var r = document.documentElement;
             r.setAttribute('data-theme', 'light');
-            r.style.setProperty('--bg',  '#f5f4fb');
-            r.style.setProperty('--s1',  '#ffffff');
-            r.style.setProperty('--s2',  '#edeaf9');
-            r.style.setProperty('--s3',  '#e3dff5');
-            r.style.setProperty('--t1',  '#1a1428');
-            r.style.setProperty('--t2',  'rgba(26,20,80,0.78)');
-            r.style.setProperty('--t3',  'rgba(26,20,80,0.62)');
-            r.style.setProperty('--t4',  'rgba(26,20,80,0.45)');
-            r.style.setProperty('--t5',  'rgba(26,20,80,0.32)');
-            r.style.setProperty('--b1',  'rgba(26,20,80,0.07)');
-            r.style.setProperty('--b2',  'rgba(26,20,80,0.10)');
-            r.style.setProperty('--b3',  'rgba(26,20,80,0.14)');
-            r.style.setProperty('--ac',  '#7351db');
+            r.style.setProperty('--bg',        '#f5f4fb');
+            r.style.setProperty('--s1',        '#ffffff');
+            r.style.setProperty('--s2',        '#edeaf9');
+            r.style.setProperty('--s3',        '#e3dff5');
+            r.style.setProperty('--t1',        '#1a1428');
+            r.style.setProperty('--t2',        'rgba(26,20,80,0.70)');
+            r.style.setProperty('--t3',        'rgba(26,20,80,0.50)');
+            r.style.setProperty('--t4',        'rgba(26,20,80,0.30)');
+            r.style.setProperty('--t5',        'rgba(26,20,80,0.18)');
+            r.style.setProperty('--b1',        'rgba(26,20,80,0.07)');
+            r.style.setProperty('--b2',        'rgba(26,20,80,0.10)');
+            r.style.setProperty('--b3',        'rgba(26,20,80,0.14)');
+            r.style.setProperty('--ac',        '#7351db');
             r.style.setProperty('--ac-bg',     'rgba(115,81,219,0.09)');
             r.style.setProperty('--ac-border', 'rgba(115,81,219,0.25)');
             r.style.setProperty('--ac-text',   '#5b3db5');
             r.style.setProperty('--ac-on',     '#ffffff');
+          } else {
+            // Dark mode — explicitly set vars so the page never flashes
+            // white or an incorrect background before the JS bundle loads.
+            // Values match the :root defaults in the JS-injected stylesheet exactly.
+            r.setAttribute('data-theme', 'dark');
+            r.style.setProperty('--bg',        '#0d0d14');
+            r.style.setProperty('--s1',        '#13121e');
+            r.style.setProperty('--s2',        '#18182a');
+            r.style.setProperty('--s3',        '#1e1c2e');
+            r.style.setProperty('--t1',        '#f0eeff');
+            r.style.setProperty('--t2',        'rgba(255,255,255,0.65)');
+            r.style.setProperty('--t3',        'rgba(255,255,255,0.45)');
+            r.style.setProperty('--t4',        'rgba(255,255,255,0.25)');
+            r.style.setProperty('--t5',        'rgba(255,255,255,0.15)');
+            r.style.setProperty('--b1',        'rgba(255,255,255,0.07)');
+            r.style.setProperty('--b2',        'rgba(255,255,255,0.10)');
+            r.style.setProperty('--b3',        'rgba(255,255,255,0.14)');
+            r.style.setProperty('--ac',        '#a78bfa');
+            r.style.setProperty('--ac-on',     '#0d0d14');
+            r.style.setProperty('--ac-bg',     'rgba(167,139,250,0.09)');
+            r.style.setProperty('--ac-border', 'rgba(167,139,250,0.25)');
+            r.style.setProperty('--ac-text',   '#c4b5fd');
           }
         } catch(e) {}
       })();
     </script>
   </head>
-  <body class="bg-gray-950 text-gray-100 antialiased">
+  <body style="background:#0d0d14;color:#f0eeff;">
     <%= @inner_content %>
   </body>
 </html>

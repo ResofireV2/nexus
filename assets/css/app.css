@@ -2,28 +2,21 @@
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {
-  --indigo: #5B4EF5;
-  --indigo-light: #7B6EFF;
-  --bg: #030712;
-  --surface: #0f172a;
-  --border: #1e293b;
-  --text: #f1f5f9;
-  --muted: #64748b;
+  /* These are overridden immediately by the early-theme inline script
+     and again by the JS-injected stylesheet. Values here must match
+     the dark-mode defaults in nexus.jsx's :root block exactly so there
+     is no repaint between CSS load and JS load. */
+  --bg: #0d0d14;
+  --t1: #f0eeff;
 }
 
 html, body {
   margin: 0;
   padding: 0;
   background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
+  color: var(--t1);
   -webkit-font-smoothing: antialiased;
 }
-
-a { color: var(--indigo-light); text-decoration: none; }
-a:hover { color: var(--indigo); }
 
 /* Flash messages */
 .phx-no-feedback.invalid-feedback,

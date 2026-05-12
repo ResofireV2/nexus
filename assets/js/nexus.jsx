@@ -1530,16 +1530,22 @@ function applyBranding(app={}, gen={}) {
   try { storedPref = localStorage.getItem("nexus_theme_pref"); } catch {}
   const theme = resolveTheme(storedPref, window._defaultTheme, window._darkEnabled, window._lightEnabled);
   applyTheme(theme, app);
+}
 
-  // Listen for OS theme changes if on Auto
-  if (!storedPref || storedPref === "auto") {
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
-      if (!localStorage.getItem("nexus_theme_pref") || localStorage.getItem("nexus_theme_pref") === "auto") {
-        const t = resolveTheme("auto", window._defaultTheme, window._darkEnabled, window._lightEnabled);
-        applyTheme(t, window._appBrandingForTheme || {});
-      }
-    });
-  }
+// Register the OS theme change listener exactly once at module load.
+// applyBranding is called every time settings are saved, so registering
+// inside it would accumulate duplicate listeners.
+(function() {
+  const mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+  if (!mq) return;
+  mq.addEventListener("change", () => {
+    const pref = localStorage.getItem("nexus_theme_pref");
+    if (!pref || pref === "auto") {
+      const t = resolveTheme("auto", window._defaultTheme, window._darkEnabled, window._lightEnabled);
+      applyTheme(t, window._appBrandingForTheme || {});
+    }
+  });
+})();
 
   // Avatar radius: 0=square, 50=circle. Default 22%
   r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
