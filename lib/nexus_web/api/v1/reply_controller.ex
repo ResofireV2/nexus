@@ -56,9 +56,9 @@ defmodule NexusWeb.API.V1.ReplyController do
                 Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
                 %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
                 %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-                Nexus.LinkPreviews.extract_urls(reply.body)
-                |> Enum.each(fn url ->
-                  %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
+                Task.start(fn ->
+                  Nexus.LinkPreviews.extract_urls(reply.body)
+                  |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
                 end)
 
                 # Broadcast to every subscriber of this post's notification channel.

@@ -47,9 +47,9 @@ defmodule NexusWeb.API.V1.PostController do
             end
             %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
             %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-            Nexus.LinkPreviews.extract_urls(post.body)
-            |> Enum.each(fn url ->
-              %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
+            Task.start(fn ->
+              Nexus.LinkPreviews.extract_urls(post.body)
+              |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
             end)
             conn |> put_status(:created) |> json(%{post: post_json(post)})
           end
