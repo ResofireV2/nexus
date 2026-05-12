@@ -7,7 +7,7 @@ defmodule Nexus.RateLimiter do
   the window are pruned lazily on each check.
 
   Usage:
-      case Nexus.RateLimiter.check("login:#{ip}", limit: 10, window_seconds: 60) do
+      case Nexus.RateLimiter.check("login:" <> ip, limit: 10, window_seconds: 60) do
         :allow -> ...
         {:deny, retry_after_seconds} -> ...
       end
