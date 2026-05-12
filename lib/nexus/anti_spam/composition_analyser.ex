@@ -159,7 +159,7 @@ defmodule Nexus.AntiSpam.CompositionAnalyser do
     hold_missing         = cfg["composition_hold_missing"] == true
 
     # Rule 1: missing or invalid metadata
-    unless valid_signals?(signals) do
+    if not valid_signals?(signals) do
       return_result(@verdict_missing, hold_missing, %{char_count: char_count})
     else
       active_ms       = signals["activeMs"]       || 0
@@ -167,16 +167,17 @@ defmodule Nexus.AntiSpam.CompositionAnalyser do
       paste_events    = signals["pasteEvents"]    || []
       final_chars     = signals["finalCharCount"] || char_count
 
-      # Rule 2: short post — skip
-      if final_chars < min_len_velocity and final_chars < min_len_paste do
-        return_result(@verdict_short, false, %{char_count: final_chars})
+      active_sec = active_ms / 1000.0
+      rate       = if active_sec > 0, do: final_chars / active_sec, else: :infinity
 
-      # Rule 3: implausibly fast
-      elsif final_chars >= min_len_velocity do
-        active_sec = active_ms / 1000.0
-        rate       = if active_sec > 0, do: final_chars / active_sec, else: :infinity
+      cond do
+        # Rule 2: short post — skip all checks
+        final_chars < min_len_velocity and final_chars < min_len_paste ->
+          return_result(@verdict_short, false, %{char_count: final_chars})
 
-        if rate == :infinity or rate > velocity_threshold do
+        # Rule 3: implausibly fast
+        final_chars >= min_len_velocity and
+        (rate == :infinity or rate > velocity_threshold) ->
           return_result(@verdict_fast, true, %{
             char_count:       final_chars,
             active_ms:        active_ms,
@@ -184,21 +185,16 @@ defmodule Nexus.AntiSpam.CompositionAnalyser do
             threshold:        velocity_threshold
           })
 
-        # Rule 4: no keystrokes
-        elsif keystroke_count == 0 do
+        # Rule 4: no keystrokes on a non-trivial post
+        final_chars >= min_len_velocity and keystroke_count == 0 ->
           return_result(@verdict_no_keys, true, %{
             char_count:      final_chars,
             keystroke_count: keystroke_count
           })
 
-        # Rule 5: dominated by paste
-        else
+        # Rule 5: dominated by paste (+ rules 3/4 don't apply at this length)
+        true ->
           check_paste(final_chars, paste_events, paste_ratio, min_len_paste)
-        end
-
-      # Only paste check applies at this char count
-      else
-        check_paste(final_chars, paste_events, paste_ratio, min_len_paste)
       end
     end
   end
