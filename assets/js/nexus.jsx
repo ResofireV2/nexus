@@ -85,6 +85,41 @@ document.addEventListener("click", e => {
   iframe.allowFullscreen = true;
   yt.appendChild(iframe);
 });
+
+// X / Twitter oEmbed — hydrate .md-x-embed placeholders using Twitter's oEmbed API
+function hydrateXEmbeds(root) {
+  const nodes = (root || document).querySelectorAll(".md-x-embed[data-tweet-id]:not([data-loaded])");
+  nodes.forEach(node => {
+    node.setAttribute("data-loaded", "1");
+    const id = node.getAttribute("data-tweet-id");
+    const url = `https://publish.twitter.com/oembed?url=https://twitter.com/i/web/status/${id}&omit_script=true&dnt=true`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        node.innerHTML = data.html || "";
+        if (window.twttr && window.twttr.widgets) window.twttr.widgets.load(node);
+      })
+      .catch(() => {
+        node.innerHTML = `<a href="https://twitter.com/i/web/status/${id}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:14px;font-size:13px;color:var(--t3);text-decoration:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> View on X</a>`;
+      });
+  });
+}
+// Load Twitter widget script once on demand
+let _twttrScriptLoaded = false;
+function loadTwttrScript() {
+  if (_twttrScriptLoaded) return;
+  _twttrScriptLoaded = true;
+  const s = document.createElement("script");
+  s.src = "https://platform.twitter.com/widgets.js";
+  s.async = true;
+  document.head.appendChild(s);
+}
+// Run on initial load and after React re-renders settle
+document.addEventListener("DOMContentLoaded", () => { if (document.querySelector(".md-x-embed")) { loadTwttrScript(); hydrateXEmbeds(); } });
+const _xObserver = new MutationObserver(() => {
+  if (document.querySelector(".md-x-embed[data-tweet-id]:not([data-loaded])")) { loadTwttrScript(); hydrateXEmbeds(); }
+});
+_xObserver.observe(document.body, { childList: true, subtree: true });
 // useLightbox is kept as a no-op for compatibility — Fancybox 5 handles everything
 let _lbSetState = null;
 function useLightbox() {
@@ -1265,6 +1300,13 @@ select option{background:#1a1a2e;color:var(--t1);}
 .yt-lite:hover .yt-play{transform:translate(-50%,-50%) scale(1.1);}
 .yt-lite.active .yt-thumb,.yt-lite.active .yt-play{display:none;}
 .yt-lite.active iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
+/* X / Twitter embed */
+.md-x-embed{margin:12px 0;border-radius:12px;overflow:hidden;border:0.5px solid var(--b1);background:var(--bg2);}
+.md-x-loading{display:flex;align-items:center;gap:8px;padding:16px;font-size:13px;color:var(--t4);}
+.md-x-embed .twitter-tweet{margin:0!important;}
+/* Spotify embed */
+.md-spotify-embed{margin:12px 0;border-radius:12px;overflow:hidden;border:0.5px solid var(--b1);}
+.md-spotify-embed iframe{width:100%;height:352px;display:block;border-radius:12px;}
 /* Lightbox */
 /* Lightbox CSS removed — Fancybox 5 handles styling */
 

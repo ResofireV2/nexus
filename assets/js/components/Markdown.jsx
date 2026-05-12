@@ -55,9 +55,26 @@ function makeYtEmbed(ytId) {
 function makeVmEmbed(vmId) {
   return `<div class="md-embed"><iframe src="https://player.vimeo.com/video/${vmId}" allowfullscreen loading="lazy" frameborder="0"></iframe></div>`;
 }
+function getTwitterId(url) {
+  const m = url.match(/(?:twitter\.com|x\.com)\/[^/]+\/status(?:es)?\/(\d+)/);
+  return m ? m[1] : null;
+}
+function getSpotifyEmbed(url) {
+  const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode)\/([A-Za-z0-9]+)/);
+  if (!m) return null;
+  return { type: m[1], id: m[2] };
+}
+function makeTwitterEmbed(tweetId) {
+  return `<div class="md-x-embed" data-tweet-id="${tweetId}"><div class="md-x-loading"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.741l7.73-8.835L1.254 2.25H8.08l4.259 5.631 5.905-5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> Loading post…</div></div>`;
+}
+function makeSpotifyEmbed(type, id) {
+  return `<div class="md-spotify-embed"><iframe src="https://open.spotify.com/embed/${type}/${id}?utm_source=generator&theme=0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" frameborder="0"></iframe></div>`;
+}
 function tryMediaEmbed(url) {
   const ytId = getYouTubeId(url); if (ytId) return makeYtEmbed(ytId);
   const vmId = getVimeoId(url);   if (vmId) return makeVmEmbed(vmId);
+  const twId = getTwitterId(url); if (twId) return makeTwitterEmbed(twId);
+  const sp   = getSpotifyEmbed(url); if (sp) return makeSpotifyEmbed(sp.type, sp.id);
   if (isVideoUrl(url)) return `<div class="md-embed-video"><video controls preload="metadata" style="max-width:100%;border-radius:10px;"><source src="${url}"/></video></div>`;
   if (isAudioUrl(url)) return `<audio controls preload="metadata" style="width:100%;margin:8px 0;"><source src="${url}"/></audio>`;
   return null;
@@ -83,8 +100,8 @@ mdRenderer.paragraph = function(text) {
       if (url) { const embed = tryMediaEmbed(url); if (embed) return embed; }
       return part;
     });
-    const textParts  = parts.filter(p => !p.startsWith('<div class="yt-lite') && !p.startsWith('<div class="md-embed') && !p.startsWith('<audio') && !p.startsWith('<div class="md-embed-video'));
-    const embedParts = parts.filter(p =>  p.startsWith('<div class="yt-lite') ||  p.startsWith('<div class="md-embed') ||  p.startsWith('<audio') ||  p.startsWith('<div class="md-embed-video'));
+    const textParts  = parts.filter(p => !p.startsWith('<div class="yt-lite') && !p.startsWith('<div class="md-embed') && !p.startsWith('<audio') && !p.startsWith('<div class="md-embed-video') && !p.startsWith('<div class="md-x-embed') && !p.startsWith('<div class="md-spotify-embed'));
+    const embedParts = parts.filter(p =>  p.startsWith('<div class="yt-lite') ||  p.startsWith('<div class="md-embed') ||  p.startsWith('<audio') ||  p.startsWith('<div class="md-embed-video') ||  p.startsWith('<div class="md-x-embed') ||  p.startsWith('<div class="md-spotify-embed'));
     if (embedParts.length > 0) {
       const textHtml = textParts.filter(p => p.trim()).join('<br>\n');
       return (textHtml ? `<p>${textHtml}</p>` : '') + embedParts.join('');
@@ -128,7 +145,7 @@ export function renderMd(t) {
   );
   return DOMPurify.sanitize(marked.parse(t), {
     ADD_TAGS: ["iframe","video","source","audio","svg","path","span"],
-    ADD_ATTR: ["data-original","data-lightbox-link","data-id","allowfullscreen","loading","frameborder","src","controls","preload","viewBox","d","fill","width","height","class","onclick"]
+    ADD_ATTR: ["data-original","data-lightbox-link","data-id","data-tweet-id","allowfullscreen","loading","frameborder","src","controls","preload","allow","viewBox","d","fill","width","height","class","onclick"]
   });
 }
 
