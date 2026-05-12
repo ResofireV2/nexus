@@ -436,6 +436,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   useEffect(()=>{
     const replyFn = e => {
       if(String(e.detail.postId)===String(postId) && e.detail.reply) {
+        if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(e.detail.reply.body));
         setReplies(p=>p.some(r=>r.id===e.detail.reply.id)?p:[...p,e.detail.reply]);
         setPost(p=>p?{...p,reply_count:(p.reply_count||0)+1}:p);
       }
