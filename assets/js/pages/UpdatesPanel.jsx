@@ -180,5 +180,6 @@ function UpdatesPanel() {
     </div>
   );
 
+}
 
 export { UpdatesPanel };

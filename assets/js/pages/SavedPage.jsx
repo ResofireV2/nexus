@@ -95,5 +95,6 @@ function SavedPage({navigate, currentUser}) {
       </div>
     </div>
 
+}
 
 export { SavedPage };

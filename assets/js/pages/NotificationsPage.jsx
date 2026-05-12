@@ -98,5 +98,6 @@ function NotificationsPage({navigate, onCountChange}) {
       </div>
     </div>
 
+}
 
 export { NotificationsPage };

@@ -243,5 +243,6 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
       </div>
     </div>
 
+}
 
 export { FeedPage };

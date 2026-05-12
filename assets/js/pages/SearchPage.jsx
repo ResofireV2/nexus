@@ -83,5 +83,6 @@ function SearchPage({navigate, tags, initialQ=""}) {
       </div>
     </div>
 
+}
 
 export { SearchPage };
