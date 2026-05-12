@@ -80,6 +80,31 @@ function renderLinkPreviewError(node, url) {
   node.classList.remove("pending");
 }
 
+function fetchWithRetry(url, node, attempt) {
+  const MAX_ATTEMPTS = 4;
+  const DELAYS = [3000, 6000, 12000, 0];
+
+  fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
+    .then(r => {
+      if (r.status === 404 && attempt < MAX_ATTEMPTS) {
+        // Preview not ready yet — Oban job still in flight. Retry after delay.
+        setTimeout(() => fetchWithRetry(url, node, attempt + 1), DELAYS[attempt - 1] || 3000);
+        return null;
+      }
+      if (!r.ok) throw new Error("error");
+      return r.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (!data.preview) throw new Error("empty");
+      lpCacheSet(url, data.preview);
+      renderLinkPreviewCard(node, data.preview);
+    })
+    .catch(() => {
+      renderLinkPreviewError(node, url);
+    });
+}
+
 function hydrateLinkPreviews(root) {
   const nodes = (root || document).querySelectorAll(".md-link-preview.pending[data-url]");
   nodes.forEach(node => {
@@ -95,19 +120,7 @@ function hydrateLinkPreviews(root) {
       return;
     }
 
-    fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
-      .then(r => {
-        if (!r.ok) throw new Error("not_ready");
-        return r.json();
-      })
-      .then(data => {
-        if (!data.preview) throw new Error("empty");
-        lpCacheSet(url, data.preview);
-        renderLinkPreviewCard(node, data.preview);
-      })
-      .catch(() => {
-        renderLinkPreviewError(node, url);
-      });
+    fetchWithRetry(url, node, 1);
   });
 }
 
