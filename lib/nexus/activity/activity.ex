@@ -87,18 +87,17 @@ defmodule Nexus.Activity do
     today = Date.utc_today()
     now   = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    # Step 1: ensure a row exists for today (no-op if already present)
-    Repo.insert_all(
-      "user_daily_stats",
-      [%{user_id: user_id, date: today, posts_count: 0, replies_count: 0,
-         reactions_given: 0, reactions_received: 0, inserted_at: now, updated_at: now}],
+    # Ensure a row exists for today with all zeros (no-op on conflict).
+    # This must happen before the update so the update always finds a row.
+    Repo.insert!(
+      %UserDailyStat{user_id: user_id, date: today},
       on_conflict: :nothing,
       conflict_target: [:user_id, :date]
     )
 
-    # Step 2: increment the target field atomically
+    # Atomically increment the target field on the now-guaranteed row.
     Repo.update_all(
-      from(s in "user_daily_stats",
+      from(s in UserDailyStat,
         where: s.user_id == ^user_id and s.date == ^today),
       inc: [{field, amount}], set: [updated_at: now]
     )
