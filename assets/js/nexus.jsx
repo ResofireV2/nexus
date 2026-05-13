@@ -1563,8 +1563,8 @@ function urlToPage(pathname) {
   if (p === "/drafts")                 return {page:"drafts", props:{}};
   const postM    = p.match(/^\/post\/(.+)$/);
   if (postM)  return {page:"post",    props:{id: postM[1]}};
-  const profileM = p.match(/^\/profile\/(.+)$/);
-  if (profileM) return {page:"profile", props:{username: profileM[1]}};
+  const profileM = p.match(/^\/profile\/([^/]+)(?:\/([^/]+))?$/);
+  if (profileM) return {page:"profile", props:{username: profileM[1], tab: profileM[2]||null}};
   const spaceM   = p.match(/^\/space\/(.+)$/);
   if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
   const dmM      = p.match(/^\/messages\/(.+)$/);
@@ -1594,7 +1594,7 @@ function pageToUrl(page, props={}) {
   switch(page) {
     case "feed":          return props.space ? `/space/${props.space}` : "/";
     case "post":          return props.id ? `/post/${props.id}` : "/";
-    case "profile":       return props.username ? `/profile/${props.username}` : "/";
+    case "profile":       return props.username ? `/profile/${props.username}${props.tab ? `/${props.tab}` : ""}` : "/";
     case "compose":       return "/compose";
     case "search":        return "/search";
     case "notifications": return "/notifications";
@@ -3648,7 +3648,7 @@ function App() {
       case "leaderboard": return <LeaderboardPage currentUser={currentUser} navigate={navigate}/>;
       case "post":        return <PostPage postId={pageProps.id} currentUser={currentUser} navigate={navigate} spaces={spaces} onAuthRequired={m=>setAuthModal(m)} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} openReport={pageProps.openReport} scrollToReply={pageProps.scrollToReply} resumeDraft={pageProps.resumeDraft||null}/>;
       case "search":      return <SearchPage navigate={navigate} tags={tags} spaces={spaces} initialQ={pageProps?.q||""}/>;
-      case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate}/>;
+      case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate} initialTab={pageProps.tab||null}/>;
       case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
       default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;
