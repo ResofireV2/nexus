@@ -1,6 +1,8 @@
 defmodule NexusWeb.FeedChannel do
   use NexusWeb, :channel
 
+  alias Nexus.Presence
+
   @impl true
   def join("feed:global", _payload, socket) do
     send(self(), {:after_join, "feed:global"})
@@ -17,6 +19,19 @@ defmodule NexusWeb.FeedChannel do
   end
 
   @impl true
+  def handle_info({:after_join, "feed:global"}, socket) do
+    Phoenix.PubSub.subscribe(Nexus.PubSub, "feed:global")
+    # Track this connection in Presence so the online count is accurate.
+    # Unauthenticated guests get a guest key; authenticated users are keyed
+    # by user_id so multiple tabs count as one person.
+    key = case socket.assigns[:current_user_id] do
+      nil -> "guest:#{inspect(self())}"
+      id  -> "user:#{id}"
+    end
+    {:ok, _} = Presence.track(socket, key, %{online_at: System.system_time(:second)})
+    {:noreply, socket}
+  end
+
   def handle_info({:after_join, topic}, socket) do
     Phoenix.PubSub.subscribe(Nexus.PubSub, topic)
     {:noreply, socket}

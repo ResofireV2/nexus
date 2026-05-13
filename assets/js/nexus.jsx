@@ -2620,7 +2620,7 @@ function SearchFilterPanel({spaces=[], tags=[], navigate}) {
 }
 
 function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false, currentUser, navigate, page, pageProps}) {
-  const [stats, setStats] = useState({members:0, threads:0});
+  const [stats, setStats] = useState({members:0, threads:0, online:0});
   const [myRank, setMyRank] = useState(null);
   const [, forceWidgetUpdate] = useState(0);
   useEffect(()=>{ api.get("/stats").then(d=>setStats(d)).catch(()=>{}); },[]);
@@ -2682,7 +2682,7 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
       return (
         <div className="stat-grid" key="stats">
           <div className="stat-card"><div className="stat-n">{stats.threads}</div><div className="stat-l">threads</div></div>
-          <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>1</div><div className="stat-l">online</div></div>
+          <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>{stats.online}</div><div className="stat-l">online</div></div>
           <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
           <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
             <div className="stat-n" style={{color:"#a78bfa"}}>{myRank ? `#${myRank.rank}` : "—"}</div>

@@ -54,10 +54,12 @@ defmodule NexusWeb.API.V1.FeedController do
 
     total_members = Repo.aggregate(User, :count, :id)
     total_posts   = Repo.aggregate(from(p in Post, where: not p.hidden), :count, :id)
+    online_count  = Nexus.Presence.list("feed:global") |> map_size()
 
     json(conn, %{
       members: total_members,
-      threads: total_posts
+      threads: total_posts,
+      online:  online_count
     })
   end
 
