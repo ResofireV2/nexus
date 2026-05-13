@@ -394,6 +394,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const repliesContainerRef = useRef(null);
   const [mobSheetOpen, setMobSheetOpen] = useState(false);
   const [mobReplyOpen, setMobReplyOpen] = useState(false);
+  const [mobDisplayIdx, setMobDisplayIdx] = useState(0);
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
@@ -556,6 +557,21 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     }
     return () => { window._replyTracker?.destroy(); window._replyTracker = null; };
   }, []);
+
+  // Track which reply is visible for the mobile pill button
+  useEffect(()=>{
+    const container = repliesContainerRef.current;
+    if(!container||!replies.length) return;
+    const onScroll = ()=>{
+      const scrollTop = container.scrollTop;
+      const scrollH   = container.scrollHeight - container.clientHeight;
+      const pct = scrollH > 0 ? scrollTop / scrollH : 0;
+      const idx = Math.round(pct * (replies.length - 1));
+      setMobDisplayIdx(Math.max(0, Math.min(idx, replies.length - 1)));
+    };
+    container.addEventListener("scroll", onScroll, {passive:true});
+    return ()=>container.removeEventListener("scroll", onScroll);
+  },[replies.length]);
 
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
@@ -837,8 +853,8 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         </div>
       )}
       <div className="post-content-wrap" ref={repliesContainerRef}>
-          {replies.length>0&&<MobileScrubberBar replies={replies} scrollPct={0} displayIdx={0} onClick={()=>setMobSheetOpen(true)}/>}
-          <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrollPct={0} displayIdx={0} onJump={(ri)=>{var r=replies[ri];if(!r)return;var el=document.getElementById("reply-"+r.id);var c=repliesContainerRef.current;if(el&&c){c.scrollTo({top:el.offsetTop-20,behavior:"smooth"});setMobSheetOpen(false);}}}/>
+          {replies.length>0&&<MobileScrubberBar replies={replies} displayIdx={mobDisplayIdx} onClick={()=>setMobSheetOpen(true)}/>}
+          <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrollPct={replies.length>1?(mobDisplayIdx/(replies.length-1))*100:0} displayIdx={mobDisplayIdx} onJump={(ri)=>{var r=replies[ri];if(!r)return;var el=document.getElementById("reply-"+r.id);var c=repliesContainerRef.current;if(el&&c){c.scrollTo({top:el.offsetTop-20,behavior:"smooth"});setMobSheetOpen(false);}}}/>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
@@ -1226,15 +1242,23 @@ function ProfileSidebarSlot({username, currentUser, navigate}) {
   );
 }
 
-function MobileScrubberBar({replies, scrollPct, displayIdx, onClick}) {
+function MobileScrubberBar({replies, displayIdx, onClick}) {
   return (
-    <div className="mob-scrubber-bar" onClick={onClick}>
-      <i className="fa-solid fa-list" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
-      <div className="mob-scrubber-track">
-        <div className="mob-scrubber-fill" style={{width:scrollPct+"%"}}/>
+    <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px",flexShrink:0}}>
+      <div onClick={onClick} style={{
+        display:"flex",alignItems:"center",gap:6,
+        padding:"5px 14px",borderRadius:20,
+        background:"var(--s2)",border:"0.5px solid var(--b2)",
+        cursor:"pointer",WebkitTapHighlightColor:"transparent",
+        fontSize:12,fontWeight:500,color:"var(--t2)",
+        userSelect:"none"
+      }}>
+        <span>{displayIdx+1} of {replies.length} {replies.length===1?"reply":"replies"}</span>
+        <span style={{display:"flex",flexDirection:"column",gap:1,lineHeight:1}}>
+          <i className="fa-solid fa-chevron-up"   style={{fontSize:8,color:"var(--t4)",display:"block"}}/>
+          <i className="fa-solid fa-chevron-down" style={{fontSize:8,color:"var(--t4)",display:"block"}}/>
+        </span>
       </div>
-      <span className="mob-scrubber-label">{displayIdx+1}/{replies.length}</span>
-      <i className="fa-solid fa-chevron-up" style={{fontSize:10,color:"var(--t5)",flexShrink:0}}/>
     </div>
   );
 }
