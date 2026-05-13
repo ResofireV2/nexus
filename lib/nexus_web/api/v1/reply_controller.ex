@@ -23,92 +23,87 @@ defmodule NexusWeb.API.V1.ReplyController do
   def create(conn, %{"post_id" => post_id} = params) do
     user = conn.assigns.current_user
 
-    # Check email verification requirement
-    if Nexus.Permissions.require_email_verification?() && !user.email_verified && user.role == "member" do
-      conn |> put_status(:forbidden) |> json(%{error: "Please verify your email address before posting"})
-    else
-      case Forum.get_post(post_id) do
-        nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
-        %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
-        post ->
-          pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
+    case Forum.get_post(post_id) do
+      nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
+      %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
+      post ->
+        pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
-          # Composition spam check
-          composition_signals = params["compositionSignals"]
-          content = params["body"] || ""
-          {pending, composition_result} =
-            case Nexus.AntiSpam.CompositionAnalyser.check(user, content, composition_signals) do
-              {:hold, verdict, details} -> {true,  {:held, verdict, details}}
-              {:log,  verdict, details} -> {pending, {:logged, verdict, details}}
-              :pass                     -> {pending, :pass}
+        # Composition spam check
+        composition_signals = params["compositionSignals"]
+        content = params["body"] || ""
+        {pending, composition_result} =
+          case Nexus.AntiSpam.CompositionAnalyser.check(user, content, composition_signals) do
+            {:hold, verdict, details} -> {true,  {:held, verdict, details}}
+            {:log,  verdict, details} -> {pending, {:logged, verdict, details}}
+            :pass                     -> {pending, :pass}
+          end
+
+        case Forum.create_reply(post, Map.put(params, "pending_approval", pending), user) do
+          {:ok, reply} ->
+            # Record verdict for composition holds
+            case composition_result do
+              {:held, verdict, details} ->
+                Task.start(fn ->
+                  Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                    post_id: post.id, reply_id: reply.id, user_id: user.id,
+                    verdict: verdict, details: details, report_only: false
+                  })
+                  Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, false)
+                end)
+              {:logged, verdict, details} ->
+                Task.start(fn ->
+                  Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                    post_id: post.id, reply_id: reply.id, user_id: user.id,
+                    verdict: verdict, details: details, report_only: true
+                  })
+                  Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, true)
+                end)
+              :pass -> :ok
             end
 
-          case Forum.create_reply(post, Map.put(params, "pending_approval", pending), user) do
-            {:ok, reply} ->
-              # Record verdict for composition holds
-              case composition_result do
-                {:held, verdict, details} ->
-                  Task.start(fn ->
-                    Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
-                      post_id: post.id, reply_id: reply.id, user_id: user.id,
-                      verdict: verdict, details: details, report_only: false
-                    })
-                    Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, false)
-                  end)
-                {:logged, verdict, details} ->
-                  Task.start(fn ->
-                    Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
-                      post_id: post.id, reply_id: reply.id, user_id: user.id,
-                      verdict: verdict, details: details, report_only: true
-                    })
-                    Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, true)
-                  end)
-                :pass -> :ok
+            if pending do
+              conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
+            else
+              Nexus.Activity.increment_stat(user.id, :replies_count)
+              # Auto-follow the post if user preference is set (default: true)
+              if Map.get(user.preferences || %{}, "auto_follow_replied_posts", true) != false do
+                Forum.follow_post(user.id, post.id)
               end
-
-              if pending do
-                conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
-              else
-                Nexus.Activity.increment_stat(user.id, :replies_count)
-                # Auto-follow the post if user preference is set (default: true)
-                if Map.get(user.preferences || %{}, "auto_follow_replied_posts", true) != false do
-                  Forum.follow_post(user.id, post.id)
-                end
-                Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
-                # Notify post followers (excluding the reply author)
-                Task.start(fn ->
-                  follower_ids = Forum.post_follower_ids(post.id)
-                  Enum.each(follower_ids, fn follower_id ->
-                    if follower_id != user.id do
-                      Nexus.Notifications.notify_followed_post_reply(post, reply, user, follower_id)
-                    end
-                  end)
+              Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
+              # Notify post followers (excluding the reply author)
+              Task.start(fn ->
+                follower_ids = Forum.post_follower_ids(post.id)
+                Enum.each(follower_ids, fn follower_id ->
+                  if follower_id != user.id do
+                    Nexus.Notifications.notify_followed_post_reply(post, reply, user, follower_id)
+                  end
                 end)
-                Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
-                %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-                %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-                Task.start(fn ->
-                  Nexus.LinkPreviews.extract_urls(reply.body)
-                  |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
-                end)
+              end)
+              Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
+              %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
+              %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+              Task.start(fn ->
+                Nexus.LinkPreviews.extract_urls(reply.body)
+                |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
+              end)
 
-                # Broadcast to every subscriber of this post's notification channel.
-                # Using "post_viewers:{post_id}" as a lightweight PubSub topic that
-                # PostChannel processes subscribe to on join — more reliable than
-                # depending on the post: channel PubSub subscription being active.
-                Phoenix.PubSub.broadcast(
-                  Nexus.PubSub,
-                  "post_viewers:#{post.id}",
-                  {:new_reply, reply_json(reply)}
-                )
+              # Broadcast to every subscriber of this post's notification channel.
+              # Using "post_viewers:{post_id}" as a lightweight PubSub topic that
+              # PostChannel processes subscribe to on join — more reliable than
+              # depending on the post: channel PubSub subscription being active.
+              Phoenix.PubSub.broadcast(
+                Nexus.PubSub,
+                "post_viewers:#{post.id}",
+                {:new_reply, reply_json(reply)}
+              )
 
-                conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
-              end
+              conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
+            end
 
-            {:error, changeset} ->
-              conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
-          end
-      end
+          {:error, changeset} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
+        end
     end
   end
 

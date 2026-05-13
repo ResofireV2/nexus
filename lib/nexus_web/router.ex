@@ -38,6 +38,15 @@ defmodule NexusWeb.Router do
     plug NexusWeb.Plugs.RequireModerator
   end
 
+  # Requires authentication AND a verified email address (when verification is
+  # enabled in admin settings). Members who have not yet verified their email
+  # are blocked with 403. Admins and moderators pass through unconditionally.
+  pipeline :verified do
+    plug NexusWeb.Plugs.RequireAuth
+    plug NexusWeb.Plugs.RequireEmailVerified
+    plug NexusWeb.Plugs.ActivityTracker
+  end
+
   # Public browser routes
   scope "/", NexusWeb do
     pipe_through :browser
@@ -120,17 +129,61 @@ defmodule NexusWeb.Router do
     get "/pwa/vapid-public-key",   PwaController,        :vapid_public_key
   end
 
-  # API v1 — authenticated member actions
+  # API v1 — authenticated, no email verification required
+  # These are low-risk personal actions (reading own data, managing own settings)
+  # that are safe to allow before a user has verified their email.
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through [:api, :authenticated]
 
     # Leaderboard — own rank
     get "/leaderboard/me", LeaderboardController, :me
 
+    # Badges (authenticated)
+    get "/badges/my", BadgeController, :my_badges
+
+    # Notifications (read-only and housekeeping — no outward-facing interaction)
+    get  "/notifications",          NotificationController, :index
+    get  "/notifications/unread",   NotificationController, :unread
+    post "/notifications/read-all",     NotificationController, :mark_all_read
+    post "/notifications/extension",         NotificationController, :create_extension
+    post "/notifications/mark-read-by-post",   NotificationController, :mark_read_by_post
+    post "/notifications/mark-read-by-thread", NotificationController, :mark_read_by_thread
+    patch "/notifications/:id/read", NotificationController, :mark_read
+    delete "/notifications/:id",    NotificationController, :delete
+    delete "/notifications",        NotificationController, :delete_all
+
+    # Push subscriptions (device registration, no community interaction)
+    post   "/push/subscribe",            PushController, :subscribe
+    delete "/push/subscribe",            PushController, :unsubscribe
+    get    "/push/subscriptions",        PushController, :list_subscriptions
+    delete "/push/subscriptions/:id",    PushController, :revoke_subscription
+
+    # Drafts (local scratch-pad, never visible to others)
+    get    "/drafts",       DraftController, :index
+    get    "/drafts/count", DraftController, :count
+    post   "/drafts",       DraftController, :create
+    patch  "/drafts/:id",   DraftController, :update
+    delete "/drafts/all",   DraftController, :delete_all
+    delete "/drafts/:id",   DraftController, :delete
+
+    # Read position (personal bookmark, not visible to others)
+    get  "/posts/:id/read-position",  PostController, :read_position
+    post "/posts/:id/read-position",  PostController, :save_read_position
+
+    # User profile media (auth required — access enforced in controller)
+    get "/users/:username/uploads", UserContentController, :uploads
+  end
+
+  # API v1 — authenticated + email verified
+  # All community-facing interactions require a verified email address when that
+  # setting is enabled in admin. Admins and moderators are never blocked.
+  scope "/api/v1", NexusWeb.API.V1 do
+    pipe_through [:api, :verified]
+
     # File uploads
     post "/uploads", UploadController, :create
 
-    # Subscriptions
+    # Space and tag subscriptions
     post   "/spaces/:slug/subscribe", SpaceController, :subscribe
     delete "/spaces/:slug/subscribe", SpaceController, :unsubscribe
     post   "/tags/:slug/subscribe",   TagController,   :subscribe
@@ -169,47 +222,12 @@ defmodule NexusWeb.Router do
     get  "/threads/:thread_id/messages", MessageController, :index
     post "/threads/:thread_id/messages", MessageController, :create
 
-    # Push subscriptions
-    post   "/push/subscribe",            PushController, :subscribe
-    delete "/push/subscribe",            PushController, :unsubscribe
-    get    "/push/subscriptions",        PushController, :list_subscriptions
-    delete "/push/subscriptions/:id",    PushController, :revoke_subscription
-
-    # Notifications
-    get  "/notifications",          NotificationController, :index
-    get  "/notifications/unread",   NotificationController, :unread
-    post "/notifications/read-all",     NotificationController, :mark_all_read
-    post "/notifications/extension",         NotificationController, :create_extension
-    post "/notifications/mark-read-by-post",   NotificationController, :mark_read_by_post
-    post "/notifications/mark-read-by-thread", NotificationController, :mark_read_by_thread
-    patch "/notifications/:id/read", NotificationController, :mark_read
-    delete "/notifications/:id",    NotificationController, :delete
-    delete "/notifications",        NotificationController, :delete_all
-
-    # Badges (authenticated)
-    get "/badges/my", BadgeController, :my_badges
-
-    # User profile media (auth required — access enforced in controller)
-    get "/users/:username/uploads", UserContentController, :uploads
-
     # Saved items (bookmarks)
     get    "/saved",                               SaveController, :index
     post   "/posts/:id/save",                      SaveController, :save_post
     delete "/posts/:id/save",                      SaveController, :unsave_post
     post   "/posts/:post_id/replies/:id/save",     SaveController, :save_reply
     delete "/posts/:post_id/replies/:id/save",     SaveController, :unsave_reply
-
-    # Drafts
-    get    "/drafts",       DraftController, :index
-    get    "/drafts/count", DraftController, :count
-    post   "/drafts",       DraftController, :create
-    patch  "/drafts/:id",   DraftController, :update
-    delete "/drafts/all",   DraftController, :delete_all
-    delete "/drafts/:id",   DraftController, :delete
-
-    # Read position — any authenticated member can save their position
-    get  "/posts/:id/read-position",  PostController, :read_position
-    post "/posts/:id/read-position",  PostController, :save_read_position
   end
 
   # API v1 — moderator actions

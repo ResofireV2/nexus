@@ -26,68 +26,63 @@ defmodule NexusWeb.API.V1.PostController do
     user    = conn.assigns.current_user
     tag_ids = Map.get(params, "tag_ids", [])
 
-    # Check email verification requirement
-    if Nexus.Permissions.require_email_verification?() && !user.email_verified && user.role == "member" do
-      conn |> put_status(:forbidden) |> json(%{error: "Please verify your email address before posting"})
-    else
-      # Determine if post needs approval
-      pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
+    # Determine if post needs approval
+    pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
-      # Composition spam check — may upgrade pending to true even if user can normally post
-      composition_signals = params["compositionSignals"]
-      content = params["body"] || ""
-      {pending, composition_result} =
-        case Nexus.AntiSpam.CompositionAnalyser.check(user, content, composition_signals) do
-          {:hold, verdict, details} -> {true,  {:held, verdict, details}}
-          {:log,  verdict, details} -> {pending, {:logged, verdict, details}}
-          :pass                     -> {pending, :pass}
+    # Composition spam check — may upgrade pending to true even if user can normally post
+    composition_signals = params["compositionSignals"]
+    content = params["body"] || ""
+    {pending, composition_result} =
+      case Nexus.AntiSpam.CompositionAnalyser.check(user, content, composition_signals) do
+        {:hold, verdict, details} -> {true,  {:held, verdict, details}}
+        {:log,  verdict, details} -> {pending, {:logged, verdict, details}}
+        :pass                     -> {pending, :pass}
+      end
+
+    case Forum.create_post(Map.put(params, "pending_approval", pending), user, tag_ids) do
+      {:ok, post} ->
+        # Record verdict and audit log entry for composition holds
+        case composition_result do
+          {:held, verdict, details} ->
+            Task.start(fn ->
+              Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                post_id: post.id, user_id: user.id,
+                verdict: verdict, details: details, report_only: false
+              })
+              Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, false)
+            end)
+          {:logged, verdict, details} ->
+            Task.start(fn ->
+              Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
+                post_id: post.id, user_id: user.id,
+                verdict: verdict, details: details, report_only: true
+              })
+              Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, true)
+            end)
+          :pass -> :ok
         end
 
-      case Forum.create_post(Map.put(params, "pending_approval", pending), user, tag_ids) do
-        {:ok, post} ->
-          # Record verdict and audit log entry for composition holds
-          case composition_result do
-            {:held, verdict, details} ->
-              Task.start(fn ->
-                Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
-                  post_id: post.id, user_id: user.id,
-                  verdict: verdict, details: details, report_only: false
-                })
-                Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, false)
-              end)
-            {:logged, verdict, details} ->
-              Task.start(fn ->
-                Nexus.AntiSpam.CompositionAnalyser.record_verdict(%{
-                  post_id: post.id, user_id: user.id,
-                  verdict: verdict, details: details, report_only: true
-                })
-                Nexus.Moderation.log_spam_hold(user.id, post.id, verdict, true)
-              end)
-            :pass -> :ok
+        if pending do
+          conn |> put_status(:created) |> json(%{post: post_json(post), pending: true, message: "Your post is pending approval"})
+        else
+          Nexus.Activity.increment_stat(user.id, :posts_count)
+          NexusWeb.FeedChannel.broadcast_new_post(post)
+          Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
+          # Auto-follow if user preference is set (default: true)
+          if Map.get(user.preferences || %{}, "auto_follow_own_posts", true) != false do
+            Forum.follow_post(user.id, post.id)
           end
+          %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
+          %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+          Task.start(fn ->
+            Nexus.LinkPreviews.extract_urls(post.body)
+            |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
+          end)
+          conn |> put_status(:created) |> json(%{post: post_json(post)})
+        end
 
-          if pending do
-            conn |> put_status(:created) |> json(%{post: post_json(post), pending: true, message: "Your post is pending approval"})
-          else
-            Nexus.Activity.increment_stat(user.id, :posts_count)
-            NexusWeb.FeedChannel.broadcast_new_post(post)
-            Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
-            # Auto-follow if user preference is set (default: true)
-            if Map.get(user.preferences || %{}, "auto_follow_own_posts", true) != false do
-              Forum.follow_post(user.id, post.id)
-            end
-            %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-            %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-            Task.start(fn ->
-              Nexus.LinkPreviews.extract_urls(post.body)
-              |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
-            end)
-            conn |> put_status(:created) |> json(%{post: post_json(post)})
-          end
-
-        {:error, changeset} ->
-          conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
-      end
+      {:error, changeset} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
     end
   end
 
