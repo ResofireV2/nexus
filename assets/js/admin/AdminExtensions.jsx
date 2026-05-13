@@ -599,8 +599,16 @@ function AdminExtensionsPanel() {
         </div>
       )}
       {tab!=="url"&&storeError&&!storeItems&&(
-        <div style={{padding:16,background:"rgba(239,68,68,0.06)",border:"0.5px solid rgba(239,68,68,0.2)",borderRadius:10,fontSize:13,color:"var(--red)"}}>
-          {storeError}
+        <div style={{padding:16,background:"rgba(239,68,68,0.06)",border:"0.5px solid rgba(239,68,68,0.2)",borderRadius:10,fontSize:13,color:"var(--red)",display:"flex",alignItems:"flex-start",gap:10}}>
+          <i className="fa-solid fa-triangle-exclamation" style={{marginTop:1,flexShrink:0}}/>
+          <div>
+            <div style={{fontWeight:500,marginBottom:4}}>Could not load extension store</div>
+            <div style={{color:"var(--t4)",fontSize:12}}>
+              {storeError.startsWith("%") || storeError.length > 200
+                ? "The registry returned an invalid response. Check your network connection or try again later."
+                : storeError}
+            </div>
+          </div>
         </div>
       )}
 

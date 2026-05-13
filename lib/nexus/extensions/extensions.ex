@@ -563,27 +563,49 @@ defmodule Nexus.Extensions do
       {:ok, %{status: 200, body: body}} ->
         entries = cond do
           is_list(body)              -> body
-          is_map(body)               -> Map.get(body, "extensions", [])
+          is_map(body)               ->
+            raw = Map.get(body, "extensions", [])
+            cond do
+              is_list(raw)   -> raw
+              is_binary(raw) ->
+                case Jason.decode(raw) do
+                  {:ok, list} when is_list(list) -> list
+                  _ -> []
+                end
+              true -> []
+            end
           is_binary(body)            ->
             case Jason.decode(body) do
-              {:ok, %{"extensions" => list}} -> list
+              {:ok, %{"extensions" => list}} when is_list(list) -> list
               {:ok, list} when is_list(list) -> list
-              _                              -> []
+              # Handle double-encoded JSON (string containing JSON)
+              {:ok, inner} when is_binary(inner) ->
+                case Jason.decode(inner) do
+                  {:ok, %{"extensions" => list}} when is_list(list) -> list
+                  {:ok, list} when is_list(list) -> list
+                  _ -> :decode_error
+                end
+              {:ok, _}    -> []
+              {:error, _} -> :decode_error
             end
           true -> []
         end
 
-        # Mark which extensions are already installed
-        installed_slugs =
-          Repo.all(from e in Extension, select: e.slug)
-          |> MapSet.new()
+        case entries do
+          :decode_error ->
+            {:error, "The registry returned invalid JSON. Try again later."}
+          entries ->
+            installed_slugs =
+              Repo.all(from e in Extension, select: e.slug)
+              |> MapSet.new()
 
-        enriched =
-          Enum.map(entries, fn entry ->
-            Map.put(entry, "installed", MapSet.member?(installed_slugs, entry["slug"]))
-          end)
+            enriched =
+              Enum.map(entries, fn entry ->
+                Map.put(entry, "installed", MapSet.member?(installed_slugs, entry["slug"]))
+              end)
 
-        {:ok, enriched}
+            {:ok, enriched}
+        end
 
       {:ok, %{status: status}} ->
         {:error, "Registry returned HTTP #{status}"}
