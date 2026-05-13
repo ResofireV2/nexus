@@ -2623,7 +2623,16 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
   const [stats, setStats] = useState({members:0, threads:0, online:0});
   const [myRank, setMyRank] = useState(null);
   const [, forceWidgetUpdate] = useState(0);
-  useEffect(()=>{ api.get("/stats").then(d=>setStats(d)).catch(()=>{}); },[]);
+  const fetchStats = useCallback(()=>{ api.get("/stats").then(d=>setStats(d)).catch(()=>{}); }, []);
+  useEffect(()=>{
+    fetchStats();
+    // Fetch again after a short delay so the online count reflects connected
+    // WebSocket clients — Presence tracking happens async after socket connect,
+    // so the immediate fetch above may race and return 0.
+    const warmup = setTimeout(fetchStats, 3000);
+    const t = setInterval(fetchStats, 30_000);
+    return ()=>{ clearTimeout(warmup); clearInterval(t); };
+  },[fetchStats]);
   useEffect(()=>{
     if(currentUser) {
       api.get("/leaderboard/me?period=all").then(d=>{ if(d.rank) setMyRank(d.rank); }).catch(()=>{});
