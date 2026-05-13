@@ -559,6 +559,7 @@ defmodule Nexus.Extensions do
   @registry_url "https://raw.githubusercontent.com/ResofireV2/nexus-extensions/main/registry.json"
 
   def fetch_store(registry_url \\ @registry_url) do
+    with :ok <- Nexus.URLSafeGuard.validate(registry_url) do
     case Req.get(registry_url, receive_timeout: 15_000, decode_body: false) do
       {:ok, %{status: 200, body: body}} ->
         # body is always a raw binary since we set decode_body: false
@@ -604,6 +605,9 @@ defmodule Nexus.Extensions do
         require Logger
         Logger.error("fetch_store network error: #{inspect(reason)}")
         {:error, "Could not reach registry: #{inspect(reason)}"}
+    end
+    else
+      {:error, reason} -> {:error, "Invalid registry URL: #{reason}"}
     end
   end
 

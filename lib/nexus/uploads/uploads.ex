@@ -121,9 +121,16 @@ defmodule Nexus.Uploads do
   defp validate_mime(%Plug.Upload{content_type: ct}, upload_type, _settings) do
     allowed =
       case upload_type do
-        "favicon"  -> ~w(image/x-icon image/vnd.microsoft.icon image/png image/svg+xml image/webp)
-        "og_image" -> ~w(image/jpeg image/png image/webp)
-        _          -> ~w(image/jpeg image/png image/gif image/webp image/svg+xml)
+        # Favicons and logos are admin-only uploads — SVG is acceptable there.
+        t when t in ["favicon", "logo"] ->
+          ~w(image/x-icon image/vnd.microsoft.icon image/png image/svg+xml image/webp)
+        "og_image" ->
+          ~w(image/jpeg image/png image/webp)
+        # All other upload types (post images, avatars, covers, group images) must be
+        # raster formats. SVG is excluded because it is never converted to WebP and can
+        # carry embedded <script> tags, creating a stored XSS vector.
+        _ ->
+          ~w(image/jpeg image/png image/gif image/webp)
       end
 
     if ct in allowed do

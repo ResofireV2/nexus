@@ -107,8 +107,6 @@ defmodule NexusWeb.Router do
     get "/posts/:id/reactions",    ReactionController, :show_post_reactions
     get    "/posts/:id/edits",                      PostController,     :edits
     get    "/posts/:post_id/replies/:id/edits",     ReplyController,    :edits
-    post   "/posts/:id/accept/:reply_id",           PostController,     :accept_answer
-    delete "/posts/:id/accept",                     PostController,     :unaccept_answer
     get "/replies/:id/reactions",  ReactionController, :show_reply_reactions
     get "/posts/:post_id/replies", ReplyController,  :index
     get "/search",                 SearchController, :index
@@ -194,6 +192,8 @@ defmodule NexusWeb.Router do
     post   "/posts",     PostController, :create
     patch  "/posts/:id", PostController, :update
     delete "/posts/:id", PostController, :delete
+    post   "/posts/:id/accept/:reply_id", PostController, :accept_answer
+    delete "/posts/:id/accept",           PostController, :unaccept_answer
 
     # Replies
     post   "/posts/:post_id/replies",     ReplyController, :create

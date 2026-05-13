@@ -33,6 +33,19 @@ defmodule NexusWeb.ExtensionRouter do
     ])
     asset_path = Path.join(asset_dir, filename)
 
+    # Reject any path that escapes the extension's asset directory.
+    # Path.join does not resolve ".." segments — only Path.expand does —
+    # so we must expand both paths before comparing.
+    expanded_path = Path.expand(asset_path)
+    expanded_dir  = Path.expand(asset_dir)
+
+    unless String.starts_with?(expanded_path, expanded_dir <> "/") do
+      conn
+      |> put_status(400)
+      |> put_resp_header("content-type", "application/json")
+      |> send_resp(400, Jason.encode!(%{error: "Invalid asset path"}))
+    else
+
     if File.exists?(asset_path) do
       mime_type = case Path.extname(filename) do
         ".js"   -> "application/javascript"
@@ -58,6 +71,7 @@ defmodule NexusWeb.ExtensionRouter do
       |> put_resp_header("content-type", "application/json")
       |> send_resp(404, Jason.encode!(%{error: "Asset not found: #{filename}"}))
     end
+    end # path traversal guard
   end
 
   # ---------------------------------------------------------------------------

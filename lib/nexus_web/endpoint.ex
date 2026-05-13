@@ -1,6 +1,9 @@
 defmodule NexusWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :nexus
 
+  # The signing_salt default here is only used as a fallback. The real value
+  # is injected at runtime via config :nexus, NexusWeb.Endpoint in runtime.exs,
+  # so SESSION_SIGNING_SALT from .env is always picked up without a recompile.
   @session_options [
     store: :cookie,
     key: "_nexus_key",
@@ -47,6 +50,22 @@ defmodule NexusWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
-  plug Plug.Session, @session_options
+  plug :put_secure_session
   plug NexusWeb.Router
+
+  # SESSION_SIGNING_SALT is injected by runtime.exs from the .env file, which
+  # runs after the release binary is built but before the app starts. Module
+  # attributes are baked at build time and cannot see it, so we read
+  # Application.get_env inside a function instead. Plug.Session.init/1 for the
+  # cookie store is pure key derivation (no I/O), so the per-request cost is
+  # negligible in practice.
+  defp put_secure_session(conn, _opts) do
+    opts = Plug.Session.init(
+      store: :cookie,
+      key: "_nexus_key",
+      signing_salt: Application.get_env(:nexus, :session_signing_salt, "nexus_salt"),
+      same_site: "Lax"
+    )
+    Plug.Session.call(conn, opts)
+  end
 end

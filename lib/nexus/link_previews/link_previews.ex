@@ -109,6 +109,7 @@ defmodule Nexus.LinkPreviews do
   # ---------------------------------------------------------------------------
 
   defp fetch_html(url) do
+    with :ok <- Nexus.URLSafeGuard.validate(url) do
     headers = [
       {"User-Agent", "Mozilla/5.0 (compatible; NexusBot/1.0; +https://nexus.app)"},
       {"Accept", "text/html,application/xhtml+xml"},
@@ -131,6 +132,7 @@ defmodule Nexus.LinkPreviews do
 
       {:error, reason} ->
         {:error, reason}
+    end
     end
   end
 
@@ -248,6 +250,7 @@ defmodule Nexus.LinkPreviews do
 
   defp maybe_download_image(nil, _dir), do: nil
   defp maybe_download_image(image_url, dir) do
+    with :ok <- Nexus.URLSafeGuard.validate(image_url) do
     case Req.get(image_url, receive_timeout: @fetch_timeout_ms,
                             max_redirects: 3, decode_body: false) do
       {:ok, %{status: s, body: body, headers: headers}} when s in 200..299 ->
@@ -287,10 +290,12 @@ defmodule Nexus.LinkPreviews do
 
       _ -> nil
     end
+    end # URLSafeGuard
   end
 
   defp maybe_download_favicon(nil, _domain), do: nil
   defp maybe_download_favicon(favicon_url, _domain) do
+    with :ok <- Nexus.URLSafeGuard.validate(favicon_url) do
     case Req.get(favicon_url, receive_timeout: 3_000, max_redirects: 2, decode_body: false) do
       {:ok, %{status: s, body: body, headers: headers}} when s in 200..299 ->
         ct = get_content_type(headers)
@@ -310,6 +315,7 @@ defmodule Nexus.LinkPreviews do
 
       _ -> nil
     end
+    end # URLSafeGuard
   end
 
   # ---------------------------------------------------------------------------

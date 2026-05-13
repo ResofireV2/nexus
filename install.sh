@@ -126,6 +126,7 @@ ok "Repository ready at $INSTALL_DIR"
 banner "Generating secrets..."
 SECRET_KEY_BASE=$(openssl rand -base64 48)
 JWT_SECRET=$(openssl rand -base64 32)
+SESSION_SIGNING_SALT=$(openssl rand -base64 16)
 DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
 ok "Secrets generated"
 
@@ -135,6 +136,7 @@ cat > "$INSTALL_DIR/.env" << EOF
 PHX_HOST=$DOMAIN
 SECRET_KEY_BASE=$SECRET_KEY_BASE
 JWT_SECRET=$JWT_SECRET
+SESSION_SIGNING_SALT=$SESSION_SIGNING_SALT
 DB_PASSWORD=$DB_PASSWORD
 EOF
 chmod 600 "$INSTALL_DIR/.env"
