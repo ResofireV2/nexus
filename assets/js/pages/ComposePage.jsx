@@ -204,7 +204,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
           </div>
         )}
         <div className="comp-body-area">
-          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames}/>
+          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames} context="post"/>
         </div>
         {/* Linked game chips */}
         {linkedGames.length > 0 && (

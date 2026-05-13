@@ -55,6 +55,7 @@ export function getAllToolbarButtons() {
     tip:     e.config.tip || "",
     color:   e.config.color || "inherit",
     onClick: e.config.onClick,
+    scope:   e.config.scope || "both",
     style:   {},
     wrap:    null,
     _ext:    true,
@@ -106,8 +107,22 @@ window._smHover = function(idx) {
 export let _activeToolbar = null;
 export function setActiveToolbar(items) { _activeToolbar = items; }
 
-export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null}) {
+export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null, context=null}) {
   toolbarItems = toolbarItems || _activeToolbar || null;
+  // Filter by scope if a context is provided ("post" or "reply")
+  if(context && toolbarItems) {
+    toolbarItems = toolbarItems.filter(function(b) {
+      if(b.sep) return true;
+      var scope = b.scope || "both";
+      return scope === "both" || scope === context + "s";
+    });
+  } else if(context && !toolbarItems) {
+    toolbarItems = getAllToolbarButtons().filter(function(b) {
+      if(b.sep) return true;
+      var scope = b.scope || "both";
+      return scope === "both" || scope === context + "s";
+    });
+  }
   const toolbarLinkedGames     = linkedGames || [];
   const toolbarSetLinkedGames  = setLinkedGames || (() => {});
 

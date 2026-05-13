@@ -123,7 +123,7 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
 
     // Composer tab
     tab === "composer" && React.createElement('div', null,
-      React.createElement('div', {className:"page-sub"}, "Drag to reorder. Toggle to show or hide. Changes apply to all composers and reply boxes."),
+      React.createElement('div', {className:"page-sub"}, "Drag to reorder. Toggle to show or hide. Use the scope dropdown to control whether a button appears in Posts, Replies, or both."),
       React.createElement(ToolbarEditor, {
         items: layoutCfg.toolbar || TB_BTNS,
         onChange: function(items){update("toolbar", items);}
@@ -224,6 +224,12 @@ function ToolbarEditor({items, onChange}) {
     onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
   }
 
+  function setScope(idx, scope) {
+    var next = list.map(function(x){return Object.assign({},x);});
+    next[idx].scope = scope;
+    onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
+  }
+
   function reset() {
     onChange(TB_BTNS);
     setActiveToolbar(null);
@@ -265,6 +271,21 @@ function ToolbarEditor({items, onChange}) {
                       <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item._ext?"extension":item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
                     </div>
                   </div>}
+              {/* Scope selector */}
+              {!isSep && React.createElement('select', {
+                value: item.scope || "both",
+                onChange: function(e){e.stopPropagation();setScope(idx, e.target.value);},
+                onClick: function(e){e.stopPropagation();},
+                style:{
+                  fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid var(--b2)",
+                  background:"var(--s2)",color:"var(--t3)",cursor:"pointer",flexShrink:0,
+                  fontFamily:"inherit",outline:"none"
+                }
+              },
+                React.createElement('option',{value:"both"},"Posts & Replies"),
+                React.createElement('option',{value:"posts"},"Posts only"),
+                React.createElement('option',{value:"replies"},"Replies only")
+              )}
               {/* Toggle visible */}
               <button onClick={function(){toggle(idx);}} title={item.hidden?"Show":"Hide"}
                 style={{background:"none",border:"none",cursor:"pointer",color:item.hidden?"var(--t5)":"var(--ac)",fontSize:14,padding:"2px 6px",borderRadius:6,flexShrink:0}}>

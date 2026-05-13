@@ -437,8 +437,8 @@ window.NexusExtensions = {
     return () => { this._listeners = this._listeners.filter(f => f !== fn); };
   },
 
-  // Register a toolbar button for the post composer.
-  // config: { icon (FA class), tip (tooltip), color (optional CSS color), onClick(linkedGames, setLinkedGames) }
+  // Register a toolbar button for the composer.
+  // config: { icon (FA class), tip (tooltip), color (optional CSS color), onClick(linkedGames, setLinkedGames), scope ("both"|"posts"|"replies", default "both") }
   registerToolbarButton(config, priority = 50) {
     this._toolbarButtons.push({config, priority});
     this._toolbarButtons.sort((a, b) => a.priority - b.priority);

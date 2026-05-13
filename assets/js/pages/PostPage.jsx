@@ -25,7 +25,7 @@ function extractUnfurlableUrls(body) {
 import { Select } from "../components/Select";
 import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
-import { RichTextArea, TB_BTNS } from "../components/RichTextArea";
+import { RichTextArea, TB_BTNS, getAllToolbarButtons } from "../components/RichTextArea";
 import { useDraftAutosave } from "./DraftsPage";
 function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
   var trackRef = useRef(null);
@@ -1169,7 +1169,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>}
           <div className="desk-composer" style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});if(v.trim())saveDraft({body:v});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} toolbarItems={TB_BTNS}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});if(v.trim())saveDraft({body:v});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} toolbarItems={getAllToolbarButtons()} context="reply"/>
               <div className="reply-box-foot">
                 {draftLastSaved && (
                   <span style={{fontSize:11, color:"var(--t5)", display:"flex", alignItems:"center", gap:4}}>
@@ -1197,7 +1197,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",flexShrink:0}} onClick={()=>setMobReplyOpen(true)}>Reply</button>
             </div>
           : <div>
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={160} currentUser={currentUser} autoFocus={true} toolbarItems={TB_BTNS}/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={160} currentUser={currentUser} autoFocus={true} toolbarItems={getAllToolbarButtons()} context="reply"/>
               <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"6px 12px",borderTop:"0.5px solid var(--b1)"}}>
                 <button className="btn-ghost" style={{fontSize:12}} onClick={()=>{setMobReplyOpen(false);setReplyBody("");}}>Cancel</button>
                 <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} disabled={submitting||!replyBody.trim()} onClick={async()=>{await submitReply();setMobReplyOpen(false);}}>Reply</button>
