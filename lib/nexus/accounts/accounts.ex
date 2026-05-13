@@ -268,7 +268,7 @@ defmodule Nexus.Accounts do
 
   def revoke_all_user_tokens(user_id) do
     from(t in RefreshToken, where: t.user_id == ^user_id and is_nil(t.revoked_at))
-    |> Repo.update_all(set: [revoked_at: DateTime.utc_now() |> DateTime.truncate(:second)])
+    |> Repo.update_all(set: [revoked_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)])
   end
 
   @doc "List all active (non-revoked, non-expired) sessions for a user."
@@ -299,7 +299,7 @@ defmodule Nexus.Accounts do
         and is_nil(t.revoked_at)
         and t.token_hash != ^current_token_hash
     )
-    |> Repo.update_all(set: [revoked_at: DateTime.utc_now() |> DateTime.truncate(:second)])
+    |> Repo.update_all(set: [revoked_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)])
   end
 
   defp create_refresh_token(user, opts) do
@@ -307,7 +307,7 @@ defmodule Nexus.Accounts do
     remember_me = Keyword.get(opts, :remember_me, true)
     # Persistent sessions: 30 days. Session-only: 24 hours.
     ttl_seconds = if remember_me, do: 30 * 24 * 60 * 60, else: 24 * 60 * 60
-    expires_at  = DateTime.utc_now() |> DateTime.add(ttl_seconds, :second) |> DateTime.truncate(:second)
+    expires_at  = NaiveDateTime.utc_now() |> NaiveDateTime.add(ttl_seconds, :second) |> NaiveDateTime.truncate(:second)
 
     %RefreshToken{}
     |> RefreshToken.changeset(%{

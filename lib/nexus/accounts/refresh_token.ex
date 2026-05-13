@@ -4,15 +4,15 @@ defmodule Nexus.Accounts.RefreshToken do
 
   schema "refresh_tokens" do
     field :token_hash,  :string
-    field :expires_at,  :utc_datetime
-    field :revoked_at,  :utc_datetime
+    field :expires_at,  :naive_datetime
+    field :revoked_at,  :naive_datetime
     field :user_agent,  :string
     field :ip_address,  :string
     field :remember_me, :boolean, default: true
 
     belongs_to :user, Nexus.Accounts.User
 
-    timestamps(type: :utc_datetime)
+    timestamps(type: :naive_datetime)
   end
 
   def changeset(token, attrs) do
@@ -23,11 +23,11 @@ defmodule Nexus.Accounts.RefreshToken do
   end
 
   def revoke_changeset(token) do
-    change(token, revoked_at: DateTime.utc_now() |> DateTime.truncate(:second))
+    change(token, revoked_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second))
   end
 
   def valid?(%__MODULE__{revoked_at: nil, expires_at: expires_at}) do
-    DateTime.compare(expires_at, DateTime.utc_now()) == :gt
+    NaiveDateTime.compare(expires_at, NaiveDateTime.utc_now()) == :gt
   end
   def valid?(_), do: false
 end
