@@ -3451,7 +3451,17 @@ function App() {
       } else {
         window._digestFrequencies = [];
       }
-      const lc=s.layout||{};
+      const lc=s.layout||{};\n      // Rehydrate helper: restores live onClick references on ext buttons after
+      // deserializing from DB (onClick can't be stored as JSON).
+      function rehydrate(items){
+        var live=getAllToolbarButtons();
+        return items.map(function(item){
+          if(!item._ext) return item;
+          var liveBtn=live.find(function(l){return l.type===item.type;});
+          if(!liveBtn) return item;
+          return Object.assign({},item,{onClick:liveBtn.onClick});
+        });
+      }
       // Seed helper: build default toolbar with hidden flags based on scope
       function seedTB(scopeKey){
         return getAllToolbarButtons().map(function(btn){
@@ -3475,7 +3485,7 @@ function App() {
             merged.push(Object.assign({},def,{hidden:hidden}));
           }
         });
-        return merged;
+        return rehydrate(merged);
       }
       var postTB  = lc.post_toolbar  ? mergeTB(lc.post_toolbar,  'post')  : seedTB('post');
       var replyTB = lc.reply_toolbar ? mergeTB(lc.reply_toolbar, 'reply') : seedTB('reply');

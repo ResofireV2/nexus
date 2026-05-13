@@ -73,12 +73,22 @@ function DragList({items, renderItem, onChange}) {
 function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   var [tab, setTab] = React.useState("post_toolbar");
 
+  function rehydrate(items) {
+    var live = getAllToolbarButtons();
+    return items.map(function(item) {
+      if(!item._ext) return item;
+      var liveBtn = live.find(function(l){ return l.type === item.type; });
+      if(!liveBtn) return item;
+      return Object.assign({}, item, {onClick: liveBtn.onClick});
+    });
+  }
+
   function update(key, val) {
     var next = Object.assign({}, layoutCfg);
     next[key] = val;
     setLayoutCfg(next);
-    if(key === "post_toolbar")   setActivePostToolbar(val);
-    if(key === "reply_toolbar")  setActiveReplyToolbar(val);
+    if(key === "post_toolbar")   setActivePostToolbar(rehydrate(val));
+    if(key === "reply_toolbar")  setActiveReplyToolbar(rehydrate(val));
     api.patch("/admin/settings/layout", {value: next}).catch(function(){});
   }
 
