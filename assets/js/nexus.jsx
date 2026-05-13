@@ -1892,9 +1892,9 @@ const RIGHT_WIDGETS = [
   {id:"leaderboard_panel", label:"Leaderboard Panel", pages:["leaderboard"], component: LeaderboardSidebarWidget},
   {id:"badges_panel",      label:"Badges Panel",      pages:["badges"],      component: BadgesSidebarWidget},
   {id:"search_filters",    label:"Search Filters",    pages:["search"],      component: SearchFilterWidget},
-  {id:"forum_info",        label:"Forum Info",        pages:["feed"],        component: ForumInfoWidget},
   {id:"live_activity",     label:"Live Activity",     pages:"global",        component: null},
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"],        component: null},
+  {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"],        component: null},
   {id:"stats",             label:"Stats",             pages:"global",        component: null},
 ];
 const SIDEBAR_SECTIONS = [
@@ -2249,30 +2249,6 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
-// ── Feed page right sidebar widgets ──────────────────────────────────────────
-
-function ForumInfoWidget() {
-  const [branding, setBranding] = useState(_brandingState);
-  useEffect(()=>{ return onBrandingChange(b=>setBranding({...b})); }, []);
-
-  if (!branding.hero_enabled || (!branding.hero_title && !branding.hero_body)) return null;
-
-  return (
-    <div className="rw">
-      {branding.hero_title && (
-        <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,lineHeight:1.3,marginBottom:branding.hero_body?8:0}}>
-          {branding.hero_title}
-        </div>
-      )}
-      {branding.hero_body && (
-        <div style={{fontSize:13,color:"var(--t3)",lineHeight:1.65}}>
-          {branding.hero_body}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Post page right sidebar widgets ──────────────────────────────────────────
 // Each is a standalone component receiving { navigate, currentUser, pageProps }
 // where pageProps.id is the postId.
@@ -2704,6 +2680,30 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
                   <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
+                </div>
+                <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    if(w.id === "tags_by_pulse") {
+      var sortedTags = [...tags].sort((a,b)=>(b.post_count||0)-(a.post_count||0)).filter(t=>(t.post_count||0)>0);
+      if(!sortedTags.length) return null;
+      var maxTag = sortedTags[0].post_count||1;
+      return (
+        <div className="rw" key="tags_by_pulse">
+          <div className="rw-label">tags by pulse</div>
+          {sortedTags.slice(0,5).map(t=>{
+            const col=t.color||"var(--ac)";
+            const bw=Math.max(4, Math.round((t.post_count||0)/maxTag*100));
+            return (
+              <div key={t.id} style={{padding:"5px 0"}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                  <i className="fa-solid fa-tag" style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
+                  <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
+                  <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{t.post_count||0}</span>
                 </div>
                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
               </div>
