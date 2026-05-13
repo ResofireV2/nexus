@@ -20,6 +20,11 @@ defmodule NexusWeb.Plugs.PwaSettings do
     |> assign(:pwa_icon_path,        pwa["icon_180_path"] || pwa["icon_192_path"] || "/images/icon-192.png")
     |> assign(:og_site_name,         general["site_name"] || "Nexus")
     |> assign(:og_description,       general["site_description"] || "")
-    |> assign(:og_image_url,         general["og_image_url"] || nil)
+    |> assign(:og_image_url,         case general["og_image_url"] do
+         nil -> nil
+         url ->
+           # Ensure the URL is absolute — Twitter/X rejects relative og:image URLs
+           if String.starts_with?(url, "http"), do: url, else: NexusWeb.Endpoint.url() <> url
+       end)
   end
 end
