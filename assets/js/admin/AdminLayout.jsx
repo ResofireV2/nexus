@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { api } from "../lib/api";
 import { toast } from "../components/Toasts";
 import { spaceColor } from "../lib/utils";
-import { TB_BTNS, getAllToolbarButtons } from "../components/RichTextArea";
+import { TB_BTNS, getAllToolbarButtons, setActiveToolbar } from "../components/RichTextArea";
 
 // ── DragList, LayoutAdmin, ToolbarEditor ──────────────────────────────────────
 
