@@ -210,8 +210,8 @@ defmodule NexusWeb.API.V1.ExtensionController do
       js_bundle_url:  ext.js_bundle_url,
       manifest_url:   ext.manifest_url,
       service_url:    ext.service_url,
-      logo_url:           "/ext/#{ext.slug}/assets/logo.webp",
-      banner_url:         "/ext/#{ext.slug}/assets/banner.webp",
+      logo_url:           resolve_asset_url(manifest["logo_url"], ext),
+      banner_url:         resolve_asset_url(manifest["banner_url"], ext),
       github_repo:        ext.github_repo,
       installed_version:  ext.installed_version,
       latest_version:     ext.latest_version,
@@ -233,5 +233,21 @@ defmodule NexusWeb.API.V1.ExtensionController do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
     end)
+  end
+
+  # Resolve a logo/banner URL — if it's already absolute use it directly,
+  # if it's a relative /ext/ path resolve it through the extension's service_url,
+  # otherwise fall back to nil.
+  defp resolve_asset_url(nil, _ext), do: nil
+  defp resolve_asset_url(url, ext) do
+    cond do
+      String.starts_with?(url, "http") ->
+        url
+      String.starts_with?(url, "/ext/") && ext.service_url ->
+        path = String.replace_prefix(url, "/ext/#{ext.slug}", "")
+        String.trim_trailing(ext.service_url, "/") <> path
+      true ->
+        url
+    end
   end
 end
