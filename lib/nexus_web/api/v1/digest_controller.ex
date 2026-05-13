@@ -56,7 +56,7 @@ defmodule NexusWeb.API.V1.DigestController do
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc ->
-        String.replace(acc, "%{" <> to_string(k) <> "}", to_string(v))
+        String.replace(acc, "%{" <> to_string(k) <> "}", if(is_binary(v), do: v, else: inspect(v)))
       end)
     end)
   end

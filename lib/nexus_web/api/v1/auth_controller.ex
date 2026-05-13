@@ -522,7 +522,7 @@ defmodule NexusWeb.API.V1.AuthController do
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
+        String.replace(acc, "%{#{key}}", if(is_binary(value), do: value, else: inspect(value)))
       end)
     end)
   end
