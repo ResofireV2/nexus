@@ -684,6 +684,45 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               </label>
               <div style={{fontSize:11,color:"var(--t5)",lineHeight:1.5}}>.ico or 32×32 PNG.<br/>Shown in browser tabs.</div>
             </div>
+
+            <div className="fgt" style={{marginTop:20}}>OG image</div>
+            <div style={{fontSize:12,color:"var(--t4)",marginBottom:12,lineHeight:1.6}}>
+              Shown when your forum is shared on social media, Slack, Discord, and iMessage.
+              Recommended size: 1200×630px. PNG or JPG.
+            </div>
+            <div className="logo-upload-row" style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:8}}>
+              {general.og_image_url
+                ? <div style={{position:"relative",flexShrink:0}}>
+                    <img src={general.og_image_url} style={{width:160,height:84,objectFit:"cover",borderRadius:8,border:"0.5px solid var(--b2)"}} alt="OG image"/>
+                    <div style={{position:"absolute",bottom:4,right:4,background:"rgba(0,0,0,0.55)",borderRadius:4,padding:"2px 6px",fontSize:10,color:"#fff"}}>1200×630</div>
+                  </div>
+                : <div style={{width:160,height:84,borderRadius:8,border:"0.5px dashed var(--b2)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,color:"var(--t5)",fontSize:11,flexShrink:0}}>
+                    <i className="fa-regular fa-image" style={{fontSize:20,opacity:0.4}}/>
+                    no image
+                  </div>}
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <label style={{cursor:"pointer"}}>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={async e=>{
+                    const f=e.target.files[0]; if(!f)return;
+                    const fd=new FormData(); fd.append("file",f); fd.append("type","og_image");
+                    const token=localStorage.getItem("nexus_token");
+                    const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
+                    const d=await r.json();
+                    if(d.upload){setGeneral(p=>({...p,og_image_url:d.original_url}));toast("OG image uploaded");}
+                    else toast(d.error||"Upload failed");
+                  }}/>
+                  <span className="btn-ghost" style={{fontSize:12,pointerEvents:"none"}}>
+                    <i className="fa-solid fa-arrow-up-from-bracket" style={{marginRight:6}}/>Upload image
+                  </span>
+                </label>
+                {general.og_image_url&&<span className="btn-ghost" style={{fontSize:12,color:"var(--red)",cursor:"pointer"}} onClick={()=>setGeneral(p=>({...p,og_image_url:null}))}>Remove</span>}
+                <div style={{fontSize:11,color:"var(--t5)",lineHeight:1.6,marginTop:2}}>
+                  1200×630px recommended.<br/>
+                  PNG or JPG — avoid WebP<br/>
+                  <span style={{color:"var(--amber)"}}>(email and some crawlers don't support it).</span>
+                </div>
+              </div>
+            </div>
           </>}
 
           {sec==="appearance"&&<>

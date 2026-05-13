@@ -121,8 +121,9 @@ defmodule Nexus.Uploads do
   defp validate_mime(%Plug.Upload{content_type: ct}, upload_type, _settings) do
     allowed =
       case upload_type do
-        "favicon"    -> ~w(image/x-icon image/vnd.microsoft.icon image/png image/svg+xml image/webp)
-        _            -> ~w(image/jpeg image/png image/gif image/webp image/svg+xml)
+        "favicon"  -> ~w(image/x-icon image/vnd.microsoft.icon image/png image/svg+xml image/webp)
+        "og_image" -> ~w(image/jpeg image/png image/webp)
+        _          -> ~w(image/jpeg image/png image/gif image/webp image/svg+xml)
       end
 
     if ct in allowed do
@@ -236,6 +237,7 @@ defmodule Nexus.Uploads do
   defp upload_dir("cover_image"),  do: "covers"
   defp upload_dir("logo"),         do: "logos"
   defp upload_dir("favicon"),      do: "logos"
+  defp upload_dir("og_image"),     do: "logos"
   defp upload_dir("group_image"),  do: "avatars"
 
   defp max_width_for("avatar", _settings),       do: 400

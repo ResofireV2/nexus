@@ -10,13 +10,16 @@ defmodule NexusWeb.Plugs.PwaSettings do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    pwa     = Nexus.Admin.get_setting("pwa")
-    general = Nexus.Admin.get_setting("general")
+    pwa     = Nexus.Admin.get_setting("pwa") || %{}
+    general = Nexus.Admin.get_setting("general") || %{}
 
     conn
     |> assign(:pwa_status_bar_style, pwa["status_bar_style"] || "black-translucent")
     |> assign(:pwa_theme_color,      pwa["theme_color"]      || "#5B4EF5")
     |> assign(:pwa_app_name,         pwa["app_name"] || general["site_name"] || "Nexus")
     |> assign(:pwa_icon_path,        pwa["icon_180_path"] || pwa["icon_192_path"] || "/images/icon-192.png")
+    |> assign(:og_site_name,         general["site_name"] || "Nexus")
+    |> assign(:og_description,       general["site_description"] || "")
+    |> assign(:og_image_url,         general["og_image_url"] || nil)
   end
 end

@@ -12,8 +12,8 @@ defmodule NexusWeb.API.V1.UploadController do
     type    = params["type"] || "post_image"
     post_id = params["post_id"]
 
-    # Only admins can upload logos/favicons
-    if type in ["logo", "favicon"] and user.role != "admin" do
+    # Only admins can upload logos/favicons/og images
+    if type in ["logo", "favicon", "og_image"] and user.role != "admin" do
       conn |> put_status(:forbidden) |> json(%{error: "Admin only"})
     else
       plug_upload = params["file"]
@@ -52,10 +52,14 @@ defmodule NexusWeb.API.V1.UploadController do
               end
             end
 
-            # If logo/favicon, update site_settings
-            if type in ["logo", "favicon"] do
+            # If logo/favicon/og_image, update site_settings
+            if type in ["logo", "favicon", "og_image"] do
               served_url = served_url(upload.original_path)
-              key = if type == "logo", do: "logo_url", else: "favicon_url"
+              key = case type do
+                "logo"     -> "logo_url"
+                "favicon"  -> "favicon_url"
+                "og_image" -> "og_image_url"
+              end
               Nexus.Admin.update_setting("general", %{key => served_url})
             end
 
