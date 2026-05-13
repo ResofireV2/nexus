@@ -1881,10 +1881,20 @@ const EXPLORE_ITEMS = [
   {id:"leaderboard",  label:"Leaderboard",   icon:"fa-trophy"},
   {id:"badges",       label:"Badges",        icon:"fa-medal"},
 ];
+// All built-in right sidebar widgets.
+// pages: "global" — shown on every page by default.
+// pages: [...] — shown only on those pages by default.
+// component: the React component to render, receives { navigate, currentUser, pageProps }.
 const RIGHT_WIDGETS = [
-  {id:"live_activity",    label:"Live Activity"},
-  {id:"spaces_by_pulse",  label:"Spaces by Pulse"},
-  {id:"stats",            label:"Stats"},
+  {id:"post_author",       label:"Post Author",      pages:["post"],        component: PostAuthorWidget},
+  {id:"post_participants", label:"Participants",      pages:["post"],        component: PostParticipantsWidget},
+  {id:"post_related",      label:"Related Posts",     pages:["post"],        component: PostRelatedWidget},
+  {id:"leaderboard_panel", label:"Leaderboard Panel", pages:["leaderboard"], component: LeaderboardSidebarWidget},
+  {id:"badges_panel",      label:"Badges Panel",      pages:["badges"],      component: BadgesSidebarWidget},
+  {id:"search_filters",    label:"Search Filters",    pages:["search"],      component: SearchFilterWidget},
+  {id:"live_activity",     label:"Live Activity",     pages:"global",        component: null},
+  {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"],        component: null},
+  {id:"stats",             label:"Stats",             pages:"global",        component: null},
 ];
 const SIDEBAR_SECTIONS = [
   {id:"explore", label:"Explore"},
@@ -2238,43 +2248,54 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
-// ── Post page contextual sidebar ──────────────────────────────────────────────
-function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWidget}) {
-  const [post,    setPost]    = useState(null);
-  const [author,  setAuthor]  = useState(null);
-  const [related, setRelated] = useState([]);
-  const [participants, setParticipants] = useState([]);
+// ── Post page right sidebar widgets ──────────────────────────────────────────
+// Each is a standalone component receiving { navigate, currentUser, pageProps }
+// where pageProps.id is the postId.
 
+function PostAuthorWidget({navigate, currentUser, pageProps}) {
+  const postId = pageProps?.id;
+  const [author, setAuthor] = useState(null);
   useEffect(()=>{
     if(!postId) return;
-    setPost(null); setAuthor(null); setRelated([]); setParticipants([]);
-
-    // Load post for space + author info
+    setAuthor(null);
     api.get(`/posts/${postId}`).then(d=>{
       const p = d.post;
-      if(!p) return;
-      setPost(p);
-
-      // Load author profile
-      if(p.user?.username) {
-        api.get(`/users/${p.user.username}`).then(ud=>{
-          if(ud.user) setAuthor(ud.user);
-        }).catch(()=>{});
-      }
-
-      // Load related posts in same space
-      if(p.space?.slug) {
-        api.get(`/feed?space=${p.space.slug}&sort=latest&limit=4`).then(fd=>{
-          const others = (fd.posts||[]).filter(r=>r.id!==postId).slice(0,4);
-          setRelated(others);
-        }).catch(()=>{});
-      }
+      if(!p?.user?.username) return;
+      api.get(`/users/${p.user.username}`).then(ud=>{
+        if(ud.user) setAuthor(ud.user);
+      }).catch(()=>{});
     }).catch(()=>{});
+  },[postId]);
+  if(!author) return null;
+  return (
+    <div className="rw">
+      <div className="rw-label">posted by</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}
+        onClick={()=>navigate("profile",{username:author.username})}>
+        <RsAv user={author} size={38} />
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{author.username}</div>
+          {author.role&&author.role!=="member"&&<div style={{fontSize:10,color:"var(--ac)",textTransform:"capitalize"}}>{author.role}</div>}
+        </div>
+      </div>
+      {author.bio&&<div style={{fontSize:12,color:"var(--t4)",lineHeight:1.55,marginBottom:10}}>{author.bio.slice(0,120)}{author.bio.length>120?"…":""}</div>}
+      <div style={{display:"flex",gap:6}}>
+        <div className="ucard-stat"><div className="ucard-stat-n">{author.post_count||0}</div><div className="ucard-stat-l">posts</div></div>
+        <div className="ucard-stat"><div className="ucard-stat-n">{author.reply_count||0}</div><div className="ucard-stat-l">replies</div></div>
+        <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{author.reactions_received||0}</div><div className="ucard-stat-l">reactions</div></div>
+      </div>
+    </div>
+  );
+}
 
-    // Load replies for participants
+function PostParticipantsWidget({navigate, currentUser, pageProps}) {
+  const postId = pageProps?.id;
+  const [participants, setParticipants] = useState([]);
+  useEffect(()=>{
+    if(!postId) return;
+    setParticipants([]);
     api.get(`/posts/${postId}/replies`).then(d=>{
       const replies = d.replies||[];
-      // Unique users who replied, excluding post author
       const seen = new Set();
       const people = [];
       replies.forEach(r=>{
@@ -2286,106 +2307,74 @@ function PostSidebar({postId, currentUser, navigate, liveActivityWidget, statsWi
       setParticipants(people.slice(0,12));
     }).catch(()=>{});
   },[postId]);
-
-  const col = post?.space ? spaceColor(post.space) : "var(--ac)";
-
-  return <>
-
-    {/* post_sidebar slot: priority 0–99 (above Posted By) */}
-    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
-      .filter(function(s){ return s.priority >= 0 && s.priority < 100; })
-      .map(function(s){
-        return React.createElement(s.component, {
-          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
-        });
-      })}
-    {/* Author card */}
-    {author&&(
-      <div className="rw">
-        <div className="rw-label">posted by</div>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}
-          onClick={()=>navigate("profile",{username:author.username})}>
-          <RsAv user={author} size={38} />
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{author.username}</div>
-            {author.role&&author.role!=="member"&&<div style={{fontSize:10,color:"var(--ac)",textTransform:"capitalize"}}>{author.role}</div>}
-          </div>
-        </div>
-        {author.bio&&<div style={{fontSize:12,color:"var(--t4)",lineHeight:1.55,marginBottom:10}}>{author.bio.slice(0,120)}{author.bio.length>120?"…":""}</div>}
-        <div style={{display:"flex",gap:6}}>
-          <div className="ucard-stat"><div className="ucard-stat-n">{author.post_count||0}</div><div className="ucard-stat-l">posts</div></div>
-          <div className="ucard-stat"><div className="ucard-stat-n">{author.reply_count||0}</div><div className="ucard-stat-l">replies</div></div>
-          <div className="ucard-stat"><div className="ucard-stat-n" style={{color:"var(--ac)"}}>{author.reactions_received||0}</div><div className="ucard-stat-l">reactions</div></div>
-        </div>
-      </div>
-    )}
-
-
-    {/* post_sidebar slot: priority 100–199 (between Posted By and Participants) */}
-    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
-      .filter(function(s){ return s.priority >= 100 && s.priority < 200; })
-      .map(function(s){
-        return React.createElement(s.component, {
-          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
-        });
-      })}
-    {/* Participants */}
-    {participants.length>0&&(
-      <div className="rw">
-        <div className="rw-label">participants · {participants.length}</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
-          {participants.map(u=>(
-            <div key={u.id} title={u.username} style={{cursor:"pointer"}}
-              onClick={()=>navigate("profile",{username:u.username})}>
-              <RsAv user={u} size={28} noCard />
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-
-
-    {/* post_sidebar slot: priority 200–299 (between Participants and More in General) */}
-    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
-      .filter(function(s){ return s.priority >= 200 && s.priority < 300; })
-      .map(function(s){
-        return React.createElement(s.component, {
-          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
-        });
-      })}
-    {/* Related posts in same space */}
-    {related.length>0&&post?.space&&(
-      <div className="rw">
-        <div className="rw-label">more in {post.space.name}</div>
-        {related.map(r=>(
-          <div key={r.id} onClick={()=>navigate("post",{id:r.id})}
-            style={{padding:"7px 0",borderBottom:"0.5px solid var(--b1)",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:8}}>
-            <div style={{width:3,height:"100%",minHeight:32,borderRadius:2,background:col,flexShrink:0,alignSelf:"stretch"}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:500,color:"var(--t2)",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{r.title}</div>
-              <div style={{fontSize:10,color:"var(--t5)",marginTop:3,display:"flex",gap:6}}>
-                <span>{r.reply_count||0} replies</span>
-                <span>·</span>
-                <span>{ago(r.inserted_at)}</span>
-              </div>
-            </div>
+  if(!participants.length) return null;
+  return (
+    <div className="rw">
+      <div className="rw-label">participants · {participants.length}</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+        {participants.map(u=>(
+          <div key={u.id} title={u.username} style={{cursor:"pointer"}}
+            onClick={()=>navigate("profile",{username:u.username})}>
+            <RsAv user={u} size={28} noCard />
           </div>
         ))}
       </div>
-    )}
+    </div>
+  );
+}
 
+function PostRelatedWidget({navigate, currentUser, pageProps}) {
+  const postId = pageProps?.id;
+  const [related, setRelated] = useState([]);
+  const [spaceName, setSpaceName] = useState(null);
+  const [col, setCol] = useState("var(--ac)");
+  useEffect(()=>{
+    if(!postId) return;
+    setRelated([]); setSpaceName(null);
+    api.get(`/posts/${postId}`).then(d=>{
+      const p = d.post;
+      if(!p?.space?.slug) return;
+      setSpaceName(p.space.name);
+      setCol(spaceColor(p.space));
+      api.get(`/feed?space=${p.space.slug}&sort=latest&limit=4`).then(fd=>{
+        const others = (fd.posts||[]).filter(r=>r.id!==postId).slice(0,4);
+        setRelated(others);
+      }).catch(()=>{});
+    }).catch(()=>{});
+  },[postId]);
+  if(!related.length || !spaceName) return null;
+  return (
+    <div className="rw">
+      <div className="rw-label">more in {spaceName}</div>
+      {related.map(r=>(
+        <div key={r.id} onClick={()=>navigate("post",{id:r.id})}
+          style={{padding:"7px 0",borderBottom:"0.5px solid var(--b1)",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:8}}>
+          <div style={{width:3,height:"100%",minHeight:32,borderRadius:2,background:col,flexShrink:0,alignSelf:"stretch"}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:500,color:"var(--t2)",lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{r.title}</div>
+            <div style={{fontSize:10,color:"var(--t5)",marginTop:3,display:"flex",gap:6}}>
+              <span>{r.reply_count||0} replies</span>
+              <span>·</span>
+              <span>{ago(r.inserted_at)}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-    {/* post_sidebar slot: priority 300+ (after More in General) */}
-    {window.NexusExtensions && window.NexusExtensions.getSlot("post_sidebar")
-      .filter(function(s){ return s.priority >= 300 && s.priority < 9999; })
-      .map(function(s){
-        return React.createElement(s.component, {
-          key: s.extension_slug, postId: postId, currentUser: currentUser, navigate: navigate,
-        });
-      })}
-    {/* Live activity — from global widgets */}
-    {liveActivityWidget}
-  </>;
+// ── Leaderboard / Badges / Search sidebar widgets ─────────────────────────────
+function LeaderboardSidebarWidget({navigate, currentUser, pageProps}) {
+  return <LeaderboardPageSidebar currentUser={currentUser} navigate={navigate}/>;
+}
+
+function BadgesSidebarWidget({navigate, currentUser, pageProps}) {
+  return <BadgesPageSidebar currentUser={currentUser} navigate={navigate}/>;
+}
+
+function SearchFilterWidget({navigate, currentUser, pageProps}) {
+  return <SearchFilterPanel spaces={pageProps?.spaces||[]} tags={pageProps?.tags||[]} navigate={navigate}/>;
 }
 
 // Stable module-level components — must NOT be defined inside SearchFilterPanel
@@ -2648,11 +2637,66 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
   const sorted = [...spaces].sort((a,b)=>(b.post_count||0)-(a.post_count||0));
   const max = sorted[0]?.post_count||1;
 
-  // Resolve widgets for the current page using per-page saved layout.
-  // Falls back to the flat right_widgets list for backwards compatibility.
+  // Inline renderers for built-in widgets that need RightPanel closure state
+  // (liveEvents, stats, spaces). All other built-ins have their own components.
+  function renderBuiltin(w) {
+    if(w.id === "live_activity") {
+      return (
+        <div className="rw" key="live_activity">
+          <div className="rw-label">live activity</div>
+          {liveEvents.length===0
+            ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
+            :liveEvents.slice(0,4).map((e,i)=>(
+              <div key={i} className="live-row">
+                <RsAv user={{username:e.username,avatar_url:e.avatarUrl,avatar_color:e.avatarColor,id:e.userId}} size={22} noCard />
+                <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
+                <div className="l-ago">{ago(e.at)}</div>
+              </div>
+            ))}
+        </div>
+      );
+    }
+    if(w.id === "spaces_by_pulse") {
+      if(!sorted.length) return null;
+      return (
+        <div className="rw" key="spaces_by_pulse">
+          <div className="rw-label">spaces by pulse</div>
+          {sorted.slice(0,5).map(s=>{
+            const col=spaceColor(s);
+            const bw=Math.max(4, Math.round((s.post_count||0)/max*100));
+            return (
+              <div key={s.id} style={{padding:"5px 0"}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                  <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
+                  <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+                  <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
+                </div>
+                <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    if(w.id === "stats") {
+      return (
+        <div className="stat-grid" key="stats">
+          <div className="stat-card"><div className="stat-n">{stats.threads}</div><div className="stat-l">threads</div></div>
+          <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>1</div><div className="stat-l">online</div></div>
+          <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
+          <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
+            <div className="stat-n" style={{color:"#a78bfa"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
+            <div className="stat-l">your rank</div>
+          </div>
+        </div>
+      );
+    }
+    return undefined;
+  }
+
+  // Resolve ordered, visible widget list for the current page
   function resolveWidgets(pageId) {
     var allExt = window.NexusExtensions.getRightWidgets();
-    // Build candidate list: built-in globals + page-specific, then ext globals + page-specific
     var candidates = [];
     RIGHT_WIDGETS.forEach(function(w) {
       if(w.pages === "global" || (Array.isArray(w.pages) && w.pages.indexOf(pageId) !== -1)) {
@@ -2665,7 +2709,6 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
         candidates.push(Object.assign({}, w));
       }
     });
-    // Apply saved per-page order and hidden flags
     var savedByPage = layoutCfg.right_widgets_by_page || {};
     var saved = savedByPage[pageId];
     if(!saved || !saved.length) return candidates.filter(function(w){ return !w.hidden; });
@@ -2675,137 +2718,36 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
       var found = candidates.find(function(w){ return w.id === s.id; });
       if(found) result.push(found);
     });
-    // Append any new candidates not yet in saved (always visible until admin hides them)
     candidates.forEach(function(w) {
       if(!saved.find(function(s){ return s.id === w.id; })) result.push(w);
     });
     return result;
   }
-  var widgets = resolveWidgets(page);
 
-  var liveActivityWidget = (
-    <div className="rw" key="live_activity">
-      <div className="rw-label">live activity</div>
-        {liveEvents.length===0
-          ?<div style={{fontSize:11,color:"var(--t5)",padding:"8px 0"}}>No recent activity</div>
-          :liveEvents.slice(0,4).map((e,i)=>(
-            <div key={i} className="live-row">
-              <RsAv user={{username:e.username,avatar_url:e.avatarUrl,avatar_color:e.avatarColor,id:e.userId}} size={22} noCard />
-              <div className="l-txt"><strong>{e.username}</strong> {e.action}</div>
-              <div className="l-ago">{ago(e.at)}</div>
-            </div>
-          ))}
-    </div>
-  );
-  var spacesPulseWidget = sorted.length>0 ? (
-    <div className="rw" key="spaces_by_pulse">
-      <div className="rw-label">spaces by pulse</div>
-        {sorted.slice(0,5).map(s=>{
-          const col=spaceColor(s);
-          const w=Math.max(4, Math.round((s.post_count||0)/max*100));
-          return (
-            <div key={s.id} style={{padding:"5px 0"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
-                <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
-                <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
-                <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
-              </div>
-              <div className="p-bar-wrap"><div className="p-bar" style={{width:`${w}%`,background:col}}/></div>
-            </div>
-          );
-        })}
-    </div>
-  ) : null;
-  var statsWidget = (
-    <div className="stat-grid" key="stats">
-        <div className="stat-card"><div className="stat-n">{stats.threads}</div><div className="stat-l">threads</div></div>
-        <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>1</div><div className="stat-l">online</div></div>
-        <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
-        <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
-          <div className="stat-n" style={{color:"#a78bfa"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
-          <div className="stat-l">your rank</div>
-        </div>
-    </div>
-  );
-  var widgetMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
+  // For ext-routes use the pattern as the page id so each route gets its own widget config
+  var resolvedPage = (page === "ext-route" && pageProps?._match?.pattern)
+    ? pageProps._match.pattern
+    : page;
 
-  // Leaderboard page gets its own contextual sidebar
-  if(page === "leaderboard") {
-    return (
-      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-        <LeaderboardPageSidebar currentUser={currentUser} navigate={navigate}/>
-        {liveActivityWidget}
-        {statsWidget}
-      </div>
-    );
-  }
+  // Enrich pageProps passed to widgets — search widget needs spaces/tags
+  var enrichedPageProps = Object.assign({}, pageProps, {spaces: spaces, tags: tags});
 
-  // Badges page gets its own contextual sidebar
-  if(page === "badges") {
-    return (
-      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-        <BadgesPageSidebar currentUser={currentUser} navigate={navigate}/>
-        {liveActivityWidget}
-        {statsWidget}
-      </div>
-    );
-  }
-
-  // Search page gets a filter panel in the right sidebar
-  if(page === "search") {
-    return (
-      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-        <SearchFilterPanel spaces={spaces} tags={tags} navigate={navigate}/>
-      </div>
-    );
-  }
-
-  // Extension page sidebar — if the current ext-route has a registered page
-  // sidebar layout, render exactly that widget list in order.
-  const extRoutePattern = page === "ext-route" ? pageProps?._match?.pattern : null;
-  const pageSidebar = window.NexusExtensions.getPageSidebar(extRoutePattern);
-  if (pageSidebar) {
-    const allExtWidgets = window.NexusExtensions.getRightWidgets();
-    const builtinMap = {live_activity: liveActivityWidget, spaces_by_pulse: spacesPulseWidget, stats: statsWidget};
-    return (
-      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-        {pageSidebar.widgetIds.map(id => {
-          if (builtinMap[id]) return builtinMap[id];
-          const w = allExtWidgets.find(w => w.id === id);
-          if (!w) return null;
-          return (
-            <div className="rw" key={w.id}>
-              <div className="rw-label">{w.label.toLowerCase()}</div>
-              {React.createElement(w.component, { navigate, currentUser })}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // Post page gets its own contextual sidebar
-  if(page === "post" && pageProps?.id) {
-    return (
-      <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-        <PostSidebar postId={pageProps.id} currentUser={currentUser} navigate={navigate}
-          liveActivityWidget={liveActivityWidget} statsWidget={statsWidget}/>
-      </div>
-    );
-  }
+  var widgets = resolveWidgets(resolvedPage);
 
   return (
     <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
-      {widgets.map(function(w){
-        if(widgetMap[w.id]) return widgetMap[w.id];
-        // Extension-registered widget
-        if(w._ext && w.component) {
-          return (
-            <div className="rw" key={w.id}>
-              <div className="rw-label">{w.label.toLowerCase()}</div>
-              {React.createElement(w.component, { navigate, currentUser })}
-            </div>
-          );
+      {widgets.map(function(w) {
+        // Try built-in inline renderer first (live_activity, spaces_by_pulse, stats)
+        var builtin = renderBuiltin(w);
+        if(builtin !== undefined) return builtin;
+        // Component-based widget (built-in or extension)
+        if(w.component) {
+          return React.createElement(w.component, {
+            key: w.id,
+            navigate: navigate,
+            currentUser: currentUser,
+            pageProps: enrichedPageProps,
+          });
         }
         return null;
       })}

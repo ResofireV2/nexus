@@ -16,13 +16,18 @@ const EXPLORE_ITEMS = [
   {id:"badges",        label:"Badges",        icon:"fa-medal"},
 ];
 
-// Built-in right sidebar widgets with their default page scope.
-// pages: "global" — widget appears in every page section by default.
-// pages: ["page1","page2"] — widget appears only in those sections by default.
+// Built-in right sidebar widgets — mirrors the RIGHT_WIDGETS in nexus.jsx.
+// Used by AdminLayout to know what widgets exist and their default page scope.
 const RIGHT_WIDGETS = [
-  {id:"live_activity",   label:"Live Activity",   pages:"global"},
-  {id:"spaces_by_pulse", label:"Spaces by Pulse", pages:["feed"]},
-  {id:"stats",           label:"Stats",           pages:"global"},
+  {id:"post_author",       label:"Post Author",      pages:["post"]},
+  {id:"post_participants", label:"Participants",      pages:["post"]},
+  {id:"post_related",      label:"Related Posts",     pages:["post"]},
+  {id:"leaderboard_panel", label:"Leaderboard Panel", pages:["leaderboard"]},
+  {id:"badges_panel",      label:"Badges Panel",      pages:["badges"]},
+  {id:"search_filters",    label:"Search Filters",    pages:["search"]},
+  {id:"live_activity",     label:"Live Activity",     pages:"global"},
+  {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"]},
+  {id:"stats",             label:"Stats",             pages:"global"},
 ];
 
 // Core Nexus pages that appear as sections in the right sidebar layout.
