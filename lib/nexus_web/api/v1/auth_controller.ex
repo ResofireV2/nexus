@@ -273,7 +273,7 @@ defmodule NexusWeb.API.V1.AuthController do
   def list_sessions(conn, _params) do
     user    = conn.assigns.current_user
     current = conn.req_cookies["_nexus_refresh"]
-    current_hash = if current, do: hash_token(current), else: nil
+    current_hash = if current, do: token_hash(current), else: nil
 
     sessions =
       Accounts.list_user_sessions(user.id)
@@ -303,10 +303,13 @@ defmodule NexusWeb.API.V1.AuthController do
   def revoke_other_sessions(conn, _params) do
     user    = conn.assigns.current_user
     current = conn.req_cookies["_nexus_refresh"]
-    current_hash = if current, do: hash_token(current), else: ""
+    current_hash = if current, do: token_hash(current), else: ""
     Accounts.revoke_other_sessions(user.id, current_hash)
     json(conn, %{ok: true})
   end
+
+  # Hash a raw token the same way Accounts does — SHA256 hex, lowercase.
+  defp token_hash(raw), do: :crypto.hash(:sha256, raw) |> Base.encode16(case: :lower)
 
   def global_logout(conn, _params) do
     user = conn.assigns.current_user
