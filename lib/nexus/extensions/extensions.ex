@@ -556,40 +556,28 @@ defmodule Nexus.Extensions do
   # Store — fetch the community registry
   # ---------------------------------------------------------------------------
 
-  @registry_url "https://cdn.jsdelivr.net/gh/ResofireV2/nexus-extensions@main/registry.json"
+  @registry_url "https://raw.githubusercontent.com/ResofireV2/nexus-extensions/main/registry.json"
 
   def fetch_store(registry_url \\ @registry_url) do
-    case Req.get(registry_url, receive_timeout: 15_000) do
+    case Req.get(registry_url, receive_timeout: 15_000, decode_body: false) do
       {:ok, %{status: 200, body: body}} ->
-        entries = cond do
-          is_list(body)              -> body
-          is_map(body)               ->
-            raw = Map.get(body, "extensions", [])
-            cond do
-              is_list(raw)   -> raw
-              is_binary(raw) ->
-                case Jason.decode(raw) do
-                  {:ok, list} when is_list(list) -> list
-                  _ -> []
-                end
-              true -> []
-            end
-          is_binary(body)            ->
-            case Jason.decode(body) do
-              {:ok, %{"extensions" => list}} when is_list(list) -> list
-              {:ok, list} when is_list(list) -> list
-              # Handle double-encoded JSON (string containing JSON)
-              {:ok, inner} when is_binary(inner) ->
-                case Jason.decode(inner) do
-                  {:ok, %{"extensions" => list}} when is_list(list) -> list
-                  {:ok, list} when is_list(list) -> list
-                  _ -> :decode_error
-                end
-              {:ok, _}    -> []
-              {:error, _} -> :decode_error
-            end
-          true -> []
-        end
+        # body is always a raw binary since we set decode_body: false
+        entries =
+          case Jason.decode(body) do
+            {:ok, %{"extensions" => list}} when is_list(list) -> list
+            {:ok, list} when is_list(list) -> list
+            {:ok, inner} when is_binary(inner) ->
+              case Jason.decode(inner) do
+                {:ok, %{"extensions" => list}} when is_list(list) -> list
+                {:ok, list} when is_list(list) -> list
+                _ -> :decode_error
+              end
+            {:ok, _}    -> []
+            {:error, e} ->
+              require Logger
+              Logger.error("fetch_store JSON decode error: #{inspect(e)}\nbody: #{String.slice(body, 0, 200)}")
+              :decode_error
+          end
 
         case entries do
           :decode_error ->
@@ -607,11 +595,15 @@ defmodule Nexus.Extensions do
             {:ok, enriched}
         end
 
-      {:ok, %{status: status}} ->
+      {:ok, %{status: status, body: body}} ->
+        require Logger
+        Logger.error("fetch_store HTTP #{status}: #{String.slice(to_string(body), 0, 200)}")
         {:error, "Registry returned HTTP #{status}"}
 
       {:error, reason} ->
-        {:error, "Could not fetch store: #{inspect(reason)}"}
+        require Logger
+        Logger.error("fetch_store network error: #{inspect(reason)}")
+        {:error, "Could not reach registry: #{inspect(reason)}"}
     end
   end
 
