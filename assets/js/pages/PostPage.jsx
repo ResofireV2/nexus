@@ -719,9 +719,6 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [editSaving, setEditSaving] = useState(false);
   const col = spaceColor(post?.space||{id:postId});
 
-  if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
-  if(!post) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Post not found.</div>;
-
   const loadMoreReplies = useCallback(async()=>{
     if(replyLoadingRef.current||!replyHasMoreRef.current) return;
     replyLoadingRef.current=true;
@@ -743,6 +740,9 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     observer.observe(sentinel);
     return ()=>observer.disconnect();
   },[loadMoreReplies,replyHasMore]);
+
+  if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
+  if(!post) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Post not found.</div>;
 
   return (
     <div className="post-shell">

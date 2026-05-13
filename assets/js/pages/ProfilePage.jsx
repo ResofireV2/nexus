@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useReducer } from "react";
+import { useState, useEffect, useRef, useReducer, useCallback } from "react";
 import { api } from "../lib/api";
 import { ago, fmtDate, fmtBytes, userColor, spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
@@ -34,6 +34,14 @@ function ProfilePage({username, currentUser, navigate}) {
   // Per-tab loading state
   const [tabLoading,  setTabLoading]  = useState({});
 
+  // Per-tab cursor and hasMore for infinite scroll
+  const [cursors,  setCursors]  = useState({});
+  const [hasMore,  setHasMore]  = useState({});
+  const loadingTabRef = useRef({});
+  const cursorRef     = useRef({});
+  const hasMoreRef    = useRef({});
+  const sentinelRef   = useRef();
+
   const isOwn  = currentUser?.username === username;
   const isAdmin = currentUser?.role === "admin";
 
@@ -41,6 +49,8 @@ function ProfilePage({username, currentUser, navigate}) {
   useEffect(()=>{
     setLoading(true);
     setPosts(null); setReplies(null); setReactions(null); setMedia(null); setMentions(null);
+    setCursors({}); setHasMore({});
+    cursorRef.current={}; hasMoreRef.current={}; loadingTabRef.current={};
     setTab("posts");
     api.get(`/users/${username}`).then(d=>{
       setUser(d.user || {username});
@@ -48,22 +58,52 @@ function ProfilePage({username, currentUser, navigate}) {
     }).catch(()=>{ setUser({username}); setLoading(false); });
   },[username]);
 
-  // Lazy-load tab data on first activation
+  // Lazy-load tab data on first activation, with cursor pagination
+  const loadTab = useCallback(async(key, url, setter, dataKey, append=false)=>{
+    if(loadingTabRef.current[key]) return;
+    loadingTabRef.current[key]=true;
+    setTabLoading(p=>({...p,[key]:true}));
+    try {
+      const cur = cursorRef.current[key];
+      const fullUrl = cur ? `${url}${url.includes("?")?"&":"?"}cursor=${cur}` : url;
+      const d = await api.get(fullUrl);
+      const items = d[dataKey]||[];
+      if(append) setter(p=>[...(p||[]),...items]);
+      else setter(items);
+      cursorRef.current[key]=d.next_cursor||null;
+      hasMoreRef.current[key]=!!d.next_cursor;
+      setCursors(p=>({...p,[key]:d.next_cursor||null}));
+      setHasMore(p=>({...p,[key]:!!d.next_cursor}));
+    } finally {
+      loadingTabRef.current[key]=false;
+      setTabLoading(p=>({...p,[key]:false}));
+    }
+  },[]);
+
   useEffect(()=>{
     if(!user) return;
+    if(tab==="posts"     && posts     ===null) loadTab("posts",     `/feed?sort=latest&user=${encodeURIComponent(username)}`, setPosts,     "posts");
+    if(tab==="replies"   && replies   ===null) loadTab("replies",   `/users/${username}/replies`,   setReplies,   "replies");
+    if(tab==="reactions" && reactions ===null) loadTab("reactions", `/users/${username}/reactions`, setReactions, "reactions");
+    if(tab==="media"     && media     ===null) loadTab("media",     `/users/${username}/uploads`,   setMedia,     "uploads");
+    if(tab==="mentions"  && mentions  ===null) loadTab("mentions",  `/users/${username}/mentions`,  setMentions,  "mentions");
+  },[tab, user, username, loadTab]);
 
-    const load = async (key, fetcher) => {
-      setTabLoading(p=>({...p,[key]:true}));
-      try { const d = await fetcher(); return d; }
-      finally { setTabLoading(p=>({...p,[key]:false})); }
-    };
-
-    if(tab==="posts"     && posts     === null) load("posts",     ()=>api.get(`/feed?sort=latest&user=${encodeURIComponent(username)}`)).then(d=>setPosts(d.posts||[]));
-    if(tab==="replies"   && replies   === null) load("replies",   ()=>api.get(`/users/${username}/replies`)).then(d=>setReplies(d.replies||[]));
-    if(tab==="reactions" && reactions === null) load("reactions", ()=>api.get(`/users/${username}/reactions`)).then(d=>setReactions(d.reactions||[]));
-    if(tab==="media"     && media     === null) load("media",     ()=>api.get(`/users/${username}/uploads`)).then(d=>setMedia(d.uploads||[]));
-    if(tab==="mentions"  && mentions  === null) load("mentions",  ()=>api.get(`/users/${username}/mentions`)).then(d=>setMentions(d.mentions||[]));
-  },[tab, user, username]);
+  // IntersectionObserver for infinite scroll on active tab
+  useEffect(()=>{
+    const sentinel=sentinelRef.current; if(!sentinel) return;
+    const observer=new IntersectionObserver(entries=>{
+      if(!entries[0].isIntersecting) return;
+      if(loadingTabRef.current[tab]||!hasMoreRef.current[tab]) return;
+      if(tab==="posts")     loadTab("posts",     `/feed?sort=latest&user=${encodeURIComponent(username)}`, setPosts,     "posts",     true);
+      if(tab==="replies")   loadTab("replies",   `/users/${username}/replies`,   setReplies,   "replies",   true);
+      if(tab==="reactions") loadTab("reactions", `/users/${username}/reactions`, setReactions, "reactions", true);
+      if(tab==="media")     loadTab("media",     `/users/${username}/uploads`,   setMedia,     "uploads",   true);
+      if(tab==="mentions")  loadTab("mentions",  `/users/${username}/mentions`,  setMentions,  "mentions",  true);
+    },{rootMargin:"200px"});
+    observer.observe(sentinel);
+    return ()=>observer.disconnect();
+  },[tab,username,loadTab,hasMore]);
 
   const col = userColor(user);
 
@@ -335,6 +375,12 @@ function ProfilePage({username, currentUser, navigate}) {
           {extTabs.map(t => tab===t.id
             ? <t.component key={t.id} username={username} currentUser={currentUser} navigate={navigate} userId={user?.id} user_id={user?.id}/>
             : null
+          )}
+
+          {/* Infinite scroll sentinel — always rendered, visible only when more content available */}
+          <div ref={sentinelRef} style={{height:40,visibility:hasMore[tab]?"visible":"hidden"}}/>
+          {tabLoading[tab]&&(posts||replies||reactions||media||mentions)&&(
+            <div style={{textAlign:"center",padding:16,color:"var(--t5)",fontSize:13}}>Loading…</div>
           )}
 
         </div>
