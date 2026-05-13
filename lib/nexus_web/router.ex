@@ -78,9 +78,13 @@ defmodule NexusWeb.Router do
   # API v1 — auth (authenticated)
   scope "/api/v1/auth", NexusWeb.API.V1 do
     pipe_through [:api, :authenticated]
-    get   "/me",                 AuthController, :me
-    patch "/me",                 AuthController, :update_me
-    post  "/resend-verification", AuthController, :resend_verification
+    get    "/me",                  AuthController, :me
+    patch  "/me",                  AuthController, :update_me
+    post   "/resend-verification", AuthController, :resend_verification
+    get    "/sessions",            AuthController, :list_sessions
+    delete "/sessions/:id",        AuthController, :revoke_session
+    delete "/sessions",            AuthController, :revoke_other_sessions
+    delete "/global-logout",       AuthController, :global_logout
   end
 
   # API v1 — public read
