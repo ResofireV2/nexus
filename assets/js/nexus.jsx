@@ -2648,17 +2648,40 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
   const sorted = [...spaces].sort((a,b)=>(b.post_count||0)-(a.post_count||0));
   const max = sorted[0]?.post_count||1;
 
-  // Merge saved layout order with built-in defaults, then append any extension
-  // widgets not yet in the saved list so they always appear even before the
-  // admin has touched the layout settings.
-  var savedWidgets = layoutCfg.right_widgets;
-  var widgets = savedWidgets && savedWidgets.length
-    ? savedWidgets.map(function(w){return RIGHT_WIDGETS.find(function(d){return d.id===w.id;})||w;})
-    : RIGHT_WIDGETS.slice();
-  RIGHT_WIDGETS.forEach(function(d){if(!widgets.find(function(w){return w.id===d.id;}))widgets.push(d);});
-  window.NexusExtensions.getRightWidgets().forEach(function(d){
-    if(!widgets.find(function(w){return w.id===d.id;}))widgets.push(d);
-  });
+  // Resolve widgets for the current page using per-page saved layout.
+  // Falls back to the flat right_widgets list for backwards compatibility.
+  function resolveWidgets(pageId) {
+    var allExt = window.NexusExtensions.getRightWidgets();
+    // Build candidate list: built-in globals + page-specific, then ext globals + page-specific
+    var candidates = [];
+    RIGHT_WIDGETS.forEach(function(w) {
+      if(w.pages === "global" || (Array.isArray(w.pages) && w.pages.indexOf(pageId) !== -1)) {
+        candidates.push(Object.assign({}, w));
+      }
+    });
+    allExt.forEach(function(w) {
+      var wp = w.pages;
+      if(!wp || wp === "global" || (Array.isArray(wp) && wp.indexOf(pageId) !== -1)) {
+        candidates.push(Object.assign({}, w));
+      }
+    });
+    // Apply saved per-page order and hidden flags
+    var savedByPage = layoutCfg.right_widgets_by_page || {};
+    var saved = savedByPage[pageId];
+    if(!saved || !saved.length) return candidates.filter(function(w){ return !w.hidden; });
+    var result = [];
+    saved.forEach(function(s) {
+      if(s.hidden) return;
+      var found = candidates.find(function(w){ return w.id === s.id; });
+      if(found) result.push(found);
+    });
+    // Append any new candidates not yet in saved (always visible until admin hides them)
+    candidates.forEach(function(w) {
+      if(!saved.find(function(s){ return s.id === w.id; })) result.push(w);
+    });
+    return result;
+  }
+  var widgets = resolveWidgets(page);
 
   var liveActivityWidget = (
     <div className="rw" key="live_activity">
@@ -2775,19 +2798,8 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
     <div className={mobile?"mob-rightpanel-inner":"right-panel"}>
       {widgets.map(function(w){
         if(widgetMap[w.id]) return widgetMap[w.id];
-        // Extension-registered widget — render only if it matches the current page
+        // Extension-registered widget
         if(w._ext && w.component) {
-          // If the widget declares page restrictions, check them
-          if(w.pages && w.pages.length > 0) {
-            const matches = w.pages.some(function(p) {
-              if(p.startsWith("ext-route:")) {
-                const prefix = p.slice("ext-route:".length);
-                return page === "ext-route" && pageProps?._match?.pattern?.includes(prefix);
-              }
-              return p === page;
-            });
-            if(!matches) return null;
-          }
           return (
             <div className="rw" key={w.id}>
               <div className="rw-label">{w.label.toLowerCase()}</div>

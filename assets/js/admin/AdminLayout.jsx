@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { api } from "../lib/api";
 import { toast } from "../components/Toasts";
 import { spaceColor } from "../lib/utils";
+import { Toggle } from "../components/Select";
 import { TB_BTNS, getAllToolbarButtons, setActivePostToolbar, setActiveReplyToolbar } from "../components/RichTextArea";
 
 const EXPLORE_ITEMS = [
@@ -14,20 +15,38 @@ const EXPLORE_ITEMS = [
   {id:"leaderboard",   label:"Leaderboard",   icon:"fa-trophy"},
   {id:"badges",        label:"Badges",        icon:"fa-medal"},
 ];
+
+// Built-in right sidebar widgets with their default page scope.
+// pages: "global" — widget appears in every page section by default.
+// pages: ["page1","page2"] — widget appears only in those sections by default.
 const RIGHT_WIDGETS = [
-  {id:"live_activity",   label:"Live Activity"},
-  {id:"spaces_by_pulse", label:"Spaces by Pulse"},
-  {id:"stats",           label:"Stats"},
+  {id:"live_activity",   label:"Live Activity",   pages:"global"},
+  {id:"spaces_by_pulse", label:"Spaces by Pulse", pages:["feed"]},
+  {id:"stats",           label:"Stats",           pages:"global"},
 ];
+
+// Core Nexus pages that appear as sections in the right sidebar layout.
+const CORE_PAGES = [
+  {id:"feed",          label:"Feed"},
+  {id:"post",          label:"Post"},
+  {id:"profile",       label:"Profile"},
+  {id:"members",       label:"Members"},
+  {id:"leaderboard",   label:"Leaderboard"},
+  {id:"badges",        label:"Badges"},
+  {id:"search",        label:"Search"},
+  {id:"notifications", label:"Notifications"},
+  {id:"messages",      label:"Messages"},
+  {id:"saved",         label:"Saved"},
+  {id:"drafts",        label:"Drafts"},
+];
+
 const SIDEBAR_SECTIONS = [
   {id:"explore", label:"Explore"},
   {id:"spaces",  label:"Spaces"},
   {id:"you",     label:"You"},
 ];
 
-// ── DragList, LayoutAdmin, ToolbarEditor ──────────────────────────────────────
-
-// ── Simple drag-to-reorder list (reorder only, no hide/remove) ────────────────
+// ── DragList ──────────────────────────────────────────────────────────────────
 function DragList({items, renderItem, onChange}) {
   var [dragging, setDragging] = React.useState(null);
   var [dragOver, setDragOver] = React.useState(null);
@@ -68,10 +87,81 @@ function DragList({items, renderItem, onChange}) {
   );
 }
 
+// ── WidgetDragList — drag-reorder + toggle for right sidebar widgets ───────────
+function WidgetDragList({items, onChange}) {
+  var [dragging, setDragging] = React.useState(null);
+  var [dragOver, setDragOver] = React.useState(null);
 
-// ── Layout admin with tabs ─────────────────────────────────────────────────────
+  function move(from, to) {
+    if(from === to) return;
+    var next = items.slice();
+    var item = next.splice(from, 1)[0];
+    next.splice(to, 0, item);
+    onChange(next);
+  }
+
+  function toggle(idx) {
+    var next = items.map(function(x){return Object.assign({},x);});
+    next[idx].hidden = !next[idx].hidden;
+    onChange(next);
+  }
+
+  return React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:4}},
+    items.map(function(item, idx) {
+      var isOver = dragOver === idx;
+      var isDragging = dragging === idx;
+      return React.createElement('div', {
+        key: item.id,
+        draggable: true,
+        onDragStart: function(e){e.dataTransfer.effectAllowed="move"; setDragging(idx);},
+        onDragOver:  function(e){e.preventDefault(); setDragOver(idx);},
+        onDragLeave: function(){setDragOver(null);},
+        onDrop:      function(e){e.preventDefault(); if(dragging!==null) move(dragging,idx); setDragging(null); setDragOver(null);},
+        onDragEnd:   function(){setDragging(null); setDragOver(null);},
+        style:{
+          display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
+          borderRadius:10, cursor:"grab",
+          border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
+          background: isDragging?"rgba(255,255,255,0.01)": isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
+          opacity: isDragging ? 0.5 : 1,
+          transition:"border-color .1s, background .1s"
+        }
+      },
+        React.createElement('i',{className:"fa-solid fa-grip-vertical",style:{fontSize:11,color:"var(--t5)",flexShrink:0}}),
+        React.createElement('span',{style:{flex:1,fontSize:13,color:item.hidden?"var(--t5)":"var(--t2)",fontWeight:500}}, item.label),
+        item._ext && React.createElement('span',{style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
+        React.createElement(Toggle, {
+          value: !item.hidden,
+          onChange: function(v){ toggle(idx); }
+        })
+      );
+    })
+  );
+}
+
+// ── LayoutAdmin ───────────────────────────────────────────────────────────────
 function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   var [tab, setTab] = React.useState("post_toolbar");
+  var [expandedPages, setExpandedPages] = React.useState({feed: true});
+  var layoutCfgRef = useRef(layoutCfg);
+  layoutCfgRef.current = layoutCfg;
+
+  // Register save function with topbar Save Changes button
+  useEffect(function() {
+    window._nexusAdminSaveFn = function() {
+      return api.patch("/admin/settings/layout", {value: layoutCfgRef.current})
+        .then(function(){ toast("Layout saved"); });
+    };
+    return function() {
+      if(window._nexusAdminSaveFn === window._nexusAdminSaveFn) {
+        window._nexusAdminSaveFn = null;
+      }
+    };
+  }, []);
+
+  function markDirty() {
+    if(window._nexusAdminSetDirty) window._nexusAdminSetDirty();
+  }
 
   function rehydrate(items) {
     var live = getAllToolbarButtons();
@@ -87,14 +177,12 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     var next = Object.assign({}, layoutCfg);
     next[key] = val;
     setLayoutCfg(next);
-    if(key === "post_toolbar")   setActivePostToolbar(rehydrate(val));
-    if(key === "reply_toolbar")  setActiveReplyToolbar(rehydrate(val));
-    api.patch("/admin/settings/layout", {value: next}).catch(function(){});
+    if(key === "post_toolbar")  setActivePostToolbar(rehydrate(val));
+    if(key === "reply_toolbar") setActiveReplyToolbar(rehydrate(val));
+    markDirty();
   }
 
-  // Seed a toolbar from getAllToolbarButtons(), applying default hidden state by scope.
-  // scope_key: "post" — buttons with scope "replies" start hidden.
-  //            "reply" — buttons with scope "posts" start hidden.
+  // ── Toolbar helpers ──────────────────────────────────────────────────────
   function seedToolbar(scope_key) {
     return getAllToolbarButtons().map(function(btn) {
       if(btn.sep) return btn;
@@ -108,11 +196,9 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     });
   }
 
-  // Get toolbar items: saved layout merged with any new buttons from getAllToolbarButtons()
   function getToolbar(key, scope_key) {
     var saved = layoutCfg[key];
     if(!saved || !saved.length) return seedToolbar(scope_key);
-    // Merge: keep saved order/state, append any new buttons not yet in saved
     var all = getAllToolbarButtons();
     var result = saved.slice();
     all.forEach(function(def) {
@@ -129,7 +215,7 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     return result;
   }
 
-  // Get ordered list with defaults for any missing ids (sidebar/widgets)
+  // ── Sidebar helpers ──────────────────────────────────────────────────────
   function orderedList(key, defaults) {
     var saved = layoutCfg[key];
     if(!saved || !saved.length) return defaults.slice();
@@ -142,11 +228,79 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     return result;
   }
 
+  // ── Right sidebar helpers ────────────────────────────────────────────────
+  // Build the full list of pages: core pages + any extension pages
+  function getAllPages() {
+    var pages = CORE_PAGES.slice();
+    var extWidgets = window.NexusExtensions.getRightWidgets();
+    extWidgets.forEach(function(w) {
+      if(!w.pages || w.pages === "global") return;
+      var wPages = Array.isArray(w.pages) ? w.pages : [w.pages];
+      wPages.forEach(function(p) {
+        if(!pages.find(function(pg){ return pg.id === p; })) {
+          pages.push({id: p, label: p.charAt(0).toUpperCase() + p.slice(1), _ext: true});
+        }
+      });
+    });
+    return pages;
+  }
+
+  // Build the full widget list for a given page, merging saved state
+  function getPageWidgets(pageId) {
+    var allWidgets = [];
+    var extWidgets = window.NexusExtensions.getRightWidgets();
+
+    // Add built-in widgets that belong on this page
+    RIGHT_WIDGETS.forEach(function(w) {
+      if(w.pages === "global" || (Array.isArray(w.pages) && w.pages.indexOf(pageId) !== -1)) {
+        allWidgets.push(Object.assign({}, w));
+      }
+    });
+
+    // Add extension widgets that belong on this page
+    extWidgets.forEach(function(w) {
+      var wPages = w.pages;
+      if(wPages === "global" || (Array.isArray(wPages) && wPages.indexOf(pageId) !== -1)) {
+        allWidgets.push(Object.assign({}, w));
+      }
+    });
+
+    // Apply saved state (order + hidden) for this page
+    var savedByPage = layoutCfg.right_widgets_by_page || {};
+    var saved = savedByPage[pageId];
+    if(!saved || !saved.length) return allWidgets;
+
+    // Merge: apply saved order and hidden flags, append any new widgets
+    var result = [];
+    saved.forEach(function(s) {
+      var found = allWidgets.find(function(w){ return w.id === s.id; });
+      if(found) result.push(Object.assign({}, found, {hidden: s.hidden || false}));
+    });
+    allWidgets.forEach(function(w) {
+      if(!result.find(function(r){ return r.id === w.id; })) {
+        result.push(Object.assign({}, w));
+      }
+    });
+    return result;
+  }
+
+  function updatePageWidgets(pageId, items) {
+    var savedByPage = Object.assign({}, layoutCfg.right_widgets_by_page || {});
+    savedByPage[pageId] = items.map(function(w){ return {id: w.id, hidden: w.hidden || false}; });
+    update("right_widgets_by_page", savedByPage);
+  }
+
+  function togglePageExpanded(pageId) {
+    setExpandedPages(function(prev) {
+      return Object.assign({}, prev, {[pageId]: !prev[pageId]});
+    });
+  }
+
   var TABS = [
-    {id:"post_toolbar",   label:"Post toolbar"},
-    {id:"reply_toolbar",  label:"Reply toolbar"},
-    {id:"left",           label:"Left sidebar"},
-    {id:"right",          label:"Right sidebar"},
+    {id:"post_toolbar",  label:"Post toolbar"},
+    {id:"reply_toolbar", label:"Reply toolbar"},
+    {id:"left",          label:"Left sidebar"},
+    {id:"right",         label:"Right sidebar"},
   ];
 
   return React.createElement('div', null,
@@ -227,31 +381,53 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
 
     // Right sidebar tab
     tab === "right" && React.createElement('div', null,
-      React.createElement('div', {className:"fgt"}, "Widget order"),
-      React.createElement('div', {className:"page-sub"}, "Drag to reorder the widgets in the right sidebar."),
-      React.createElement(DragList, {
-        items: orderedList("right_widgets", [...RIGHT_WIDGETS, ...window.NexusExtensions.getRightWidgets()]),
-        onChange: function(items){update("right_widgets", items);},
-        renderItem: function(item) {
-          return React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10,flex:1}},
-            React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label),
-            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
-            item._ext && React.createElement('button', {
-              onClick: function(e){
-                e.stopPropagation();
-                var current = orderedList("right_widgets", [...RIGHT_WIDGETS, ...window.NexusExtensions.getRightWidgets()]);
-                update("right_widgets", current.filter(function(i){return i.id !== item.id;}));
-              },
-              style:{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:"2px 6px",fontSize:12,lineHeight:1},
-              title:"Remove"
-            }, React.createElement('i', {className:"fa-solid fa-xmark"}))
+      React.createElement('div', {className:"page-sub"}, "Configure which widgets appear on each page. Drag to reorder, toggle to show or hide. Global widgets appear in every section. Extension pages appear automatically when extensions are installed."),
+      React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:8,marginTop:16}},
+        getAllPages().map(function(pg) {
+          var isExpanded = !!expandedPages[pg.id];
+          var pageWidgets = getPageWidgets(pg.id);
+          var visibleCount = pageWidgets.filter(function(w){ return !w.hidden; }).length;
+          return React.createElement('div', {
+            key: pg.id,
+            style:{border:"0.5px solid var(--b1)",borderRadius:10,overflow:"hidden"}
+          },
+            // Section header
+            React.createElement('div', {
+              onClick: function(){ togglePageExpanded(pg.id); },
+              style:{
+                display:"flex",alignItems:"center",gap:10,padding:"12px 16px",
+                cursor:"pointer",background:"rgba(255,255,255,0.02)",
+                borderBottom: isExpanded ? "0.5px solid var(--b1)" : "none",
+                userSelect:"none"
+              }
+            },
+              React.createElement('i', {
+                className:"fa-solid "+(isExpanded?"fa-chevron-down":"fa-chevron-right"),
+                style:{fontSize:10,color:"var(--t5)",width:12,flexShrink:0}
+              }),
+              React.createElement('span', {style:{fontSize:13,fontWeight:500,color:"var(--t2)",flex:1}}, pg.label),
+              pg._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)",marginRight:8}}, "extension"),
+              React.createElement('span', {style:{fontSize:12,color:"var(--t5)"}},
+                visibleCount + " of " + pageWidgets.length + " active"
+              )
+            ),
+            // Section body
+            isExpanded && React.createElement('div', {style:{padding:"12px 16px"}},
+              pageWidgets.length === 0
+                ? React.createElement('div', {style:{fontSize:12,color:"var(--t5)",padding:"8px 0"}}, "No widgets registered for this page.")
+                : React.createElement(WidgetDragList, {
+                    items: pageWidgets,
+                    onChange: function(items){ updatePageWidgets(pg.id, items); }
+                  })
+            )
           );
-        }
-      })
+        })
+      )
     )
   );
 }
 
+// ── ToolbarEditor ─────────────────────────────────────────────────────────────
 function ToolbarEditor({items, onChange, onReset}) {
   var [dragging, setDragging] = React.useState(null);
   var [dragOver, setDragOver] = React.useState(null);
@@ -324,10 +500,7 @@ function ToolbarEditor({items, onChange, onReset}) {
                     </div>
                   </div>}
               {/* Toggle visible */}
-              <button onClick={function(){toggle(idx);}} title={item.hidden?"Show":"Hide"}
-                style={{background:"none",border:"none",cursor:"pointer",color:item.hidden?"var(--t5)":"var(--ac)",fontSize:14,padding:"2px 6px",borderRadius:6,flexShrink:0}}>
-                <i className={"fa-solid "+(item.hidden?"fa-toggle-off":"fa-toggle-on")}/>
-              </button>
+              <Toggle value={!item.hidden} onChange={function(){ toggle(idx); }}/>
               {/* Remove */}
               <button onClick={function(){removeItem(idx);}} title="Remove from toolbar"
                 style={{background:"none",border:"none",cursor:"pointer",color:"var(--t5)",fontSize:12,padding:"2px 6px",borderRadius:6,flexShrink:0}}
@@ -367,5 +540,5 @@ function ToolbarEditor({items, onChange, onReset}) {
 }
 
 
-// ── Exports ──────────────────────────────────────────────────────────────────
+// ── Exports ───────────────────────────────────────────────────────────────────
 export { DragList, LayoutAdmin, ToolbarEditor };
