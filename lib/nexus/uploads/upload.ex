@@ -20,7 +20,7 @@ defmodule Nexus.Uploads.Upload do
     timestamps(type: :utc_datetime)
   end
 
-  @valid_types ~w(post_image avatar cover_image logo favicon group_image)
+  @valid_types ~w(post_image avatar cover_image logo favicon og_image group_image)
   @valid_mime  ~w(image/jpeg image/png image/gif image/webp image/svg+xml image/x-icon image/vnd.microsoft.icon)
 
   def changeset(upload, attrs) do
