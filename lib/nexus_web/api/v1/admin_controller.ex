@@ -190,6 +190,16 @@ defmodule NexusWeb.API.V1.AdminController do
   # GET /api/v1/branding — public, returns only safe display settings
   def get_branding(conn, _params) do
     s = Admin.get_settings()
+    integrations = s["integrations"] || %{}
+
+    # Expose which OAuth providers are configured — never expose the secrets themselves
+    oauth_providers = %{
+      google: integrations["google_oauth_enabled"] == true and
+              not is_nil_or_empty(integrations["google_client_id"]),
+      github: integrations["github_oauth_enabled"] == true and
+              not is_nil_or_empty(integrations["github_client_id"])
+    }
+
     json(conn, %{
       settings: %{
         general:      Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url","hero_enabled","hero_title","hero_body"]),
@@ -203,10 +213,15 @@ defmodule NexusWeb.API.V1.AdminController do
                         "force_portrait","ios_prompt_enabled","ios_prompt_text",
                         "ios_prompt_delay","ios_auto_detect_orientation","ios_pad_always_up",
                         "icon_192_path","icon_512_path","badge_url"
-                      ])
+                      ]),
+        oauth_providers: oauth_providers
       }
     })
   end
+
+  defp is_nil_or_empty(nil), do: true
+  defp is_nil_or_empty(""),  do: true
+  defp is_nil_or_empty(_),   do: false
 
   # PATCH /api/v1/admin/settings/:key
   def update_settings(conn, %{"key" => key, "value" => value}) do

@@ -12,7 +12,37 @@ import { F } from "./FormHelpers";
 function AdminIntegrationsPanel({cfg, setCfg}) {
   return (
     <div>
-      <div className="fgt">GitHub</div>
+      <div className="fgt">GitHub OAuth — Sign in with GitHub</div>
+      <div style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.7}}>
+        Create an OAuth App at <a href="https://github.com/settings/developers" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>github.com/settings/developers</a>.
+        Set the callback URL to <code style={{fontSize:11}}>{window.location.origin}/api/v1/auth/oauth/github/callback</code>
+      </div>
+      <Toggle label="Enable Sign in with GitHub" value={!!cfg.github_oauth_enabled} onChange={v=>setCfg(p=>({...p,github_oauth_enabled:v}))}/>
+      <F label="Client ID">
+        <input className="fi" value={cfg.github_client_id||""} placeholder="Ov23li…"
+          onChange={e=>setCfg(p=>({...p,github_client_id:e.target.value}))}/>
+      </F>
+      <F label="Client Secret">
+        <input className="fi" type="password" value={cfg.github_client_secret||""} placeholder="••••••••"
+          onChange={e=>setCfg(p=>({...p,github_client_secret:e.target.value}))}/>
+      </F>
+
+      <div className="fgt" style={{marginTop:24}}>Google OAuth — Sign in with Google</div>
+      <div style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.7}}>
+        Create credentials at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>Google Cloud Console</a> (OAuth 2.0 Client ID, type: Web application).
+        Set the authorised redirect URI to <code style={{fontSize:11}}>{window.location.origin}/api/v1/auth/oauth/google/callback</code>
+      </div>
+      <Toggle label="Enable Sign in with Google" value={!!cfg.google_oauth_enabled} onChange={v=>setCfg(p=>({...p,google_oauth_enabled:v}))}/>
+      <F label="Client ID">
+        <input className="fi" value={cfg.google_client_id||""} placeholder="123456789-abc….apps.googleusercontent.com"
+          onChange={e=>setCfg(p=>({...p,google_client_id:e.target.value}))}/>
+      </F>
+      <F label="Client Secret">
+        <input className="fi" type="password" value={cfg.google_client_secret||""} placeholder="GOCSPX-…"
+          onChange={e=>setCfg(p=>({...p,google_client_secret:e.target.value}))}/>
+      </F>
+
+      <div className="fgt" style={{marginTop:24}}>GitHub API — Extension updates</div>
       <div style={{fontSize:13,color:"var(--t3)",marginBottom:16,lineHeight:1.7}}>
         A GitHub personal access token is required to check extensions for updates and install from tagged releases.
         Create one at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>github.com/settings/tokens</a> with <code style={{fontSize:11}}>public_repo</code> read access.

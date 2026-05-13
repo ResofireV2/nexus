@@ -61,11 +61,11 @@ defmodule Nexus.Auth.OAuth do
   end
 
   defp google_config do
-    Application.get_env(:nexus, :google_oauth, [
-      client_id: System.get_env("GOOGLE_CLIENT_ID"),
-      client_secret: System.get_env("GOOGLE_CLIENT_SECRET"),
-      redirect_uri: System.get_env("GOOGLE_REDIRECT_URI", "http://localhost:4000/api/v1/auth/oauth/google/callback")
-    ])
+    s = (Nexus.Admin.get_setting("integrations") || %{})
+    client_id     = s["google_client_id"]     || System.get_env("GOOGLE_CLIENT_ID")
+    client_secret = s["google_client_secret"] || System.get_env("GOOGLE_CLIENT_SECRET")
+    redirect_uri  = System.get_env("GOOGLE_REDIRECT_URI", "#{base_url()}/api/v1/auth/oauth/google/callback")
+    [client_id: client_id, client_secret: client_secret, redirect_uri: redirect_uri]
   end
 
   # ---------------------------------------------------------------------------
@@ -126,10 +126,14 @@ defmodule Nexus.Auth.OAuth do
   end
 
   defp github_config do
-    Application.get_env(:nexus, :github_oauth, [
-      client_id: System.get_env("GITHUB_CLIENT_ID"),
-      client_secret: System.get_env("GITHUB_CLIENT_SECRET"),
-      redirect_uri: System.get_env("GITHUB_REDIRECT_URI", "http://localhost:4000/api/v1/auth/oauth/github/callback")
-    ])
+    s = (Nexus.Admin.get_setting("integrations") || %{})
+    client_id     = s["github_client_id"]     || System.get_env("GITHUB_CLIENT_ID")
+    client_secret = s["github_client_secret"] || System.get_env("GITHUB_CLIENT_SECRET")
+    redirect_uri  = System.get_env("GITHUB_REDIRECT_URI", "#{base_url()}/api/v1/auth/oauth/github/callback")
+    [client_id: client_id, client_secret: client_secret, redirect_uri: redirect_uri]
+  end
+
+  defp base_url do
+    NexusWeb.Endpoint.url()
   end
 end
