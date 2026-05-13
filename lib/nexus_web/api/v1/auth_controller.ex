@@ -275,9 +275,6 @@ defmodule NexusWeb.API.V1.AuthController do
     current = conn.req_cookies["_nexus_refresh"]
     current_hash = if current, do: token_hash(current), else: nil
 
-    # Clean up orphaned non-revoked tokens from before rotation was enforced
-    Accounts.prune_duplicate_sessions(user.id)
-
     sessions =
       try do
         Accounts.list_user_sessions(user.id)
