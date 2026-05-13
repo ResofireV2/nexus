@@ -3451,7 +3451,8 @@ function App() {
       } else {
         window._digestFrequencies = [];
       }
-      const lc=s.layout||{};\n      // Rehydrate helper: restores live onClick references on ext buttons after
+      const lc=s.layout||{};
+      // Rehydrate helper: restores live onClick references on ext buttons after
       // deserializing from DB (onClick can't be stored as JSON).
       function rehydrate(items){
         var live=getAllToolbarButtons();
