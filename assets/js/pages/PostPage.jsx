@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useReducer } from "react";
+import { useState, useEffect, useRef, useReducer, useCallback } from "react";
 import { api } from "../lib/api";
 import { ago, fmtDate, userColor, spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
@@ -376,6 +376,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState(resumeDraft?.body||"");
   const [submitting,setSubmitting]=useState(false);
+  const [replyCursor,setReplyCursor]=useState(null);
+  const [replyHasMore,setReplyHasMore]=useState(false);
+  const replyLoadingRef=useRef(false);
+  const replyCursorRef=useRef(null);
+  const replyHasMoreRef=useRef(false);
+  const replySentinelRef=useRef();
   const [userReaction,setUserReaction]=useState(null);
   const [reportTarget,setReportTarget]=useState(null);
   const [reportReason,setReportReason]=useState("");
@@ -464,7 +470,12 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           api.get(`/posts/${postId}/replies`),
           currentUser?api.get(`/posts/${postId}/read-position`):Promise.resolve({})
         ]);
-        setPost(pd.post); setReplies(rd.replies||[]);
+        setPost(pd.post);
+        setReplies(rd.replies||[]);
+        setReplyCursor(rd.next_cursor||null);
+        setReplyHasMore(!!rd.next_cursor);
+        replyCursorRef.current=rd.next_cursor||null;
+        replyHasMoreRef.current=!!rd.next_cursor;
         setUserReaction(pd.post?.user_reaction||null);
         // Set to the saved reply ID if present, or null (= fetched, no position)
         setLastReadReplyId(rp.last_reply_id || null);
@@ -710,6 +721,28 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
 
   if(loading) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading...</div>;
   if(!post) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Post not found.</div>;
+
+  const loadMoreReplies = useCallback(async()=>{
+    if(replyLoadingRef.current||!replyHasMoreRef.current) return;
+    replyLoadingRef.current=true;
+    try {
+      const rd=await api.get(`/posts/${postId}/replies?cursor=${replyCursorRef.current}`);
+      setReplies(p=>[...p,...(rd.replies||[])]);
+      setReplyCursor(rd.next_cursor||null);
+      setReplyHasMore(!!rd.next_cursor);
+      replyCursorRef.current=rd.next_cursor||null;
+      replyHasMoreRef.current=!!rd.next_cursor;
+    } finally { replyLoadingRef.current=false; }
+  },[postId]);
+
+  useEffect(()=>{
+    const sentinel=replySentinelRef.current; if(!sentinel) return;
+    const observer=new IntersectionObserver(entries=>{
+      if(entries[0].isIntersecting) loadMoreReplies();
+    },{rootMargin:"300px"});
+    observer.observe(sentinel);
+    return ()=>observer.disconnect();
+  },[loadMoreReplies]);
 
   return (
     <div className="post-shell">
@@ -1112,6 +1145,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
             <i className="fa-solid fa-quote-left" style={{fontSize:10}}></i> Quote
           </div>
         )}
+        {replyHasMore&&<div ref={replySentinelRef} style={{height:40}}/>}
         {currentUser&&!post.locked&&(<>
           {typingUsers.length>0&&<div style={{padding:"4px 0 6px",fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:6}}>
             <span style={{display:"flex",gap:3}}>{[0,1,2].map(i=><span key={i} style={{width:4,height:4,borderRadius:"50%",background:"var(--t4)",display:"inline-block",animation:`bounce .9s ${i*0.15}s infinite`}}/>)}</span>

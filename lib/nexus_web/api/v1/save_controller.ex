@@ -4,10 +4,11 @@ defmodule NexusWeb.API.V1.SaveController do
   alias Nexus.Forum
 
   # GET /api/v1/saved
-  def index(conn, _params) do
-    user  = conn.assigns.current_user
-    items = Forum.list_saved(user.id)
-    json(conn, %{saved: Enum.map(items, &saved_json/1)})
+  def index(conn, params) do
+    user   = conn.assigns.current_user
+    cursor = params["cursor"]
+    %{saved: items, next_cursor: next_cursor} = Forum.list_saved(user.id, cursor: cursor)
+    json(conn, %{saved: Enum.map(items, &saved_json/1), next_cursor: next_cursor})
   end
 
   # POST /api/v1/posts/:id/save

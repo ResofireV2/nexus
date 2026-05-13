@@ -179,7 +179,7 @@ defmodule Nexus.Forum do
 
   def list_replies(post_id, opts \\ []) do
     cursor = Keyword.get(opts, :cursor)
-    limit  = 50
+    limit  = 25
 
     query =
       Reply
@@ -417,7 +417,7 @@ defmodule Nexus.Forum do
   # Feed
   # ---------------------------------------------------------------------------
 
-  @page_size 30
+  @page_size 25
 
   def list_feed(opts \\ []) do
     user       = Keyword.get(opts, :user)
@@ -651,8 +651,13 @@ defmodule Nexus.Forum do
     Repo.exists?(from s in PostSave, where: s.user_id == ^user_id and s.reply_id == ^reply_id)
   end
 
-  def list_saved(user_id) do
-    Repo.all(
+  @saved_page_size 25
+
+  def list_saved(user_id, opts \\ []) do
+    cursor = Keyword.get(opts, :cursor)
+    limit  = @saved_page_size
+
+    query =
       from s in PostSave,
       where: s.user_id == ^user_id,
       left_join: p in Post,  on: s.post_id  == p.id  and not p.hidden and not p.pending_approval,
@@ -662,7 +667,8 @@ defmodule Nexus.Forum do
       left_join: rsp in Space, on: rp.space_id == rsp.id,
       left_join: pu in Nexus.Accounts.User, on: p.user_id  == pu.id,
       left_join: ru in Nexus.Accounts.User, on: r.user_id  == ru.id,
-      order_by: [desc: s.inserted_at],
+      order_by: [desc: s.inserted_at, desc: s.id],
+      limit: ^(limit + 1),
       select: %{
         id:         s.id,
         saved_at:   s.inserted_at,
@@ -692,7 +698,34 @@ defmodule Nexus.Forum do
         reply_avatar_color: ru.avatar_color,
         reply_user_id:      ru.id
       }
-    )
+
+    query =
+      if cursor do
+        case Base.url_decode64(cursor, padding: false) do
+          {:ok, json} ->
+            case Jason.decode(json) do
+              {:ok, %{"id" => id}} -> where(query, [s], s.id < ^id)
+              _ -> query
+            end
+          _ -> query
+        end
+      else
+        query
+      end
+
+    items = Repo.all(query)
+
+    {items, next_cursor} =
+      if length(items) > limit do
+        page = Enum.take(items, limit)
+        last = List.last(page)
+        cur  = %{"id" => last.id} |> Jason.encode!() |> Base.url_encode64(padding: false)
+        {page, cur}
+      else
+        {items, nil}
+      end
+
+    %{saved: items, next_cursor: next_cursor}
   end
 
   @doc """

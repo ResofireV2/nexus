@@ -1,16 +1,46 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { ago, spaceColor, userColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { RsAv, Av } from "../components/Avatar";
 import { Md } from "../components/Markdown";
+
 function SavedPage({navigate, currentUser}) {
-  const [items, setItems] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems]       = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [cursor, setCursor]     = useState(null);
+  const [hasMore, setHasMore]   = useState(false);
+  const loadingRef  = useRef(false);
+  const cursorRef   = useRef(null);
+  const hasMoreRef  = useRef(false);
+  const sentinelRef = useRef();
+
+  const load = useCallback(async(reset=true)=>{
+    if(loadingRef.current) return;
+    loadingRef.current=true;
+    setLoading(true);
+    try {
+      const url = reset ? "/saved" : `/saved?cursor=${cursorRef.current}`;
+      const d = await api.get(url);
+      const newItems = d.saved||[];
+      if(reset) setItems(newItems); else setItems(p=>[...(p||[]),...newItems]);
+      setCursor(d.next_cursor||null);
+      setHasMore(!!d.next_cursor);
+      cursorRef.current=d.next_cursor||null;
+      hasMoreRef.current=!!d.next_cursor;
+    } finally { setLoading(false); loadingRef.current=false; }
+  },[]);
+
+  useEffect(()=>{ load(true); },[]);
 
   useEffect(()=>{
-    api.get("/saved").then(d=>{ setItems(d.saved||[]); setLoading(false); }).catch(()=>setLoading(false));
-  },[]);
+    const sentinel=sentinelRef.current; if(!sentinel) return;
+    const observer=new IntersectionObserver(entries=>{
+      if(entries[0].isIntersecting&&hasMoreRef.current&&!loadingRef.current) load(false);
+    },{rootMargin:"200px"});
+    observer.observe(sentinel);
+    return ()=>observer.disconnect();
+  },[load]);
 
   const unsave = async(e, item)=>{
     e.stopPropagation();
@@ -27,11 +57,11 @@ function SavedPage({navigate, currentUser}) {
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Saved</span>
-        {items&&items.length>0&&<span style={{fontSize:12,color:"var(--t5)",marginLeft:8}}>{items.length} item{items.length===1?"":"s"}</span>}
+        {items&&items.length>0&&<span style={{fontSize:12,color:"var(--t5)",marginLeft:8}}>{items.length}{hasMore?"+":""} item{items.length===1?"":"s"}</span>}
       </div>
       <div style={{flex:1,overflowY:"auto"}}>
-        {loading && <div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>}
-        {!loading && (!items||items.length===0) && (
+        {loading&&(!items||items.length===0)&&<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading…</div>}
+        {!loading&&(!items||items.length===0)&&(
           <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:"var(--t5)",padding:"60px 0"}}>
             <i className="fa-regular fa-bookmark" style={{fontSize:28,opacity:.3}}></i>
             <div style={{fontSize:13}}>Nothing saved yet</div>
@@ -91,10 +121,11 @@ function SavedPage({navigate, currentUser}) {
           }
           return null;
         })}
+        {hasMore&&<div ref={sentinelRef} style={{height:40}}/>}
+        {loading&&items&&items.length>0&&<div style={{padding:16,textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>}
       </div>
     </div>
   );
 }
-
 
 export { SavedPage };

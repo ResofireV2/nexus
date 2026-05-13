@@ -16,6 +16,10 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const [cursor,setCursor]=useState(null); const [hasMore,setHasMore]=useState(false);
   const [liveCount,setLiveCount]=useState(0);
   const [hoveredPost,setHoveredPost]=useState(null);
+  const sentinelRef=useRef();
+  const loadingRef=useRef(false);
+  const cursorRef=useRef(null);
+  const hasMoreRef=useRef(false);
   const [openPostMenu,setOpenPostMenu]=useState(null);
   const [subscribed,setSubscribed]=useState(false);
   const [subLoading,setSubLoading]=useState(false);
@@ -34,7 +38,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const activeSpace = spaces.find(s=>s.slug===spaceFilter);
 
   const load=useCallback(async(reset=true,cur=null)=>{
-    setLoading(true);
+    setLoading(true); loadingRef.current=true;
     try {
       let url=`/feed?sort=${sort}`;
       if(spaceFilter) url+=`&space=${spaceFilter}`;
@@ -44,8 +48,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
       if(d.error==="Please log in to view this forum"){onAuthRequired?.("login");return;}
       const np=d.posts||[];
       if(reset) setPosts(np); else setPosts(p=>[...p,...np]);
+      cursorRef.current=d.next_cursor; hasMoreRef.current=!!d.next_cursor;
       setCursor(d.next_cursor); setHasMore(!!d.next_cursor);
-    } finally { setLoading(false); }
+    } finally { setLoading(false); loadingRef.current=false; }
   },[sort,spaceFilter,followingOnly]);
 
   useEffect(()=>{
@@ -54,6 +59,17 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   },[spaceFilter]);
 
   useEffect(()=>{setPosts([]);setLiveCount(0);load(true);},[sort,spaceFilter,followingOnly]);
+
+  useEffect(()=>{
+    const sentinel=sentinelRef.current; if(!sentinel) return;
+    const observer=new IntersectionObserver(entries=>{
+      if(entries[0].isIntersecting&&hasMoreRef.current&&!loadingRef.current){
+        load(false,cursorRef.current);
+      }
+    },{rootMargin:'200px'});
+    observer.observe(sentinel);
+    return ()=>observer.disconnect();
+  },[load]);
 
   const toggleSubscribe = async () => {
     if (!spaceFilter || subLoading) return;
@@ -246,7 +262,8 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                   </div>
                 );
               })}
-            {hasMore&&<div style={{textAlign:"center",padding:16}}><button className="btn-ghost" onClick={()=>load(false,cursor)} disabled={loading}>Load more</button></div>}
+            {hasMore&&<div ref={sentinelRef} style={{height:40}}/>}
+            {loading&&posts.length>0&&<div style={{textAlign:"center",padding:16,color:"var(--t5)",fontSize:13}}>Loading…</div>}
           </div>
       </div>
     </div>
