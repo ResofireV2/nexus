@@ -1892,6 +1892,7 @@ const RIGHT_WIDGETS = [
   {id:"leaderboard_panel", label:"Leaderboard Panel", pages:["leaderboard"], component: LeaderboardSidebarWidget},
   {id:"badges_panel",      label:"Badges Panel",      pages:["badges"],      component: BadgesSidebarWidget},
   {id:"search_filters",    label:"Search Filters",    pages:["search"],      component: SearchFilterWidget},
+  {id:"forum_info",        label:"Forum Info",        pages:["feed"],        component: ForumInfoWidget},
   {id:"live_activity",     label:"Live Activity",     pages:"global",        component: null},
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"],        component: null},
   {id:"stats",             label:"Stats",             pages:"global",        component: null},
@@ -2248,6 +2249,30 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
+// ── Feed page right sidebar widgets ──────────────────────────────────────────
+
+function ForumInfoWidget() {
+  const [branding, setBranding] = useState(_brandingState);
+  useEffect(()=>{ return onBrandingChange(b=>setBranding({...b})); }, []);
+
+  if (!branding.hero_enabled || (!branding.hero_title && !branding.hero_body)) return null;
+
+  return (
+    <div className="rw">
+      {branding.hero_title && (
+        <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,lineHeight:1.3,marginBottom:branding.hero_body?8:0}}>
+          {branding.hero_title}
+        </div>
+      )}
+      {branding.hero_body && (
+        <div style={{fontSize:13,color:"var(--t3)",lineHeight:1.65}}>
+          {branding.hero_body}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Post page right sidebar widgets ──────────────────────────────────────────
 // Each is a standalone component receiving { navigate, currentUser, pageProps }
 // where pageProps.id is the postId.
