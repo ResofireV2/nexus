@@ -18,6 +18,8 @@ const EXPLORE_ITEMS = [
 
 // Built-in right sidebar widgets — mirrors the RIGHT_WIDGETS in nexus.jsx.
 // Used by AdminLayout to know what widgets exist and their default page scope.
+// IMPORTANT: whenever a widget is added to RIGHT_WIDGETS in nexus.jsx, it must
+// also be added here, or it will not appear in the Layout admin panel.
 const RIGHT_WIDGETS = [
   {id:"post_author",       label:"Post Author",      pages:["post"]},
   {id:"post_participants", label:"Participants",      pages:["post"]},
@@ -27,6 +29,7 @@ const RIGHT_WIDGETS = [
   {id:"search_filters",    label:"Search Filters",    pages:["search"]},
   {id:"live_activity",     label:"Live Activity",     pages:"global"},
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"]},
+  {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"]},
   {id:"stats",             label:"Stats",             pages:"global"},
 ];
 
