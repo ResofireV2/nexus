@@ -562,11 +562,11 @@ function AdminExtensionsPanel() {
           <i className={`fa-solid fa-arrow-up-right-dots${checkingUpdates?" fa-beat":""}`} style={{fontSize:12}}/>
           {checkingUpdates?"Checking…":"Check for updates"}
         </button>
-        <button onClick={()=>{loadStore();loadExtensions();}}
+        <button onClick={()=>{if(!storeLoading){loadStore();loadExtensions();}}}
           style={{marginLeft:4,background:"none",border:"none",
-            color:"var(--t5)",cursor:"pointer",padding:"4px 8px",fontSize:13,flexShrink:0}}
+            color:storeLoading?"var(--ac)":"var(--t5)",cursor:storeLoading?"default":"pointer",padding:"4px 8px",fontSize:13,flexShrink:0,transition:"color .2s"}}
           title="Refresh">
-          <i className="fa-solid fa-rotate-right"/>
+          <i className={`fa-solid fa-rotate-right${storeLoading?" fa-spin":""}`}/>
         </button>
       </div>
 
