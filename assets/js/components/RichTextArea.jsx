@@ -53,7 +53,6 @@ export function getAllToolbarButtons() {
     type:    "_ext_" + (e.config.tip||"").toLowerCase().replace(/\s+/g,"_"),
     label:   e.config.icon,
     tip:     e.config.tip || "",
-    color:   e.config.color || "inherit",
     onClick: e.config.onClick,
     scope:   e.config.scope || "both",
     style:   {},
@@ -281,7 +280,6 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
           ? <div key={i} className="comp-tb-sep"/>
           : b._ext
             ? <button key={b.type} className="comp-tb-btn" title={b.tip}
-                style={{color:b.color||"inherit"}}
                 onMouseDown={e=>{e.preventDefault(); b.onClick && b.onClick(toolbarLinkedGames, toolbarSetLinkedGames);}}>
                 <i className={b.label} style={{fontSize:16}}/>
               </button>

@@ -305,7 +305,7 @@ function ToolbarEditor({items, onChange, onReset}) {
                     <span style={{fontSize:12,color:"var(--t4)"}}>Separator</span>
                   </div>
                 : <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{minWidth:28,height:28,borderRadius:6,border:"0.5px solid var(--b1)",background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:item._ext?(item.color||"var(--ac)"):"var(--t3)",fontWeight:500,...(item.style||{})}}>
+                    <div style={{minWidth:28,height:28,borderRadius:6,border:"0.5px solid var(--b1)",background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--t4)",fontWeight:500,...(item.style||{})}}>
                       {item._ext ? React.createElement('i', {className:item.label, style:{fontSize:14}}) : item.label}
                     </div>
                     <div>
