@@ -48,6 +48,187 @@ function AppearanceTab() {
 }
 
 
+// ── SecurityTab ───────────────────────────────────────────────────────────────
+
+function SecurityTab({currentUser, onLogout}) {
+  const [sessions, setSessions]         = useState(null);
+  const [sessLoading, setSessLoading]   = useState(true);
+  const [oauthProviders, setOauthProviders] = useState({google: false, github: false});
+  const [terminating, setTerminating]   = useState(null); // id being terminated
+
+  useEffect(()=>{
+    api.get("/auth/sessions").then(d=>{
+      setSessions(d.sessions || []);
+      setSessLoading(false);
+    }).catch(()=>setSessLoading(false));
+
+    api.get("/branding").then(d=>{
+      setOauthProviders(d.settings?.oauth_providers || {google: false, github: false});
+    }).catch(()=>{});
+  }, []);
+
+  const terminateSession = async (id) => {
+    setTerminating(id);
+    await api.delete(`/auth/sessions/${id}`).catch(()=>{});
+    setSessions(p => p.filter(s => s.id !== id));
+    setTerminating(null);
+    toast("Session terminated");
+  };
+
+  const terminateOthers = async () => {
+    await api.delete("/auth/sessions").catch(()=>{});
+    setSessions(p => p.filter(s => s.current));
+    toast("All other sessions terminated");
+  };
+
+  const deviceIcon = (device="") => {
+    if (device.includes("iPhone") || device.includes("iPad") || device.includes("Android"))
+      return "fa-mobile-screen-button";
+    return "fa-desktop";
+  };
+
+  const hasLinked = oauthProviders.google || oauthProviders.github;
+  const otherSessions = sessions ? sessions.filter(s => !s.current) : [];
+
+  return (
+    <div>
+      <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Security</div>
+      <div style={{fontSize:13,color:"var(--t4)",marginBottom:28}}>Manage two-factor authentication, linked accounts, and active sessions.</div>
+
+      {/* ── 2FA ── */}
+      <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12}}>Two-factor authentication</div>
+      <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:16,marginBottom:28}}>
+        <div style={{width:38,height:38,borderRadius:10,background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <i className="fa-solid fa-shield-halved" style={{fontSize:18,color:"var(--t4)"}}/>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:3}}>
+            Authenticator app
+            <span style={{marginLeft:9,fontSize:11,padding:"2px 8px",borderRadius:20,fontWeight:500,
+              background:"rgba(248,113,113,0.1)",color:"var(--red)",border:"0.5px solid rgba(248,113,113,0.25)"}}>
+              Not enabled
+            </span>
+          </div>
+          <div style={{fontSize:12,color:"var(--t4)"}}>Add a TOTP app like Google Authenticator or Authy for an extra layer of login security.</div>
+        </div>
+        <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",flexShrink:0}}>Enable 2FA</button>
+      </div>
+
+      {/* ── Linked accounts ── */}
+      {hasLinked && <>
+        <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12}}>Linked accounts</div>
+        <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:28}}>
+          {oauthProviders.github && (()=>{
+            const linked = currentUser?.oauth_provider === "github";
+            return (
+              <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderBottom:oauthProviders.google?"0.5px solid var(--b1)":"none"}}>
+                <div style={{width:32,height:32,borderRadius:8,border:"0.5px solid var(--b1)",background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <i className="fa-brands fa-github" style={{fontSize:17,color:"var(--t2)"}}/>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>GitHub</div>
+                  <div style={{fontSize:12,color:linked?"var(--green)":"var(--t5)"}}>
+                    {linked ? `Connected · @${currentUser?.oauth_uid||currentUser?.username}` : "Not connected"}
+                  </div>
+                </div>
+                {linked
+                  ? <button className="btn-ghost" style={{fontSize:12,color:"var(--red)",borderColor:"rgba(248,113,113,0.3)"}}>Disconnect</button>
+                  : <a href="/api/v1/auth/oauth/github" className="btn-ghost" style={{fontSize:12,textDecoration:"none"}}>Connect</a>}
+              </div>
+            );
+          })()}
+          {oauthProviders.google && (()=>{
+            const linked = currentUser?.oauth_provider === "google";
+            return (
+              <div style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px"}}>
+                <div style={{width:32,height:32,borderRadius:8,border:"0.5px solid var(--b1)",background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <i className="fa-brands fa-google" style={{fontSize:16,color:"var(--t2)"}}/>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>Google</div>
+                  <div style={{fontSize:12,color:linked?"var(--green)":"var(--t5)"}}>
+                    {linked ? `Connected · ${currentUser?.email}` : "Not connected"}
+                  </div>
+                </div>
+                {linked
+                  ? <button className="btn-ghost" style={{fontSize:12,color:"var(--red)",borderColor:"rgba(248,113,113,0.3)"}}>Disconnect</button>
+                  : <a href="/api/v1/auth/oauth/google" className="btn-ghost" style={{fontSize:12,textDecoration:"none"}}>Connect</a>}
+              </div>
+            );
+          })()}
+        </div>
+      </>}
+
+      {/* ── Active sessions ── */}
+      <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12}}>Active sessions</div>
+      <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:28}}>
+        {sessLoading
+          ? <div style={{padding:"24px",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
+          : !sessions || sessions.length === 0
+            ? <div style={{padding:"24px",textAlign:"center",color:"var(--t5)",fontSize:13}}>No active sessions found.</div>
+            : sessions.map((s,i) => (
+                <div key={s.id} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 18px",
+                  borderBottom:i<sessions.length-1?"0.5px solid var(--b1)":"none"}}>
+                  <div style={{width:34,height:34,borderRadius:9,background:"var(--s3)",border:"0.5px solid var(--b1)",
+                    display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <i className={`fa-solid ${deviceIcon(s.device)}`} style={{fontSize:15,color:"var(--t4)"}}/>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      {s.device}
+                      {s.current && <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                        background:"rgba(52,211,153,0.1)",color:"var(--green)",border:"0.5px solid rgba(52,211,153,0.25)"}}>
+                        This device
+                      </span>}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--t5)",marginTop:2,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      <span style={{fontFamily:"monospace"}}>{s.ip_address}</span>
+                      <span>·</span>
+                      <span>Last active {ago(s.last_active)}</span>
+                      <span>·</span>
+                      <span>Created {ago(s.created_at)}</span>
+                    </div>
+                  </div>
+                  {!s.current && (
+                    <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",flexShrink:0,color:"var(--t4)"}}
+                      disabled={terminating === s.id}
+                      onClick={()=>terminateSession(s.id)}>
+                      {terminating === s.id ? "…" : "Terminate"}
+                    </button>
+                  )}
+                </div>
+              ))
+        }
+        {otherSessions.length > 1 && (
+          <div style={{padding:"10px 18px",borderTop:"0.5px solid var(--b1)",display:"flex",justifyContent:"flex-end"}}>
+            <span style={{fontSize:12,color:"var(--t4)",cursor:"pointer",textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.15)",textUnderlineOffset:3}}
+              onClick={terminateOthers}>
+              Terminate all other sessions
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Danger zone ── */}
+      <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12}}>Danger zone</div>
+      <div style={{border:"0.5px solid rgba(248,113,113,0.25)",borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:16}}>
+        <div style={{width:38,height:38,borderRadius:10,background:"rgba(248,113,113,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <i className="fa-solid fa-arrow-right-from-bracket" style={{fontSize:16,color:"var(--red)"}}/>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:3}}>Log out everywhere</div>
+          <div style={{fontSize:12,color:"var(--t4)"}}>Terminates all sessions, revokes all tokens, and invalidates any pending email confirmations.</div>
+        </div>
+        <button className="btn-ghost" style={{fontSize:12,color:"var(--red)",borderColor:"rgba(248,113,113,0.3)",flexShrink:0}}
+          onClick={()=>{ if(confirm("This will log you out on all devices. Continue?")) onLogout(); }}>
+          Log out everywhere
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 function SettingsPage({currentUser, onUpdate, navigate}) {
   const [tab,setTab]=useState("profile");
   const [profile,setProfile]=useState({username:currentUser?.username||"",bio:currentUser?.bio||""});
@@ -251,7 +432,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
         </div>
         <div style={{display:"flex",gap:0,marginBottom:-1}}>
-          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-stroke",label:"Appearance"}]:[])].map(s=>(
+          {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},{k:"security",icon:"fa-shield",label:"Security"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-stroke",label:"Appearance"}]:[])].map(s=>(
             <button key={s.k} onClick={()=>setTab(s.k)}
               style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
                 background:"none",border:"none",
@@ -295,6 +476,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           </>}
 
           {tab==="appearance"&&<AppearanceTab/>}
+          {tab==="security"&&<SecurityTab currentUser={currentUser} onLogout={()=>{api.post("/auth/global-logout",{});api.setToken(null);window.dispatchEvent(new Event("nexus:logout"));}}/>}
           {tab==="notifications"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>
