@@ -240,11 +240,30 @@ function ProfilePage({username, currentUser, navigate}) {
         {/* profile_sidebar slot — extension components rendered here */}
         <ProfileSidebarSlot username={username} currentUser={currentUser} navigate={navigate}/>
 
-        {/* Tabs */}
+        {/* Tabs — desktop: horizontal bar, mobile: dropdown */}
         <div className="profile-tabs">
           {tabs.map(t=>(
             <div key={t.id} className={`p-tab${tab===t.id?" active":""}`} onClick={()=>setTab(t.id)}>{t.label}</div>
           ))}
+        </div>
+        <div className="profile-tabs-mob">
+          <details onToggle={e=>{
+            // Close the dropdown when an item is picked by toggling it shut
+            if (!e.currentTarget.open) return;
+          }}>
+            <summary>
+              <span>{tabs.find(t=>t.id===tab)?.label ?? "Posts"}</span>
+              <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+            </summary>
+            <div className="ptm-menu">
+              {tabs.map(t=>(
+                <div key={t.id} className={`ptm-item${tab===t.id?" active":""}`}
+                  onClick={e=>{setTab(t.id); e.currentTarget.closest("details").removeAttribute("open");}}>
+                  {t.label}
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
 
         {/* Tab content */}
