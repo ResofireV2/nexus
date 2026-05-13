@@ -69,7 +69,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     },{rootMargin:'200px'});
     observer.observe(sentinel);
     return ()=>observer.disconnect();
-  },[load]);
+  },[load,hasMore]);
 
   const toggleSubscribe = async () => {
     if (!spaceFilter || subLoading) return;
@@ -262,7 +262,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                   </div>
                 );
               })}
-            {hasMore&&<div ref={sentinelRef} style={{height:40}}/>}
+            <div ref={sentinelRef} style={{height:40,visibility:hasMore?"visible":"hidden"}}/>
             {loading&&posts.length>0&&<div style={{textAlign:"center",padding:16,color:"var(--t5)",fontSize:13}}>Loading…</div>}
           </div>
       </div>

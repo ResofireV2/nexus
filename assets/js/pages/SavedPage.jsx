@@ -40,7 +40,7 @@ function SavedPage({navigate, currentUser}) {
     },{rootMargin:"200px"});
     observer.observe(sentinel);
     return ()=>observer.disconnect();
-  },[load]);
+  },[load,hasMore]);
 
   const unsave = async(e, item)=>{
     e.stopPropagation();
@@ -121,7 +121,7 @@ function SavedPage({navigate, currentUser}) {
           }
           return null;
         })}
-        {hasMore&&<div ref={sentinelRef} style={{height:40}}/>}
+        <div ref={sentinelRef} style={{height:40,visibility:hasMore?"visible":"hidden"}}/>
         {loading&&items&&items.length>0&&<div style={{padding:16,textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>}
       </div>
     </div>
