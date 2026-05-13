@@ -103,25 +103,18 @@ window._smHover = function(idx) {
   });
 };
 
-// Active toolbar items — set by App when layoutCfg loads
-export let _activeToolbar = null;
-export function setActiveToolbar(items) { _activeToolbar = items; }
+// Active toolbar items — set separately for post and reply composers
+export let _activePostToolbar  = null;
+export let _activeReplyToolbar = null;
+export function setActivePostToolbar(items)  { _activePostToolbar  = items; }
+export function setActiveReplyToolbar(items) { _activeReplyToolbar = items; }
 
 export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null, context=null}) {
-  toolbarItems = toolbarItems || _activeToolbar || null;
-  // Filter by scope if a context is provided ("post" or "reply")
-  if(context && toolbarItems) {
-    toolbarItems = toolbarItems.filter(function(b) {
-      if(b.sep) return true;
-      var scope = b.scope || "both";
-      return scope === "both" || scope === context + "s";
-    });
-  } else if(context && !toolbarItems) {
-    toolbarItems = getAllToolbarButtons().filter(function(b) {
-      if(b.sep) return true;
-      var scope = b.scope || "both";
-      return scope === "both" || scope === context + "s";
-    });
+  // Resolve toolbar: explicit prop > context-specific active toolbar > getAllToolbarButtons()
+  if(!toolbarItems) {
+    if(context === "post")  toolbarItems = _activePostToolbar  || getAllToolbarButtons();
+    else if(context === "reply") toolbarItems = _activeReplyToolbar || getAllToolbarButtons();
+    else toolbarItems = _activePostToolbar || getAllToolbarButtons();
   }
   const toolbarLinkedGames     = linkedGames || [];
   const toolbarSetLinkedGames  = setLinkedGames || (() => {});

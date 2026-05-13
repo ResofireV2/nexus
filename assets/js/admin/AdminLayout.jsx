@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { api } from "../lib/api";
 import { toast } from "../components/Toasts";
 import { spaceColor } from "../lib/utils";
-import { TB_BTNS, getAllToolbarButtons, setActiveToolbar } from "../components/RichTextArea";
+import { TB_BTNS, getAllToolbarButtons, setActivePostToolbar, setActiveReplyToolbar } from "../components/RichTextArea";
 
 const EXPLORE_ITEMS = [
   {id:"everything",    label:"Everything",    icon:"fa-border-all"},
@@ -71,21 +71,58 @@ function DragList({items, renderItem, onChange}) {
 
 // ── Layout admin with tabs ─────────────────────────────────────────────────────
 function LayoutAdmin({layoutCfg, setLayoutCfg}) {
-  var [tab, setTab] = React.useState("composer");
+  var [tab, setTab] = React.useState("post_toolbar");
 
   function update(key, val) {
     var next = Object.assign({}, layoutCfg);
     next[key] = val;
     setLayoutCfg(next);
-    if(key === "toolbar") setActiveToolbar(val);
+    if(key === "post_toolbar")   setActivePostToolbar(val);
+    if(key === "reply_toolbar")  setActiveReplyToolbar(val);
     api.patch("/admin/settings/layout", {value: next}).catch(function(){});
   }
 
-  // Get ordered list with defaults for any missing ids
+  // Seed a toolbar from getAllToolbarButtons(), applying default hidden state by scope.
+  // scope_key: "post" — buttons with scope "replies" start hidden.
+  //            "reply" — buttons with scope "posts" start hidden.
+  function seedToolbar(scope_key) {
+    return getAllToolbarButtons().map(function(btn) {
+      if(btn.sep) return btn;
+      var scope = btn.scope || "both";
+      var hidden = btn.hidden || false;
+      if(scope_key === "post"  && scope === "replies") hidden = true;
+      if(scope_key === "reply" && scope === "posts")   hidden = true;
+      var out = Object.assign({}, btn);
+      out.hidden = hidden;
+      return out;
+    });
+  }
+
+  // Get toolbar items: saved layout merged with any new buttons from getAllToolbarButtons()
+  function getToolbar(key, scope_key) {
+    var saved = layoutCfg[key];
+    if(!saved || !saved.length) return seedToolbar(scope_key);
+    // Merge: keep saved order/state, append any new buttons not yet in saved
+    var all = getAllToolbarButtons();
+    var result = saved.slice();
+    all.forEach(function(def) {
+      if(def.sep) return;
+      var exists = saved.some(function(s){ return s.type === def.type; });
+      if(!exists) {
+        var scope = def.scope || "both";
+        var hidden = false;
+        if(scope_key === "post"  && scope === "replies") hidden = true;
+        if(scope_key === "reply" && scope === "posts")   hidden = true;
+        result.push(Object.assign({}, def, {hidden: hidden}));
+      }
+    });
+    return result;
+  }
+
+  // Get ordered list with defaults for any missing ids (sidebar/widgets)
   function orderedList(key, defaults) {
     var saved = layoutCfg[key];
     if(!saved || !saved.length) return defaults.slice();
-    // Merge: keep saved order, append any new defaults not in saved
     var result = saved.map(function(s) {
       return defaults.find(function(d){return d.id===s.id;}) || s;
     });
@@ -96,9 +133,10 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   }
 
   var TABS = [
-    {id:"composer",  label:"Composer toolbar"},
-    {id:"left",      label:"Left sidebar"},
-    {id:"right",     label:"Right sidebar"},
+    {id:"post_toolbar",   label:"Post toolbar"},
+    {id:"reply_toolbar",  label:"Reply toolbar"},
+    {id:"left",           label:"Left sidebar"},
+    {id:"right",          label:"Right sidebar"},
   ];
 
   return React.createElement('div', null,
@@ -121,12 +159,23 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
       })
     ),
 
-    // Composer tab
-    tab === "composer" && React.createElement('div', null,
-      React.createElement('div', {className:"page-sub"}, "Drag to reorder. Toggle to show or hide. Use the scope dropdown to control whether a button appears in Posts, Replies, or both."),
+    // Post toolbar tab
+    tab === "post_toolbar" && React.createElement('div', null,
+      React.createElement('div', {className:"page-sub"}, "Toolbar shown in the post composer. Drag to reorder. Toggle to show or hide. Extension buttons scoped to Replies only are hidden by default."),
       React.createElement(ToolbarEditor, {
-        items: layoutCfg.toolbar || TB_BTNS,
-        onChange: function(items){update("toolbar", items);}
+        items: getToolbar("post_toolbar", "post"),
+        onReset: function(){ update("post_toolbar", seedToolbar("post")); },
+        onChange: function(items){ update("post_toolbar", items); }
+      })
+    ),
+
+    // Reply toolbar tab
+    tab === "reply_toolbar" && React.createElement('div', null,
+      React.createElement('div', {className:"page-sub"}, "Toolbar shown in reply composers. Drag to reorder. Toggle to show or hide. Extension buttons scoped to Posts only are hidden by default."),
+      React.createElement(ToolbarEditor, {
+        items: getToolbar("reply_toolbar", "reply"),
+        onReset: function(){ update("reply_toolbar", seedToolbar("reply")); },
+        onChange: function(items){ update("reply_toolbar", items); }
       })
     ),
 
@@ -193,7 +242,7 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   );
 }
 
-function ToolbarEditor({items, onChange}) {
+function ToolbarEditor({items, onChange, onReset}) {
   var [dragging, setDragging] = React.useState(null);
   var [dragOver, setDragOver] = React.useState(null);
   var list = items.map(function(item, i) {
@@ -224,15 +273,8 @@ function ToolbarEditor({items, onChange}) {
     onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
   }
 
-  function setScope(idx, scope) {
-    var next = list.map(function(x){return Object.assign({},x);});
-    next[idx].scope = scope;
-    onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
-  }
-
   function reset() {
-    onChange(TB_BTNS);
-    setActiveToolbar(null);
+    if(onReset) onReset();
   }
 
   return (
@@ -271,21 +313,6 @@ function ToolbarEditor({items, onChange}) {
                       <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item._ext?"extension":item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
                     </div>
                   </div>}
-              {/* Scope selector */}
-              {!isSep && React.createElement('select', {
-                value: item.scope || "both",
-                onChange: function(e){e.stopPropagation();setScope(idx, e.target.value);},
-                onClick: function(e){e.stopPropagation();},
-                style:{
-                  fontSize:11,padding:"3px 6px",borderRadius:6,border:"0.5px solid var(--b2)",
-                  background:"var(--s2)",color:"var(--t3)",cursor:"pointer",flexShrink:0,
-                  fontFamily:"inherit",outline:"none"
-                }
-              },
-                React.createElement('option',{value:"both"},"Posts & Replies"),
-                React.createElement('option',{value:"posts"},"Posts only"),
-                React.createElement('option',{value:"replies"},"Replies only")
-              )}
               {/* Toggle visible */}
               <button onClick={function(){toggle(idx);}} title={item.hidden?"Show":"Hide"}
                 style={{background:"none",border:"none",cursor:"pointer",color:item.hidden?"var(--t5)":"var(--ac)",fontSize:14,padding:"2px 6px",borderRadius:6,flexShrink:0}}>

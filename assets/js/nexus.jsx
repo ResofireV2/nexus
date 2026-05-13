@@ -14,7 +14,7 @@ import { onLinkPreviewReady, registerFreshUrls } from "./components/LinkPreviewC
 window._lpRegisterFresh = registerFreshUrls;
 import { REACTIONS, ReactionsModal, ReactionButton }       from "./components/Reactions";
 import { RichTextArea, getAllToolbarButtons,
-         setActiveToolbar, TB_BTNS }                       from "./components/RichTextArea";
+         setActivePostToolbar, setActiveReplyToolbar, TB_BTNS } from "./components/RichTextArea";
 import { F, ColorPicker, formatUptime }                    from "./admin/FormHelpers";
 import { DragList, LayoutAdmin }                           from "./admin/AdminLayout";
 import { ReportCard, ModerationPage, AdminModerationPanel } from "./admin/AdminModeration";
@@ -3403,7 +3403,37 @@ function App() {
         window._digestFrequencies = [];
       }
       const lc=s.layout||{};
-      if(lc.toolbar){var saved=lc.toolbar;var merged=saved.slice();getAllToolbarButtons().forEach(function(def){if(def.sep)return;var exists=saved.some(function(s){return s.type===def.type;});if(!exists)merged.push(def);});lc.toolbar=merged;setActiveToolbar(merged);}
+      // Seed helper: build default toolbar with hidden flags based on scope
+      function seedTB(scopeKey){
+        return getAllToolbarButtons().map(function(btn){
+          if(btn.sep) return btn;
+          var scope=btn.scope||'both'; var hidden=btn.hidden||false;
+          if(scopeKey==='post'  && scope==='replies') hidden=true;
+          if(scopeKey==='reply' && scope==='posts')   hidden=true;
+          return Object.assign({},btn,{hidden:hidden});
+        });
+      }
+      // Merge helper: saved items + append any new buttons not yet saved
+      function mergeTB(saved, scopeKey){
+        var merged=saved.slice();
+        getAllToolbarButtons().forEach(function(def){
+          if(def.sep) return;
+          var exists=merged.some(function(s){return s.type===def.type;});
+          if(!exists){
+            var scope=def.scope||'both'; var hidden=false;
+            if(scopeKey==='post'  && scope==='replies') hidden=true;
+            if(scopeKey==='reply' && scope==='posts')   hidden=true;
+            merged.push(Object.assign({},def,{hidden:hidden}));
+          }
+        });
+        return merged;
+      }
+      var postTB  = lc.post_toolbar  ? mergeTB(lc.post_toolbar,  'post')  : seedTB('post');
+      var replyTB = lc.reply_toolbar ? mergeTB(lc.reply_toolbar, 'reply') : seedTB('reply');
+      lc.post_toolbar  = postTB;  setActivePostToolbar(postTB);
+      lc.reply_toolbar = replyTB; setActiveReplyToolbar(replyTB);
+      // Keep legacy lc.toolbar in sync for any code that still reads it
+      lc.toolbar = postTB;
       setLayoutCfg(lc);
     }).catch(()=>{});
   },[]);
