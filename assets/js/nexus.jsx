@@ -416,6 +416,8 @@ window.NexusExtensions = {
   _rightWidgetListeners: [],
   _userActions: [],
   _userActionListeners: [],
+  _accountActions: [],
+  _accountActionListeners: [],
   _postActions: [],
   _postActionListeners: [],
   _notifTypes: {},
@@ -705,6 +707,38 @@ window.NexusExtensions = {
   onUserActionChange(fn) {
     this._userActionListeners.push(fn);
     return () => { this._userActionListeners = this._userActionListeners.filter(f => f !== fn); };
+  },
+
+  // Register an item in the account menu (desktop topbar dropdown and mobile
+  // account sheet). Use this for actions scoped to the current user's own
+  // account — e.g. "My Gamelog". For actions on other users' profile cards
+  // use registerUserAction instead.
+  //
+  //   window.NexusExtensions.registerAccountAction({
+  //     id:      "gamepedia-my-log",
+  //     label:   "My Gamelog",
+  //     icon:    "fa-gamepad",
+  //     onClick({ currentUser, navigate, close }) {
+  //       close();
+  //       navigate("ext-route", ...);
+  //     },
+  //     priority: 50,
+  //   });
+  //
+  // onClick receives { currentUser, navigate, close }.
+  // Call close() to dismiss the menu before navigating.
+  registerAccountAction({ id, label, icon="fa-puzzle-piece", onClick, priority=50 }) {
+    this._accountActions = this._accountActions.filter(a => a.id !== id);
+    this._accountActions.push({ id, label, icon, onClick, priority });
+    this._accountActions.sort((a, b) => (a.priority||50) - (b.priority||50));
+    this._accountActionListeners.forEach(fn => fn());
+  },
+
+  getAccountActions() { return this._accountActions; },
+
+  onAccountActionChange(fn) {
+    this._accountActionListeners.push(fn);
+    return () => { this._accountActionListeners = this._accountActionListeners.filter(f => f !== fn); };
   },
 
   // Register an item in the post … dropdown menu.
@@ -1907,6 +1941,8 @@ const SIDEBAR_SECTIONS = [
 // ── Avatar dropdown ───────────────────────────────────────────────────────────
 function AvatarMenu({user, navigate, onLogout}) {
   const [open,setOpen]=useState(false); const ref=useRef();
+  const [, forceUpdate] = useState(0);
+  useEffect(()=>{ return window.NexusExtensions.onAccountActionChange(()=>forceUpdate(n=>n+1)); },[]);
   useEffect(()=>{
     const fn=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
     document.addEventListener("mousedown",fn); return ()=>document.removeEventListener("mousedown",fn);
@@ -1934,6 +1970,11 @@ function AvatarMenu({user, navigate, onLogout}) {
         {user?.role==="admin"&&<div className="av-dd-item admin-item" onClick={()=>{navigate("admin");setOpen(false);}}>
           <i className="fa-solid fa-shield-halved"></i>administration
         </div>}
+        {window.NexusExtensions.getAccountActions().map(a=>(
+          <div key={a.id} className="av-dd-item" onClick={()=>a.onClick({currentUser:user,navigate,close:()=>setOpen(false)})}>
+            <i className={`fa-solid ${a.icon}`} style={{color:"var(--t3)"}}></i>{a.label}
+          </div>
+        ))}
         <div className="av-dd-divider"/>
         <div className="av-dd-item logout-item" onClick={()=>{onLogout();setOpen(false);}}>
           <i className="fa-solid fa-arrow-right-from-bracket"></i>log out
@@ -3228,6 +3269,8 @@ function MobileTabBar({currentUser, navigate, page, notifCount, msgCount, onComp
 }
 
 function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
+  const [, forceUpdate] = useState(0);
+  useEffect(()=>{ return window.NexusExtensions.onAccountActionChange(()=>forceUpdate(n=>n+1)); },[]);
   if(!user) return null;
   return (
     <div className={`mob-user-overlay ${open?"open":""}`}>
@@ -3246,13 +3289,11 @@ function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
         {icon:"fa-user",label:"Profile",action:()=>{navigate("profile",{username:user.username});onClose();}},
         {icon:"fa-gear",label:"Settings",action:()=>{navigate("settings");onClose();}},
         ...(user.role==="admin"?[{icon:"fa-shield-halved",label:"Admin Panel",action:()=>{navigate("admin");onClose();}}]:[]),
-        ...window.NexusExtensions.getUserActions()
-          .filter(a => !a.authOnly)
-          .map(a => ({
-            icon: a.icon,
-            label: a.label,
-            action: () => a.onClick({ user, currentUser: user, navigate, closeCard: onClose }),
-          })),
+        ...window.NexusExtensions.getAccountActions().map(a => ({
+          icon: a.icon,
+          label: a.label,
+          action: () => a.onClick({ currentUser: user, navigate, close: onClose }),
+        })),
       ].map(item=>(
         <div key={item.label} onClick={item.action}
           style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"0.5px solid var(--b1)",cursor:"pointer",fontSize:15,color:"var(--t2)"}}>
