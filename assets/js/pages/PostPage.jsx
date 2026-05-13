@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useReducer, useCallback } from "react";
 import { api } from "../lib/api";
-import { ago, fmtDate, userColor, spaceColor } from "../lib/utils";
+import { ago, fmtDate, userColor, spaceColor, formatApiErrors } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { RsAv, Av, openUserCard } from "../components/Avatar";
 
@@ -599,7 +599,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         : {reply_id:reportTarget.id, reason:reasonValue, notes:reportNotes||undefined};
       const d = await api.post("/reports", payload);
       if(d.ok){setReportTarget(null); setReportReason(""); setReportNotes(""); toast("Report submitted");}
-      else toast((d.errors&&JSON.stringify(d.errors))||d.error||"Failed to submit report","err");
+      else toast(formatApiErrors(d, "Failed to submit report"), "err");
     } finally { setReporting(false); }
   };
 

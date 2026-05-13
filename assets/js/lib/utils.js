@@ -62,6 +62,26 @@ export function fmtDaySep(d) {
   return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+// Format API error responses into a readable string.
+// Handles both shapes the backend returns:
+//   {error: "some message"}           -> returns the string as-is
+//   {errors: {field: ["msg", ...]}}   -> returns "Field: msg\nOther field: msg"
+// Field names are capitalised and underscores replaced with spaces.
+export function formatApiErrors(d, fallback = "Something went wrong") {
+  if (!d) return fallback;
+  if (d.errors && typeof d.errors === "object") {
+    const parts = Object.entries(d.errors)
+      .flatMap(([field, msgs]) => {
+        const label = field.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase());
+        const messages = Array.isArray(msgs) ? msgs : [msgs];
+        return messages.map(m => `${label}: ${m}`);
+      });
+    if (parts.length) return parts.join("\n");
+  }
+  if (d.error && typeof d.error === "string") return d.error;
+  return fallback;
+}
+
 // "1.4 MB", "320 KB", etc.
 export function fmtBytes(b) {
   if (!b) return "0 B";

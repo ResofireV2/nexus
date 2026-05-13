@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import DOMPurify from "dompurify";
 import { api }                                              from "./lib/api";
 import { ago, fmtDate, fmtMsgTime, fmtDaySep, fmtBytes,
-         SPACE_COLORS, userColor, spaceColor }             from "./lib/utils";
+         SPACE_COLORS, userColor, spaceColor, formatApiErrors }             from "./lib/utils";
 import { RsAv, Av, openUserCard, useUserCard,
          UserCardPopover }                                 from "./components/Avatar";
 import { Select, Toggle }                                  from "./components/Select";
@@ -1955,7 +1955,7 @@ function AuthPage({onLogin}) {
         : {email: form.email.trim(), username: form.username.trim(), password: form.password};
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
-      else setErr(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Something went wrong");
+      else setErr(formatApiErrors(d));
     } finally { setLoading(false); }
   };
   return (
@@ -1980,7 +1980,7 @@ function AuthPage({onLogin}) {
               <i className={`fa-solid ${showPw?"fa-eye-slash":"fa-eye"}`}/>
             </span>
           </div></div>
-          {err&&<div className="ferr" style={{marginBottom:10}}>{err}</div>}
+          {err&&<div className="ferr" style={{marginBottom:10,whiteSpace:"pre-line"}}>{err}</div>}
           <button className="btn-primary" style={{width:"100%",borderRadius:10,padding:"10px"}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
         </form>
         <div className="auth-switch">{mode==="login"?<>No account? <span className="link" onClick={()=>{setMode("register");setErr(null);}}>Sign up</span></>:<>Have an account? <span className="link" onClick={()=>{setMode("login");setErr(null);}}>Sign in</span></>}</div>
@@ -3015,7 +3015,7 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
         : {email: form.email.trim(), username: form.username.trim(), password: form.password};
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
-      else setErr(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Something went wrong");
+      else setErr(formatApiErrors(d));
     } finally { setLoading(false); }
   };
 
@@ -3065,7 +3065,7 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
         <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>
         <span>Remember me</span>
       </label>}
-      {err&&<div className="ferr" style={{marginBottom:10}}>{err}</div>}
+      {err&&<div className="ferr" style={{marginBottom:10,whiteSpace:"pre-line"}}>{err}</div>}
       <button className="btn-primary" style={{width:"100%",borderRadius:12,padding:"12px",marginBottom:18,fontSize:15}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
       <div style={{textAlign:"center",fontSize:13,color:"var(--t4)"}}>
         {mode==="login"

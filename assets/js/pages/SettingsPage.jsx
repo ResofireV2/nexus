@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
-import { ago } from "../lib/utils";
+import { ago, formatApiErrors } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select, Toggle } from "../components/Select";
 import { F } from "../admin/FormHelpers";
@@ -402,7 +402,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
     try {
       const d=await api.patch("/auth/me",{username:profile.username,bio:profile.bio});
       if(d.user){onUpdate(d.user);toast("Profile updated");}
-      else toast(d.error||Object.values(d.errors||{}).flat().join(", ")||"Failed","err");
+      else toast(formatApiErrors(d, "Failed"), "err");
     } finally { setSaving(false); }
   };
 

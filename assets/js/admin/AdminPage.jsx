@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
-import { ago, fmtDate, fmtBytes, userColor, spaceColor } from "../lib/utils";
+import { ago, fmtDate, fmtBytes, userColor, spaceColor, formatApiErrors } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select, Toggle } from "../components/Select";
 import { RsAv, Av } from "../components/Avatar";
@@ -123,13 +123,13 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
       if(editing==="new") {
         const d=await api.post("/admin/spaces",form);
         if(d.space){toast("Space created");onRefresh();close();}
-        else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
+        else toast(formatApiErrors(d, "Failed"),"err");
       } else {
         // Explicitly build payload to avoid any stale closure issues with form state
         const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility};
         const d=await api.patch(`/admin/spaces/${editing.slug}`,payload);
         if(d.space){toast("Space updated");onRefresh();close();}
-        else toast(d.errors?Object.values(d.errors).flat().join(", "):d.error||"Failed","err");
+        else toast(formatApiErrors(d, "Failed"),"err");
       }
     } finally { setSaving(false); }
   };
@@ -1281,7 +1281,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               onClick={async()=>{
                 const d=await api.post("/admin/users",{...newUser});
                 if(d.user){setUsers(p=>[...p,d.user]);setShowCreateUser(false);toast("User created");}
-                else toast((d.errors&&Object.values(d.errors).flat().join(", "))||d.error||"Failed","err");
+                else toast(formatApiErrors(d, "Failed"),"err");
               }}>
               Create member
             </button>
