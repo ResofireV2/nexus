@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { ago, fmtDate, userColor } from "../lib/utils";
 import { RsAv } from "../components/Avatar";
-import { Select } from "../components/Select";
+import { Dropdown } from "../components/Select";
 
 // ── MembersPage ───────────────────────────────────────────────────────────────
 
@@ -93,14 +93,12 @@ function MembersPage({navigate, currentUser}) {
   const filtered = members.filter(m=>!q||m.username?.toLowerCase().includes(q.toLowerCase()));
 
   const SORTS = [
-    {v:"newest",        label:"Newest"},
-    {v:"oldest",        label:"Oldest"},
-    {v:"most_posts",    label:"Most posts"},
-    {v:"most_replies",  label:"Most replies"},
-    {v:"most_reactions",label:"Most reactions"},
+    {value:"newest",         label:"Newest"},
+    {value:"oldest",         label:"Oldest"},
+    {value:"most_posts",     label:"Most posts"},
+    {value:"most_replies",   label:"Most replies"},
+    {value:"most_reactions", label:"Most reactions"},
   ];
-
-  const fi = {background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"7px 14px",fontSize:13,color:"var(--t2)",fontFamily:"inherit",outline:"none",cursor:"pointer"};
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -112,14 +110,12 @@ function MembersPage({navigate, currentUser}) {
             <div style={{fontSize:12,color:"var(--t5)",marginTop:2}}>{members.length} total</div>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:20,display:"flex",alignItems:"center",padding:"7px 14px",gap:8,flex:1,maxWidth:360}}>
             <i className="fa-solid fa-magnifying-glass" style={{fontSize:11,color:"var(--t5)"}}/>
             <input style={{background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit",flex:1}} placeholder="Search members…" value={q} onChange={e=>setQ(e.target.value)}/>
           </div>
-          <Select style={fi} value={sort} onChange={setSort}>
-            {SORTS.map(s=><option key={s.v} value={s.v}>{s.label}</option>)}
-          </Select>
+          <Dropdown value={sort} onChange={setSort} options={SORTS} icon="fa-arrow-down-wide-short" align="right"/>
         </div>
       </div>
       {/* Grid */}

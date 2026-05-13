@@ -61,7 +61,87 @@ export function Select({ value, onChange, options, children, style, disabled, id
 //   <Toggle value={enabled} onChange={setEnabled} />
 //   <Toggle value={enabled} onChange={setEnabled} label="Enable feature" />
 // ---------------------------------------------------------------------------
-export function Toggle({ value, onChange, label, hint }) {
+// ---------------------------------------------------------------------------
+// Dropdown — the standard custom dropdown used across pages and extensions.
+// Replaces raw <select> elements and one-off inline dropdown implementations.
+//
+// Usage:
+//   import { Dropdown } from "../components/Select";
+//
+//   // Array of options, value/label pairs:
+//   <Dropdown
+//     value={sort}
+//     onChange={setSort}
+//     options={[
+//       { value: "newest", label: "Newest" },
+//       { value: "oldest", label: "Oldest" },
+//     ]}
+//   />
+//
+//   // With a leading icon on the trigger button:
+//   <Dropdown value={sort} onChange={setSort} options={opts} icon="fa-arrow-down-wide-short" />
+//
+//   // With icons on individual options:
+//   <Dropdown value={type} onChange={setType} options={[
+//     { value: "discussion", label: "Discussion", icon: "fa-comments" },
+//     { value: "question",   label: "Question",   icon: "fa-circle-question" },
+//   ]} />
+//
+//   // Right-aligned menu (for buttons near the right edge):
+//   <Dropdown value={x} onChange={setX} options={opts} align="right" />
+//
+//   // Custom max height for long lists:
+//   <Dropdown value={x} onChange={setX} options={opts} maxHeight={200} />
+// ---------------------------------------------------------------------------
+
+import { useState, useEffect, useRef } from "react";
+
+export function Dropdown({ value, onChange, options = [], icon, align = "left", maxHeight, placeholder, style }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  const selected = options.find(o => o.value === value);
+  const label    = selected?.label ?? placeholder ?? "";
+  const trigIcon = icon ?? selected?.icon ?? null;
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block", ...style }}>
+      <div className="comp-type-btn" onClick={() => setOpen(p => !p)}>
+        {trigIcon && <i className={`fa-solid ${trigIcon}`} style={{ fontSize: 13, color: "var(--ac-text)" }} />}
+        <span style={{ color: selected ? "var(--t2)" : "var(--t4)" }}>{label}</span>
+        <i className="fa-solid fa-chevron-down" style={{ fontSize: 10, color: "var(--t5)", marginLeft: 2, transition: "transform .15s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
+      </div>
+      {open && (
+        <div
+          className="comp-dd"
+          style={{
+            ...(align === "right" ? { left: "auto", right: 0 } : {}),
+            ...(maxHeight ? { maxHeight, overflowY: "auto" } : {}),
+          }}
+        >
+          {options.map(o => (
+            <div
+              key={o.value}
+              className={`comp-dd-item${o.value === value ? " active" : ""}`}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+            >
+              {o.icon && <i className={`fa-solid ${o.icon}`} style={{ fontSize: 13, width: 16, textAlign: "center" }} />}
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
   return (
     <div className="toggle-row">
       {label && (
