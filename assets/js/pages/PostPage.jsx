@@ -1263,49 +1263,83 @@ function MobileScrubberBar({replies, displayIdx, onClick}) {
   );
 }
 
-function MobileScrubberSheet({open, onClose, replies, scrollPct, displayIdx, onJump}) {
+function MobileScrubberSheet({open, onClose, replies, scrollPct: initialScrollPct, displayIdx: initialIdx, onJump}) {
   const trackRef = React.useRef();
-  function handleTrack(e) {
-    if(!trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const pct = Math.max(0,Math.min(100,((e.clientY-rect.top)/rect.height)*100));
-    onJump(Math.round((pct/100)*(replies.length-1)));
+  const listRef  = React.useRef();
+  const dragRef  = React.useRef({});
+  const [localPct, setLocalPct] = React.useState(initialScrollPct);
+  const [localIdx, setLocalIdx] = React.useState(initialIdx);
+
+  // Sync from parent when sheet opens
+  React.useEffect(()=>{ if(open){ setLocalPct(initialScrollPct); setLocalIdx(initialIdx); } },[open,initialScrollPct,initialIdx]);
+
+  // Scroll active item into view when idx changes
+  React.useEffect(()=>{
+    const list=listRef.current; if(!list||!open) return;
+    const active=list.querySelector("[data-active='true']");
+    if(active) active.scrollIntoView({block:"nearest",behavior:"smooth"});
+  },[localIdx,open]);
+
+  // Update scrubber line as user scrolls the reply list
+  function onListScroll(e){
+    const el=e.currentTarget;
+    const maxScroll=el.scrollHeight-el.clientHeight;
+    if(maxScroll<=0) return;
+    const pct=(el.scrollTop/maxScroll)*100;
+    setLocalPct(pct);
+    setLocalIdx(Math.round((pct/100)*(replies.length-1)));
   }
-  return (
+
+  // Click vertical track to jump
+  function handleTrack(e){
+    if(!trackRef.current) return;
+    const rect=trackRef.current.getBoundingClientRect();
+    const pct=Math.max(0,Math.min(100,((e.clientY-rect.top)/rect.height)*100));
+    const idx=Math.round((pct/100)*(replies.length-1));
+    setLocalPct(pct); setLocalIdx(idx); onJump(idx);
+  }
+
+  // Drag handle down to close
+  function onHandleTouchStart(e){ dragRef.current={startY:e.touches[0].clientY,dy:0}; }
+  function onHandleTouchMove(e){ dragRef.current.dy=e.touches[0].clientY-dragRef.current.startY; }
+  function onHandleTouchEnd(){ if(dragRef.current.dy>60) onClose(); dragRef.current={}; }
+
+  return (<>
+    {open&&<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:979,background:"rgba(0,0,0,0.4)"}}/>}
     <div className={`mob-sheet ${open?"open":""}`}>
-      <div className="mob-sheet-handle" onClick={onClose}/>
+      <div className="mob-sheet-handle" style={{cursor:"pointer"}}
+        onTouchStart={onHandleTouchStart} onTouchMove={onHandleTouchMove} onTouchEnd={onHandleTouchEnd}
+        onClick={onClose}/>
       <div style={{padding:"0 20px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>Jump to reply</span>
-        <span style={{fontSize:12,color:"var(--t4)"}}>{displayIdx+1} of {replies.length}</span>
+        <span style={{fontSize:12,color:"var(--t4)"}}>{localIdx+1} of {replies.length}</span>
       </div>
       <div style={{display:"flex",gap:16,padding:"0 20px 20px",alignItems:"stretch"}}>
-        {/* Vertical track */}
         <div ref={trackRef} onClick={handleTrack}
           style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200}}>
           <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:4,transform:"translateX(-50%)",background:"rgba(255,255,255,0.08)",borderRadius:2}}/>
-          <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:scrollPct+"%",borderRadius:2,transition:"height .2s"}}/>
-          <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:scrollPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)"}}/>
+          <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:localPct+"%",borderRadius:2,transition:"height .15s"}}/>
+          <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:localPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)",transition:"top .15s"}}/>
         </div>
-        {/* Reply list */}
-        <div style={{flex:1,overflow:"auto",maxHeight:260}}>
+        <div ref={listRef} onScroll={onListScroll} style={{flex:1,overflow:"auto",maxHeight:260}}>
           {replies.map(function(r,i){
-            var isActive = i===displayIdx;
+            var isActive=i===localIdx;
             return React.createElement('div',{
-              key:r.id, onClick:function(){onJump(i);},
+              key:r.id,
+              "data-active":isActive?"true":"false",
+              onClick:function(){const pct=replies.length>1?(i/(replies.length-1))*100:0;setLocalPct(pct);setLocalIdx(i);onJump(i);},
               style:{padding:"10px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
                 background:isActive?"var(--ac-bg)":"rgba(255,255,255,0.03)",
                 border:"0.5px solid "+(isActive?"var(--ac-border)":"transparent")}
             },
-              React.createElement('div',{style:{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}},
-                (r.user?.username||"?")),
-              React.createElement('div',{style:{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
-                r.body?.slice(0,50)||"")
+              React.createElement('div',{style:{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}},r.user?.username||"?"),
+              React.createElement('div',{style:{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.body?.slice(0,50)||"")
             );
           })}
         </div>
       </div>
     </div>
-  );
+  </>);
 }
 
 
