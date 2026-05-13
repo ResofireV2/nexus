@@ -11,10 +11,10 @@ import { ProfileSidebarSlot } from "./PostPage";
 
 const openFancybox = (...args) => window._openFancybox && window._openFancybox(...args);
 
-function ProfilePage({username, currentUser, navigate}) {
+function ProfilePage({username, currentUser, navigate, initialTab}) {
   const [user,          setUser]          = useState(null);
   const [loading,       setLoading]       = useState(true);
-  const [tab,           setTab]           = useState("posts");
+  const [tab,           setTab]           = useState(initialTab || "posts");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover,  setUploadingCover]  = useState(false);
   const [coverExpanded,   setCoverExpanded]   = useState(false);
@@ -51,12 +51,12 @@ function ProfilePage({username, currentUser, navigate}) {
     setPosts(null); setReplies(null); setReactions(null); setMedia(null); setMentions(null);
     setCursors({}); setHasMore({});
     cursorRef.current={}; hasMoreRef.current={}; loadingTabRef.current={};
-    setTab("posts");
+    setTab(initialTab || "posts");
     api.get(`/users/${username}`).then(d=>{
       setUser(d.user || {username});
       setLoading(false);
     }).catch(()=>{ setUser({username}); setLoading(false); });
-  },[username]);
+  },[username, initialTab]);
 
   // Lazy-load tab data on first activation, with cursor pagination
   const loadTab = useCallback(async(key, url, setter, dataKey, append=false)=>{
@@ -149,8 +149,13 @@ function ProfilePage({username, currentUser, navigate}) {
   // Tabs — media only shown to owner or admin (or if media_public is on,
   // but we don't have that setting client-side, so we show it and let the
   // API return 403 if needed; we hide the tab for non-owners unless admin)
+  // Extension tabs registered via registerSlot("profile_tab").
+  // Components should define a static tabId and tabLabel:
+  //   MyTab.tabId    = "my-ext-tab"   — stable id for initialTab navigation
+  //   MyTab.tabLabel = "My Tab"       — display label in the tab bar
+  // If tabId is omitted, a positional fallback is used (not navigable by name).
   const extTabs = window.NexusExtensions.getSlot("profile_tab").map(({component}, i) => ({
-    id:        `ext_tab_${i}`,
+    id:        component.tabId || `ext_tab_${i}`,
     label:     component.tabLabel || "More",
     component: component,
     isExt:     true,
