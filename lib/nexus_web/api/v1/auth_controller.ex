@@ -263,6 +263,87 @@ defmodule NexusWeb.API.V1.AuthController do
     json(conn, %{user: user_json(conn.assigns.current_user)})
   end
 
+  # ---------------------------------------------------------------------------
+  # GET  /api/v1/auth/sessions   — list active sessions
+  # DELETE /api/v1/auth/sessions/:id — terminate one session
+  # DELETE /api/v1/auth/sessions     — terminate all other sessions
+  # DELETE /api/v1/auth/global-logout — terminate everything including current
+  # ---------------------------------------------------------------------------
+
+  def list_sessions(conn, _params) do
+    user    = conn.assigns.current_user
+    current = conn.req_cookies["_nexus_refresh"]
+    current_hash = if current, do: hash_token(current), else: nil
+
+    sessions =
+      Accounts.list_user_sessions(user.id)
+      |> Enum.map(fn t ->
+        %{
+          id:          t.id,
+          device:      parse_user_agent(t.user_agent),
+          ip_address:  t.ip_address,
+          created_at:  t.inserted_at,
+          last_active: t.inserted_at,
+          current:     current_hash != nil && t.token_hash == current_hash
+        }
+      end)
+
+    json(conn, %{sessions: sessions})
+  end
+
+  def revoke_session(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+    case Accounts.revoke_session(user.id, String.to_integer("#{id}")) do
+      {:ok, _}         -> json(conn, %{ok: true})
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "Session not found"})
+    end
+  end
+
+  def revoke_other_sessions(conn, _params) do
+    user    = conn.assigns.current_user
+    current = conn.req_cookies["_nexus_refresh"]
+    current_hash = if current, do: hash_token(current), else: ""
+    Accounts.revoke_other_sessions(user.id, current_hash)
+    json(conn, %{ok: true})
+  end
+
+  def global_logout(conn, _params) do
+    user = conn.assigns.current_user
+    Accounts.revoke_all_user_tokens(user.id)
+    conn
+    |> delete_resp_cookie("_nexus_refresh")
+    |> json(%{ok: true})
+  end
+
+  # Parse a user-agent string into a human-readable device label.
+  # Returns e.g. "Chrome on Android", "Safari on iPhone", "Firefox on Windows"
+  defp parse_user_agent(nil), do: "Unknown device"
+  defp parse_user_agent(ua) do
+    browser =
+      cond do
+        ua =~ "Edg/"                      -> "Edge"
+        ua =~ "OPR/" or ua =~ "Opera"    -> "Opera"
+        ua =~ "Firefox"                   -> "Firefox"
+        ua =~ "Chrome" or ua =~ "CriOS"  -> "Chrome"
+        ua =~ "Safari"                    -> "Safari"
+        true                              -> "Browser"
+      end
+
+    os =
+      cond do
+        ua =~ "iPhone"                    -> "iPhone"
+        ua =~ "iPad"                      -> "iPad"
+        ua =~ "Android"                   -> "Android"
+        ua =~ "Windows"                   -> "Windows"
+        ua =~ "Macintosh" or ua =~ "Mac" -> "macOS"
+        ua =~ "Linux"                     -> "Linux"
+        true                              -> "device"
+      end
+
+    "#{browser} on #{os}"
+  end
+
   def update_me(conn, params) do
     user = conn.assigns.current_user
 

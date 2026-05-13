@@ -267,6 +267,37 @@ defmodule Nexus.Accounts do
     |> Repo.update_all(set: [revoked_at: DateTime.utc_now() |> DateTime.truncate(:second)])
   end
 
+  @doc "List all active (non-revoked, non-expired) sessions for a user."
+  def list_user_sessions(user_id) do
+    now = DateTime.utc_now()
+    Repo.all(
+      from t in RefreshToken,
+        where: t.user_id == ^user_id
+          and is_nil(t.revoked_at)
+          and t.expires_at > ^now,
+        order_by: [desc: t.inserted_at]
+    )
+  end
+
+  @doc "Revoke a single session by id, scoped to the user so they cannot revoke others'."
+  def revoke_session(user_id, token_id) do
+    case Repo.get_by(RefreshToken, id: token_id, user_id: user_id) do
+      nil   -> {:error, :not_found}
+      token ->
+        token |> RefreshToken.revoke_changeset() |> Repo.update()
+    end
+  end
+
+  @doc "Revoke all sessions for a user except the one with the given token hash."
+  def revoke_other_sessions(user_id, current_token_hash) do
+    from(t in RefreshToken,
+      where: t.user_id == ^user_id
+        and is_nil(t.revoked_at)
+        and t.token_hash != ^current_token_hash
+    )
+    |> Repo.update_all(set: [revoked_at: DateTime.utc_now() |> DateTime.truncate(:second)])
+  end
+
   defp create_refresh_token(user, opts) do
     raw_token   = generate_raw_token()
     remember_me = Keyword.get(opts, :remember_me, true)

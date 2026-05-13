@@ -58,9 +58,16 @@ function SecurityTab({currentUser, onLogout}) {
 
   useEffect(()=>{
     api.get("/auth/sessions").then(d=>{
-      setSessions(d.sessions || []);
+      if(d.sessions) {
+        setSessions(d.sessions);
+      } else {
+        setSessions([]);
+      }
       setSessLoading(false);
-    }).catch(()=>setSessLoading(false));
+    }).catch(()=>{
+      setSessions([]);
+      setSessLoading(false);
+    });
 
     api.get("/branding").then(d=>{
       setOauthProviders(d.settings?.oauth_providers || {google: false, github: false});
@@ -97,14 +104,15 @@ function SecurityTab({currentUser, onLogout}) {
 
       {/* ── 2FA ── */}
       <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12}}>Two-factor authentication</div>
-      <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:16,marginBottom:28}}>
+      <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:16,marginBottom:28,flexWrap:"wrap"}}>
         <div style={{width:38,height:38,borderRadius:10,background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <i className="fa-solid fa-shield-halved" style={{fontSize:18,color:"var(--t4)"}}/>
         </div>
         <div style={{flex:1}}>
           <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:3}}>
-            Authenticator app
+            <span>Authenticator app</span>
             <span style={{marginLeft:9,fontSize:11,padding:"2px 8px",borderRadius:20,fontWeight:500,
+              display:"inline-block",verticalAlign:"middle",
               background:"rgba(248,113,113,0.1)",color:"var(--red)",border:"0.5px solid rgba(248,113,113,0.25)"}}>
               Not enabled
             </span>
