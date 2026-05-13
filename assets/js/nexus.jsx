@@ -1345,6 +1345,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .p-tab{font-size:13px;color:var(--t4);padding:12px 0;margin-right:24px;cursor:pointer;border-bottom:1.5px solid transparent;white-space:nowrap;flex-shrink:0;}
 .p-tab.active{color:var(--t1);border-bottom-color:var(--ac);}
 .profile-tabs-mob{display:none;}
+.settings-tabs-mob{display:none;}
 @media(max-width:600px){
   .profile-tabs{display:none;}
   .profile-tabs-mob{display:block;padding:0 16px;border-bottom:0.5px solid var(--b1);}
@@ -1356,6 +1357,16 @@ select option{background:#1a1a2e;color:var(--t1);}
   .profile-tabs-mob .ptm-item{padding:11px 14px;font-size:13px;color:var(--t4);cursor:pointer;}
   .profile-tabs-mob .ptm-item:hover{background:var(--s3);color:var(--t1);}
   .profile-tabs-mob .ptm-item.active{color:var(--ac);font-weight:500;}
+  .settings-tabs-mob{display:block;padding:0 16px;border-bottom:0.5px solid var(--b1);}
+  .settings-tabs-mob details{position:relative;z-index:50;}
+  .settings-tabs-mob summary{list-style:none;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;color:var(--t1);background:var(--s2);border:0.5px solid var(--b2);margin:10px 0;}
+  .settings-tabs-mob summary::-webkit-details-marker{display:none;}
+  .settings-tabs-mob details[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent;}
+  .settings-tabs-mob .stm-menu{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:0.5px solid var(--b2);border-top:none;border-bottom-left-radius:10px;border-bottom-right-radius:10px;overflow:hidden;z-index:50;}
+  .settings-tabs-mob .stm-item{padding:11px 14px;font-size:13px;color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .settings-tabs-mob .stm-item:hover{background:var(--s3);color:var(--t1);}
+  .settings-tabs-mob .stm-item.active{color:var(--ac);font-weight:500;}
+  .settings-desktop-tabs{display:none;}
 }
 .p-reply-card{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .p-reply-body{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}

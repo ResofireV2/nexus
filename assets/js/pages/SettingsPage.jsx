@@ -53,6 +53,7 @@ function AppearanceTab() {
 function SecurityTab({currentUser, onLogout}) {
   const [sessions, setSessions]         = useState(null);
   const [sessLoading, setSessLoading]   = useState(true);
+  const [sessError, setSessError]       = useState(false);
   const [oauthProviders, setOauthProviders] = useState({google: false, github: false});
   const [terminating, setTerminating]   = useState(null); // id being terminated
 
@@ -62,10 +63,12 @@ function SecurityTab({currentUser, onLogout}) {
         setSessions(d.sessions);
       } else {
         setSessions([]);
+        if(d.error) setSessError(true);
       }
       setSessLoading(false);
     }).catch(()=>{
       setSessions([]);
+      setSessError(true);
       setSessLoading(false);
     });
 
@@ -172,6 +175,11 @@ function SecurityTab({currentUser, onLogout}) {
       <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:28}}>
         {sessLoading
           ? <div style={{padding:"24px",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
+          : sessError
+            ? <div style={{padding:"24px",textAlign:"center",color:"var(--red)",fontSize:13}}>
+                <i className="fa-solid fa-triangle-exclamation" style={{marginRight:6}}/>
+                Could not load sessions. The sessions endpoint may not be deployed yet.
+              </div>
           : !sessions || sessions.length === 0
             ? <div style={{padding:"24px",textAlign:"center",color:"var(--t5)",fontSize:13}}>No active sessions found.</div>
             : sessions.map((s,i) => (
@@ -434,12 +442,13 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
 
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      {/* Header + horizontal tabs */}
+      {/* Header + tabs: desktop bar / mobile dropdown */}
       <div style={{borderBottom:"0.5px solid var(--b1)",padding:"0 24px",flexShrink:0}}>
         <div style={{height:48,display:"flex",alignItems:"center"}}>
           <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Settings</span>
         </div>
-        <div style={{display:"flex",gap:0,marginBottom:-1}}>
+        {/* Desktop — hidden on mobile via CSS */}
+        <div className="settings-desktop-tabs" style={{display:"flex",gap:0,marginBottom:-1}}>
           {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},{k:"security",icon:"fa-shield",label:"Security"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-stroke",label:"Appearance"}]:[])].map(s=>(
             <button key={s.k} onClick={()=>setTab(s.k)}
               style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
@@ -453,6 +462,33 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
             </button>
           ))}
         </div>
+        {/* Mobile — shown only on narrow screens */}
+        {(()=>{
+          const allTabs=[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},{k:"security",icon:"fa-shield",label:"Security"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-stroke",label:"Appearance"}]:[])];
+          const active=allTabs.find(s=>s.k===tab)||allTabs[0];
+          return (
+            <div className="settings-tabs-mob">
+              <details>
+                <summary>
+                  <span style={{display:"flex",alignItems:"center",gap:8}}>
+                    <i className={`fa-solid ${active.icon}`} style={{fontSize:12,color:"var(--ac)"}}/>
+                    <span style={{color:"var(--ac)"}}>{active.label}</span>
+                  </span>
+                  <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+                </summary>
+                <div className="stm-menu">
+                  {allTabs.map(s=>(
+                    <div key={s.k} className={`stm-item${tab===s.k?" active":""}`}
+                      onClick={e=>{setTab(s.k);e.currentTarget.closest("details").removeAttribute("open");}}>
+                      <i className={`fa-solid ${s.icon}`} style={{fontSize:12}}/>
+                      {s.label}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          );
+        })()}
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* Settings content */}
