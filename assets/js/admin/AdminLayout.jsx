@@ -4,6 +4,27 @@ import { toast } from "../components/Toasts";
 import { spaceColor } from "../lib/utils";
 import { TB_BTNS, getAllToolbarButtons, setActiveToolbar } from "../components/RichTextArea";
 
+const EXPLORE_ITEMS = [
+  {id:"everything",    label:"Everything",    icon:"fa-border-all"},
+  {id:"search",        label:"Search",        icon:"fa-magnifying-glass"},
+  {id:"notifications", label:"Notifications", icon:"fa-bell",    authOnly:true},
+  {id:"messages",      label:"Messages",      icon:"fa-message", authOnly:true},
+  {id:"members",       label:"Members",       icon:"fa-users"},
+  {id:"tags",          label:"Tags",          icon:"fa-tag"},
+  {id:"leaderboard",   label:"Leaderboard",   icon:"fa-trophy"},
+  {id:"badges",        label:"Badges",        icon:"fa-medal"},
+];
+const RIGHT_WIDGETS = [
+  {id:"live_activity",   label:"Live Activity"},
+  {id:"spaces_by_pulse", label:"Spaces by Pulse"},
+  {id:"stats",           label:"Stats"},
+];
+const SIDEBAR_SECTIONS = [
+  {id:"explore", label:"Explore"},
+  {id:"spaces",  label:"Spaces"},
+  {id:"you",     label:"You"},
+];
+
 // ── DragList, LayoutAdmin, ToolbarEditor ──────────────────────────────────────
 
 // ── Simple drag-to-reorder list (reorder only, no hide/remove) ────────────────
