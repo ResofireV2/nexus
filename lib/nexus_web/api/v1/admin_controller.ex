@@ -418,6 +418,26 @@ defmodule NexusWeb.API.V1.AdminController do
     } end)})
   end
 
+  # GET /api/v1/users/online
+  # Returns the most recently active members for the online members widget.
+  # Fetches one more than the display limit so the caller can compute overflow.
+  @online_limit 18
+  def online_members(conn, _params) do
+    members = Accounts.list_online_members(limit: @online_limit + 1)
+    shown   = Enum.take(members, @online_limit)
+    extra   = max(0, length(members) - @online_limit)
+
+    json(conn, %{
+      members: Enum.map(shown, fn u -> %{
+        id:           u.id,
+        username:     u.username,
+        avatar_url:   u.avatar_url,
+        avatar_color: u.avatar_color
+      } end),
+      extra: extra
+    })
+  end
+
   # GET /api/v1/users/:username  (public — no admin auth required)
   def get_user_public(conn, %{"username" => username}) do
     case Accounts.get_user_by_username(username) do

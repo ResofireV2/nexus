@@ -1892,6 +1892,7 @@ const RIGHT_WIDGETS = [
   {id:"leaderboard_panel", label:"Leaderboard Panel", pages:["leaderboard"], component: LeaderboardSidebarWidget},
   {id:"badges_panel",      label:"Badges Panel",      pages:["badges"],      component: BadgesSidebarWidget},
   {id:"search_filters",    label:"Search Filters",    pages:["search"],      component: SearchFilterWidget},
+  {id:"online_members",    label:"Online Members",    pages:"global",        component: OnlineMembersWidget},
   {id:"live_activity",     label:"Live Activity",     pages:"global",        component: null},
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"],        component: null},
   {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"],        component: null},
@@ -2249,6 +2250,60 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
+// ── Online members widget ─────────────────────────────────────────────────────
+// Global widget showing members active in the last 15 minutes.
+// Polls every 60 seconds. Clicking an avatar opens the user card.
+// Shows up to 18 avatars; any beyond that collapses to a +X pill.
+
+function OnlineMembersWidget({navigate, currentUser}) {
+  const [members, setMembers] = useState([]);
+  const [extra,   setExtra]   = useState(0);
+
+  const fetchOnline = useCallback(() => {
+    api.get("/users/online").then(d => {
+      if (d.members) { setMembers(d.members); setExtra(d.extra || 0); }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchOnline();
+    const t = setInterval(fetchOnline, 60_000);
+    return () => clearInterval(t);
+  }, [fetchOnline]);
+
+  if (!currentUser || !members.length) return null;
+
+  return (
+    <div className="rw">
+      <div className="rw-label" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>online now</span>
+        <span style={{fontSize:11,letterSpacing:0,textTransform:"none",fontWeight:400}}>
+          {members.length + extra} member{members.length + extra !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6, 36px)",gap:8}}>
+        {members.map(u => (
+          <RsAv key={u.id} user={u} size={36} />
+        ))}
+        {extra > 0 && (
+          <div
+            onClick={() => navigate("members")}
+            style={{
+              width:36, height:36, borderRadius:"var(--av-radius)",
+              background:"rgba(255,255,255,0.07)",
+              border:"0.5px solid rgba(255,255,255,0.12)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:11, fontWeight:500, color:"var(--t4)", cursor:"pointer",
+            }}
+          >
+            +{extra}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Post page right sidebar widgets ──────────────────────────────────────────
 // Each is a standalone component receiving { navigate, currentUser, pageProps }
 // where pageProps.id is the postId.

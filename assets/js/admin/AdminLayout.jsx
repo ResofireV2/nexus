@@ -27,6 +27,7 @@ const RIGHT_WIDGETS = [
   {id:"leaderboard_panel", label:"Leaderboard Panel", pages:["leaderboard"]},
   {id:"badges_panel",      label:"Badges Panel",      pages:["badges"]},
   {id:"search_filters",    label:"Search Filters",    pages:["search"]},
+  {id:"online_members",    label:"Online Members",    pages:"global"},
   {id:"live_activity",     label:"Live Activity",     pages:"global"},
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"]},
   {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"]},

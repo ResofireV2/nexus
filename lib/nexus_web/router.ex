@@ -113,6 +113,7 @@ defmodule NexusWeb.Router do
     get "/posts/:post_id/replies", ReplyController,  :index
     get "/search",                 SearchController, :index
     get "/stats",                  FeedController,   :stats
+    get "/users/online",           AdminController,  :online_members
     get "/users",                  AdminController,  :list_users_public
     get "/users/:username",        AdminController,      :get_user_public
     get "/users/:username/badges", BadgeController,      :user_badges

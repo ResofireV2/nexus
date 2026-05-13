@@ -88,6 +88,33 @@ defmodule Nexus.Accounts do
     Repo.all(ordered)
   end
 
+  @doc """
+  Returns up to `limit` members seen within the last `minutes` minutes,
+  ordered by most recently seen first. Only non-banned members are included.
+  Returns only the fields needed for the online members widget.
+  """
+  def list_online_members(opts \\ []) do
+    import Ecto.Query
+    limit   = Keyword.get(opts, :limit, 18)
+    minutes = Keyword.get(opts, :minutes, 15)
+    cutoff  = DateTime.utc_now() |> DateTime.add(-minutes * 60, :second)
+
+    from(u in User,
+      where: u.status != "banned"
+        and not is_nil(u.last_seen_at)
+        and u.last_seen_at > ^cutoff,
+      order_by: [desc: u.last_seen_at],
+      limit: ^limit,
+      select: %{
+        id:           u.id,
+        username:     u.username,
+        avatar_url:   u.avatar_url,
+        avatar_color: u.avatar_color
+      }
+    )
+    |> Repo.all()
+  end
+
   def get_user_by_email(email) do
     Repo.get_by(User, email: String.downcase(email))
   end
