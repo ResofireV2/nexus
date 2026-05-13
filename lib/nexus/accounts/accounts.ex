@@ -182,9 +182,13 @@ defmodule Nexus.Accounts do
           # use Map.get with a safe fallback so we never crash on a missing column.
           remember_me = Map.get(token, :remember_me, true) || true
 
-          # Rotate: revoke old token, issue a new one
+          # Rotate: revoke old token, issue a new one preserving device info
           Repo.update!(RefreshToken.revoke_changeset(token))
-          {:ok, new_refresh} = create_refresh_token(user, [remember_me: remember_me])
+          {:ok, new_refresh} = create_refresh_token(user, [
+            remember_me: remember_me,
+            user_agent:  token.user_agent,
+            ip_address:  token.ip_address
+          ])
 
           {:ok, access_token} = JWT.generate_access_token(user)
           {:ok, %{access_token: access_token, refresh_token: new_refresh.token_hash, remember_me: remember_me}}
@@ -269,7 +273,7 @@ defmodule Nexus.Accounts do
 
   @doc "List all active (non-revoked, non-expired) sessions for a user."
   def list_user_sessions(user_id) do
-    now = DateTime.utc_now()
+    now = NaiveDateTime.utc_now()
     Repo.all(
       from t in RefreshToken,
         where: t.user_id == ^user_id
