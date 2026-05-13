@@ -273,12 +273,35 @@ defmodule Nexus.Accounts do
 
   @doc "List all active (non-revoked, non-expired) sessions for a user."
   def list_user_sessions(user_id) do
+    now = NaiveDateTime.utc_now()
     Repo.all(
       from t in RefreshToken,
         where: t.user_id == ^user_id
-          and is_nil(t.revoked_at),
+          and is_nil(t.revoked_at)
+          and t.expires_at > ^now,
         order_by: [desc: t.inserted_at]
     )
+  end
+
+  @doc "Revoke all but the most recent active token. Cleans up orphaned tokens from before rotation was enforced."
+  def prune_duplicate_sessions(user_id) do
+    now = NaiveDateTime.utc_now()
+    newest = Repo.one(
+      from t in RefreshToken,
+        where: t.user_id == ^user_id
+          and is_nil(t.revoked_at)
+          and t.expires_at > ^now,
+        order_by: [desc: t.inserted_at],
+        limit: 1
+    )
+    if newest do
+      from(t in RefreshToken,
+        where: t.user_id == ^user_id
+          and is_nil(t.revoked_at)
+          and t.id != ^newest.id
+      )
+      |> Repo.update_all(set: [revoked_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)])
+    end
   end
 
   @doc "Revoke a single session by id, scoped to the user so they cannot revoke others'."
