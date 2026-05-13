@@ -66,6 +66,7 @@ defmodule Nexus.MixProject do
       {:sweet_xml, "~> 0.7"},
 
       # Utilities
+      {:remote_ip, "~> 1.2"},
       {:jason, "~> 1.4"},
       {:plug_cowboy, "~> 2.7"},
       {:gettext, "~> 0.26"},

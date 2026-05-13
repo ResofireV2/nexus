@@ -20,11 +20,15 @@ billyrayfoss.com {
         header Upgrade websocket
     }
     handle @websockets {
-        reverse_proxy localhost:4000
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 
     handle {
-        reverse_proxy localhost:4000
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 }
 

@@ -51,6 +51,11 @@ defmodule NexusWeb.Endpoint do
   plug Plug.MethodOverride
   plug Plug.Head
   plug :put_secure_session
+  # Rewrites conn.remote_ip from X-Forwarded-For set by Caddy, so that the
+  # rate limiter and activity tracker see the real client IP rather than
+  # Caddy's loopback address. RemoteIp ignores the header from any IP that
+  # isn't a known proxy, preventing clients from spoofing their address.
+  plug RemoteIp, headers: ["x-forwarded-for"]
   plug NexusWeb.Router
 
   # SESSION_SIGNING_SALT is injected by runtime.exs from the .env file, which
