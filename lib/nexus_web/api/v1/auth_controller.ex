@@ -276,17 +276,24 @@ defmodule NexusWeb.API.V1.AuthController do
     current_hash = if current, do: token_hash(current), else: nil
 
     sessions =
-      Accounts.list_user_sessions(user.id)
-      |> Enum.map(fn t ->
-        %{
-          id:          t.id,
-          device:      parse_user_agent(t.user_agent),
-          ip_address:  t.ip_address,
-          created_at:  t.inserted_at,
-          last_active: t.inserted_at,
-          current:     current_hash != nil && t.token_hash == current_hash
-        }
-      end)
+      try do
+        Accounts.list_user_sessions(user.id)
+        |> Enum.map(fn t ->
+          %{
+            id:          t.id,
+            device:      parse_user_agent(t.user_agent),
+            ip_address:  t.ip_address,
+            created_at:  t.inserted_at,
+            last_active: t.inserted_at,
+            current:     current_hash != nil && t.token_hash == current_hash
+          }
+        end)
+      rescue
+        e ->
+          require Logger
+          Logger.error("list_sessions error: #{inspect(e)}")
+          []
+      end
 
     json(conn, %{sessions: sessions})
   end

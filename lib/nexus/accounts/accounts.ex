@@ -273,12 +273,10 @@ defmodule Nexus.Accounts do
 
   @doc "List all active (non-revoked, non-expired) sessions for a user."
   def list_user_sessions(user_id) do
-    now = NaiveDateTime.utc_now()
     Repo.all(
       from t in RefreshToken,
         where: t.user_id == ^user_id
-          and is_nil(t.revoked_at)
-          and t.expires_at > ^now,
+          and is_nil(t.revoked_at),
         order_by: [desc: t.inserted_at]
     )
   end
