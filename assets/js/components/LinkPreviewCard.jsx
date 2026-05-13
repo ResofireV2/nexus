@@ -80,7 +80,9 @@ function renderLinkPreviewError(node, url) {
   node.classList.remove("pending");
 }
 
-// Map of url -> [node, ...] waiting for a preview_ready signal
+// Map of url -> [node, ...] waiting for a preview_ready signal.
+// A value of null means link_preview_ready already fired but no nodes
+// had been registered yet — hydrateLinkPreviews should fetch immediately.
 const _lpPending = new Map();
 
 // Call this with extracted URLs immediately after a post/reply is submitted,
@@ -116,8 +118,15 @@ function fetchPreview(url, node) {
 function onLinkPreviewReady(url) {
   if (!_lpPending.has(url)) return;
   const nodes = _lpPending.get(url);
+
+  // No nodes yet — DOM hasn't rendered the reply. Mark as ready so
+  // hydrateLinkPreviews fetches immediately when the node appears.
+  if (!nodes || !nodes.length) {
+    _lpPending.set(url, null);
+    return;
+  }
+
   _lpPending.delete(url);
-  // Fetch once for all waiting nodes
   fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
     .then(r => r.ok ? r.json() : Promise.reject())
     .then(data => {
@@ -145,8 +154,15 @@ function hydrateLinkPreviews(root) {
 
     // If this URL was pre-registered as fresh (just submitted), skip the
     // immediate API call entirely and wait for the WebSocket signal.
+    // If the value is null, link_preview_ready already fired — fetch immediately.
     if (_lpPending.has(url)) {
-      _lpPending.get(url).push(node);
+      if (_lpPending.get(url) === null) {
+        // Preview is already in the DB — fetch straight away.
+        _lpPending.delete(url);
+        fetchPreview(url, node);
+      } else {
+        _lpPending.get(url).push(node);
+      }
       return;
     }
 
