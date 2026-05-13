@@ -4,6 +4,7 @@ import { ago } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select, Toggle } from "../components/Select";
 import { F } from "./FormHelpers";
+import { Md } from "../components/Markdown";
 
 // ── Extension admin panels + NexusExtensionTemplates ─────────────────────────
 
