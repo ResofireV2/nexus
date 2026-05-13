@@ -1,38 +1,19 @@
-// ── Select component ──────────────────────────────────────────────────────────
-//
-// Use this everywhere instead of a raw <select>. This is why your dropdowns
-// look inconsistent — every raw <select> bypasses the styling.
+import { useState, useEffect, useRef } from "react";
+
+// ── Select ────────────────────────────────────────────────────────────────────
+// Thin wrapper around a native <select>. Use for form fields inside admin
+// settings panels. For page-level sort/filter controls, use Dropdown instead.
 //
 // Usage:
-//
 //   import { Select } from "../components/Select";
-//
-//   // Basic — value + onChange, children are <option> elements
-//   <Select value={sort} onChange={setSort}>
-//     <option value="newest">Newest</option>
-//     <option value="oldest">Oldest</option>
+//   <Select value={role} onChange={setRole}>
+//     <option value="member">Member</option>
 //   </Select>
-//
-//   // With options array (shorthand — no need to write <option> manually)
-//   <Select value={role} onChange={setRole} options={[
-//     { value: "member",    label: "Member" },
-//     { value: "moderator", label: "Moderator" },
-//     { value: "admin",     label: "Admin" },
-//   ]} />
-//
-//   // With extra style overrides (use sparingly — prefer CSS vars)
-//   <Select value={x} onChange={setX} style={{ maxWidth: 200 }}>
-//     ...
-//   </Select>
-//
-//   // Disabled
-//   <Select value={x} onChange={setX} disabled>
-//     ...
-//   </Select>
+//   // Or with options array:
+//   <Select value={x} onChange={setX} options={[{value:"a",label:"A"}]} />
 
 export function Select({ value, onChange, options, children, style, disabled, id, className = "" }) {
   const handleChange = (e) => onChange(e.target.value);
-
   return (
     <select
       id={id}
@@ -53,22 +34,13 @@ export function Select({ value, onChange, options, children, style, disabled, id
   );
 }
 
-// ---------------------------------------------------------------------------
-// Toggle — the styled boolean switch used throughout admin and settings.
-// Pulled out here because it's always defined inline and reimplemented.
-//
-// Usage:
-//   <Toggle value={enabled} onChange={setEnabled} />
-//   <Toggle value={enabled} onChange={setEnabled} label="Enable feature" />
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Dropdown — the standard custom dropdown used across pages and extensions.
-// Replaces raw <select> elements and one-off inline dropdown implementations.
+// ── Dropdown ──────────────────────────────────────────────────────────────────
+// Standard custom dropdown for page-level controls (sort, filter, etc).
+// Uses the comp-type-btn / comp-dd CSS classes already defined in nexus.jsx.
 //
 // Usage:
 //   import { Dropdown } from "../components/Select";
 //
-//   // Array of options, value/label pairs:
 //   <Dropdown
 //     value={sort}
 //     onChange={setSort}
@@ -78,23 +50,20 @@ export function Select({ value, onChange, options, children, style, disabled, id
 //     ]}
 //   />
 //
-//   // With a leading icon on the trigger button:
+//   // With trigger icon:
 //   <Dropdown value={sort} onChange={setSort} options={opts} icon="fa-arrow-down-wide-short" />
 //
-//   // With icons on individual options:
+//   // With per-option icons:
 //   <Dropdown value={type} onChange={setType} options={[
 //     { value: "discussion", label: "Discussion", icon: "fa-comments" },
 //     { value: "question",   label: "Question",   icon: "fa-circle-question" },
 //   ]} />
 //
-//   // Right-aligned menu (for buttons near the right edge):
+//   // Right-aligned menu (near the right edge of the screen):
 //   <Dropdown value={x} onChange={setX} options={opts} align="right" />
 //
-//   // Custom max height for long lists:
+//   // Max height for long lists:
 //   <Dropdown value={x} onChange={setX} options={opts} maxHeight={200} />
-// ---------------------------------------------------------------------------
-
-import { useState, useEffect, useRef } from "react";
 
 export function Dropdown({ value, onChange, options = [], icon, align = "left", maxHeight, placeholder, style }) {
   const [open, setOpen] = useState(false);
@@ -141,7 +110,15 @@ export function Dropdown({ value, onChange, options = [], icon, align = "left", 
   );
 }
 
+// ── Toggle ────────────────────────────────────────────────────────────────────
+// Styled boolean switch used throughout admin and settings panels.
+//
+// Usage:
+//   import { Toggle } from "../components/Select";
+//   <Toggle value={enabled} onChange={setEnabled} label="Enable feature" />
+//   <Toggle value={enabled} onChange={setEnabled} label="Enable" hint="Some hint text" />
 
+export function Toggle({ value, onChange, label, hint }) {
   return (
     <div className="toggle-row">
       {label && (
