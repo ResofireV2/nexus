@@ -437,8 +437,57 @@ window.NexusExtensions = {
     return () => { this._listeners = this._listeners.filter(f => f !== fn); };
   },
 
-  // Register a toolbar button for the composer.
-  // config: { icon (FA class), tip (tooltip), color (optional CSS color), onClick(linkedGames, setLinkedGames), scope ("both"|"posts"|"replies", default "both") }
+  // Register a toolbar button in the post and/or reply composer.
+  //
+  // NexusExtensions.registerToolbarButton(config, priority)
+  //
+  // config fields:
+  //   icon     {string}   Required. Full Font Awesome class string for the button icon.
+  //                       Must include both the style prefix and the icon name.
+  //                       Examples:
+  //                         "fa-solid fa-gamepad"      ✓ correct
+  //                         "fa-regular fa-star"       ✓ correct
+  //                         "fa-gamepad"               ✗ missing style prefix — renders as text
+  //                         "fa-solid"                 ✗ missing icon name
+  //
+  //   tip      {string}   Required. Tooltip text shown on hover. Also used to generate
+  //                       the internal button type — must be unique across all extensions.
+  //                       Example: "Link a game"
+  //
+  //   scope    {string}   Optional. Controls which composer toolbar the button appears in.
+  //                       "both"    — visible in Post toolbar and Reply toolbar (default)
+  //                       "posts"   — visible in Post toolbar, hidden in Reply toolbar
+  //                       "replies" — visible in Reply toolbar, hidden in Post toolbar
+  //                       Admins can always override visibility per-toolbar in the Layout panel.
+  //
+  //   onClick  {function} Required. Called when the button is clicked.
+  //                       Receives (linkedGames, setLinkedGames) — use these to read and
+  //                       write the post's linked games array (Gamepedia integration).
+  //                       For buttons unrelated to games, ignore both arguments.
+  //                       Example:
+  //                         onClick(linkedGames, setLinkedGames) {
+  //                           openMyPicker();
+  //                         }
+  //
+  // Styling:
+  //   Extension buttons inherit the same styling as built-in toolbar buttons via the
+  //   .comp-tb-btn CSS class — muted color at rest, brighter on hover. Do not pass a
+  //   color field; it is ignored. Custom styling via inline styles is not supported.
+  //
+  // priority {number} Optional. Lower numbers appear before higher numbers among
+  //                   extension buttons (built-in buttons always come first).
+  //                   Default: 50.
+  //
+  // Example:
+  //   NexusExtensions.registerToolbarButton({
+  //     icon:  "fa-solid fa-photo-film",
+  //     tip:   "Insert GIF or Sticker",
+  //     scope: "both",
+  //     onClick(_linkedGames, _setLinkedGames) {
+  //       openGifPicker();
+  //     },
+  //   }, 60);
+  //
   registerToolbarButton(config, priority = 50) {
     this._toolbarButtons.push({config, priority});
     this._toolbarButtons.sort((a, b) => a.priority - b.priority);
