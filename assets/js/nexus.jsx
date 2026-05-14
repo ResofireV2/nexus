@@ -837,36 +837,7 @@ window.NexusExtensions = {
 const S = document.createElement("style");
 S.textContent = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-/* Font Awesome 7 Free — self-hosted, no CDN dependency */
-@font-face {
-  font-family: "Font Awesome 7 Free";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/fa-regular-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: "Font Awesome 7 Free";
-  font-style: normal;
-  font-weight: 900;
-  font-display: swap;
-  src: url('/fonts/fa-solid-900.woff2') format('woff2');
-}
-/* FA 5 compatibility aliases */
-@font-face {
-  font-family: "Font Awesome 5 Free";
-  font-style: normal;
-  font-weight: 900;
-  font-display: swap;
-  src: url('/fonts/fa-solid-900.woff2') format('woff2');
-}
-@font-face {
-  font-family: "Font Awesome 5 Free";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/fa-regular-400.woff2') format('woff2');
-}
+/* Font Awesome 7 Free — self-hosted via assets/css/fontawesome.css bundled into app.css */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
   --tgl-off:rgba(255,255,255,0.12);
