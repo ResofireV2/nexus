@@ -572,21 +572,33 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
 
   const fi = {width:"100%",background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--t2)",fontFamily:"inherit",outline:"none",boxSizing:"border-box"};
 
-  const NumField = ({label, hint, cfgKey, min=0, max, step=1, isFloat=false}) => (
-    <div style={{marginBottom:16}}>
-      <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>{label}</div>
-      {hint && <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>{hint}</div>}
-      <input style={{...fi,width:120}} type="number" min={min} max={max} step={step}
-        value={lbCfg[cfgKey] ?? (isFloat ? 1.0 : 1)}
-        onChange={e=>{
-          const v = isFloat ? parseFloat(e.target.value)||0 : parseInt(e.target.value)||0;
-          setLbCfg(p=>({...p,[cfgKey]:v}));
-        }}/>
+  // Tile input for point values — icon + label + large centered number input
+  const PointTile = ({label, cfgKey, icon, color}) => (
+    <div style={{background:"var(--s2)",borderRadius:10,padding:"14px 14px 12px",display:"flex",flexDirection:"column",gap:6}}>
+      <i className={`fa-solid ${icon}`} style={{fontSize:18,color,marginBottom:2}}/>
+      <div style={{fontSize:11,color:"var(--t4)",lineHeight:1.3}}>{label}</div>
+      <input
+        type="number" min={0} step={1}
+        value={lbCfg[cfgKey] ?? 1}
+        onChange={e=>setLbCfg(p=>({...p,[cfgKey]:parseInt(e.target.value)||0}))}
+        style={{width:"100%",padding:"6px 8px",background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:6,
+          color:"var(--t1)",fontSize:15,fontWeight:500,textAlign:"center",fontFamily:"inherit",outline:"none"}}
+      />
     </div>
   );
 
+  // Streak example pills — recomputed from current config values
+  const mul   = lbCfg.streak_multiplier ?? 0.1;
+  const cap   = lbCfg.streak_cap        ?? 3.0;
+  const streakEx = [3, 7, 14, 20].map(days => ({
+    days,
+    val:  parseFloat(Math.min(1 + days * mul, cap).toFixed(2)),
+    capped: (1 + days * mul) >= cap,
+  }));
+
   return (
     <div>
+      {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
         <div style={{flex:1}}>
           <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3}}>Leaderboard</div>
@@ -595,11 +607,12 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
         <button className="btn-ghost" style={{fontSize:12,display:"flex",alignItems:"center",gap:6}} onClick={recalculate} disabled={recalculating}>
           <i className="fa-solid fa-rotate" style={{fontSize:11}}/>{recalculating?"Recalculating…":"Recalculate all scores"}
         </button>
-
       </div>
 
-      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:20}}>
+      {/* General */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:14}}>
         <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:16}}>General</div>
+        {/* Enabled toggle */}
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
           <div style={{flex:1}}>
             <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Enabled</div>
@@ -610,6 +623,7 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
             <div style={{position:"absolute",top:2,left:lbCfg.enabled!==false?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
           </div>
         </div>
+        {/* Exclude staff toggle */}
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
           <div style={{flex:1}}>
             <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Exclude admins &amp; moderators</div>
@@ -620,33 +634,61 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
             <div style={{position:"absolute",top:2,left:lbCfg.exclude_staff?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
           </div>
         </div>
-        <div style={{marginBottom:0}}>
+        {/* Currency name */}
+        <div>
           <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Points currency name</div>
           <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>What members see (e.g. "points", "kudos", "karma", "stars").</div>
           <input style={{...fi,width:200}} value={lbCfg.points_name||"points"} onChange={e=>setLbCfg(p=>({...p,points_name:e.target.value}))} placeholder="points"/>
         </div>
       </div>
 
-      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:20}}>
-        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:16}}>Point values per action</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
-          <NumField label="Post created"         cfgKey="post_points"/>
-          <NumField label="Reply posted"          cfgKey="reply_points"/>
-          <NumField label="Reaction given"        cfgKey="reaction_given_points"/>
-          <NumField label="Reaction received"     cfgKey="reaction_received_points"/>
-          <NumField label="Daily login"           cfgKey="login_points"/>
-          <NumField label="Badge earned"          cfgKey="badge_points"/>
-          <NumField label="Post pinned"           cfgKey="pin_points"/>
-          <NumField label="Mention received"      cfgKey="mention_received_points"/>
+      {/* Point tiles */}
+      <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px",marginBottom:14}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:14}}>Points per action</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10}}>
+          <PointTile label="Post created"      cfgKey="post_points"              icon="fa-pen-to-square"  color="#a78bfa"/>
+          <PointTile label="Reply posted"      cfgKey="reply_points"             icon="fa-reply"          color="#a78bfa"/>
+          <PointTile label="Reaction given"    cfgKey="reaction_given_points"    icon="fa-heart"          color="#f472b6"/>
+          <PointTile label="Reaction received" cfgKey="reaction_received_points" icon="fa-heart"          color="#f472b6"/>
+          <PointTile label="Daily login"       cfgKey="login_points"             icon="fa-arrow-right-to-bracket" color="#60a5fa"/>
+          <PointTile label="Badge earned"      cfgKey="badge_points"             icon="fa-medal"          color="#34d399"/>
+          <PointTile label="Post pinned"       cfgKey="pin_points"               icon="fa-thumbtack"      color="#fbbf24"/>
+          <PointTile label="Mention received"  cfgKey="mention_received_points"  icon="fa-at"             color="#fbbf24"/>
         </div>
       </div>
 
+      {/* Streak multiplier */}
       <div style={{background:"var(--s1)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px 20px"}}>
         <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:4}}>Login streak multiplier</div>
-        <div style={{fontSize:12,color:"var(--t4)",marginBottom:16}}>Daily login points are multiplied by <code style={{color:"var(--ac)"}}>1 + (streak_days × multiplier)</code>, capped at the maximum.</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
-          <NumField label="Multiplier per streak day" hint="e.g. 0.1 means +10% per day" cfgKey="streak_multiplier" step={0.05} isFloat={true}/>
-          <NumField label="Maximum multiplier"        hint="e.g. 3.0 means up to 3× base"  cfgKey="streak_cap"        step={0.5}  isFloat={true}/>
+        <div style={{fontSize:12,color:"var(--t4)",marginBottom:16}}>
+          Daily login points are multiplied by <code style={{color:"var(--ac)"}}>1 + (streak_days × multiplier)</code>, capped at the maximum.
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px",marginBottom:14}}>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Multiplier per streak day</div>
+            <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>e.g. 0.1 means +10% per day</div>
+            <input style={{...fi,width:120}} type="number" min={0} step={0.05}
+              value={lbCfg.streak_multiplier ?? 0.1}
+              onChange={e=>setLbCfg(p=>({...p,streak_multiplier:parseFloat(e.target.value)||0}))}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Maximum multiplier</div>
+            <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>e.g. 3.0 means up to 3× base</div>
+            <input style={{...fi,width:120}} type="number" min={1} step={0.5}
+              value={lbCfg.streak_cap ?? 3.0}
+              onChange={e=>setLbCfg(p=>({...p,streak_cap:parseFloat(e.target.value)||1}))}/>
+          </div>
+        </div>
+        {/* Live streak examples */}
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <i className="fa-solid fa-fire" style={{fontSize:13,color:"#f472b6",flexShrink:0}}/>
+          {streakEx.map(({days,val,capped})=>(
+            <div key={days} style={{fontSize:11,padding:"3px 10px",borderRadius:20,
+              border:"0.5px solid var(--b2)",color:"var(--t3)"}}>
+              {days}d → <span style={{color:"var(--t1)",fontWeight:500}}>{val}×</span>
+              {capped&&<span style={{color:"var(--t5)",marginLeft:3}}>(capped)</span>}
+            </div>
+          ))}
         </div>
       </div>
     </div>
