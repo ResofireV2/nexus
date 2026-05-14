@@ -113,7 +113,9 @@ defmodule Nexus.Digest do
         space_name:     s.name,
         space_color:    s.color,
         author:         u.username,
-        avatar_url:     u.avatar_url
+        author_id:      u.id,
+        avatar_url:     u.avatar_url,
+        avatar_color:   u.avatar_color
       }
     )
   end
@@ -127,16 +129,17 @@ defmodule Nexus.Digest do
     end
 
     top3 = Repo.all(
-      from s in UserScore,
-      join: u in User, on: s.user_id == u.id,
+      from u in User,
+      left_join: s in UserScore, on: s.user_id == u.id,
       where: u.status != "banned",
-      order_by: [desc: field(s, ^score_field)],
+      order_by: [desc: coalesce(field(s, ^score_field), 0)],
       limit: 3,
       select: %{
-        user_id:   s.user_id,
-        username:  u.username,
-        avatar_url: u.avatar_url,
-        score:     field(s, ^score_field)
+        user_id:      u.id,
+        username:     u.username,
+        avatar_url:   u.avatar_url,
+        avatar_color: u.avatar_color,
+        score:        coalesce(field(s, ^score_field), 0)
       }
     )
 
@@ -188,7 +191,7 @@ defmodule Nexus.Digest do
       where: u.inserted_at >= ^from_dt and u.inserted_at <= ^to_dt,
       order_by: [asc: u.inserted_at],
       limit: 10,
-      select: %{username: u.username, avatar_url: u.avatar_url, inserted_at: u.inserted_at}
+      select: %{id: u.id, username: u.username, avatar_url: u.avatar_url, avatar_color: u.avatar_color, inserted_at: u.inserted_at}
     )
   end
 

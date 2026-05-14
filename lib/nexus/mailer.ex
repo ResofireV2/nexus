@@ -214,6 +214,39 @@ defmodule Nexus.Mailer do
     """
   end
 
+  # Renders a 28px avatar matching the app's Avatar component exactly:
+  #   - Shows the avatar image when avatar_url is set (made absolute for email clients)
+  #   - Falls back to a colored initials tile using the same 12-color palette and
+  #     deterministic id % 12 selection that userColor() uses in utils.js
+  @avatar_colors ~w(
+    #a78bfa #f472b6 #34d399 #60a5fa #fbbf24 #f87171
+    #ec4899 #10b981 #fb923c #38bdf8 #a3e635 #e879f9
+  )
+
+  defp avatar_html(%{avatar_url: url, avatar_color: color, id: id, username: username})
+       when is_binary(url) and url != "" do
+    abs_url =
+      if String.starts_with?(url, "http"), do: url, else: "#{base_url()}#{url}"
+    bg = color || Enum.at(@avatar_colors, rem(id, length(@avatar_colors)))
+    """
+    <img src="#{abs_url}" alt="#{username}"
+         width="28" height="28"
+         style="width:28px;height:28px;border-radius:6px;object-fit:cover;
+                vertical-align:middle;border:1px solid #{bg}33;display:inline-block;" />
+    """
+  end
+
+  defp avatar_html(%{avatar_color: color, id: id, username: username}) do
+    bg       = color || Enum.at(@avatar_colors, rem(id || 0, length(@avatar_colors)))
+    initials = username |> String.slice(0, 2) |> String.upcase()
+    """
+    <div style="display:inline-flex;align-items:center;justify-content:center;
+                width:28px;height:28px;border-radius:6px;background:#{bg};
+                color:#fff;font-size:10px;font-weight:500;
+                vertical-align:middle;flex-shrink:0;">#{initials}</div>
+    """
+  end
+
   # ---------------------------------------------------------------------------
   # Magic link
   # ---------------------------------------------------------------------------
@@ -398,6 +431,7 @@ defmodule Nexus.Mailer do
       |> Enum.with_index(1)
       |> Enum.map(fn {p, i} ->
         post_url = "#{url}/post/#{p.id}"
+        av = avatar_html(%{avatar_url: p.avatar_url, avatar_color: p.avatar_color, id: p.author_id, username: p.author})
         """
         <tr>
           <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
@@ -405,8 +439,11 @@ defmodule Nexus.Mailer do
               <tr>
                 <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{i}.</td>
                 <td>
-                  <a href="#{post_url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;display:block;margin-bottom:4px;">#{p.title}</a>
-                  <span style="font-size:11px;color:rgba(255,255,255,0.3);">#{p.space_name} &nbsp;·&nbsp; #{p.reply_count} replies &nbsp;·&nbsp; #{p.reaction_count} hearts &nbsp;·&nbsp; by #{p.author}</span>
+                  <a href="#{post_url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;display:block;margin-bottom:6px;">#{p.title}</a>
+                  <table cellpadding="0" cellspacing="0"><tr>
+                    <td style="vertical-align:middle;padding-right:6px;">#{av}</td>
+                    <td style="vertical-align:middle;font-size:11px;color:rgba(255,255,255,0.3);">#{p.author} &nbsp;·&nbsp; #{p.space_name} &nbsp;·&nbsp; #{p.reply_count} replies &nbsp;·&nbsp; #{p.reaction_count} hearts</td>
+                  </tr></table>
                 </td>
               </tr>
             </table>
@@ -429,13 +466,15 @@ defmodule Nexus.Mailer do
       top3
       |> Enum.with_index()
       |> Enum.map(fn {u, i} ->
+        av = avatar_html(%{avatar_url: u.avatar_url, avatar_color: u.avatar_color, id: u.user_id, username: u.username})
         """
         <tr>
           <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="width:28px;font-size:16px;">#{Enum.at(medals, i, "")}</td>
-              <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;">#{u.username}</td>
-              <td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;">#{u.score} #{points_name}</td>
+              <td style="width:28px;font-size:16px;vertical-align:middle;">#{Enum.at(medals, i, "")}</td>
+              <td style="vertical-align:middle;padding-right:8px;">#{av}</td>
+              <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;vertical-align:middle;">#{u.username}</td>
+              <td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;vertical-align:middle;">#{u.score} #{points_name}</td>
             </tr></table>
           </td>
         </tr>
@@ -482,12 +521,26 @@ defmodule Nexus.Mailer do
   end
 
   defp render_digest_section("members", members, _url, _site_name, _branding) when is_list(members) and members != [] do
-    names = members |> Enum.map(& &1.username) |> Enum.join(", ")
     count = length(members)
+    rows =
+      Enum.map(members, fn m ->
+        av = avatar_html(%{avatar_url: m.avatar_url, avatar_color: m.avatar_color, id: m.id, username: m.username})
+        """
+        <tr>
+          <td style="padding:5px 0;">
+            <table cellpadding="0" cellspacing="0"><tr>
+              <td style="vertical-align:middle;padding-right:8px;">#{av}</td>
+              <td style="font-size:13px;color:rgba(255,255,255,0.65);vertical-align:middle;">#{m.username}</td>
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
 
     """
-    <p style="margin:0 0 8px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">New members</p>
-    <p style="margin:0 0 24px;font-size:13px;color:rgba(255,255,255,0.55);">Welcome to #{count} new member#{if count == 1, do: "", else: "s"}: #{names}</p>
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">New members (#{count})</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
     #{divider()}
     """
   end
