@@ -106,27 +106,24 @@ defmodule Nexus.Analytics do
   end
 
   defp median_first_reply_seconds(from_date, to_date) do
-    # Compute first reply time per post in a subquery, then take the median
-    # across all posts. percentile_cont cannot nest MIN() directly in Postgres.
-    Repo.one(
-      fragment(
-        """
-        SELECT percentile_cont(0.5) WITHIN GROUP (
-          ORDER BY EXTRACT(EPOCH FROM (first_reply - post_created))
-        )
-        FROM (
-          SELECT p.inserted_at AS post_created,
-                 MIN(r.inserted_at) AS first_reply
-          FROM posts p
-          JOIN replies r ON r.post_id = p.id
-          WHERE p.inserted_at >= ? AND p.inserted_at <= ?
-          GROUP BY p.id
-        ) sub
-        """,
-        ^dt_start(from_date),
-        ^dt_end(to_date)
+    # percentile_cont cannot nest MIN() in Postgres, so we use a raw subquery.
+    sql = """
+      SELECT percentile_cont(0.5) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (first_reply - post_created))
       )
-    )
+      FROM (
+        SELECT p.inserted_at AS post_created,
+               MIN(r.inserted_at) AS first_reply
+        FROM posts p
+        JOIN replies r ON r.post_id = p.id
+        WHERE p.inserted_at >= $1 AND p.inserted_at <= $2
+        GROUP BY p.id
+      ) sub
+    """
+    case Repo.query!(sql, [dt_start(from_date), dt_end(to_date)]) do
+      %{rows: [[val]]} -> val
+      _ -> nil
+    end
   end
 
   defp dau_timeseries(from_date, to_date) do
@@ -589,28 +586,29 @@ defmodule Nexus.Analytics do
   # Daily median reply time (seconds) over the period.
   defp reply_time_series(from_date, to_date) do
     # Subquery computes first reply per post; outer query takes daily median.
-    Repo.all(
-      fragment(
-        """
-        SELECT day::date AS date,
-               percentile_cont(0.5) WITHIN GROUP (
-                 ORDER BY EXTRACT(EPOCH FROM (first_reply - post_created))
-               ) AS median_seconds
-        FROM (
-          SELECT p.inserted_at::date AS day,
-                 p.inserted_at       AS post_created,
-                 MIN(r.inserted_at)  AS first_reply
-          FROM posts p
-          JOIN replies r ON r.post_id = p.id
-          WHERE p.inserted_at >= ? AND p.inserted_at <= ?
-          GROUP BY p.id
-        ) sub
-        GROUP BY day
-        ORDER BY day
-        """,
-        ^dt_start(from_date),
-        ^dt_end(to_date)
-      )
-    )
+    sql = """
+      SELECT day::date AS date,
+             percentile_cont(0.5) WITHIN GROUP (
+               ORDER BY EXTRACT(EPOCH FROM (first_reply - post_created))
+             ) AS median_seconds
+      FROM (
+        SELECT p.inserted_at::date AS day,
+               p.inserted_at       AS post_created,
+               MIN(r.inserted_at)  AS first_reply
+        FROM posts p
+        JOIN replies r ON r.post_id = p.id
+        WHERE p.inserted_at >= $1 AND p.inserted_at <= $2
+        GROUP BY p.id
+      ) sub
+      GROUP BY day
+      ORDER BY day
+    """
+    case Repo.query!(sql, [dt_start(from_date), dt_end(to_date)]) do
+      %{rows: rows} ->
+        Enum.map(rows, fn [date, median_seconds] ->
+          %{date: date, median_seconds: median_seconds}
+        end)
+      _ -> []
+    end
   end
 end
