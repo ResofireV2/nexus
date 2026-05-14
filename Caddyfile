@@ -12,6 +12,20 @@ billyrayfoss.com {
     }
     header @static Cache-Control "public, max-age=31536000, immutable"
 
+    # User-uploaded avatars and logos use UUID filenames — new uploads always
+    # get a new URL, so long-lived caching is safe.
+    @uploads_immutable {
+        path /uploads/avatars/* /uploads/logos/*
+    }
+    header @uploads_immutable Cache-Control "public, max-age=31536000, immutable"
+
+    # Self-hosted Font Awesome — woff2 files are versioned by filename,
+    # serve with a long cache so repeat visitors never re-download them.
+    @fonts {
+        path /fonts/*
+    }
+    header @fonts Cache-Control "public, max-age=31536000, immutable"
+
     encode gzip
 
     # --- Nexus (catch-all, must be last) ---
@@ -20,15 +34,11 @@ billyrayfoss.com {
         header Upgrade websocket
     }
     handle @websockets {
-        reverse_proxy localhost:4000 {
-            header_up X-Forwarded-For {remote_host}
-        }
+        reverse_proxy localhost:4000
     }
 
     handle {
-        reverse_proxy localhost:4000 {
-            header_up X-Forwarded-For {remote_host}
-        }
+        reverse_proxy localhost:4000
     }
 }
 

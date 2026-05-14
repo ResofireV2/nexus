@@ -53,26 +53,49 @@ window.React = React;
 window.ReactDOM = ReactDOM;
 
 // ── Lightbox — powered by Fancybox 5 ─────────────────────────────────────────
-// No-op stub kept for compatibility — all lightbox calls go through openFancybox()
-function Lightbox() { return null; }
+// Fancybox is loaded on demand the first time a user clicks an image.
+// This keeps ~47 KiB of JS+CSS off the initial page load entirely.
+let _fancyboxLoading = false;
+let _fancyboxLoaded  = false;
+
+function loadFancybox(callback) {
+  if (_fancyboxLoaded) { callback(); return; }
+  if (_fancyboxLoading) { setTimeout(() => loadFancybox(callback), 50); return; }
+  _fancyboxLoading = true;
+
+  // Inject CSS
+  const link  = document.createElement("link");
+  link.rel    = "stylesheet";
+  link.href   = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  document.head.appendChild(link);
+
+  // Inject JS
+  const script  = document.createElement("script");
+  script.src    = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
+  script.onload = () => { _fancyboxLoaded = true; _fancyboxLoading = false; callback(); };
+  script.onerror = () => { _fancyboxLoading = false; };
+  document.head.appendChild(script);
+}
 
 function openFancybox(items, startIndex) {
-  if (!window.Fancybox) return;
-  const gallery = items.map(item => ({
-    src:     item.originalSrc || item.src,
-    thumb:   item.src,
-    type:    "image",
-  }));
-  window.Fancybox.show(gallery, {
-    startIndex: startIndex || 0,
-    Thumbs: { type: "classic" },
-    Toolbar: {
-      display: {
-        left:   ["infobar"],
-        middle: [],
-        right:  ["slideshow","fullscreen","thumbs","close"],
+  loadFancybox(() => {
+    if (!window.Fancybox) return;
+    const gallery = items.map(item => ({
+      src:   item.originalSrc || item.src,
+      thumb: item.src,
+      type:  "image",
+    }));
+    window.Fancybox.show(gallery, {
+      startIndex: startIndex || 0,
+      Thumbs: { type: "classic" },
+      Toolbar: {
+        display: {
+          left:   ["infobar"],
+          middle: [],
+          right:  ["slideshow","fullscreen","thumbs","close"],
+        },
       },
-    },
+    });
   });
 }
 
@@ -814,7 +837,36 @@ window.NexusExtensions = {
 const S = document.createElement("style");
 S.textContent = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
+/* Font Awesome 7 Free — self-hosted, no CDN dependency */
+@font-face {
+  font-family: "Font Awesome 7 Free";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/fa-regular-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: "Font Awesome 7 Free";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/fa-solid-900.woff2') format('woff2');
+}
+/* FA 5 compatibility aliases */
+@font-face {
+  font-family: "Font Awesome 5 Free";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/fa-solid-900.woff2') format('woff2');
+}
+@font-face {
+  font-family: "Font Awesome 5 Free";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/fa-regular-400.woff2') format('woff2');
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
   --tgl-off:rgba(255,255,255,0.12);

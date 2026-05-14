@@ -35,8 +35,10 @@
       <%= assigns[:page_title] || "Forum" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-    <link rel="stylesheet" href="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css" />
-    <script defer src="https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js"></script>
+    <!-- Preconnect to external origins used on every page load -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <!-- Fancybox loaded on demand — see openFancybox() in nexus.jsx -->
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
     <%= for url <- @extension_bundle_urls do %>
     <script defer type="text/javascript" src={url}></script>

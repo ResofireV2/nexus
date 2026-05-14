@@ -247,7 +247,7 @@ defmodule Nexus.Uploads do
   defp upload_dir("og_image"),     do: "logos"
   defp upload_dir("group_image"),  do: "avatars"
 
-  defp max_width_for("avatar", _settings),       do: 400
+  defp max_width_for("avatar", _settings),       do: 200
   defp max_width_for("logo",   _settings),       do: 400
   defp max_width_for("cover_image", _settings),  do: 1920
   defp max_width_for(_, settings),               do: settings["max_width"] || 1200
