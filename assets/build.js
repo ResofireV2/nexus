@@ -35,7 +35,11 @@ const cssConfig = {
   bundle: true,
   outfile: path.join(outdir, "app.css"),
   logLevel: "info",
-  minify: deploy
+  minify: deploy,
+  // Font files are served directly by Phoenix/Caddy from priv/static/fonts/.
+  // Mark them as external so esbuild leaves the url() references as-is rather
+  // than trying to resolve them as local filesystem paths during bundling.
+  external: ["/fonts/*"],
 };
 
 if (watch) {
