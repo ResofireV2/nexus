@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import { ago } from "../lib/utils";
 import { toast } from "../components/Toasts";
@@ -641,12 +641,14 @@ function AdminExtensionsPanel() {
                   onMouseLeave={e=>e.currentTarget.style.borderColor="var(--b1)"}>
 
                   {/* Banner / hero image */}
-                  <div style={{height:120,position:"relative",flexShrink:0,overflow:"hidden",
+                  <div style={{height:120,position:"relative",flexShrink:0,
                     background:item.banner_url?"transparent":`linear-gradient(135deg,${accentColor}22,${accentColor}08)`}}>
                     {item.banner_url&&(
-                      <img src={item.banner_url} alt=""
-                        style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
-                        onError={e=>{e.target.style.display="none";}}/>
+                      <div style={{position:"absolute",inset:0,overflow:"hidden"}}>
+                        <img src={item.banner_url} alt=""
+                          style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+                          onError={e=>{e.target.parentElement.style.display="none";}}/>
+                      </div>
                     )}
                     {/* Logo overlapping the banner */}
                     <div style={{position:"absolute",bottom:-20,left:16,
