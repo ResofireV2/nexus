@@ -13,6 +13,7 @@ import { AdminIntegrationsPanel, AdminAntiSpamPanel, AdminLogsPanel,
 import { BadgesPage, AdminBadgesPanel } from "./AdminBadges";
 import { AdminExtensionsPanel, SimpleSettingsPanel, TabbedPanel } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
+import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
@@ -357,6 +358,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const NAV_SECTIONS = [
     {label:"forum settings", items:[
       {k:"overview",   icon:"fa-chart-line",          label:"overview"},
+      {k:"analytics",  icon:"fa-chart-bar",            label:"analytics"},
       {k:"forum-info", icon:"fa-circle-info",          label:"forum info"},
       {k:"appearance", icon:"fa-swatchbook",           label:"appearance"},
       {k:"layout",     icon:"fa-table-columns",         label:"layout"},
@@ -1114,6 +1116,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
+          {sec==="analytics"&&<AdminAnalyticsPanel/>}
 
           {sec==="leaderboard"&&<AdminLeaderboardPanel lbCfg={lbCfg} setLbCfg={setLbCfg} saving={saving} saveSection={saveSection}/>}
 
