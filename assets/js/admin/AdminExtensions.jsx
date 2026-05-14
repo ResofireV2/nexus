@@ -641,7 +641,7 @@ function AdminExtensionsPanel() {
                   onMouseLeave={e=>e.currentTarget.style.borderColor="var(--b1)"}>
 
                   {/* Banner / hero image */}
-                  <div style={{aspectRatio:"2/1",position:"relative",flexShrink:0,overflow:"hidden",
+                  <div style={{aspectRatio:"2/1",position:"relative",flexShrink:0,
                     background:item.banner_url?"transparent":`linear-gradient(135deg,${accentColor}22,${accentColor}08)`}}>
                     {item.banner_url&&(
                       <div style={{position:"absolute",inset:0,overflow:"hidden"}}>
