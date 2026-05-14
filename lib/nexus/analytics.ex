@@ -106,21 +106,26 @@ defmodule Nexus.Analytics do
   end
 
   defp median_first_reply_seconds(from_date, to_date) do
-    # For posts created in the period that have at least one reply,
-    # find the median gap (seconds) between post creation and first reply.
+    # Compute first reply time per post in a subquery, then take the median
+    # across all posts. percentile_cont cannot nest MIN() directly in Postgres.
     Repo.one(
-      from p in Post,
-      join: r in Reply,
-        on: r.post_id == p.id,
-      where: p.inserted_at >= ^dt_start(from_date)
-         and p.inserted_at <= ^dt_end(to_date),
-      group_by: p.id,
-      select:
-        fragment(
-          "percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (MIN(?) - ?)))",
-          r.inserted_at,
-          p.inserted_at
+      fragment(
+        """
+        SELECT percentile_cont(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (first_reply - post_created))
         )
+        FROM (
+          SELECT p.inserted_at AS post_created,
+                 MIN(r.inserted_at) AS first_reply
+          FROM posts p
+          JOIN replies r ON r.post_id = p.id
+          WHERE p.inserted_at >= ? AND p.inserted_at <= ?
+          GROUP BY p.id
+        ) sub
+        """,
+        ^dt_start(from_date),
+        ^dt_end(to_date)
+      )
     )
   end
 
@@ -583,22 +588,29 @@ defmodule Nexus.Analytics do
 
   # Daily median reply time (seconds) over the period.
   defp reply_time_series(from_date, to_date) do
+    # Subquery computes first reply per post; outer query takes daily median.
     Repo.all(
-      from p in Post,
-      join: r in Reply, on: r.post_id == p.id,
-      where: p.inserted_at >= ^dt_start(from_date)
-         and p.inserted_at <= ^dt_end(to_date),
-      group_by: fragment("?::date", p.inserted_at),
-      select: %{
-        date: fragment("?::date", p.inserted_at),
-        median_seconds:
-          fragment(
-            "percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (MIN(?) - ?)))",
-            r.inserted_at,
-            p.inserted_at
-          )
-      },
-      order_by: fragment("?::date", p.inserted_at)
+      fragment(
+        """
+        SELECT day::date AS date,
+               percentile_cont(0.5) WITHIN GROUP (
+                 ORDER BY EXTRACT(EPOCH FROM (first_reply - post_created))
+               ) AS median_seconds
+        FROM (
+          SELECT p.inserted_at::date AS day,
+                 p.inserted_at       AS post_created,
+                 MIN(r.inserted_at)  AS first_reply
+          FROM posts p
+          JOIN replies r ON r.post_id = p.id
+          WHERE p.inserted_at >= ? AND p.inserted_at <= ?
+          GROUP BY p.id
+        ) sub
+        GROUP BY day
+        ORDER BY day
+        """,
+        ^dt_start(from_date),
+        ^dt_end(to_date)
+      )
     )
   end
 end
