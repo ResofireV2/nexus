@@ -24,3 +24,13 @@ html, body {
 .phx-no-feedback [data-phx-feedback-for] { display: none; }
 
 [data-phx-loading] { cursor: wait; }
+
+/* Font Awesome icons rendered as block elements (e.g. empty-state icons) need
+   width:auto so they fill their container and text-align:center on the parent
+   actually centers them. The FA base rule sets width:1.25em which only works
+   for inline-block usage. */
+i.fa-solid[style*="display: block"],
+i.fa-regular[style*="display: block"],
+i.fa-brands[style*="display: block"] {
+  width: auto;
+}
