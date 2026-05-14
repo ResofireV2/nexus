@@ -846,7 +846,6 @@ S.textContent = `
   --fs-body:13px;
   --fs-title:20px;
   --fs-content:14px;
-  --fs-feed-title:14px;
   --fs-code:12px;
   --bg:#0d0d14;
   --s1:#13121e;
@@ -1057,7 +1056,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .thread-av{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin:0 14px 0 18px;align-self:center;}
 .thread-body{flex:1;min-width:0;padding:12px 0 8px;align-self:center;}
 .thread-top{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
-.thread-title{font-size:var(--fs-feed-title);font-weight:500;color:#e8e4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.thread-title{font-size:var(--fs-content);font-weight:500;color:#e8e4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 [data-theme="light"] .thread-title{color:var(--t1);}
 .thread-tag{font-size:var(--fs-ui);font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px;}
 .thread-tags-row{display:none;}
@@ -1479,6 +1478,7 @@ select option{background:#1a1a2e;color:var(--t1);}
   .settings-tabs-mob .stm-item:hover{background:var(--s3);color:var(--t1);}
   .settings-tabs-mob .stm-item.active{color:var(--ac);font-weight:500;}
   .settings-desktop-tabs{display:none;}
+  .settings-content-heading{display:none;}
 }
 .p-reply-card{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .p-reply-body{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
@@ -1878,8 +1878,7 @@ function applyBranding(app={}, gen={}) {
   if (app.fs_ui)      r.style.setProperty("--fs-ui",      `${app.fs_ui}px`);
   if (app.fs_body)    r.style.setProperty("--fs-body",    `${app.fs_body}px`);
   if (app.fs_title)   r.style.setProperty("--fs-title",   `${app.fs_title}px`);
-  if (app.fs_content)    r.style.setProperty("--fs-content",    `${app.fs_content}px`);
-  if (app.fs_feed_title) r.style.setProperty("--fs-feed-title", `${app.fs_feed_title}px`);
+  if (app.fs_content) r.style.setProperty("--fs-content", `${app.fs_content}px`);
   if (app.fs_code)    r.style.setProperty("--fs-code",    `${app.fs_code}px`);
   if (gen.site_name) document.title = gen.site_name === "Nexus" ? "Nexus" : gen.site_name + " · Nexus";
   if (app.custom_css) {
@@ -1901,9 +1900,8 @@ function applyBranding(app={}, gen={}) {
       fs_ui:      app.fs_ui      || null,
       fs_body:    app.fs_body    || null,
       fs_title:   app.fs_title   || null,
-      fs_content:    app.fs_content    || null,
-      fs_feed_title: app.fs_feed_title || null,
-      fs_code:       app.fs_code       || null,
+      fs_content: app.fs_content || null,
+      fs_code:    app.fs_code    || null,
       custom_css: app.custom_css || null,
     }));
   } catch {}

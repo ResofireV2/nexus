@@ -20,7 +20,7 @@ function AppearanceTab() {
     ...(lightOn ? [{v:"light", icon:"fa-sun",  label:"Light", desc:"Always light"}] : []),
   ];
   return (<>
-    <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
+    <div className="settings-content-heading" style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Appearance</div>
     <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how the forum looks for you.</div>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {opts.map(({v,icon,label,desc})=>{
@@ -102,7 +102,7 @@ function SecurityTab({currentUser, onLogout}) {
 
   return (
     <div>
-      <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Security</div>
+      <div className="settings-content-heading" style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Security</div>
       <div style={{fontSize:13,color:"var(--t4)",marginBottom:28}}>Manage two-factor authentication, linked accounts, and active sessions.</div>
 
       {/* ── 2FA ── */}
@@ -494,7 +494,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
         {/* Settings content */}
         <div style={{flex:1,overflow:"auto",padding:"24px 32px"}}>
           {tab==="profile"&&<>
-            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Profile</div>
+            <div className="settings-content-heading" style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Profile</div>
             <F label="Username" hint="Changing your username will affect your profile URL">
               <input className="fi" value={profile.username} onChange={e=>setProfile(p=>({...p,username:e.target.value}))}/>
             </F>
@@ -505,7 +505,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           </>}
 
           {tab==="password"&&<>
-            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Change password</div>
+            <div className="settings-content-heading" style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:20}}>Change password</div>
             <F label="Current password">
               <input className="fi" type="password" placeholder="••••••••" value={pw.current} onChange={e=>setPw(p=>({...p,current:e.target.value}))}/>
             </F>
@@ -522,7 +522,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           {tab==="appearance"&&<AppearanceTab/>}
           {tab==="security"&&<SecurityTab currentUser={currentUser} onLogout={()=>{api.post("/auth/global-logout",{});api.setToken(null);window.dispatchEvent(new Event("nexus:logout"));}}/>}
           {tab==="notifications"&&<>
-            <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
+            <div className="settings-content-heading" style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>
 
             {emailLocked&&(
