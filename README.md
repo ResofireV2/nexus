@@ -1,3 +1,5 @@
+![Nexus](https://raw.githubusercontent.com/ResofireV2/nexus/master/priv/static/images/nexus-og.webp)
+
 # Nexus
 
 > Ultra fast · Ultra lightweight · Ultra modern
