@@ -367,7 +367,10 @@ defmodule Nexus.Mailer do
     sections_html =
       order
       |> Enum.map(fn key -> {key, Map.get(sections, key)} end)
-      |> Enum.reject(fn {_k, v} -> is_nil(v) || v == [] end)
+      |> Enum.reject(fn {_k, v} ->
+        is_nil(v) || v == [] ||
+        (is_map(v) && Map.get(v, "items", Map.get(v, :items, [])) == [])
+      end)
       |> Enum.map(fn {key, data} -> render_digest_section(key, data, url, site_name, branding) end)
       |> Enum.join("\n")
 
@@ -394,7 +397,7 @@ defmodule Nexus.Mailer do
       posts
       |> Enum.with_index(1)
       |> Enum.map(fn {p, i} ->
-        post_url = "#{url}/posts/#{p.id}"
+        post_url = "#{url}/post/#{p.id}"
         """
         <tr>
           <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
@@ -540,7 +543,7 @@ defmodule Nexus.Mailer do
       case {key, Map.get(sects, key)} do
         {"posts", posts} when is_list(posts) and posts != [] ->
           post_lines = Enum.with_index(posts, 1) |> Enum.map(fn {p, i} ->
-            "#{i}. #{p.title} (#{p.reply_count} replies, #{p.reaction_count} hearts) — #{url}/posts/#{p.id}"
+            "#{i}. #{p.title} (#{p.reply_count} replies, #{p.reaction_count} hearts) — #{url}/post/#{p.id}"
           end)
           ["TOP POSTS", ""] ++ post_lines ++ [""]
         {"leaderboard", %{top3: top3, points_name: pn}} when top3 != [] ->
