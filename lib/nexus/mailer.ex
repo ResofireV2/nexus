@@ -402,7 +402,11 @@ defmodule Nexus.Mailer do
       |> Enum.map(fn key -> {key, Map.get(sections, key)} end)
       |> Enum.reject(fn {_k, v} ->
         is_nil(v) || v == [] ||
-        (is_map(v) && Map.get(v, "items", Map.get(v, :items, [])) == [])
+        # Drop extension sections whose items list is empty.
+        # Built-in sections that are maps (leaderboard) are intentionally excluded
+        # from this check — they use different keys (top3, etc.) not :items.
+        (is_map(v) && Map.has_key?(v, "items") && Map.get(v, "items") == []) ||
+        (is_map(v) && Map.has_key?(v, :items)  && Map.get(v, :items)  == [])
       end)
       |> Enum.map(fn {key, data} -> render_digest_section(key, data, url, site_name, branding) end)
       |> Enum.join("\n")
