@@ -846,6 +846,7 @@ S.textContent = `
   --fs-body:13px;
   --fs-title:20px;
   --fs-content:14px;
+  --fs-feed-title:13px;
   --fs-code:12px;
   --bg:#0d0d14;
   --s1:#13121e;
@@ -1041,7 +1042,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Feed center */
 .feed-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .feed-header{display:flex;align-items:center;justify-content:space-between;padding:0 18px;height:44px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
-.feed-title{font-size:var(--fs-body);font-weight:500;color:var(--t2);}
+.feed-title{font-size:var(--fs-feed-title);font-weight:500;color:var(--t2);}
 .sort-pills{display:flex;gap:4px;}
 .sort-pill{font-size:var(--fs-ui);color:var(--t3);padding:4px 11px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);cursor:pointer;transition:all .1s;}
 .sort-pill.active{color:var(--ac);border-color:var(--ac-border);background:var(--ac-bg);}
@@ -1877,7 +1878,8 @@ function applyBranding(app={}, gen={}) {
   if (app.fs_ui)      r.style.setProperty("--fs-ui",      `${app.fs_ui}px`);
   if (app.fs_body)    r.style.setProperty("--fs-body",    `${app.fs_body}px`);
   if (app.fs_title)   r.style.setProperty("--fs-title",   `${app.fs_title}px`);
-  if (app.fs_content) r.style.setProperty("--fs-content", `${app.fs_content}px`);
+  if (app.fs_content)    r.style.setProperty("--fs-content",    `${app.fs_content}px`);
+  if (app.fs_feed_title) r.style.setProperty("--fs-feed-title", `${app.fs_feed_title}px`);
   if (app.fs_code)    r.style.setProperty("--fs-code",    `${app.fs_code}px`);
   if (gen.site_name) document.title = gen.site_name === "Nexus" ? "Nexus" : gen.site_name + " · Nexus";
   if (app.custom_css) {
@@ -1899,8 +1901,9 @@ function applyBranding(app={}, gen={}) {
       fs_ui:      app.fs_ui      || null,
       fs_body:    app.fs_body    || null,
       fs_title:   app.fs_title   || null,
-      fs_content: app.fs_content || null,
-      fs_code:    app.fs_code    || null,
+      fs_content:    app.fs_content    || null,
+      fs_feed_title: app.fs_feed_title || null,
+      fs_code:       app.fs_code       || null,
       custom_css: app.custom_css || null,
     }));
   } catch {}

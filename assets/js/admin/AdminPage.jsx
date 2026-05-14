@@ -13,7 +13,6 @@ import { AdminIntegrationsPanel, AdminAntiSpamPanel, AdminLogsPanel,
 import { BadgesPage, AdminBadgesPanel } from "./AdminBadges";
 import { AdminExtensionsPanel, SimpleSettingsPanel, TabbedPanel } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
-import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
@@ -358,7 +357,6 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const NAV_SECTIONS = [
     {label:"forum settings", items:[
       {k:"overview",   icon:"fa-chart-line",          label:"overview"},
-      {k:"analytics",  icon:"fa-chart-bar",            label:"analytics"},
       {k:"forum-info", icon:"fa-circle-info",          label:"forum info"},
       {k:"appearance", icon:"fa-swatchbook",           label:"appearance"},
       {k:"layout",     icon:"fa-table-columns",         label:"layout"},
@@ -851,6 +849,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             {[
               {key:"fs_ui",      label:"UI labels",          hint:"Section headers, tags, sort pills, timestamps",  min:9,  max:14, def:11},
               {key:"fs_body",    label:"Interface text",     hint:"Sidebar items, feed text, messages, buttons",    min:11, max:16, def:13},
+              {key:"fs_feed_title", label:"Feed post titles",   hint:"Post title size on the feed and search pages",  min:11, max:20, def:13},
               {key:"fs_title",   label:"Post titles",        hint:"Thread title on the post page",                  min:16, max:28, def:20},
               {key:"fs_content", label:"Post & reply body",  hint:"Written content inside posts and replies",       min:12, max:18, def:14},
               {key:"fs_code",    label:"Code blocks",        hint:"Inline code and code block text",                min:10, max:15, def:12},
@@ -862,7 +861,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     onChange={e=>{
                       const v=parseInt(e.target.value);
                       setBranding(p=>({...p,[key]:v}));
-                      document.documentElement.style.setProperty(`--${key.replace("_","-")}`,`${v}px`);
+                      document.documentElement.style.setProperty(`--${key.replaceAll("_","-")}`,`${v}px`);
                     }}/>
                   <span style={{fontSize:12,color:"var(--t4)",minWidth:32,textAlign:"right"}}>{branding[key]??def}px</span>
                 </div>
@@ -1116,7 +1115,6 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
-          {sec==="analytics"&&<AdminAnalyticsPanel/>}
 
           {sec==="leaderboard"&&<AdminLeaderboardPanel lbCfg={lbCfg} setLbCfg={setLbCfg} saving={saving} saveSection={saveSection}/>}
 
