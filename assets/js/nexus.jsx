@@ -883,6 +883,7 @@ S.textContent = `
 [data-theme="light"] .last-ago{color:rgba(26,20,80,0.60);}
 [data-theme="light"] .pav-more{background:rgba(0,0,0,0.06);color:rgba(26,20,80,0.60);}
 [data-theme="light"] .mob-tab{color:rgba(26,20,80,0.60);}
+[data-theme="light"] .mob-icon-btn{color:rgba(26,20,80,0.65);}
 [data-theme="light"] .thread{border-bottom-color:rgba(26,20,80,0.07);}
 [data-theme="light"] .thread:hover{background:rgba(0,0,0,0.02);}
 [data-theme="light"] .pav-more{background:rgba(0,0,0,0.06);color:var(--t4);}
@@ -3004,9 +3005,6 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   // Topics actually joined on the current live socket.
   const joinedTopics = useRef(new Set());
   const mountedRef = useRef(true);
-  // Timer that proactively refreshes the JWT before it expires, preventing the
-  // expiry-driven close/reconnect flood when a tab is left open and idle.
-  const tokenRefreshRef = useRef(null);
 
   const onNewPostRef = useRef(onNewPost);
   const onNewNotifRef = useRef(onNewNotif);
@@ -3076,26 +3074,6 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           joinedTopics.current.add(topic);
         });
         heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
-
-        // Schedule a proactive token refresh 60 seconds before the JWT expires.
-        // This prevents the server from closing the socket at expiry and triggering
-        // the exponential-backoff reconnect loop visible as a flood of WS errors.
-        clearTimeout(tokenRefreshRef.current);
-        try {
-          const exp = JSON.parse(atob(api.token.split(".")[1]))?.exp ?? 0;
-          const msUntilRefresh = (exp * 1000) - Date.now() - 60_000;
-          if (msUntilRefresh > 0) {
-            tokenRefreshRef.current = setTimeout(async () => {
-              if (!mountedRef.current) return;
-              const refreshed = await api.tryRefresh();
-              if (refreshed && mountedRef.current) {
-                // New token obtained — close the current socket cleanly.
-                // onclose will reconnect automatically using the updated api.token.
-                wsRef.current?.close();
-              }
-            }, msUntilRefresh);
-          }
-        } catch {}
       };
 
       ws.onmessage = (e) => {
@@ -3149,27 +3127,11 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
       ws.onerror = () => {};
       ws.onclose = () => {
         clearInterval(heartbeatRef.current);
-        clearTimeout(tokenRefreshRef.current);
         joinedTopics.current.clear();
+        // Reconnect with exponential backoff: 3s → 6s → 12s → 24s → 60s max
         if (mountedRef.current && token && userId) {
-          // If the token is expired or close to expiry, refresh before reconnecting
-          // so the first reconnect attempt succeeds rather than immediately failing.
-          const scheduleReconnect = () => {
-            if (!mountedRef.current) return;
-            reconnectRef.current = setTimeout(connect, reconnectDelay.current);
-            reconnectDelay.current = Math.min(reconnectDelay.current * 2, 60000);
-          };
-          try {
-            const exp = JSON.parse(atob(api.token.split(".")[1]))?.exp ?? 0;
-            const expiresSoon = (exp * 1000) - Date.now() < 30_000;
-            if (expiresSoon) {
-              api.tryRefresh().finally(scheduleReconnect);
-            } else {
-              scheduleReconnect();
-            }
-          } catch {
-            scheduleReconnect();
-          }
+          reconnectRef.current = setTimeout(connect, reconnectDelay.current);
+          reconnectDelay.current = Math.min(reconnectDelay.current * 2, 60000);
         }
       };
     };
@@ -3180,7 +3142,6 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     return () => {
       mountedRef.current = false;
       clearTimeout(reconnectRef.current);
-      clearTimeout(tokenRefreshRef.current);
       clearInterval(heartbeatRef.current);
       if (wsRef.current) wsRef.current.close();
     };
@@ -3400,7 +3361,7 @@ function MobileSearchOverlay({open, onClose, navigate}) {
       </div>
       <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)"}}>
         <div style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:24,display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}>
-          <i className="fa-solid fa-magnifying-glass" style={{color:"var(--t5)",fontSize:13}}/>
+          <i className="fa-solid fa-magnifying-glass" style={{color:"var(--t5)",fontSize:13,flexShrink:0,display:"inline-flex",alignItems:"center"}}/>
           <input ref={inputRef} value={q} onChange={e=>{setQ(e.target.value);search(e.target.value);}}
             placeholder="Search threads…"
             style={{background:"transparent",border:"none",outline:"none",fontSize:14,color:"var(--t2)",fontFamily:"inherit",flex:1}}/>
@@ -3752,7 +3713,7 @@ function App() {
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
         <MobileSearchOverlay open={mobSearchOpen} onClose={()=>setMobSearchOpen(false)} navigate={navigate}/>
         <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={appBranding} onNavigateHome={()=>navigate("feed",{})}/>
-        <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>setMobSearchOpen(true)} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
+        <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>navigate("search",{})} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
         <div className="main-area">
