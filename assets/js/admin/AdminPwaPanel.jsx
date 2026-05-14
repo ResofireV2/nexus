@@ -11,10 +11,10 @@ import { F } from "./FormHelpers";
 // Shows a sticky footer on Safari/iOS guiding users through the manual
 // Add to Home Screen flow. Controlled by site_settings["pwa"].
 function IosInstallPrompt({onDismiss, pwaCfg={}}) {
-  const [visible, setVisible] = React.useState(false);
-  const [arrowDir, setArrowDir] = React.useState("down");
+  const [visible, setVisible] = useState(false);
+  const [arrowDir, setArrowDir] = useState("down");
 
-  React.useEffect(()=>{
+  useEffect(()=>{
     const delay = pwaCfg.ios_prompt_delay ?? 10000;
     const timer = setTimeout(()=>{ setVisible(true); updateArrow(); }, delay);
     const handler = ()=>updateArrow();

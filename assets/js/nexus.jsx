@@ -3004,6 +3004,9 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   // Topics actually joined on the current live socket.
   const joinedTopics = useRef(new Set());
   const mountedRef = useRef(true);
+  // Timer that proactively refreshes the JWT before it expires, preventing the
+  // expiry-driven close/reconnect flood when a tab is left open and idle.
+  const tokenRefreshRef = useRef(null);
 
   const onNewPostRef = useRef(onNewPost);
   const onNewNotifRef = useRef(onNewNotif);
@@ -3073,6 +3076,26 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           joinedTopics.current.add(topic);
         });
         heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
+
+        // Schedule a proactive token refresh 60 seconds before the JWT expires.
+        // This prevents the server from closing the socket at expiry and triggering
+        // the exponential-backoff reconnect loop visible as a flood of WS errors.
+        clearTimeout(tokenRefreshRef.current);
+        try {
+          const exp = JSON.parse(atob(api.token.split(".")[1]))?.exp ?? 0;
+          const msUntilRefresh = (exp * 1000) - Date.now() - 60_000;
+          if (msUntilRefresh > 0) {
+            tokenRefreshRef.current = setTimeout(async () => {
+              if (!mountedRef.current) return;
+              const refreshed = await api.tryRefresh();
+              if (refreshed && mountedRef.current) {
+                // New token obtained — close the current socket cleanly.
+                // onclose will reconnect automatically using the updated api.token.
+                wsRef.current?.close();
+              }
+            }, msUntilRefresh);
+          }
+        } catch {}
       };
 
       ws.onmessage = (e) => {
@@ -3126,11 +3149,27 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
       ws.onerror = () => {};
       ws.onclose = () => {
         clearInterval(heartbeatRef.current);
+        clearTimeout(tokenRefreshRef.current);
         joinedTopics.current.clear();
-        // Reconnect with exponential backoff: 3s → 6s → 12s → 24s → 60s max
         if (mountedRef.current && token && userId) {
-          reconnectRef.current = setTimeout(connect, reconnectDelay.current);
-          reconnectDelay.current = Math.min(reconnectDelay.current * 2, 60000);
+          // If the token is expired or close to expiry, refresh before reconnecting
+          // so the first reconnect attempt succeeds rather than immediately failing.
+          const scheduleReconnect = () => {
+            if (!mountedRef.current) return;
+            reconnectRef.current = setTimeout(connect, reconnectDelay.current);
+            reconnectDelay.current = Math.min(reconnectDelay.current * 2, 60000);
+          };
+          try {
+            const exp = JSON.parse(atob(api.token.split(".")[1]))?.exp ?? 0;
+            const expiresSoon = (exp * 1000) - Date.now() < 30_000;
+            if (expiresSoon) {
+              api.tryRefresh().finally(scheduleReconnect);
+            } else {
+              scheduleReconnect();
+            }
+          } catch {
+            scheduleReconnect();
+          }
         }
       };
     };
@@ -3141,6 +3180,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     return () => {
       mountedRef.current = false;
       clearTimeout(reconnectRef.current);
+      clearTimeout(tokenRefreshRef.current);
       clearInterval(heartbeatRef.current);
       if (wsRef.current) wsRef.current.close();
     };
