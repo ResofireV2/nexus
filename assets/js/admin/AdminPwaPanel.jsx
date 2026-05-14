@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 import { fmtBytes } from "../lib/utils";
 import { toast } from "../components/Toasts";
 import { Select, Toggle } from "../components/Select";
-import { F } from "./FormHelpers";
+import { F, ColorPicker } from "./FormHelpers";
 
 // ── IosInstallPrompt, AdminPwaPanel ───────────────────────────────────────────
 
