@@ -19,8 +19,7 @@ billyrayfoss.com {
     }
     header @uploads_immutable Cache-Control "public, max-age=31536000, immutable"
 
-    # Self-hosted Font Awesome — woff2 files are versioned by filename,
-    # serve with a long cache so repeat visitors never re-download them.
+    # Self-hosted Font Awesome — woff2 files are versioned by filename.
     @fonts {
         path /fonts/*
     }
@@ -34,11 +33,15 @@ billyrayfoss.com {
         header Upgrade websocket
     }
     handle @websockets {
-        reverse_proxy localhost:4000
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 
     handle {
-        reverse_proxy localhost:4000
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 }
 
