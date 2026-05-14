@@ -203,12 +203,14 @@ defmodule Nexus.Leaderboard do
   period: "week" | "month" | "all"
   """
   def get_leaderboard(period \\ "all", limit \\ 20) do
-    score_field = score_field_for(period)
+    score_field  = score_field_for(period)
+    exclude_staff = settings()["exclude_staff"] == true
 
     Repo.all(
       from s in UserScore,
       join: u in User, on: s.user_id == u.id,
       where: u.status != "banned",
+      where: not (^exclude_staff and u.role in ["admin", "moderator"]),
       order_by: [desc: field(s, ^score_field)],
       limit: ^limit,
       select: %{
@@ -230,7 +232,8 @@ defmodule Nexus.Leaderboard do
   in the given period.
   """
   def get_user_rank(user_id, period \\ "all") do
-    score_field = score_field_for(period)
+    score_field   = score_field_for(period)
+    exclude_staff = settings()["exclude_staff"] == true
 
     # Get the user's own score
     user_score =
@@ -240,12 +243,14 @@ defmodule Nexus.Leaderboard do
         select: field(s, ^score_field)
       ) || 0
 
-    # Count how many non-banned users have a higher score
+    # Count how many non-banned users (respecting staff exclusion) have a higher score
     rank =
       Repo.one(
         from s in UserScore,
         join: u in User, on: s.user_id == u.id,
-        where: u.status != "banned" and field(s, ^score_field) > ^user_score,
+        where: u.status != "banned",
+        where: not (^exclude_staff and u.role in ["admin", "moderator"]),
+        where: field(s, ^score_field) > ^user_score,
         select: count(s.user_id)
       ) + 1
 
@@ -253,7 +258,8 @@ defmodule Nexus.Leaderboard do
       Repo.aggregate(
         from(s in UserScore,
           join: u in User, on: s.user_id == u.id,
-          where: u.status != "banned"
+          where: u.status != "banned",
+          where: not (^exclude_staff and u.role in ["admin", "moderator"])
         ),
         :count
       )

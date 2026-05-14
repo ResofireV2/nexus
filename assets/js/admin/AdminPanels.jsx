@@ -610,6 +610,16 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
             <div style={{position:"absolute",top:2,left:lbCfg.enabled!==false?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
           </div>
         </div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Exclude admins &amp; moderators</div>
+            <div style={{fontSize:12,color:"var(--t4)"}}>Remove staff from rankings so members compete on an equal footing. Staff scores are still tracked — only their visibility is affected.</div>
+          </div>
+          <div style={{position:"relative",width:40,height:22,borderRadius:11,background:lbCfg.exclude_staff?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
+            onClick={()=>setLbCfg(p=>({...p,exclude_staff:!p.exclude_staff}))}>
+            <div style={{position:"absolute",top:2,left:lbCfg.exclude_staff?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
+          </div>
+        </div>
         <div style={{marginBottom:0}}>
           <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Points currency name</div>
           <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>What members see (e.g. "points", "kudos", "karma", "stars").</div>
