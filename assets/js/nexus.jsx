@@ -883,7 +883,6 @@ S.textContent = `
 [data-theme="light"] .last-ago{color:rgba(26,20,80,0.60);}
 [data-theme="light"] .pav-more{background:rgba(0,0,0,0.06);color:rgba(26,20,80,0.60);}
 [data-theme="light"] .mob-tab{color:rgba(26,20,80,0.60);}
-[data-theme="light"] .mob-icon-btn{color:rgba(26,20,80,0.65);}
 [data-theme="light"] .thread{border-bottom-color:rgba(26,20,80,0.07);}
 [data-theme="light"] .thread:hover{background:rgba(0,0,0,0.02);}
 [data-theme="light"] .pav-more{background:rgba(0,0,0,0.06);color:var(--t4);}
@@ -1488,12 +1487,13 @@ select option{background:#1a1a2e;color:var(--t1);}
 .members-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
 @media(max-width:767.99px){.members-grid{grid-template-columns:1fr;}}
 @media(max-width:767.99px){.podium-desktop{display:none!important;}.podium-mobile{display:flex!important;}}
+.mob-only{display:none;}
 .p-media-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:16px 0;}
 @media(max-width:767.99px){.profile-stat-grid{grid-template-columns:repeat(2,1fr);}.p-media-grid{grid-template-columns:repeat(2,1fr);}}
 
 /* Search */
 .search-wrap{flex:1;overflow-y:auto;padding:24px 28px;}
-.search-bar{display:flex;gap:10px;margin-bottom:20px;}
+.search-bar{display:flex;gap:10px;margin-bottom:20px;align-items:center;}
 @media(max-width:767.99px){.mob-only{display:flex!important;}}
 
 /* Markdown */
@@ -2970,7 +2970,7 @@ function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
-        <button className="mob-icon-btn" onClick={()=>window.history.back()} style={{marginRight:8}}>
+        <button className="mob-icon-btn mob-only" onClick={()=>window.history.back()} style={{marginRight:8}}>
           <i className="fa-solid fa-arrow-left"/>
         </button>
         {title && <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{title}</span>}
@@ -3361,7 +3361,7 @@ function MobileSearchOverlay({open, onClose, navigate}) {
       </div>
       <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)"}}>
         <div style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:24,display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}>
-          <i className="fa-solid fa-magnifying-glass" style={{color:"var(--t5)",fontSize:13,flexShrink:0,display:"inline-flex",alignItems:"center"}}/>
+          <i className="fa-solid fa-magnifying-glass" style={{color:"var(--t5)",fontSize:13}}/>
           <input ref={inputRef} value={q} onChange={e=>{setQ(e.target.value);search(e.target.value);}}
             placeholder="Search threads…"
             style={{background:"transparent",border:"none",outline:"none",fontSize:14,color:"var(--t2)",fontFamily:"inherit",flex:1}}/>
@@ -3713,7 +3713,7 @@ function App() {
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
         <MobileSearchOverlay open={mobSearchOpen} onClose={()=>setMobSearchOpen(false)} navigate={navigate}/>
         <MobileTopBar onHamburger={()=>setMobLeftOpen(true)} onRight={()=>setMobRightOpen(true)} branding={appBranding} onNavigateHome={()=>navigate("feed",{})}/>
-        <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>navigate("search",{})} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
+        <MobileTabBar currentUser={currentUser} navigate={navigate} page={page} notifCount={notifCount} msgCount={msgCount} onCompose={()=>navigate("compose")} onSearch={()=>setMobSearchOpen(true)} onProfile={()=>setMobUserOpen(true)} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
         <div className="main-area">

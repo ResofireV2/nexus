@@ -111,7 +111,7 @@ function NotificationsPage({navigate, onCountChange}) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,display:"flex",alignItems:"center",padding:"0 24px",gap:10,flexShrink:0,borderBottom:"0.5px solid var(--b1)"}}>
-        <button className="mob-icon-btn" onClick={()=>window.history.back()} style={{marginRight:4}}><i className="fa-solid fa-arrow-left"/></button>
+        <button className="mob-icon-btn mob-only" onClick={()=>window.history.back()} style={{marginRight:4}}><i className="fa-solid fa-arrow-left"/></button>
         <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>Notifications</span>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
           {notifs.some(n=>!n.read)&&<button className="btn-ghost" style={{fontSize:11}} onClick={markAll}>Mark all read</button>}
