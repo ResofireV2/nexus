@@ -532,43 +532,51 @@ function AdminExtensionsPanel() {
   return (
     <div style={{position:"relative"}}>
       {/* Tab bar + search */}
-      <div style={{display:"flex",alignItems:"center",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:24}}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
-            style={{padding:"10px 18px",background:"none",border:"none",
-              borderBottom:tab===t.id?"2px solid var(--ac)":"2px solid transparent",
-              color:tab===t.id?"var(--ac-text)":"var(--t4)",
-              fontWeight:tab===t.id?500:400,fontSize:13,cursor:"pointer",
-              fontFamily:"inherit",marginBottom:-1,transition:"color .1s",whiteSpace:"nowrap"}}>
-            {t.label}
-          </button>
-        ))}
-        {tab!=="url"&&(
-          <div style={{marginLeft:"auto",position:"relative",flexShrink:0}}>
-            <i className="fa-solid fa-magnifying-glass" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--t5)",pointerEvents:"none"}}/>
-            <input value={filter} onChange={e=>setFilter(e.target.value)}
-              placeholder="Search…"
-              style={{paddingLeft:28,paddingRight:10,height:30,fontSize:12,background:"var(--s3)",
-                border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",
-                fontFamily:"inherit",outline:"none",width:160}}/>
+      <div style={{marginBottom:24}}>
+        {/* Tabs row — scrollable so all tabs stay visible on narrow screens */}
+        <div style={{display:"flex",alignItems:"center",gap:0,borderBottom:"0.5px solid var(--b1)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)}
+              style={{padding:"10px 18px",background:"none",border:"none",
+                borderBottom:tab===t.id?"2px solid var(--ac)":"2px solid transparent",
+                color:tab===t.id?"var(--ac-text)":"var(--t4)",
+                fontWeight:tab===t.id?500:400,fontSize:13,cursor:"pointer",
+                fontFamily:"inherit",marginBottom:-1,transition:"color .1s",whiteSpace:"nowrap"}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Actions row — search + check for updates + refresh */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>
+          {tab!=="url"&&(
+            <div style={{position:"relative",flexShrink:0}}>
+              <i className="fa-solid fa-magnifying-glass" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--t5)",pointerEvents:"none"}}/>
+              <input value={filter} onChange={e=>setFilter(e.target.value)}
+                placeholder="Search…"
+                style={{paddingLeft:28,paddingRight:10,height:30,fontSize:12,background:"var(--s3)",
+                  border:"0.5px solid var(--b1)",borderRadius:8,color:"var(--t1)",
+                  fontFamily:"inherit",outline:"none",width:160}}/>
+            </div>
+          )}
+          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4}}>
+            <button onClick={checkForUpdates} disabled={checkingUpdates}
+              style={{background:"rgba(139,92,246,.12)",
+                border:"0.5px solid rgba(139,92,246,.3)",borderRadius:8,
+                color:"var(--ac)",cursor:checkingUpdates?"default":"pointer",
+                padding:"6px 12px",fontSize:12,flexShrink:0,fontFamily:"inherit",fontWeight:500,
+                display:"flex",alignItems:"center",gap:6,opacity:checkingUpdates?0.6:1}}
+              title="Check for updates">
+              <i className={`fa-solid fa-arrow-up-right-dots${checkingUpdates?" fa-beat":""}`} style={{fontSize:12}}/>
+              {checkingUpdates?"Checking…":"Check for updates"}
+            </button>
+            <button onClick={()=>{if(!storeLoading){loadStore();loadExtensions();}}}
+              style={{background:"none",border:"none",
+                color:storeLoading?"var(--ac)":"var(--t5)",cursor:storeLoading?"default":"pointer",padding:"4px 8px",fontSize:13,flexShrink:0,transition:"color .2s"}}
+              title="Refresh">
+              <i className={`fa-solid fa-rotate-right${storeLoading?" fa-spin":""}`}/>
+            </button>
           </div>
-        )}
-        <button onClick={checkForUpdates} disabled={checkingUpdates}
-          style={{marginLeft:tab==="url"?"auto":8,background:"rgba(139,92,246,.12)",
-            border:"0.5px solid rgba(139,92,246,.3)",borderRadius:8,
-            color:"var(--ac)",cursor:checkingUpdates?"default":"pointer",
-            padding:"6px 12px",fontSize:12,flexShrink:0,fontFamily:"inherit",fontWeight:500,
-            display:"flex",alignItems:"center",gap:6,opacity:checkingUpdates?0.6:1}}
-          title="Check for updates">
-          <i className={`fa-solid fa-arrow-up-right-dots${checkingUpdates?" fa-beat":""}`} style={{fontSize:12}}/>
-          {checkingUpdates?"Checking…":"Check for updates"}
-        </button>
-        <button onClick={()=>{if(!storeLoading){loadStore();loadExtensions();}}}
-          style={{marginLeft:4,background:"none",border:"none",
-            color:storeLoading?"var(--ac)":"var(--t5)",cursor:storeLoading?"default":"pointer",padding:"4px 8px",fontSize:13,flexShrink:0,transition:"color .2s"}}
-          title="Refresh">
-          <i className={`fa-solid fa-rotate-right${storeLoading?" fa-spin":""}`}/>
-        </button>
+        </div>
       </div>
 
       {/* Install from URL tab */}

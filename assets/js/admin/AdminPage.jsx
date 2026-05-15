@@ -56,7 +56,7 @@ function TagsAdmin({tags, onRefresh}) {
     </div>
     <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:editing?"16px":"0"}}>
       {tags.length===0?<div style={{padding:"16px 14px",color:"var(--t5)",fontSize:13}}>No tags yet</div>
-        :<table className="atbl"><thead><tr><th>Name</th><th>Slug</th><th>Posts</th><th></th></tr></thead>
+        :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl"><thead><tr><th>Name</th><th>Slug</th><th>Posts</th><th></th></tr></thead>
           <tbody>{tags.map(t=>(
             <tr key={t.id}>
               <td><div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -70,7 +70,7 @@ function TagsAdmin({tags, onRefresh}) {
               </td>
             </tr>
           ))}</tbody>
-        </table>}
+        </table></div>}
     </div>
     {editing&&<div style={{background:"rgba(255,255,255,0.02)",border:"0.5px solid var(--b2)",borderRadius:12,padding:20}}>
       <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:16}}>{editing==="new"?"New tag":"Edit tag"}</div>
@@ -150,7 +150,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
     </div>
     <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:editing?"16px":"0"}}>
       {spaces.length===0?<div style={{padding:"16px 14px",color:"var(--t5)",fontSize:13}}>No spaces yet</div>
-        :<table className="atbl"><thead><tr><th>Name</th><th>Slug</th><th>Visibility</th><th>Posts</th><th></th></tr></thead>
+        :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl"><thead><tr><th>Name</th><th>Slug</th><th>Visibility</th><th>Posts</th><th></th></tr></thead>
           <caption style={{captionSide:"top",textAlign:"left",paddingBottom:8}}>
             <div className="fgt" style={{marginBottom:6}}>Sidebar order</div>
             <div style={{fontSize:12,color:"var(--t4)",marginBottom:10}}>Drag to reorder how spaces appear in the left sidebar.</div>
@@ -178,7 +178,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
               </td>
             </tr>
           ))}</tbody>
-        </table>}
+        </table></div>}
     </div>
     {editing&&<div style={{background:"rgba(255,255,255,0.02)",border:"0.5px solid var(--b2)",borderRadius:12,padding:20}}>
       <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:16}}>{editing==="new"?"New space":"Edit space"}</div>
