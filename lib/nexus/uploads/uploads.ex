@@ -177,7 +177,7 @@ defmodule Nexus.Uploads do
 
     # Skip conversion for SVGs and GIFs (GIF would lose animation)
     mime = MIME.from_path(abs_src)
-    if mime in ["image/svg+xml", "image/gif"] do
+    if mime == "image/gif" do
       dims = safe_dims(abs_src)
       {:ok, nil, dims}
     else

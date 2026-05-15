@@ -1,6 +1,6 @@
 FROM elixir:1.17-alpine AS build
 
-RUN apk add --no-cache build-base git nodejs npm openssl vips-dev
+RUN apk add --no-cache build-base git nodejs npm openssl vips-dev librsvg-dev
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ RUN mix release
 # Runtime image
 FROM elixir:1.17-alpine
 
-RUN apk add --no-cache openssl ncurses-libs libstdc++ vips
+RUN apk add --no-cache openssl ncurses-libs libstdc++ vips librsvg
 
 WORKDIR /app
 
