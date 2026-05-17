@@ -13,12 +13,19 @@ self.addEventListener("fetch", event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Only serve the response if it's a successful HTML page.
-        // If the server returns any error (4xx/5xx) or non-HTML content type
-        // (e.g. JSON from an API route), throw so the catch block handles it.
-        // This prevents the SW from passing a JSON 404 through to the page.
         const ct = response.headers.get("content-type") || "";
-        if (response.ok && ct.includes("text/html")) {
+        // Pass through any successful response regardless of content type.
+        // This covers HTML pages, images, PDFs, and any other file the user
+        // navigates to directly (e.g. opening an uploaded image in a new tab).
+        if (response.ok) {
+          return response;
+        }
+        // For error responses, only pass through if the server returned an
+        // HTML error page — that's a real error page we want the user to see.
+        // If the server returned non-HTML (e.g. a JSON 404 from an API route
+        // accidentally hit via direct navigation), throw so the catch block
+        // shows the offline page instead of raw JSON.
+        if (ct.includes("text/html")) {
           return response;
         }
         throw new Error(`SW: unexpected response ${response.status} ${ct}`);
