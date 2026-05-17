@@ -42,7 +42,7 @@ export const TB_BTNS = [
   {sep:true},
   {type:"spoiler", label:"👁",  tip:"Spoiler",       style:{},                                 wrap:["||","||"]},
   {sep:true},
-  {type:"emoji",   label:"",    tip:"Emoji",         style:{},                                 wrap:null},
+  {type:"emoji",   label:"fa-solid fa-face-smile", tip:"Emoji", style:{},                     wrap:null},
   {sep:true},
   {type:"image",   label:"🖼",  tip:"Upload image",  style:{},                                 wrap:null},
   {sep:true},
@@ -113,34 +113,41 @@ export function setActiveReplyToolbar(items) { _activeReplyToolbar = items; }
 // Renders the emoji-mart picker into a portal div appended to document.body,
 // positioned above the anchor button on desktop and as a bottom sheet on mobile.
 function EmojiPickerPortal({isMobile, anchorRef, onSelect}) {
-  const containerRef = useRef(document.createElement("div"));
-
   useEffect(() => {
-    const el = containerRef.current;
+    // Create the wrapper entirely inside the effect — never in module scope or
+    // useRef initializer, where custom-element registration may not be ready.
+    const el = document.createElement("div");
     el.id = "nexus-emoji-picker-wrap";
     el.className = isMobile ? "emoji-picker-sheet" : "emoji-picker-popup";
     document.body.appendChild(el);
 
-    // Position desktop popup above the toolbar button
+    // Desktop: position above the toolbar button, clamped to viewport
     if (!isMobile && anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
-      el.style.left = Math.max(4, rect.left) + "px";
-      el.style.bottom = (window.innerHeight - rect.top + 6) + "px";
-      el.style.top = "auto";
+      const pickerH = 386; // em-emoji-picker height + handle
+      const spaceAbove = rect.top - 8;
+      if (spaceAbove >= pickerH) {
+        // Enough room above — anchor to bottom of picker at button top
+        el.style.top  = (rect.top - pickerH) + "px";
+      } else {
+        // Not enough room — clamp to 8px from top of viewport
+        el.style.top  = "8px";
+      }
+      el.style.left   = Math.max(4, Math.min(rect.left, window.innerWidth - 324)) + "px";
+      el.style.bottom = "auto";
     }
 
-    // Create drag handle for mobile
+    // Mobile: drag handle at top of sheet
     if (isMobile) {
       const handle = document.createElement("div");
       handle.className = "emoji-picker-handle";
       el.appendChild(handle);
     }
 
-    // Mount emoji-mart picker web-component
-    const pickerEl = document.createElement("div");
-    pickerEl.id = "nexus-emoji-picker-el";
-    el.appendChild(pickerEl);
-
+    // emoji-mart Picker is a custom element; constructing it requires that
+    // customElements.define has already run (guaranteed once browser.js loaded).
+    // We always reach here after loadEmojiMart() has completed, so EmojiMart
+    // and its data are ready.
     if (window.EmojiMart) {
       const picker = new window.EmojiMart.Picker({
         onEmojiSelect: onSelect,
@@ -150,11 +157,11 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelect}) {
         skinTonePosition: "none",
         autoFocus: !isMobile,
       });
-      pickerEl.appendChild(picker);
+      el.appendChild(picker);
     }
 
     return () => {
-      document.body.removeChild(el);
+      if (document.body.contains(el)) document.body.removeChild(el);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
