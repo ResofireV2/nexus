@@ -112,10 +112,12 @@ export function setActiveReplyToolbar(items) { _activeReplyToolbar = items; }
 
 // Renders the emoji-mart picker into a portal div appended to document.body,
 // positioned above the anchor button on desktop and as a bottom sheet on mobile.
-function EmojiPickerPortal({isMobile, anchorRef, onSelect}) {
+//
+// onSelectRef is a React ref (not the callback directly) so the picker always
+// calls the latest version of insertEmoji without needing to re-mount when
+// the parent re-renders with a new `value` closure.
+function EmojiPickerPortal({isMobile, anchorRef, onSelectRef}) {
   useEffect(() => {
-    // Create the wrapper entirely inside the effect — never in module scope or
-    // useRef initializer, where custom-element registration may not be ready.
     const el = document.createElement("div");
     el.id = "nexus-emoji-picker-wrap";
     el.className = isMobile ? "emoji-picker-sheet" : "emoji-picker-popup";
@@ -124,33 +126,29 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelect}) {
     // Desktop: position above the toolbar button, clamped to viewport
     if (!isMobile && anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
-      const pickerH = 386; // em-emoji-picker height + handle
+      const pickerH = 386;
       const spaceAbove = rect.top - 8;
-      if (spaceAbove >= pickerH) {
-        // Enough room above — anchor to bottom of picker at button top
-        el.style.top  = (rect.top - pickerH) + "px";
-      } else {
-        // Not enough room — clamp to 8px from top of viewport
-        el.style.top  = "8px";
-      }
+      el.style.top    = (spaceAbove >= pickerH ? rect.top - pickerH : 8) + "px";
       el.style.left   = Math.max(4, Math.min(rect.left, window.innerWidth - 324)) + "px";
       el.style.bottom = "auto";
     }
 
-    // Mobile: drag handle at top of sheet
     if (isMobile) {
       const handle = document.createElement("div");
       handle.className = "emoji-picker-handle";
       el.appendChild(handle);
     }
 
-    // emoji-mart Picker is a custom element; constructing it requires that
-    // customElements.define has already run (guaranteed once browser.js loaded).
-    // We always reach here after loadEmojiMart() has completed, so EmojiMart
-    // and its data are ready.
-    if (window.EmojiMart) {
+    // Defer construction by one task so the browser finishes registering the
+    // em-emoji-picker custom element before we try to instantiate it.
+    // customElements.define() runs synchronously inside browser.js but the
+    // upgrade is microtask-queued; setTimeout(0) clears that queue safely.
+    const tid = setTimeout(() => {
+      if (!window.EmojiMart || !document.body.contains(el)) return;
       const picker = new window.EmojiMart.Picker({
-        onEmojiSelect: onSelect,
+        // Wrap in a stable function so the picker always invokes the current
+        // insertEmoji without the portal needing to remount on every keystroke.
+        onEmojiSelect: (emoji) => { if (onSelectRef.current) onSelectRef.current(emoji); },
         theme: "dark",
         set: "native",
         previewPosition: "bottom",
@@ -158,9 +156,10 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelect}) {
         autoFocus: !isMobile,
       });
       el.appendChild(picker);
-    }
+    }, 0);
 
     return () => {
+      clearTimeout(tid);
       if (document.body.contains(el)) document.body.removeChild(el);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,6 +195,9 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   const savedSelRef                   = useRef({s:0, e:0}); // last known cursor position
   const emojiMartLoadedRef            = useRef(false);
   const emojiMartLoadingRef           = useRef(false);
+  // Stable ref to insertEmoji — updated every render so the portal always
+  // calls the latest closure without needing to remount.
+  const onSelectRef                   = useRef(null);
 
   // Detect mobile: bottom sheet when viewport ≤ 767px
   const isMobile = () => window.innerWidth <= 767;
@@ -252,6 +254,9 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
       ta.setSelectionRange(newPos, newPos);
     });
   };
+  // Keep onSelectRef pointed at the current insertEmoji on every render so the
+  // portal (which only mounts once) always calls the up-to-date closure.
+  onSelectRef.current = insertEmoji;
 
   const toggleEmoji = () => {
     const ta = taRef.current;
@@ -268,10 +273,12 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     if (!emojiOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setEmojiOpen(false); };
     const onClickOutside = (e) => {
-      const anchor = emojiAnchorRef.current;
-      const picker = document.getElementById("nexus-emoji-picker-el");
-      if (anchor && anchor.contains(e.target)) return;
-      if (picker && picker.contains(e.target)) return;
+      const anchor  = emojiAnchorRef.current;
+      const wrapper = document.getElementById("nexus-emoji-picker-wrap");
+      // anchor check handled by onMouseDown toggle; wrapper check guards against
+      // shadow-DOM clicks inside the picker (e.target is the host element).
+      if (anchor  && anchor.contains(e.target))  return;
+      if (wrapper && wrapper.contains(e.target)) return;
       setEmojiOpen(false);
     };
     document.addEventListener("keydown", onKey);
@@ -525,7 +532,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
       )}
 
       {/* Emoji picker popup (desktop) / bottom sheet (mobile) */}
-      {emojiOpen && <EmojiPickerPortal isMobile={isMobile()} anchorRef={emojiAnchorRef} onSelect={insertEmoji}/>}
+      {emojiOpen && <EmojiPickerPortal isMobile={isMobile()} anchorRef={emojiAnchorRef} onSelectRef={onSelectRef}/>}
 
       {/* Hidden file input */}
       <input
