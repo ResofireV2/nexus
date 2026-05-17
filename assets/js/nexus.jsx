@@ -3449,6 +3449,17 @@ function App() {
   },[]);
   useEffect(()=>{ window._nexusNavigate = navigate; },[navigate]);
 
+  // Close all mobile overlays whenever the page changes — this catches
+  // navigation via the navigate prop, window._nexusNavigate (used by
+  // extensions), and popstate (back/forward). The prop-wrapping approach
+  // alone does not work because extensions call window._nexusNavigate directly.
+  useEffect(()=>{
+    setMobLeftOpen(false);
+    setMobRightOpen(false);
+    setMobUserOpen(false);
+    setMobSearchOpen(false);
+  },[page]);
+
   // Handle browser back/forward
   useEffect(()=>{
     const fn = (e) => {
@@ -3707,7 +3718,7 @@ function App() {
             <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
-            <RightPanel spaces={spaces} tags={tags} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={(p,props)=>{setMobRightOpen(false);navigate(p,props);}} page={page} pageProps={pageProps}/>
+            <RightPanel spaces={spaces} tags={tags} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
           </div>
         </div>
         <MobileUserMenu user={currentUser} navigate={navigate} onLogout={logout} open={mobUserOpen} onClose={()=>setMobUserOpen(false)}/>
