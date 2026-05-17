@@ -156,12 +156,27 @@ marked.use({
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Regex matching emoji unicode ranges — covers the vast majority of emoji
+// including skin-tone and ZWJ sequences without false-positives on regular text.
+const EMOJI_RE = /(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{FE00}-\u{FE0F}][\u{1F3FB}-\u{1F3FF}\u{FE0E}\u{FE0F}]?(?:\u{200D}(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\u{1F3FB}-\u{1F3FF}]?))*|[\u2194-\u21AA\u231A\u231B\u23E9-\u23F3\u23F8-\u23FA\u25AA\u25AB\u25B6\u25C0\u25FB-\u25FE\u2614\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA\u26AB\u26BD\u26BE\u26C4\u26C5\u26CE\u26D4\u26EA\u26F2\u26F3\u26F5\u26FA\u26FD\u2702\u2705\u2708-\u270D\u270F\u2712\u2714\u2716\u271D\u2721\u2728\u2733\u2734\u2744\u2747\u274C\u274E\u2753-\u2755\u2757\u2763\u2764\u2795-\u2797\u27A1\u27B0\u27BF\u2934\u2935\u2B05-\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299])/gu;
+
+function wrapEmoji(html) {
+  // Only wrap emoji in text nodes — avoid touching attribute values, URLs, or
+  // already-wrapped spans. Split on tags and replace only in text segments.
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (match, tag, text) => {
+    if (tag) return tag;
+    return text.replace(EMOJI_RE, (e) => `<span class="md-emoji">${e}</span>`);
+  });
+}
+
 export function renderMd(t) {
   if (!t) return "";
   t = t.replace(/\|\|(.+?)\|\|/g, (m, inner) =>
     `<span class="spoiler" onclick="this.classList.toggle('revealed')">${inner}</span>`
   );
-  return DOMPurify.sanitize(marked.parse(t), {
+  const raw = marked.parse(t);
+  const withEmoji = wrapEmoji(raw);
+  return DOMPurify.sanitize(withEmoji, {
     ADD_TAGS: ["iframe","video","source","audio","svg","path","span"],
     ADD_ATTR: ["data-original","data-lightbox-link","data-id","data-tweet-id","data-url","allowfullscreen","loading","frameborder","src","controls","preload","allow","viewBox","d","fill","width","height","class","onclick"]
   });

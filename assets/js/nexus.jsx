@@ -1513,6 +1513,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 /* Markdown */
 .md-body{font-size:var(--fs-content);color:var(--t3);line-height:1.75;}
 .md-body p{margin-bottom:10px;}
+.md-emoji{font-size:1.4em;line-height:inherit;vertical-align:-0.1em;letter-spacing:0.02em;}
 .md-body h1,.md-body h2,.md-body h3{color:var(--t1);font-weight:600;margin:16px 0 8px;letter-spacing:-.2px;}
 .md-body code{font-family:'SF Mono','Fira Code',monospace;font-size:var(--fs-code);background:rgba(255,255,255,0.07);color:var(--ac-text);padding:2px 6px;border-radius:5px;}
 .md-body pre{background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);border-radius:10px;padding:14px;overflow-x:auto;margin-bottom:12px;}
