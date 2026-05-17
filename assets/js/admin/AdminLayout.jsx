@@ -209,7 +209,15 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     var saved = layoutCfg[key];
     if(!saved || !saved.length) return seedToolbar(scope_key);
     var all = getAllToolbarButtons();
-    var result = saved.slice();
+    // Start from saved, but refresh any built-in button properties (label, tip,
+    // wrap, style) from the live definition — this self-heals stale saved data
+    // such as an old label:"" from a previous install of a button.
+    var result = saved.map(function(s) {
+      if(s.sep || s._ext) return s;
+      var live = all.find(function(d){ return d.type === s.type; });
+      if(!live) return s;
+      return Object.assign({}, live, {hidden: s.hidden});
+    });
     all.forEach(function(def) {
       if(def.sep) return;
       var exists = saved.some(function(s){ return s.type === def.type; });
