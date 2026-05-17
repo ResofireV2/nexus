@@ -106,7 +106,11 @@ mdRenderer.paragraph = function(text) {
     if (isUnfurlable(bareUrl)) return makeLinkPreviewSentinel(bareUrl);
   }
 
-  // breaks:true means single-newline lines arrive as <br>-separated chunks
+  // Emoji-only line detection — defined here so it works both for whole
+  // paragraphs and for individual br-split lines within a paragraph.
+  const EMOJI_ONLY_RE = /^[\s\u200d\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}\u2194-\u21AA\u231A-\u231B\u23E9-\u23FA\u25AA-\u25FE\u2600-\u27BF\u2934-\u2935\u2B00-\u2BFF\u3030\u303D\u3297\u3299]+$/u;
+
+  // breaks:true means single-newline lines arrive as <br>-separated chunks.
   const BR = /<br\s*\/?>\n?/i;
   if (BR.test(text)) {
     const parts = text.split(BR).map(part => {
@@ -118,18 +122,29 @@ mdRenderer.paragraph = function(text) {
       }
       return part;
     });
-    const textParts  = parts.filter(p => !p.startsWith('<div class="yt-lite') && !p.startsWith('<div class="md-embed') && !p.startsWith('<audio') && !p.startsWith('<div class="md-embed-video') && !p.startsWith('<div class="md-x-embed') && !p.startsWith('<div class="md-spotify-embed') && !p.startsWith('<div class="md-link-preview'));
-    const embedParts = parts.filter(p =>  p.startsWith('<div class="yt-lite') ||  p.startsWith('<div class="md-embed') ||  p.startsWith('<audio') ||  p.startsWith('<div class="md-embed-video') ||  p.startsWith('<div class="md-x-embed') ||  p.startsWith('<div class="md-spotify-embed') ||  p.startsWith('<div class="md-link-preview'));
-    if (embedParts.length > 0) {
-      const textHtml = textParts.filter(p => p.trim()).join('<br>\n');
-      return (textHtml ? `<p>${textHtml}</p>` : '') + embedParts.join('');
+
+    const isEmbed = p =>
+      p.startsWith('<div class="yt-lite') || p.startsWith('<div class="md-embed') ||
+      p.startsWith('<audio') || p.startsWith('<div class="md-embed-video') ||
+      p.startsWith('<div class="md-x-embed') || p.startsWith('<div class="md-spotify-embed') ||
+      p.startsWith('<div class="md-link-preview');
+
+    // If any part is a block-level element or an emoji-only line, render each
+    // part individually so they aren't collapsed into a single <p>.
+    const hasBlockPart = parts.some(p => isEmbed(p) || EMOJI_ONLY_RE.test(p.trim()));
+    if (hasBlockPart) {
+      return parts.map(p => {
+        if (!p.trim()) return '';
+        if (isEmbed(p)) return p;
+        if (EMOJI_ONLY_RE.test(p.trim())) return `<p class="md-emoji-block">${p}</p>`;
+        return `<p>${p}</p>`;
+      }).join('');
     }
+
+    // No block parts — fall through to render as a single paragraph below
+    // (the original joined-with-<br> behaviour for plain multi-line text).
   }
 
-  // Detect emoji-only paragraph: after stripping whitespace, only md-emoji spans remain.
-  // We add the class here — before wrapEmoji runs — so we check the raw text for
-  // emoji unicode characters directly.
-  const EMOJI_ONLY_RE = /^(?:\s|\u200d|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}\u2194-\u21AA\u231A-\u231B\u23E9-\u23FA\u25AA-\u25FE\u2600-\u27BF\u2934-\u2935\u2B00-\u2BFF\u3030\u303D\u3297\u3299])+$/u;
   const isEmojiOnly = EMOJI_ONLY_RE.test(text);
   return isEmojiOnly ? `<p class="md-emoji-block">${text}</p>` : `<p>${text}</p>`;
 };
