@@ -1328,6 +1328,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Composer toolbar */
 .comp-toolbar{display:flex;align-items:center;gap:2px;padding:6px 8px;border-bottom:0.5px solid var(--b1);}
 @media(max-width:767.99px){.comp-toolbar{flex-wrap:wrap;align-items:flex-start;}}
+@media(max-width:767.99px){.composer-inner{padding:16px 12px 0;}}
 .comp-tb-btn{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--t4);font-family:inherit;font-size:16px;transition:all .1s;}
 .comp-tb-btn:hover{background:rgba(255,255,255,0.07);color:var(--t1);}
 .comp-tb-sep{width:0.5px;height:16px;background:var(--b1);margin:0 3px;}

@@ -187,7 +187,20 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   const taRef      = useRef();
   const wrapRef    = useRef();
   const imgInputRef = useRef();
+  const toolbarRef  = useRef();
+  const [toolbarH,  setToolbarH]  = useState(44); // tracks actual toolbar height for placeholder offset
   const [uploading, setUploading] = useState(false);
+
+  // Track toolbar height so the placeholder stays below it even when the
+  // toolbar wraps to multiple rows on narrow screens.
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setToolbarH(el.offsetHeight));
+    ro.observe(el);
+    setToolbarH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
 
   // ── Emoji picker ──────────────────────────────────────────────────────────
   const [emojiOpen,   setEmojiOpen]   = useState(false);
@@ -439,7 +452,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   return (
     <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Toolbar */}
-      <div className="comp-toolbar">
+      <div className="comp-toolbar" ref={toolbarRef}>
         {(toolbarItems||getAllToolbarButtons()).filter(b=>!b.hidden).map((b,i)=> b.sep
           ? <div key={i} className="comp-tb-sep"/>
           : b._ext
@@ -473,7 +486,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
 
       {/* Placeholder */}
       {!value && !isFocused && (
-        <div style={{position:"absolute",top:44,left:0,fontSize:15,color:"var(--t4)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>
+        <div className="comp-placeholder" style={{position:"absolute",top:toolbarH,left:0,fontSize:15,color:"var(--t4)",pointerEvents:"none",lineHeight:1.75,padding:"8px 4px"}}>
           {placeholder}
         </div>
       )}
