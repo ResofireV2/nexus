@@ -600,6 +600,82 @@ window.NexusExtensions.registerNotificationType("my_ext_event", {
 
 ---
 
+## Background jobs
+
+Nexus provides a dedicated Oban queue named `:extensions` for extension background work. This queue exists exclusively for extensions — Nexus core never schedules jobs into it. Use it for any work your extension needs to run asynchronously: generating reports, sending notifications, processing imports, scheduling periodic tasks, or any operation too slow to run inline during a request.
+
+Using the `:extensions` queue keeps your background work isolated from Nexus's own queues (`default`, `mailers`, `media`, `webhooks`), so your jobs never compete with core forum operations and remain easy to monitor independently.
+
+### Using the extensions queue
+
+Define your worker module with `queue: :extensions`:
+
+```elixir
+defmodule MyExtension.Workers.ReportWorker do
+  use Oban.Worker,
+    queue: :extensions,
+    max_attempts: 3
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"user_id" => user_id, "period" => period}}) do
+    MyExtension.Reports.generate(user_id, period)
+  end
+end
+```
+
+Enqueue a single job:
+
+```elixir
+%{"user_id" => user.id, "period" => "2025"}
+|> MyExtension.Workers.ReportWorker.new()
+|> Oban.insert()
+```
+
+Enqueue many jobs efficiently with `Oban.insert_all/1` — this is strongly preferred over calling `Oban.insert/1` in a loop, as it batches the inserts in a single DB transaction:
+
+```elixir
+jobs =
+  Enum.map(user_ids, fn id ->
+    MyExtension.Workers.ReportWorker.new(%{"user_id" => id, "period" => "2025"})
+  end)
+
+Oban.insert_all(jobs)
+```
+
+### Concurrency
+
+The `:extensions` queue runs up to **10 concurrent jobs** by default. This is a ceiling — if fewer jobs are queued, fewer run. For batch operations across many users (e.g. a yearly report for every member), this naturally throttles throughput without overwhelming the database.
+
+### Scheduling periodic jobs
+
+To run a job on a schedule, register a cron entry in your extension's `child_specs/0` callback. Oban's `Cron` plugin handles this:
+
+```elixir
+@impl true
+def child_specs do
+  [
+    {Oban.Plugins.Cron,
+     crontab: [
+       # Run at midnight on January 1st every year
+       {"0 0 1 1 *", MyExtension.Workers.YearlyReportScheduler, max_attempts: 1}
+     ]}
+  ]
+end
+```
+
+> **Note:** Nexus already starts the Oban Cron plugin for its own scheduled work. If you add a second Cron plugin in `child_specs`, both will run independently — entries won't conflict, but be aware that two Cron supervisors are active. For simple periodic needs this is fine.
+
+### What belongs in the extensions queue
+
+Use `:extensions` for work that is:
+- **Slow** — anything that touches external APIs, generates reports, or processes large datasets
+- **Deferrable** — work that doesn't need to happen inline during a web request
+- **Retryable** — Oban's `max_attempts` gives you automatic retry with backoff on failure
+
+Do not use it for work that must complete synchronously before returning an HTTP response. For that, run the work directly in your controller or context function.
+
+---
+
 ## Deploying your extension service
 
 Your extension backend (webhook receiver, API, JS bundle server) can be any language or framework. The only requirements are:

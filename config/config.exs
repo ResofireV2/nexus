@@ -36,10 +36,11 @@ config :nexus, Oban,
     ]}
   ],
   queues: [
-    default: 10,
-    mailers: 20,
-    media: 5,
-    webhooks: 10
+    default:    10,
+    mailers:    20,
+    media:       5,
+    webhooks:   10,
+    extensions: 10  # Reserved for extension background jobs — do not use in Nexus core
   ]
 
 import_config "#{config_env()}.exs"
