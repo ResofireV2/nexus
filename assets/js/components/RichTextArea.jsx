@@ -42,6 +42,8 @@ export const TB_BTNS = [
   {sep:true},
   {type:"spoiler", label:"👁",  tip:"Spoiler",       style:{},                                 wrap:["||","||"]},
   {sep:true},
+  {type:"emoji",   label:"",    tip:"Emoji",         style:{},                                 wrap:null},
+  {sep:true},
   {type:"image",   label:"🖼",  tip:"Upload image",  style:{},                                 wrap:null},
   {sep:true},
 ];
@@ -108,6 +110,58 @@ export let _activeReplyToolbar = null;
 export function setActivePostToolbar(items)  { _activePostToolbar  = items; }
 export function setActiveReplyToolbar(items) { _activeReplyToolbar = items; }
 
+// Renders the emoji-mart picker into a portal div appended to document.body,
+// positioned above the anchor button on desktop and as a bottom sheet on mobile.
+function EmojiPickerPortal({isMobile, anchorRef, onSelect}) {
+  const containerRef = useRef(document.createElement("div"));
+
+  useEffect(() => {
+    const el = containerRef.current;
+    el.id = "nexus-emoji-picker-wrap";
+    el.className = isMobile ? "emoji-picker-sheet" : "emoji-picker-popup";
+    document.body.appendChild(el);
+
+    // Position desktop popup above the toolbar button
+    if (!isMobile && anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      el.style.left = Math.max(4, rect.left) + "px";
+      el.style.bottom = (window.innerHeight - rect.top + 6) + "px";
+      el.style.top = "auto";
+    }
+
+    // Create drag handle for mobile
+    if (isMobile) {
+      const handle = document.createElement("div");
+      handle.className = "emoji-picker-handle";
+      el.appendChild(handle);
+    }
+
+    // Mount emoji-mart picker web-component
+    const pickerEl = document.createElement("div");
+    pickerEl.id = "nexus-emoji-picker-el";
+    el.appendChild(pickerEl);
+
+    if (window.EmojiMart) {
+      const picker = new window.EmojiMart.Picker({
+        onEmojiSelect: onSelect,
+        theme: "dark",
+        set: "native",
+        previewPosition: "bottom",
+        skinTonePosition: "none",
+        autoFocus: !isMobile,
+      });
+      pickerEl.appendChild(picker);
+    }
+
+    return () => {
+      document.body.removeChild(el);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
+
 export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null, context=null}) {
   // Resolve toolbar: explicit prop > context-specific active toolbar > getAllToolbarButtons()
   if(!toolbarItems) {
@@ -128,6 +182,102 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   const wrapRef    = useRef();
   const imgInputRef = useRef();
   const [uploading, setUploading] = useState(false);
+
+  // ── Emoji picker ──────────────────────────────────────────────────────────
+  const [emojiOpen,   setEmojiOpen]   = useState(false);
+  const emojiAnchorRef                = useRef();   // toolbar button ref for positioning
+  const savedSelRef                   = useRef({s:0, e:0}); // last known cursor position
+  const emojiMartLoadedRef            = useRef(false);
+  const emojiMartLoadingRef           = useRef(false);
+
+  // Detect mobile: bottom sheet when viewport ≤ 767px
+  const isMobile = () => window.innerWidth <= 767;
+
+  // Load emoji-mart + its data from CDN on first open, then open the picker
+  const loadEmojiMart = (cb) => {
+    if (emojiMartLoadedRef.current) { cb(); return; }
+    if (emojiMartLoadingRef.current) {
+      const poll = setInterval(() => {
+        if (emojiMartLoadedRef.current) { clearInterval(poll); cb(); }
+      }, 50);
+      return;
+    }
+    emojiMartLoadingRef.current = true;
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js";
+    script.onload = () => {
+      // emoji-mart browser build needs its data initialised before the picker renders
+      fetch("https://cdn.jsdelivr.net/npm/@emoji-mart/data")
+        .then(r => r.json())
+        .then(data => {
+          if (window.EmojiMart) window.EmojiMart.init({ data });
+          emojiMartLoadedRef.current = true;
+          emojiMartLoadingRef.current = false;
+          cb();
+        })
+        .catch(() => { emojiMartLoadingRef.current = false; });
+    };
+    script.onerror = () => { emojiMartLoadingRef.current = false; };
+    document.head.appendChild(script);
+  };
+
+  // Save cursor position whenever the textarea loses focus (picker click steals focus)
+  const saveCursor = () => {
+    const ta = taRef.current;
+    if (ta) savedSelRef.current = { s: ta.selectionStart, e: ta.selectionEnd };
+  };
+
+  // Insert emoji at saved cursor position; keep picker open
+  const insertEmoji = (emoji) => {
+    const ta = taRef.current; if (!ta) return;
+    const native = emoji.native || "";
+    if (!native) return;
+    const { s } = savedSelRef.current;
+    const cur = value;
+    const newVal = cur.slice(0, s) + native + cur.slice(s);
+    onChange(newVal);
+    // Advance saved cursor past inserted emoji (native emoji can be multi-codepoint)
+    const newPos = s + native.length;
+    savedSelRef.current = { s: newPos, e: newPos };
+    // Restore focus + cursor in textarea without closing picker
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  const toggleEmoji = () => {
+    const ta = taRef.current;
+    if (ta && !emojiOpen) saveCursor();
+    if (!emojiOpen) {
+      loadEmojiMart(() => setEmojiOpen(true));
+    } else {
+      setEmojiOpen(false);
+    }
+  };
+
+  // Close picker on Escape key or click outside
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setEmojiOpen(false); };
+    const onClickOutside = (e) => {
+      const anchor = emojiAnchorRef.current;
+      const picker = document.getElementById("nexus-emoji-picker-el");
+      if (anchor && anchor.contains(e.target)) return;
+      if (picker && picker.contains(e.target)) return;
+      setEmojiOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("touchstart", onClickOutside, {passive: true});
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("touchstart", onClickOutside);
+    };
+  }, [emojiOpen]);
+
+  // ── end emoji picker ──────────────────────────────────────────────────────
 
   // Apply a format wrap to the current selection or insert at cursor
   const applyFormat = (wrap) => {
@@ -283,6 +433,11 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
                 onMouseDown={e=>{e.preventDefault(); b.onClick && b.onClick(toolbarLinkedGames, toolbarSetLinkedGames);}}>
                 <i className={b.label} style={{fontSize:16}}/>
               </button>
+            : b.type==="emoji"
+              ? <button key="emoji" ref={emojiAnchorRef} className={`comp-tb-btn${emojiOpen?" comp-tb-btn--active":""}`} title="Emoji"
+                  onMouseDown={e=>{e.preventDefault(); toggleEmoji();}}>
+                  <i className="fa-solid fa-face-smile" style={{fontSize:16}}/>
+                </button>
             : b.type==="image"
               ? <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
                   {uploading
@@ -316,7 +471,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onFocus={()=>setIsFocused(true)}
-        onBlur={e=>{handleBlur(e);setIsFocused(false);}}
+        onBlur={e=>{saveCursor();handleBlur(e);setIsFocused(false);}}
         autoFocus={autoFocus}
         className="comp-ta"
         style={{minHeight, paddingTop:12, paddingBottom:12}}
@@ -361,6 +516,9 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
           ))}
         </div>
       )}
+
+      {/* Emoji picker popup (desktop) / bottom sheet (mobile) */}
+      {emojiOpen && <EmojiPickerPortal isMobile={isMobile()} anchorRef={emojiAnchorRef} onSelect={insertEmoji}/>}
 
       {/* Hidden file input */}
       <input

@@ -1330,6 +1330,20 @@ select option{background:#1a1a2e;color:var(--t1);}
 .comp-tb-btn{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:var(--t4);font-family:inherit;font-size:16px;transition:all .1s;}
 .comp-tb-btn:hover{background:rgba(255,255,255,0.07);color:var(--t1);}
 .comp-tb-sep{width:0.5px;height:16px;background:var(--b1);margin:0 3px;}
+.comp-tb-btn--active{background:var(--ac-bg)!important;color:var(--ac)!important;}
+/* Emoji picker — desktop popup */
+.emoji-picker-popup{position:fixed;z-index:9999;bottom:0;left:0;}
+/* Emoji picker — mobile bottom sheet */
+.emoji-picker-sheet{position:fixed;bottom:0;left:0;right:0;z-index:9999;border-radius:16px 16px 0 0;overflow:hidden;box-shadow:0 -4px 32px rgba(0,0,0,.5);}
+.emoji-picker-handle{width:36px;height:4px;background:var(--b3);border-radius:2px;margin:8px auto 4px;pointer-events:none;}
+/* Override emoji-mart web-component styles to match Nexus theme */
+em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:18px;
+--color-border:var(--b2);--color-border-over:var(--b3);
+--background-rgb:var(--s1);--rgb-background:24,24,42;
+--rgb-accent:167,139,250;
+--shadow:0 8px 32px rgba(0,0,0,.5);
+--duration:120ms;height:380px;max-height:380px;}
+@media(max-width:767.99px){em-emoji-picker{height:320px;max-height:320px;width:100vw!important;border-radius:0;}}
 .slash-menu{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;width:214px;overflow:hidden;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.6);}
 .slash-item{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;color:var(--t3);cursor:pointer;border-bottom:0.5px solid var(--b1);transition:background .1s;}
 .slash-item:last-child{border-bottom:none;}
