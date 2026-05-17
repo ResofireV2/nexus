@@ -126,7 +126,12 @@ mdRenderer.paragraph = function(text) {
     }
   }
 
-  return `<p>${text}</p>`;
+  // Detect emoji-only paragraph: after stripping whitespace, only md-emoji spans remain.
+  // We add the class here — before wrapEmoji runs — so we check the raw text for
+  // emoji unicode characters directly.
+  const EMOJI_ONLY_RE = /^(?:\s|\u200d|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{1F3FB}-\u{1F3FF}\u2194-\u21AA\u231A-\u231B\u23E9-\u23FA\u25AA-\u25FE\u2600-\u27BF\u2934-\u2935\u2B00-\u2BFF\u3030\u303D\u3297\u3299])+$/u;
+  const isEmojiOnly = EMOJI_ONLY_RE.test(text);
+  return isEmojiOnly ? `<p class="md-emoji-block">${text}</p>` : `<p>${text}</p>`;
 };
 
 // Link override — lightbox for image links, external for regular links
