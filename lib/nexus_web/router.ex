@@ -94,6 +94,9 @@ defmodule NexusWeb.Router do
     delete "/sessions/:id",        AuthController, :revoke_session
     delete "/sessions",            AuthController, :revoke_other_sessions
     delete "/global-logout",       AuthController, :global_logout
+    post   "/auth/schedule-deletion", AccountDeletionController, :schedule
+    delete "/auth/schedule-deletion", AccountDeletionController, :cancel
+    get    "/auth/export",            AccountDeletionController, :export
   end
 
   # API v1 — public read
@@ -120,6 +123,7 @@ defmodule NexusWeb.Router do
     get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
     get "/link_previews",          LinkPreviewController, :show
+    get "/pages/:slug",            PageController,       :show
     get "/badges/recent",           BadgeController,  :recent_earners
     get "/badges",                 BadgeController,  :index
     get "/leaderboard/streaks",    LeaderboardController, :streaks
@@ -349,6 +353,12 @@ defmodule NexusWeb.Router do
     post   "/pwa/badge",               PwaController,    :upload_badge
     delete "/pwa/badge",               PwaController,    :delete_badge
     get    "/push-subscriptions",      AdminController,  :push_subscriptions
+
+    # Pages
+    get    "/pages",              PageController, :index
+    post   "/pages",              PageController, :create
+    patch  "/pages/:id",          PageController, :update
+    delete "/pages/:id",          PageController, :delete
 
     # Updates
     get    "/updates/check",           AdminController,  :check_update

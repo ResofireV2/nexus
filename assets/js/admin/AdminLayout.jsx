@@ -440,6 +440,50 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
           );
         })
       )
+    ),
+    React.createElement('div', {style:{marginTop:28}},
+      React.createElement('div', {className:"fgt"}, "Legal & Info widget"),
+      React.createElement('div', {style:{fontSize:13,color:"var(--t4)",marginBottom:16}},
+        "Configure the links shown in the Legal & Info right sidebar widget. Leave a field blank to hide that link."
+      ),
+      React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:12}},
+        React.createElement('div', null,
+          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Widget title"),
+          React.createElement('input', {
+            className:"fi", style:{width:"100%"},
+            placeholder:"Legal",
+            value:(layoutCfg.legal_widget||{}).title||"",
+            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {title:e.target.value})); }
+          })
+        ),
+        React.createElement('div', null,
+          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Privacy Policy URL"),
+          React.createElement('input', {
+            className:"fi", style:{width:"100%"},
+            placeholder:"/p/privacy",
+            value:(layoutCfg.legal_widget||{}).privacy_url||"",
+            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {privacy_url:e.target.value})); }
+          })
+        ),
+        React.createElement('div', null,
+          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Community Guidelines URL"),
+          React.createElement('input', {
+            className:"fi", style:{width:"100%"},
+            placeholder:"/p/guidelines",
+            value:(layoutCfg.legal_widget||{}).guidelines_url||"",
+            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {guidelines_url:e.target.value})); }
+          })
+        ),
+        React.createElement('div', null,
+          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Terms of Service URL"),
+          React.createElement('input', {
+            className:"fi", style:{width:"100%"},
+            placeholder:"/p/terms",
+            value:(layoutCfg.legal_widget||{}).terms_url||"",
+            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {terms_url:e.target.value})); }
+          })
+        )
+      )
     )
   );
 }

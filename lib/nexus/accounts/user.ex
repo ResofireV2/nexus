@@ -3,7 +3,7 @@ defmodule Nexus.Accounts.User do
   import Ecto.Changeset
 
   @roles ~w(member moderator admin)
-  @statuses ~w(active muted suspended banned)
+  @statuses ~w(active muted suspended banned pending_deletion)
 
   schema "users" do
     field :email,                :string
@@ -30,6 +30,7 @@ defmodule Nexus.Accounts.User do
     field :status,               :string, default: "active"
     field :status_until,         :utc_datetime
     field :status_reason,        :string
+    field :deletion_scheduled_at, :utc_datetime
 
     field :preferences,          :map, default: %{}
     field :push_subscription,    :map
@@ -147,8 +148,21 @@ defmodule Nexus.Accounts.User do
     end
   end
 
+  def deletion_changeset(user, scheduled_at) do
+    user
+    |> change(status: "pending_deletion", deletion_scheduled_at: scheduled_at)
+  end
+
+  def cancel_deletion_changeset(user) do
+    user
+    |> change(status: "active", deletion_scheduled_at: nil)
+  end
+
   def active?(%__MODULE__{status: "active"}), do: true
   def active?(_), do: false
+
+  def pending_deletion?(%__MODULE__{status: "pending_deletion"}), do: true
+  def pending_deletion?(_), do: false
 
   def admin?(%__MODULE__{role: "admin"}), do: true
   def admin?(_), do: false

@@ -14,6 +14,7 @@ import { BadgesPage, AdminBadgesPanel } from "./AdminBadges";
 import { AdminExtensionsPanel, SimpleSettingsPanel, TabbedPanel } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
+import { AdminPagesPanel } from "./AdminPages";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
@@ -377,6 +378,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"spaces",     icon:"fa-layer-group",          label:"spaces"},
       {k:"tags",       icon:"fa-tag",                  label:"tags"},
       {k:"badges",     icon:"fa-medal",                label:"badges"},
+      {k:"pages",      icon:"fa-file-lines",          label:"pages"},
     ]},
     {label:"system", items:[
       {k:"storage",    icon:"fa-database",             label:"storage"},
@@ -1022,9 +1024,14 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <option value="member">All members</option>
               </Select>
             </F>
-            <div style={{display:"flex",gap:8,marginTop:8}}>
 
-            </div>
+            <div className="fgt" style={{marginTop:20}}>Account deletion</div>
+            <F label="Content handling on deletion" hint="What happens to a user's posts and replies when they permanently delete their account.">
+              <Select value={postCfg.account_deletion_content||"anonymise"} onChange={v=>setPostCfg(p=>({...p,account_deletion_content:v}))}>
+                <option value="anonymise">Anonymise content (show as Deleted User)</option>
+                <option value="delete">Delete all content permanently</option>
+              </Select>
+            </F>
           </>}
 
           {sec==="moderation"&&<>
@@ -1117,6 +1124,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
+          {sec==="pages"&&<AdminPagesPanel/>}
           {sec==="analytics"&&<AdminAnalyticsPanel/>}
 
           {sec==="leaderboard"&&<AdminLeaderboardPanel lbCfg={lbCfg} setLbCfg={setLbCfg} saving={saving} saveSection={saveSection}/>}

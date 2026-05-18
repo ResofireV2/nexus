@@ -32,7 +32,9 @@ config :nexus, Oban,
     {Oban.Plugins.Cron, crontab: [
       {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "daily"},   max_attempts: 1},
       {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "weekly"},  max_attempts: 1},
-      {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "monthly"}, max_attempts: 1}
+      {"0 * * * *",  Nexus.Workers.SendDigest, args: %{"frequency" => "monthly"}, max_attempts: 1},
+      {"0 3 * * *",  Nexus.Workers.PruneLoginEvents,          max_attempts: 1},
+      {"0 4 * * 0",  Nexus.Workers.PruneBlockedRegistrations, max_attempts: 1}
     ]}
   ],
   queues: [

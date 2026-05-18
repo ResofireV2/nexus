@@ -50,12 +50,15 @@ function AppearanceTab() {
 
 // ── SecurityTab ───────────────────────────────────────────────────────────────
 
-function SecurityTab({currentUser, onLogout}) {
+function SecurityTab({currentUser, onLogout, onUserUpdate}) {
   const [sessions, setSessions]         = useState(null);
   const [sessLoading, setSessLoading]   = useState(true);
   const [sessError, setSessError]       = useState(false);
   const [oauthProviders, setOauthProviders] = useState({google: false, github: false});
   const [terminating, setTerminating]   = useState(null); // id being terminated
+  const [exporting, setExporting]       = useState(false);
+  const [deleting, setDeleting]         = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(()=>{
     api.get("/auth/sessions").then(d=>{
@@ -89,6 +92,55 @@ function SecurityTab({currentUser, onLogout}) {
     await api.delete("/auth/sessions").catch(()=>{});
     setSessions(p => p.filter(s => s.current));
     toast("All other sessions terminated");
+  };
+
+  const requestExport = async () => {
+    setExporting(true);
+    try {
+      const d = await api.get("/auth/export");
+      if (d.export) {
+        const blob = new Blob([JSON.stringify(d.export, null, 2)], {type: "application/json"});
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `nexus-data-export-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast("Data export downloaded");
+      }
+    } catch {
+      toast("Export failed — please try again");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const scheduledeletion = async () => {
+    setDeleting(true);
+    try {
+      const d = await api.post("/auth/schedule-deletion", {});
+      if (d.ok) {
+        onUserUpdate && onUserUpdate({...currentUser, status: "pending_deletion", deletion_scheduled_at: d.deletion_scheduled_at});
+        setShowDeleteModal(false);
+        toast("Account deletion scheduled");
+      }
+    } catch {
+      toast("Failed to schedule deletion");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const cancelDeletion = async () => {
+    try {
+      const d = await api.delete("/auth/schedule-deletion");
+      if (d.ok) {
+        onUserUpdate && onUserUpdate({...currentUser, status: "active", deletion_scheduled_at: null});
+        toast("Deletion cancelled — account restored");
+      }
+    } catch {
+      toast("Failed to cancel deletion");
+    }
   };
 
   const deviceIcon = (device="") => {
@@ -225,9 +277,27 @@ function SecurityTab({currentUser, onLogout}) {
         )}
       </div>
 
+      {/* ── Your data ── */}
+      <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12,marginTop:32}}>Your data</div>
+      <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"18px",display:"flex",alignItems:"flex-start",gap:16,marginBottom:32}}>
+        <div style={{width:44,height:44,borderRadius:11,background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <i className="fa-solid fa-file-arrow-down" style={{fontSize:18,color:"var(--ac-text)"}}/>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:4}}>Download your data</div>
+          <div style={{fontSize:12,color:"var(--t4)",marginBottom:12}}>Export a copy of your profile, posts, replies, and direct messages as a JSON file.</div>
+          <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} disabled={exporting} onClick={requestExport}>
+            <i className="fa-solid fa-download" style={{fontSize:11,marginRight:6}}/>
+            {exporting ? "Preparing…" : "Request data export"}
+          </button>
+        </div>
+      </div>
+
       {/* ── Danger zone ── */}
       <div style={{fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"var(--t5)",marginBottom:12}}>Danger zone</div>
-      <div style={{border:"0.5px solid rgba(248,113,113,0.25)",borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:16}}>
+
+      {/* Log out everywhere */}
+      <div style={{border:"0.5px solid rgba(248,113,113,0.25)",borderRadius:12,padding:"16px 18px",display:"flex",alignItems:"center",gap:16,marginBottom:12}}>
         <div style={{width:38,height:38,borderRadius:10,background:"rgba(248,113,113,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <i className="fa-solid fa-arrow-right-from-bracket" style={{fontSize:16,color:"var(--red)"}}/>
         </div>
@@ -240,6 +310,90 @@ function SecurityTab({currentUser, onLogout}) {
           Log out everywhere
         </button>
       </div>
+
+      {/* Delete account / pending deletion */}
+      <div style={{background:"rgba(248,113,113,0.04)",border:"0.5px solid rgba(248,113,113,0.15)",borderRadius:12,overflow:"hidden"}}>
+        <div style={{padding:"14px 18px",borderBottom:"0.5px solid rgba(248,113,113,0.12)",fontSize:11,fontWeight:500,letterSpacing:".07em",textTransform:"uppercase",color:"rgba(248,113,113,0.5)"}}>Irreversible actions</div>
+        {currentUser?.status === "pending_deletion" ? (
+          <div style={{padding:"16px 18px",display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:38,height:38,borderRadius:10,background:"rgba(248,113,113,0.08)",border:"0.5px solid rgba(248,113,113,0.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <i className="fa-solid fa-user-slash" style={{fontSize:16,color:"var(--red)"}}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:3,display:"flex",alignItems:"center",gap:8}}>
+                  Account deletion scheduled
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,fontWeight:500,background:"rgba(248,113,113,0.1)",color:"var(--red)",border:"0.5px solid rgba(248,113,113,0.25)",borderRadius:20,padding:"2px 9px"}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:"var(--red)",display:"inline-block"}}/>
+                    Pending
+                  </span>
+                </div>
+                {currentUser?.deletion_scheduled_at && (
+                  <div style={{fontSize:12,color:"var(--t4)"}}>
+                    Scheduled for <strong style={{color:"rgba(248,113,113,0.75)"}}>{new Date(currentUser.deletion_scheduled_at).toLocaleString()}</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10,paddingLeft:52}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} onClick={cancelDeletion}>Cancel deletion</button>
+              <span style={{fontSize:12,color:"var(--t5)"}}>or</span>
+              <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px",color:"var(--ac-text)",borderColor:"var(--ac-border)"}} disabled={exporting} onClick={requestExport}>
+                <i className="fa-solid fa-download" style={{fontSize:11,marginRight:5}}/>
+                Download my data first
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{padding:"16px 18px",display:"flex",alignItems:"center",gap:14}}>
+            <div style={{width:38,height:38,borderRadius:10,background:"rgba(248,113,113,0.08)",border:"0.5px solid rgba(248,113,113,0.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <i className="fa-solid fa-user-slash" style={{fontSize:16,color:"var(--red)"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:3}}>Delete account</div>
+              <div style={{fontSize:12,color:"var(--t4)"}}>Permanently delete your account. You will have 30 days to change your mind before your data is removed.</div>
+            </div>
+            <button style={{fontSize:12,padding:"6px 14px",borderRadius:20,background:"rgba(248,113,113,0.1)",border:"0.5px solid rgba(248,113,113,0.3)",color:"var(--red)",cursor:"pointer",fontFamily:"inherit",fontWeight:500,flexShrink:0}}
+              onClick={()=>setShowDeleteModal(true)}>
+              Delete account
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={e=>{if(e.target===e.currentTarget)setShowDeleteModal(false);}}>
+          <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,overflow:"hidden",boxShadow:"0 8px 40px rgba(0,0,0,0.5)",maxWidth:440,width:"100%"}}>
+            <div style={{padding:"20px 22px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:36,height:36,borderRadius:9,background:"rgba(248,113,113,0.1)",border:"0.5px solid rgba(248,113,113,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <i className="fa-solid fa-triangle-exclamation" style={{fontSize:15,color:"var(--red)"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Delete your account?</div>
+                <div style={{fontSize:12,color:"var(--t4)"}}>This begins a 30-day grace period.</div>
+              </div>
+            </div>
+            <div style={{padding:"18px 22px"}}>
+              <div style={{fontSize:13,color:"var(--t3)",marginBottom:16,lineHeight:1.6}}>
+                Your account will be scheduled for permanent deletion in 30 days. During this time you can still log in and read, but you won't be able to post or reply.
+              </div>
+              <div style={{background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+                <i className="fa-solid fa-circle-info" style={{fontSize:14,color:"var(--ac-text)",flexShrink:0}}/>
+                <div style={{fontSize:12,color:"var(--ac-text)",flex:1}}>Want a copy of your data before it's gone?</div>
+                <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--ac-text)",borderColor:"var(--ac-border)",flexShrink:0}} onClick={requestExport}>Download</button>
+              </div>
+              <div style={{fontSize:12,color:"var(--t5)",marginBottom:18}}>You can cancel at any time before the deadline from your Security settings.</div>
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button className="btn-ghost" style={{fontSize:12,padding:"7px 18px"}} onClick={()=>setShowDeleteModal(false)}>Keep my account</button>
+                <button style={{fontSize:12,padding:"7px 18px",borderRadius:20,background:"rgba(248,113,113,0.1)",border:"0.5px solid rgba(248,113,113,0.3)",color:"var(--red)",cursor:"pointer",fontFamily:"inherit",fontWeight:500}} disabled={deleting} onClick={scheduledeletion}>
+                  {deleting ? "Scheduling…" : "Schedule deletion"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -520,7 +674,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           </>}
 
           {tab==="appearance"&&<AppearanceTab/>}
-          {tab==="security"&&<SecurityTab currentUser={currentUser} onLogout={()=>{api.post("/auth/global-logout",{});api.setToken(null);window.dispatchEvent(new Event("nexus:logout"));}}/>}
+          {tab==="security"&&<SecurityTab currentUser={currentUser} onLogout={()=>{api.post("/auth/global-logout",{});api.setToken(null);window.dispatchEvent(new Event("nexus:logout"));}} onUserUpdate={onUpdate}/>}
           {tab==="notifications"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>

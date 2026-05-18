@@ -1190,7 +1190,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         currentUser={currentUser}
         onSavePosition={(replyId,count)=>{setLastReadReplyId(replyId);setLastReadCount(count);}}
       />}</div>
-      {currentUser&&!post?.locked&&<div className="mob-reply-bar" style={{bottom:"calc(54px + env(safe-area-inset-bottom))"}}>
+      {currentUser&&!post?.locked&&currentUser?.status!=="pending_deletion"&&<div className="mob-reply-bar" style={{bottom:"calc(54px + env(safe-area-inset-bottom))"}}>
         {!mobReplyOpen
           ? <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px"}}>
               <div className="mob-reply-fake" onClick={()=>setMobReplyOpen(true)}>Write a reply…</div>

@@ -573,4 +573,121 @@ defmodule Nexus.Accounts do
     |> Ecto.Changeset.cast(%{cover_url: cover_url}, [:cover_url])
     |> Repo.update()
   end
+
+  # ---------------------------------------------------------------------------
+  # Account deletion
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Schedules an account for deletion 30 days from now.
+  Sets status to pending_deletion and enqueues a purge job.
+  """
+  def schedule_deletion(user) do
+    scheduled_at =
+      DateTime.utc_now()
+      |> DateTime.add(30 * 24 * 60 * 60, :second)
+      |> DateTime.truncate(:second)
+
+    case user |> User.deletion_changeset(scheduled_at) |> Repo.update() do
+      {:ok, updated} ->
+        %{"user_id" => user.id}
+        |> Nexus.Workers.PurgeAccount.new(scheduled_at: scheduled_at)
+        |> Oban.insert()
+        {:ok, updated}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc "Cancels a pending deletion, restoring the account to active status."
+  def cancel_deletion(user) do
+    # Cancel the scheduled Oban job so the purge doesn't run
+    import Ecto.Query
+    Repo.delete_all(
+      from j in Oban.Job,
+        where: j.worker == "Nexus.Workers.PurgeAccount"
+          and fragment("?->>'user_id' = ?", j.args, ^to_string(user.id))
+          and j.state in ["scheduled", "available"]
+    )
+
+    user
+    |> User.cancel_deletion_changeset()
+    |> Repo.update()
+  end
+
+  # ---------------------------------------------------------------------------
+  # Data export
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Builds a map of all user data suitable for JSON export.
+  Covers profile, posts, replies, reactions given, DM threads, and badges.
+  """
+  def export_user_data(user) do
+    import Ecto.Query
+
+    posts =
+      Repo.all(
+        from p in Nexus.Forum.Post,
+          where: p.user_id == ^user.id,
+          select: %{
+            id:         p.id,
+            title:      p.title,
+            body:       p.body,
+            inserted_at: p.inserted_at
+          }
+      )
+
+    replies =
+      Repo.all(
+        from r in Nexus.Forum.Reply,
+          where: r.user_id == ^user.id,
+          select: %{
+            id:         r.id,
+            body:       r.body,
+            post_id:    r.post_id,
+            inserted_at: r.inserted_at
+          }
+      )
+
+    threads =
+      Repo.all(
+        from m in Nexus.Messaging.ThreadMember,
+          join: t in Nexus.Messaging.Thread, on: t.id == m.thread_id,
+          where: m.user_id == ^user.id,
+          select: %{
+            thread_id:   t.id,
+            title:       t.title,
+            inserted_at: t.inserted_at
+          }
+      )
+
+    badges =
+      Repo.all(
+        from ub in Nexus.Badges.UserBadge,
+          join: b in Nexus.Badges.Badge, on: b.id == ub.badge_id,
+          where: ub.user_id == ^user.id,
+          select: %{
+            badge:       b.name,
+            awarded_at:  ub.inserted_at
+          }
+      )
+
+    %{
+      exported_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+      profile: %{
+        id:         user.id,
+        username:   user.username,
+        email:      user.email,
+        bio:        user.bio,
+        role:       user.role,
+        joined_at:  user.inserted_at
+      },
+      posts:   posts,
+      replies: replies,
+      threads: threads,
+      badges:  badges
+    }
+  end
 end

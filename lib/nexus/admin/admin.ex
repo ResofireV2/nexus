@@ -235,6 +235,7 @@ defmodule Nexus.Admin do
       "min_account_age_hours"      => 0
     },
     "posting" => %{
+      "account_deletion_content"   => "anonymise",
       "allow_anonymous"            => false,
       "max_post_length"            => 100_000,
       "max_reply_length"           => 50_000,

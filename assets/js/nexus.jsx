@@ -1623,6 +1623,8 @@ function urlToPage(pathname) {
   // by extensions so we can match it definitively against the live registry.
   // On hard refresh the bundle may not have loaded yet; return ext-route with
   // _match:null so ExtensionRoutePage's polling loop resolves it once loaded.
+  const pageM = p.match(/^\/p\/(.+)$/);
+  if (pageM) return {page:"page", props:{slug: pageM[1]}};
   if (p.startsWith("/ext/")) {
     const extRoute = window.NexusExtensions.matchRoute(p);
     if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
@@ -1646,6 +1648,7 @@ function pageToUrl(page, props={}) {
     case "post":          return props.id ? `/post/${props.id}` : "/";
     case "profile":       return props.username ? `/profile/${props.username}${props.tab ? `/${props.tab}` : ""}` : "/";
     case "compose":       return "/compose";
+    case "page":          return `/p/${props?.slug||""}`; 
     case "search":        return "/search";
     case "notifications": return "/notifications";
     case "messages":      return "/messages";
@@ -1983,6 +1986,7 @@ const RIGHT_WIDGETS = [
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"],        component: null},
   {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"],        component: null},
   {id:"stats",             label:"Stats",             pages:"global",        component: null},
+  {id:"legal_info",        label:"Legal & Info",       pages:"global",        component: null},
 ];
 const SIDEBAR_SECTIONS = [
   {id:"explore", label:"Explore"},
@@ -2240,6 +2244,21 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 }
 
 // ── Shared topbar ─────────────────────────────────────────────────────────────
+// ── PendingDeletionBanner ─────────────────────────────────────────────────────
+// Shown below the topbar on every page while an account deletion is pending.
+function PendingDeletionBanner({scheduledAt, onCancel, onNavigateSettings}) {
+  const dateStr = scheduledAt ? new Date(scheduledAt).toLocaleString() : "soon";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(248,113,113,0.08)",borderBottom:"0.5px solid rgba(248,113,113,0.2)",padding:"10px 20px",flexShrink:0}}>
+      <i className="fa-solid fa-triangle-exclamation" style={{fontSize:13,color:"var(--red)",flexShrink:0}}/>
+      <div style={{flex:1,fontSize:12,color:"rgba(248,113,113,0.8)"}}>
+        Your account is scheduled for deletion on <strong style={{color:"var(--red)"}}>{dateStr}</strong> — you can still read but not post or reply.
+      </div>
+      <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",flexShrink:0}} onClick={onCancel}>Cancel deletion</button>
+    </div>
+  );
+}
+
 function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true}) {
   const [q,setQ]=useState("");
   const [drop,setDrop]=useState(null); // {posts, replies} | null
@@ -2873,6 +2892,41 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
         </div>
       );
     }
+    if(w.id === "legal_info") {
+      var cfg = window._legalWidgetCfg || {};
+      var title   = cfg.title || "Legal";
+      var privacy = cfg.privacy_url;
+      var guidelines = cfg.guidelines_url;
+      var terms   = cfg.terms_url;
+      var links = [
+        privacy    && {label:"Privacy Policy",        url:privacy},
+        guidelines && {label:"Community Guidelines",  url:guidelines},
+        terms      && {label:"Terms of Service",      url:terms},
+      ].filter(Boolean);
+      if (links.length === 0 && !cfg.show_security) return undefined;
+      return (
+        <div className="rw" key="legal_info">
+          <div className="rw-label">{title}</div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {links.map(l=>(
+              <a key={l.label} href={l.url}
+                style={{fontSize:13,color:"var(--t3)",textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"0.5px solid var(--b1)"}}
+                onClick={e=>{if(l.url.startsWith("/")){e.preventDefault();navigate&&navigate("page",{slug:l.url.replace(/^\/p\//,"")});}}}>
+                <i className="fa-solid fa-file-lines" style={{fontSize:12,color:"var(--t5)",width:14,textAlign:"center"}}/>
+                {l.label}
+              </a>
+            ))}
+            {cfg.show_security!==false&&currentUser&&(
+              <div style={{fontSize:13,color:"var(--t3)",display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:"pointer"}}
+                onClick={()=>navigate&&navigate("settings",{tab:"security"})}>
+                <i className="fa-solid fa-shield" style={{fontSize:12,color:"var(--t5)",width:14,textAlign:"center"}}/>
+                Security settings
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
     return undefined;
   }
 
@@ -2933,6 +2987,53 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
         }
         return null;
       })}
+    </div>
+  );
+}
+
+// ── Static page view ─────────────────────────────────────────────────────────
+// Renders a published static page at /p/:slug (privacy policy, guidelines, etc.)
+function PageViewPage({slug, navigate}) {
+  const [page,    setPage]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!slug) { setNotFound(true); setLoading(false); return; }
+    setLoading(true);
+    api.get(`/pages/${slug}`)
+      .then(d => {
+        if (d.page) { setPage(d.page); }
+        else        { setNotFound(true); }
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  if (loading) return (
+    <div style={{padding:"40px 24px",textAlign:"center",color:"var(--t5)",fontSize:13}}>Loading…</div>
+  );
+
+  if (notFound) return (
+    <div style={{padding:"40px 24px",textAlign:"center"}}>
+      <i className="fa-solid fa-file-circle-question" style={{fontSize:32,color:"var(--t5)",display:"block",marginBottom:12}}/>
+      <div style={{fontSize:15,fontWeight:500,color:"var(--t2)",marginBottom:8}}>Page not found</div>
+      <div style={{fontSize:13,color:"var(--t4)",marginBottom:16}}>This page doesn't exist or isn't published yet.</div>
+      <button className="btn-ghost" style={{fontSize:13}} onClick={()=>navigate("feed")}>Back to feed</button>
+    </div>
+  );
+
+  return (
+    <div style={{maxWidth:720,margin:"0 auto",padding:"32px 24px"}}>
+      <button className="btn-ghost" style={{fontSize:12,padding:"5px 12px",marginBottom:20}}
+        onClick={()=>window.history.back()}>
+        <i className="fa-solid fa-arrow-left" style={{marginRight:6}}/>Back
+      </button>
+      <h1 style={{fontSize:24,fontWeight:700,color:"var(--t1)",marginBottom:6,letterSpacing:"-.3px"}}>{page.title}</h1>
+      <div style={{fontSize:12,color:"var(--t5)",marginBottom:28}}>
+        Last updated {new Date(page.updated_at).toLocaleDateString()}
+      </div>
+      <div className="md-body" dangerouslySetInnerHTML={{__html: renderMd(page.body || "")}}/>
     </div>
   );
 }
@@ -3642,6 +3743,7 @@ function App() {
       // Keep legacy lc.toolbar in sync for any code that still reads it
       lc.toolbar = postTB;
       setLayoutCfg(lc);
+      window._legalWidgetCfg = lc.legal_widget || {};
     }).catch(()=>{});
   },[]);
 
@@ -3700,7 +3802,8 @@ function App() {
       case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
       case "drafts":      return requireAuth(<DraftsPage currentUser={currentUser} navigate={navigate}/>);
       case "settings":    return requireAuth(<SettingsPage currentUser={currentUser} onUpdate={u=>updateCurrentUser(u)} navigate={navigate}/>);
-      case "compose":     return requireAuth(<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser} pageProps={pageProps}/>);
+      case "page":        return <PageViewPage slug={pageProps?.slug} navigate={navigate}/>;
+      case "compose":     return requireAuth(currentUser?.status==="pending_deletion"?<div style={{padding:"40px 24px",textAlign:"center",color:"var(--t4)",fontSize:14}}><i className="fa-solid fa-user-slash" style={{fontSize:28,marginBottom:12,color:"var(--red)",display:"block"}}/><div style={{fontWeight:600,color:"var(--t2)",marginBottom:8}}>Account deletion pending</div><div style={{marginBottom:16}}>You cannot post while your account is scheduled for deletion.</div><button className="btn-ghost" style={{fontSize:12}} onClick={()=>navigate("settings",{tab:"security"})}>Manage in Settings</button></div>:<ComposePage spaces={spaces} tags={tags} navigate={navigate} currentUser={currentUser} pageProps={pageProps}/>);
       case "notifications": return requireAuth(<NotificationsPage navigate={navigate} onCountChange={setNotifCount}/>);
       case "messages":    return requireAuth(<DMInboxPage key={msgPageKey} currentUser={currentUser} navigate={navigate}/>);
       case "dm":          return requireAuth(<DMPage threadId={pageProps.threadId} threadName={pageProps.threadName} threadImage={pageProps.threadImage} currentUser={currentUser} navigate={navigate} joinTopic={joinTopic} leaveTopic={leaveTopic} sendEvent={sendEvent} onRead={()=>pollMsgRef.current?.()}/>);
@@ -3748,6 +3851,7 @@ function App() {
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
         <div className="main-area">
           <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
+          {currentUser?.status==="pending_deletion"&&<PendingDeletionBanner scheduledAt={currentUser.deletion_scheduled_at} onCancel={async()=>{const d=await api.delete("/auth/schedule-deletion").catch(()=>({}));if(d.ok){setCurrentUser(u=>({...u,status:"active",deletion_scheduled_at:null}));toast("Deletion cancelled — account restored");}}} onNavigateSettings={()=>navigate("settings",{tab:"security"})}/> }
           <div className="page-area" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
           </div>
