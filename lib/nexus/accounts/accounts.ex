@@ -674,7 +674,7 @@ defmodule Nexus.Accounts do
           where: ub.user_id == ^user.id,
           select: %{
             badge:      b.name,
-            awarded_at: ub.inserted_at
+            awarded_at: ub.awarded_at
           }
       )
       |> Enum.map(fn b -> %{b | awarded_at: dt(b.awarded_at)} end)
