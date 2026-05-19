@@ -8,7 +8,6 @@ set -e
 #    bash install.sh
 # ─────────────────────────────────────────────
 
-REPO="https://github.com/ResofireV2/nexus.git"
 INSTALL_DIR="/opt/nexus"
 DATA_DIR="/opt/nexus-data"
 CYAN='\033[0;36m'
@@ -111,16 +110,52 @@ mkdir -p "$DATA_DIR/uploads/webp/logos"
 chmod -R 755 "$DATA_DIR"
 ok "Data directories created at $DATA_DIR"
 
-# ── Clone repo ───────────────────────────────
-banner "Cloning Nexus..."
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-  warn "Directory $INSTALL_DIR already exists — pulling latest..."
-  cd "$INSTALL_DIR" && git pull
+# ── Fetch latest release ─────────────────────
+banner "Fetching latest Nexus release..."
+
+RELEASE_JSON=$(curl -fsSL \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/ResofireV2/nexus/releases/latest") \
+  || die "Could not reach GitHub API"
+
+RELEASE_TAG=$(echo "$RELEASE_JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+TARBALL_URL=$(echo "$RELEASE_JSON" | grep -o '"tarball_url": *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+
+[[ -z "$RELEASE_TAG" ]] && die "Could not determine latest release tag. Is there a tagged release on GitHub?"
+[[ -z "$TARBALL_URL" ]] && die "Could not determine tarball URL for release $RELEASE_TAG"
+
+ok "Latest release: $RELEASE_TAG"
+
+TMP_ARCHIVE="/tmp/nexus-${RELEASE_TAG}.tar.gz"
+TMP_EXTRACT="/tmp/nexus-${RELEASE_TAG}"
+
+banner "Downloading release $RELEASE_TAG..."
+curl -fsSL -L \
+  -H "Accept: application/vnd.github+json" \
+  "$TARBALL_URL" -o "$TMP_ARCHIVE" \
+  || die "Failed to download release tarball"
+
+banner "Extracting release..."
+mkdir -p "$TMP_EXTRACT"
+tar --strip-components=1 -xzf "$TMP_ARCHIVE" -C "$TMP_EXTRACT" \
+  || die "Failed to extract release archive"
+
+if [[ -d "$INSTALL_DIR" ]]; then
+  warn "Directory $INSTALL_DIR already exists — updating files (preserving .env and data)..."
+  rsync -a \
+    --exclude=".env" \
+    --exclude="docker-compose.yml" \
+    --exclude="docker-compose.prod.yml" \
+    "$TMP_EXTRACT/" "$INSTALL_DIR/" 2>/dev/null \
+  || cp -r "$TMP_EXTRACT/." "$INSTALL_DIR/"
 else
-  git clone "$REPO" "$INSTALL_DIR"
-  cd "$INSTALL_DIR"
+  mkdir -p "$INSTALL_DIR"
+  cp -r "$TMP_EXTRACT/." "$INSTALL_DIR/"
 fi
-ok "Repository ready at $INSTALL_DIR"
+
+rm -rf "$TMP_ARCHIVE" "$TMP_EXTRACT"
+cd "$INSTALL_DIR"
+ok "Nexus $RELEASE_TAG ready at $INSTALL_DIR"
 
 # ── Generate secrets ─────────────────────────
 banner "Generating secrets..."
