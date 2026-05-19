@@ -252,7 +252,7 @@ defmodule Nexus.Mailer do
   # ---------------------------------------------------------------------------
 
   def send_magic_link(user, token) do
-    url       = "#{base_url()}/api/v1/auth/magic?token=#{token}"
+    url       = "#{base_url()}/magic-login?token=#{token}"
     gen       = general_settings()
     site_name = Map.get(gen, "site_name", "Nexus")
 

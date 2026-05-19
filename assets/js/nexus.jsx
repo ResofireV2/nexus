@@ -28,7 +28,7 @@ import { AdminExtensionsPanel, ExtensionInfoPanel,
          ExtensionFieldRenderer, SimpleSettingsPanel,
          TabbedPanel }                                     from "./admin/AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt }                 from "./admin/AdminPwaPanel";
-import { AdminPage, VerifyEmailPage }                      from "./admin/AdminPage";
+import { AdminPage, VerifyEmailPage, MagicLoginPage }      from "./admin/AdminPage";
 import { LeaderboardPageSidebar,
          LeaderboardPage }                                 from "./pages/LeaderboardPage";
 import { PostScrubber, PostPage, PostFooterSlot,
@@ -1603,6 +1603,7 @@ function urlToPage(pathname) {
   if (p === "/notifications")          return {page:"notifications", props:{}};
   if (p === "/messages")               return {page:"messages", props:{}};
   if (p === "/verify-email")           return {page:"verify-email", props:{token: new URLSearchParams(window.location.search).get("token")}};
+  if (p === "/magic-login")             return {page:"magic-login",   props:{token: new URLSearchParams(window.location.search).get("token")}};
   if (p === "/admin")                  return {page:"admin", props:{}};
   if (p === "/settings")               return {page:"settings", props:{}};
   if (p === "/members")                return {page:"members",     props:{}};
@@ -3024,7 +3025,7 @@ function PageViewPage({slug, navigate}) {
   );
 
   return (
-    <div style={{flex:1,overflowY:"auto",padding:"32px 40px"}}>
+    <div style={{maxWidth:720,margin:"0 auto",padding:"32px 24px"}}>
       <button className="btn-ghost" style={{fontSize:12,padding:"5px 12px",marginBottom:20}}
         onClick={()=>window.history.back()}>
         <i className="fa-solid fa-arrow-left" style={{marginRight:6}}/>Back
@@ -3289,7 +3290,15 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
   const [showPw,setShowPw]=useState(false);
   const [remember,setRemember]=useState(true);
-  const [err,setErr]=useState(null); const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState(null);
+  const [loading,setLoading]=useState(false);
+  // Magic link state: "password" | "magic" | "sent"
+  const [loginTab,setLoginTab]=useState("password");
+  const [mlEmail,setMlEmail]=useState("");
+  const [mlSent,setMlSent]=useState(false);
+  const [mlLoading,setMlLoading]=useState(false);
+  const [mlErr,setMlErr]=useState(null);
+
   const submit=async e=>{
     e.preventDefault(); setLoading(true); setErr(null);
     try {
@@ -3302,6 +3311,22 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
     } finally { setLoading(false); }
   };
 
+  const sendMagicLink=async e=>{
+    e.preventDefault(); setMlLoading(true); setMlErr(null);
+    try {
+      const d=await api.post("/auth/magic-link", {email: mlEmail.trim()});
+      if(d.ok) setMlSent(true);
+      else setMlErr(d.error||"Failed to send magic link. Please try again.");
+    } finally { setMlLoading(false); }
+  };
+
+  const switchTab=tab=>{
+    setLoginTab(tab);
+    setMlSent(false);
+    setMlErr(null);
+    setErr(null);
+  };
+
   const hasOAuth = oauthProviders.google || oauthProviders.github;
   const oauthBtnStyle = {
     width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10,
@@ -3309,9 +3334,16 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
     background:"var(--bg3)", border:"0.5px solid var(--b2)", color:"var(--t1)",
     marginBottom:10, textDecoration:"none"
   };
+  const tabBtnStyle=(active)=>({
+    flex:1, padding:"7px", borderRadius:8, fontSize:13, fontWeight:500, border:"none",
+    cursor:"pointer", fontFamily:"inherit", transition:"all .15s",
+    background: active?"var(--s2)":"transparent",
+    color: active?"var(--t1)":"var(--t4)",
+    boxShadow: active?"0 1px 4px rgba(0,0,0,.3)":"none",
+  });
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={mode==="login"&&loginTab==="magic"?sendMagicLink:submit}>
       {hasOAuth && <>
         {oauthProviders.github &&
           <a href="/api/v1/auth/oauth/github" style={oauthBtnStyle}>
@@ -3331,29 +3363,100 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
           <div style={{flex:1,height:"0.5px",background:"var(--b2)"}}/>
         </div>
       </>}
-      {mode==="login"
-        ?<div className="fg"><label className="fl">Email or username</label><input className="fi" placeholder="you@example.com or username" value={form.login} onChange={e=>setForm(p=>({...p,login:e.target.value}))} required autoFocus/></div>
-        :<>
-          <div className="fg"><label className="fl">Email</label><input className="fi" type="email" placeholder="you@example.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} required autoFocus/></div>
-          <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
-        </>}
-      <div className="fg"><label className="fl">Password</label>
+
+      {/* Login mode — show tab switcher for password vs magic link */}
+      {mode==="login" && (
+        <div style={{display:"flex",background:"var(--s3)",borderRadius:10,padding:3,gap:3,marginBottom:20}}>
+          <button type="button" style={tabBtnStyle(loginTab==="password")} onClick={()=>switchTab("password")}>Password</button>
+          <button type="button" style={tabBtnStyle(loginTab==="magic")} onClick={()=>switchTab("magic")}>Magic link</button>
+        </div>
+      )}
+
+      {/* Registration fields */}
+      {mode==="register" && <>
+        <div className="fg"><label className="fl">Email</label><input className="fi" type="email" placeholder="you@example.com" value={form.email} onChange={e=>setForm(p=>({...p,email:e.target.value}))} required autoFocus/></div>
+        <div className="fg"><label className="fl">Username</label><input className="fi" placeholder="username" value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))} required/></div>
+      </>}
+
+      {/* Password login fields */}
+      {mode==="login" && loginTab==="password" && <>
+        <div className="fg"><label className="fl">Email or username</label><input className="fi" placeholder="you@example.com or username" value={form.login} onChange={e=>setForm(p=>({...p,login:e.target.value}))} required autoFocus/></div>
+      </>}
+
+      {/* Password field — shown for both login and register, not magic link */}
+      {loginTab!=="magic" && (
+        <div className="fg"><label className="fl">Password</label>
           <div style={{position:"relative"}}>
             <input className="fi" type={showPw?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} required style={{paddingRight:40}}/>
             <span onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:"var(--t4)",fontSize:15,userSelect:"none"}}>
               <i className={`fa-solid ${showPw?"fa-eye-slash":"fa-eye"}`}/>
             </span>
-          </div></div>
-      {mode==="login"&&<label className="remember-row">
-        <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>
-        <span>Remember me</span>
-      </label>}
-      {err&&<div className="ferr" style={{marginBottom:10,whiteSpace:"pre-line"}}>{err}</div>}
-      <button className="btn-primary" style={{width:"100%",borderRadius:12,padding:"12px",marginBottom:18,fontSize:15}} disabled={loading}>{loading?"...":mode==="login"?"Sign in":"Create account"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Remember me — password login only */}
+      {mode==="login" && loginTab==="password" && (
+        <label className="remember-row">
+          <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/>
+          <span>Remember me</span>
+        </label>
+      )}
+
+      {/* Magic link — email input and sent states */}
+      {mode==="login" && loginTab==="magic" && !mlSent && <>
+        <div className="fg">
+          <label className="fl">Your email address</label>
+          <input className="fi" type="email" placeholder="you@example.com" value={mlEmail} onChange={e=>setMlEmail(e.target.value)} required autoFocus/>
+        </div>
+        {mlErr&&<div className="ferr" style={{marginBottom:10}}>{mlErr}</div>}
+      </>}
+
+      {mode==="login" && loginTab==="magic" && mlSent && (
+        <div style={{background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:12,padding:20,textAlign:"center",marginBottom:16}}>
+          <i className="fa-solid fa-envelope-open-text" style={{fontSize:28,color:"var(--ac-text)",display:"block",marginBottom:10}}/>
+          <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginBottom:6}}>Check your inbox</div>
+          <div style={{fontSize:13,color:"var(--t4)",lineHeight:1.6}}>
+            We sent a sign-in link to<br/>
+            <strong style={{color:"var(--ac-text)"}}>{mlEmail}</strong><br/><br/>
+            The link expires in 15 minutes.
+          </div>
+        </div>
+      )}
+
+      {/* Error display for password forms */}
+      {loginTab!=="magic" && err && <div className="ferr" style={{marginBottom:10,whiteSpace:"pre-line"}}>{err}</div>}
+
+      {/* Primary action button */}
+      {!(mode==="login" && loginTab==="magic" && mlSent) && (
+        <button className="btn-primary" style={{width:"100%",borderRadius:12,padding:"12px",marginBottom:14,fontSize:15}}
+          disabled={loading||mlLoading}>
+          {mode==="login" && loginTab==="magic"
+            ? (mlLoading ? "Sending…" : <><i className="fa-solid fa-paper-plane" style={{marginRight:8,fontSize:13}}/>Send magic link</>)
+            : (loading ? "…" : mode==="login" ? "Sign in" : "Create account")
+          }
+        </button>
+      )}
+
+      {/* Resend button in sent state */}
+      {mode==="login" && loginTab==="magic" && mlSent && (
+        <button type="button" className="btn-ghost" style={{width:"100%",fontSize:13,padding:"9px 16px",borderRadius:9,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}
+          disabled={mlLoading}
+          onClick={async()=>{setMlLoading(true);setMlErr(null);try{const d=await api.post("/auth/magic-link",{email:mlEmail.trim()});if(!d.ok)setMlErr(d.error||"Failed to resend");}finally{setMlLoading(false);}}}>
+          <i className="fa-solid fa-rotate-left" style={{fontSize:12}}/>
+          {mlLoading?"Sending…":"Resend link"}
+        </button>
+      )}
+
+      {/* Switch mode link */}
       <div style={{textAlign:"center",fontSize:13,color:"var(--t4)"}}>
         {mode==="login"
-          ?<>{registrationOpen&&<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>}</>
-          :<>Have an account? <span className="link" onClick={()=>{onSwitch("login");setErr(null);}}>Sign in</span></>}
+          ? <>
+              {loginTab==="magic"&&mlSent&&<><span className="link" style={{color:"var(--t4)"}} onClick={()=>switchTab("password")}>← Back to sign in</span>{registrationOpen&&" · "}</>}
+              {registrationOpen&&<>No account? <span className="link" onClick={()=>{onSwitch("register");setErr(null);}}>Sign up</span></>}
+            </>
+          : <>Have an account? <span className="link" onClick={()=>{onSwitch("login");setErr(null);}}>Sign in</span></>
+        }
       </div>
     </form>
   );
@@ -3787,6 +3890,7 @@ function App() {
 
   // Admin gets its own full shell
   if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate} onVerified={()=>updateCurrentUser(u=>u?{...u,email_verified:true}:u)}/></div><Toasts/></>;
+  if(page==="magic-login")  return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><MagicLoginPage token={pageProps?.token} onLogin={u=>{api.setToken(u.access_token);updateCurrentUser(u.user);navigate("feed",{});}} navigate={navigate}/></div><Toasts/></>;
 
   if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
 
