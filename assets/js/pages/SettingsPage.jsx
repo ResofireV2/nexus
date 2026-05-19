@@ -104,7 +104,10 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
         const a    = document.createElement("a");
         a.href     = url;
         a.download = `nexus-data-export-${new Date().toISOString().slice(0,10)}.json`;
+        a.style.display = "none";
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
         toast("Data export downloaded");
       }
