@@ -97,7 +97,23 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
   const requestExport = async () => {
     setExporting(true);
     try {
-      const d = await api.get("/auth/export");
+      // Use raw fetch rather than the api wrapper so we can inspect the response
+      // directly — the api wrapper silently returns {} on non-JSON or errors,
+      // which makes it impossible to distinguish success from failure here.
+      const token = localStorage.getItem("nexus_token");
+      const res = await fetch("/api/v1/auth/export", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? {"Authorization": `Bearer ${token}`} : {}),
+        },
+        credentials: "include",
+      });
+      if (!res.ok) {
+        toast("Export failed — please try again");
+        return;
+      }
+      const d = await res.json();
       if (d.export) {
         const blob = new Blob([JSON.stringify(d.export, null, 2)], {type: "application/json"});
         const url  = URL.createObjectURL(blob);
@@ -110,8 +126,10 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         toast("Data export downloaded");
+      } else {
+        toast("Export failed — please try again");
       }
-    } catch {
+    } catch(e) {
       toast("Export failed — please try again");
     } finally {
       setExporting(false);
