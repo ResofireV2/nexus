@@ -85,4 +85,12 @@ defmodule NexusWeb.FeedChannel do
     push(socket, "link_preview_ready", payload)
     {:noreply, socket}
   end
+
+  # Phoenix Presence broadcasts presence_diff events via PubSub.
+  # Forward them to the client so the online count stays accurate.
+  @impl true
+  def handle_out("presence_diff", payload, socket) do
+    push(socket, "presence_diff", payload)
+    {:noreply, socket}
+  end
 end
