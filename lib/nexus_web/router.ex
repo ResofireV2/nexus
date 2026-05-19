@@ -94,9 +94,9 @@ defmodule NexusWeb.Router do
     delete "/sessions/:id",        AuthController, :revoke_session
     delete "/sessions",            AuthController, :revoke_other_sessions
     delete "/global-logout",       AuthController, :global_logout
-    post   "/auth/schedule-deletion", AccountDeletionController, :schedule
-    delete "/auth/schedule-deletion", AccountDeletionController, :cancel
-    get    "/auth/export",            AccountDeletionController, :export
+    post   "/schedule-deletion", AccountDeletionController, :schedule
+    delete "/schedule-deletion", AccountDeletionController, :cancel
+    get    "/export",            AccountDeletionController, :export
   end
 
   # API v1 — public read
