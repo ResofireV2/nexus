@@ -214,7 +214,15 @@ defmodule NexusWeb.API.V1.AdminController do
                         "ios_prompt_delay","ios_auto_detect_orientation","ios_pad_always_up",
                         "icon_192_path","icon_512_path","badge_url"
                       ]),
-        oauth_providers: oauth_providers
+        oauth_providers: oauth_providers,
+        turnstile_site_key: (fn ->
+          spam = Admin.get_setting("anti_spam") || %{}
+          if spam["turnstile_enabled"] == true and not is_nil_or_empty(spam["turnstile_site_key"]) do
+            spam["turnstile_site_key"]
+          else
+            nil
+          end
+        end).()
       }
     })
   end

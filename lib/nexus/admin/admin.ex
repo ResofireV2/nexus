@@ -322,6 +322,14 @@ defmodule Nexus.Admin do
     },
     "integrations" => %{
       "github_token" => nil
+    },
+    "anti_spam" => %{
+      "sfs_enabled"              => false,
+      "sfs_frequency"            => 5,
+      "sfs_confidence"           => 50.0,
+      "turnstile_enabled"        => false,
+      "turnstile_site_key"       => "",
+      "turnstile_secret_key"     => ""
     }
   }
 

@@ -35,6 +35,10 @@ defmodule Nexus.AntiSpam do
         log_blocked(ip, email, username, "honeypot", nil)
         {:block, "Registration failed validation"}
 
+      turnstile_enabled?() && !turnstile_verified?(params) ->
+        log_blocked(ip, email, username, "turnstile", nil)
+        {:block, "Human verification failed. Please try again."}
+
       sfs_enabled?() ->
         case sfs_check(ip, email, username) do
           {:spam, sfs_data} ->
@@ -128,6 +132,41 @@ defmodule Nexus.AntiSpam do
   # ---------------------------------------------------------------------------
   # Private helpers
   # ---------------------------------------------------------------------------
+
+  defp turnstile_enabled? do
+    cfg = Nexus.Admin.get_setting("anti_spam") || %{}
+    cfg["turnstile_enabled"] == true and not is_nil_or_empty(cfg["turnstile_secret_key"])
+  end
+
+  defp turnstile_verified?(params) do
+    token = Map.get(params, "cf_turnstile_response", "") |> to_string() |> String.trim()
+    if token == "" do
+      false
+    else
+      cfg        = Nexus.Admin.get_setting("anti_spam") || %{}
+      secret_key = cfg["turnstile_secret_key"] || ""
+
+      case Req.post("https://challenges.cloudflare.com/turnstile/v0/siteverify",
+             form: [secret: secret_key, response: token],
+             receive_timeout: 5_000) do
+        {:ok, %{status: 200, body: %{"success" => true}}} ->
+          true
+
+        {:ok, %{status: 200, body: body}} ->
+          Logger.warning("Turnstile verification failed: #{inspect(body["error-codes"])}")
+          false
+
+        other ->
+          Logger.warning("Turnstile request error: #{inspect(other)}")
+          # Fail open — don't block registrations if Cloudflare is unreachable
+          true
+      end
+    end
+  end
+
+  defp is_nil_or_empty(nil), do: true
+  defp is_nil_or_empty(""),  do: true
+  defp is_nil_or_empty(_),   do: false
 
   defp honeypot_triggered?(params) do
     # The `_hp` field is hidden via CSS in the frontend.

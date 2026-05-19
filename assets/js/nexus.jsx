@@ -3286,7 +3286,7 @@ function GuestPrompt({onAuthRequired, registrationOpen=true}) {
 }
 
 // ── Auth Modal Form ───────────────────────────────────────────────────────────
-function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthProviders={}}) {
+function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthProviders={}, turnstileSiteKey=null}) {
   const [form,setForm]=useState({login:"",email:"",username:"",password:""});
   const [showPw,setShowPw]=useState(false);
   const [remember,setRemember]=useState(true);
@@ -3294,6 +3294,44 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
   const [loading,setLoading]=useState(false);
   // Magic link state: "password" | "magic" | "sent"
   const [loginTab,setLoginTab]=useState("password");
+  // Turnstile widget ID (for explicit re-render on mode switch)
+  const turnstileRef = useRef(null);
+  const turnstileWidgetId = useRef(null);
+
+  // Load Turnstile script on demand when site key is present and mode is register
+  useEffect(()=>{
+    if (!turnstileSiteKey || mode !== "register") return;
+    const load = () => {
+      if (window.turnstile && turnstileRef.current && !turnstileWidgetId.current) {
+        const theme = typeof _currentTheme !== "undefined" ? _currentTheme : "dark";
+        turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+          sitekey: turnstileSiteKey,
+          theme:   theme === "light" ? "light" : "dark",
+          size:    "flexible",
+        });
+      }
+    };
+    if (window.turnstile) {
+      load();
+    } else if (!document.getElementById("cf-turnstile-script")) {
+      const s = document.createElement("script");
+      s.id  = "cf-turnstile-script";
+      s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      s.async = true;
+      s.onload = load;
+      document.head.appendChild(s);
+    } else {
+      // Script tag exists but not yet loaded — poll
+      const poll = setInterval(()=>{ if (window.turnstile) { clearInterval(poll); load(); } }, 100);
+      return () => clearInterval(poll);
+    }
+    return () => {
+      if (turnstileWidgetId.current != null && window.turnstile) {
+        window.turnstile.remove(turnstileWidgetId.current);
+        turnstileWidgetId.current = null;
+      }
+    };
+  }, [turnstileSiteKey, mode]);
   const [mlEmail,setMlEmail]=useState("");
   const [mlSent,setMlSent]=useState(false);
   const [mlLoading,setMlLoading]=useState(false);
@@ -3426,6 +3464,11 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
 
       {/* Error display for password forms */}
       {loginTab!=="magic" && err && <div className="ferr" style={{marginBottom:10,whiteSpace:"pre-line"}}>{err}</div>}
+
+      {/* Turnstile widget — register mode only */}
+      {mode==="register" && turnstileSiteKey && (
+        <div ref={turnstileRef} style={{marginBottom:14}}/>
+      )}
 
       {/* Primary action button */}
       {!(mode==="login" && loginTab==="magic" && mlSent) && (
@@ -3653,6 +3696,7 @@ function App() {
   });
   const [pwaCfgPublic,setPwaCfgPublic]=useState({});
   const [oauthProviders,setOauthProviders]=useState({google:false,github:false});
+  const [turnstileSiteKey,setTurnstileSiteKey]=useState(null);
 
   // Detect iOS Safari (not already installed, not already dismissed)
   const isIosSafari = (()=>{
@@ -3793,7 +3837,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});window._postCfg=s.posting||{};
+    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);window._postCfg=s.posting||{};
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
       const digest=s.digest||{};
@@ -3984,7 +4028,7 @@ function App() {
               <div style={{fontSize:22,fontWeight:600,color:"var(--t1)"}}>{authModal==="login"?"Welcome back":"Create account"}</div>
               <div style={{fontSize:14,color:"var(--t4)",marginTop:6}}>{authModal==="login"?"Sign in to continue":"Join the community"}</div>
             </div>
-            <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)} registrationOpen={registrationOpen} oauthProviders={oauthProviders}/>
+            <AuthModalForm mode={authModal} onLogin={u=>{updateCurrentUser(u);setAuthModal(null);}} onSwitch={m=>setAuthModal(m)} registrationOpen={registrationOpen} oauthProviders={oauthProviders} turnstileSiteKey={turnstileSiteKey}/>
           </div>
         </div>
       )}

@@ -122,6 +122,25 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
           </label>
         </div>
 
+        <div className="fgt" style={{marginTop:16}}>Cloudflare Turnstile</div>
+        <Toggle
+          label="Enable Turnstile CAPTCHA on registration"
+          hint="Requires a Cloudflare Turnstile site key and secret key. The widget automatically matches the forum's dark or light theme. Fails open — if Cloudflare is unreachable, registration proceeds normally."
+          value={!!spamCfg.turnstile_enabled}
+          onChange={v=>setSpamCfg(p=>({...p,turnstile_enabled:v}))}
+        />
+        {!!spamCfg.turnstile_enabled && <>
+          <F label="Site key" hint="Public key — goes in the frontend widget. Safe to expose.">
+            <input className="fi" placeholder="0x4AAAAAAA..." value={spamCfg.turnstile_site_key||""} onChange={e=>setSpamCfg(p=>({...p,turnstile_site_key:e.target.value}))}/>
+          </F>
+          <F label="Secret key" hint="Private key — never exposed to users. Used for server-side verification only.">
+            <input className="fi" type="password" placeholder="0x4AAAAAAA..." value={spamCfg.turnstile_secret_key||""} onChange={e=>setSpamCfg(p=>({...p,turnstile_secret_key:e.target.value}))}/>
+          </F>
+          <div style={{fontSize:12,color:"var(--t5)",marginBottom:8}}>
+            Get your keys at <a href="https://dash.cloudflare.com/?to=/:account/turnstile" target="_blank" rel="noopener" style={{color:"var(--ac-text)"}}>dash.cloudflare.com → Turnstile</a>. Add your forum's domain as an allowed hostname when creating the widget.
+          </div>
+        </>}
+
         <div className="fgt" style={{marginTop:16}}>New account restrictions</div>
         <div style={{fontSize:13,color:"var(--t3)",marginBottom:12}}>
           New accounts under 24 hours old are blocked from sending direct messages. This is always enforced and cannot be disabled.
