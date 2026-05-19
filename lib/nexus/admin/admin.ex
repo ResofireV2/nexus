@@ -230,7 +230,7 @@ defmodule Nexus.Admin do
     },
     "registration" => %{
       "open"                       => true,
-      "require_email_verification" => false,
+      "require_email_verification" => true,
       "allowed_email_domains"      => [],
       "min_account_age_hours"      => 0
     },
