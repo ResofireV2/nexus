@@ -40,7 +40,18 @@ defmodule NexusWeb.API.V1.AccountDeletionController do
   # GET /api/v1/auth/export
   def export(conn, _params) do
     user = conn.assigns.current_user
-    data = Accounts.export_user_data(user)
-    json(conn, %{export: data})
+
+    case Nexus.Export.build(user) do
+      {:ok, filename, zip_binary} ->
+        conn
+        |> put_resp_content_type("application/zip")
+        |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+        |> send_resp(200, zip_binary)
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> json(%{error: "Export failed"})
+    end
   end
 end

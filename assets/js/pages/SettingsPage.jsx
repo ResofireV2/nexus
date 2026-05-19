@@ -104,7 +104,6 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
       const res = await fetch("/api/v1/auth/export", {
         method: "GET",
         headers: {
-          "Content-Type": "application/json",
           ...(token ? {"Authorization": `Bearer ${token}`} : {}),
         },
         credentials: "include",
@@ -113,22 +112,19 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
         toast("Export failed — please try again");
         return;
       }
-      const d = await res.json();
-      if (d.export) {
-        const blob = new Blob([JSON.stringify(d.export, null, 2)], {type: "application/json"});
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement("a");
-        a.href     = url;
-        a.download = `nexus-data-export-${new Date().toISOString().slice(0,10)}.json`;
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast("Data export downloaded");
-      } else {
-        toast("Export failed — please try again");
-      }
+      // Response is a ZIP binary — read as blob and trigger download
+      const blob = await res.blob();
+      const date = new Date().toISOString().slice(0, 10);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `nexus-export-${date}.zip`;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast("Data export downloaded");
     } catch(e) {
       toast("Export failed — please try again");
     } finally {
