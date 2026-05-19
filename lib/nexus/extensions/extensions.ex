@@ -331,7 +331,7 @@ defmodule Nexus.Extensions do
       with {:ok, ext} <- install_extension(attrs) do
         # Load the extension into the VM if we have a tarball URL
         if tarball_url do
-          case Nexus.Extensions.Loader.load_from_url(tarball_url, slug) do
+          case Nexus.Extensions.Loader.load_from_url(tarball_url, slug, token) do
             {:ok, module} ->
               # Derive js_bundle_url from the loaded module.
               bundle_url =
@@ -510,7 +510,7 @@ defmodule Nexus.Extensions do
 
       with {:ok, updated} <- ext |> Extension.changeset(update_attrs) |> Repo.update() do
         # Reload the extension in the VM — stop old, compile new, restart
-        case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module) do
+        case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module, token) do
           {:ok, new_module} ->
             # Update bundle URL from reloaded module
             bundle_url =

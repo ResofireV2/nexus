@@ -36,11 +36,11 @@ defmodule Nexus.Extensions.Loader do
   Downloads, compiles, migrates, and registers the extension.
   Returns {:ok, module} or {:error, reason}.
   """
-  def load_from_url(tarball_url, slug) do
+  def load_from_url(tarball_url, slug, token \\ nil) do
     Logger.info("Loader: loading #{slug} from #{tarball_url}")
     build_dir = Path.join(@extensions_build_dir, slug)
 
-    with :ok          <- download_and_extract(tarball_url, build_dir),
+    with :ok          <- download_and_extract(tarball_url, build_dir, token),
          {:ok, module} <- compile_extension(build_dir, slug),
          :ok           <- run_migrations(module),
          :ok           <- copy_static_assets(build_dir, slug, module),
@@ -96,23 +96,33 @@ defmodule Nexus.Extensions.Loader do
   Reloads an extension after an update — stops the old version, purges its
   modules, then loads the new version from the updated tarball.
   """
-  def reload(tarball_url, slug, old_module) do
+  def reload(tarball_url, slug, old_module, token \\ nil) do
     Logger.info("Loader: reloading #{slug}")
     unload(slug, old_module)
-    load_from_url(tarball_url, slug)
+    load_from_url(tarball_url, slug, token)
   end
 
   # ---------------------------------------------------------------------------
   # Private — download and extract
   # ---------------------------------------------------------------------------
 
-  defp download_and_extract(url, build_dir) do
+  defp download_and_extract(url, build_dir, token \\ nil) do
     File.rm_rf(build_dir)
     File.mkdir_p!(build_dir)
 
     tarball_path = Path.join(build_dir, "release.tar.gz")
 
-    case Req.get(url, receive_timeout: 60_000, decode_body: false) do
+    # Pass the GitHub token if provided — required for private repo tarballs.
+    # The token is supplied by the caller (install/update actions) and is never
+    # fetched here, avoiding any startup timing issues.
+    headers = if token do
+      [{"Authorization", "Bearer #{token}"},
+       {"Accept", "application/octet-stream"}]
+    else
+      [{"Accept", "application/octet-stream"}]
+    end
+
+    case Req.get(url, headers: headers, receive_timeout: 60_000, decode_body: false) do
       {:ok, %{status: 200, body: body}} ->
         case File.write(tarball_path, body) do
           :ok -> extract_tarball(tarball_path, build_dir)
