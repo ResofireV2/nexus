@@ -12,7 +12,7 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 
 **Forum**
 - Spaces (sub-forums) with custom colors and descriptions
-- Threads with rich Markdown composer — images, code blocks, embeds, mentions
+- Threads with rich Markdown composer — images, code blocks, embeds, mentions, emoji picker
 - Nested replies with voting, reactions, and accepted answers
 - Pinned threads, thread tags, saved threads
 - Full-text search across posts and replies (PostgreSQL tsvector)
@@ -26,6 +26,8 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 - Follow system and activity feed
 - Direct messages
 - Badges and award system
+- Data export — download a full copy of your posts, replies, messages, and profile as a ZIP archive
+- Account deletion with a 30-day grace period — contributions can be anonymised or deleted, configurable by the admin
 
 **Leaderboard**
 - Weekly, monthly, and all-time rankings
@@ -52,9 +54,14 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 - Leaderboard configuration
 - Digest email configuration and preview
 - PWA settings: icons, theme color, push notification VAPID keys
+- Pages: create static pages (privacy policy, community guidelines, etc.) served at `/p/:slug`
 - Extensions management
 - Moderation queue and user management
+- Permissions: account deletion content mode — anonymise content or delete it permanently
 - Logs: job failures and settings change history
+
+**Right sidebar**
+- Legal & Info widget — configurable links to privacy policy, community guidelines, terms of service, and security settings
 
 **Mobile**
 - Fully responsive mobile layout
@@ -82,15 +89,21 @@ The installer will:
 
 Total time: approximately 5–10 minutes depending on server speed.
 
-**Management commands installed automatically:**
+**Management command installed automatically:**
 ```bash
-nexus-update   # update to the latest release
 nexus-backup   # back up the database and uploads
 ```
 
 ---
 
 ## Development
+
+`nexus-update` is a CLI tool installed at `/usr/local/bin/nexus-update` that pulls the latest commit from the `master` branch and rebuilds the container. It is intended for development use only — production instances should update via the admin panel, which pulls tagged releases.
+
+```bash
+# Pull latest master and rebuild (dev only)
+nexus-update
+```
 
 ```bash
 # Start the dev environment
@@ -142,6 +155,10 @@ Extensions are standalone services that integrate with Nexus via a `manifest.jso
 - Subscribe to backend webhook events (new post, new reply, new member, etc.)
 - Add settings tabs to the admin panel
 - Expose their own API routes through the Nexus extension proxy
+
+A dedicated Oban queue named `:extensions` is reserved for extension background jobs — use it for any async work your extension needs to run. Nexus core never schedules jobs into this queue.
+
+See [`lib/nexus/extensions/EXTENSION_GUIDE.md`](lib/nexus/extensions/EXTENSION_GUIDE.md) for full documentation on building extensions, including routes, hooks, settings, digest sections, and background jobs.
 
 See the [nexus-extensions](https://github.com/ResofireV2/nexus-extensions) repository for the extension registry and published extensions.
 
