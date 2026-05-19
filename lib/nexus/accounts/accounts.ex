@@ -632,34 +632,38 @@ defmodule Nexus.Accounts do
         from p in Nexus.Forum.Post,
           where: p.user_id == ^user.id,
           select: %{
-            id:         p.id,
-            title:      p.title,
-            body:       p.body,
+            id:          p.id,
+            title:       p.title,
+            body:        p.body,
             inserted_at: p.inserted_at
           }
       )
+      |> Enum.map(fn p -> %{p | inserted_at: dt(p.inserted_at)} end)
 
     replies =
       Repo.all(
         from r in Nexus.Forum.Reply,
           where: r.user_id == ^user.id,
           select: %{
-            id:         r.id,
-            body:       r.body,
-            post_id:    r.post_id,
+            id:          r.id,
+            body:        r.body,
+            post_id:     r.post_id,
             inserted_at: r.inserted_at
           }
       )
+      |> Enum.map(fn r -> %{r | inserted_at: dt(r.inserted_at)} end)
 
+    # Thread schema uses `name` (group threads) not `title`.
+    # `kind` distinguishes direct vs group threads.
     threads =
       Repo.all(
         from m in Nexus.Messaging.ThreadMember,
           join: t in Nexus.Messaging.Thread, on: t.id == m.thread_id,
           where: m.user_id == ^user.id,
           select: %{
-            thread_id:   t.id,
-            title:       t.title,
-            inserted_at: t.inserted_at
+            thread_id: t.id,
+            kind:      t.kind,
+            name:      t.name
           }
       )
 
@@ -669,20 +673,21 @@ defmodule Nexus.Accounts do
           join: b in Nexus.Badges.Badge, on: b.id == ub.badge_id,
           where: ub.user_id == ^user.id,
           select: %{
-            badge:       b.name,
-            awarded_at:  ub.inserted_at
+            badge:      b.name,
+            awarded_at: ub.inserted_at
           }
       )
+      |> Enum.map(fn b -> %{b | awarded_at: dt(b.awarded_at)} end)
 
     %{
       exported_at: DateTime.utc_now() |> DateTime.to_iso8601(),
       profile: %{
-        id:         user.id,
-        username:   user.username,
-        email:      user.email,
-        bio:        user.bio,
-        role:       user.role,
-        joined_at:  user.inserted_at
+        id:        user.id,
+        username:  user.username,
+        email:     user.email,
+        bio:       user.bio,
+        role:      user.role,
+        joined_at: dt(user.inserted_at)
       },
       posts:   posts,
       replies: replies,
@@ -690,4 +695,8 @@ defmodule Nexus.Accounts do
       badges:  badges
     }
   end
+
+  defp dt(nil), do: nil
+  defp dt(%DateTime{} = d),     do: DateTime.to_iso8601(d)
+  defp dt(%NaiveDateTime{} = d), do: NaiveDateTime.to_iso8601(d)
 end
