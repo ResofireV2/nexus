@@ -112,7 +112,17 @@ defmodule Nexus.Extensions.Loader do
 
     tarball_path = Path.join(build_dir, "release.tar.gz")
 
-    case Req.get(url, receive_timeout: 60_000, decode_body: false) do
+    # Include the GitHub token if configured — required for private repos.
+    # Uses the same token stored in Admin → Integrations → github_token.
+    token = Nexus.Extensions.GitHub.get_token()
+    headers = if token do
+      [{"Authorization", "Bearer #{token}"},
+       {"Accept", "application/octet-stream"}]
+    else
+      [{"Accept", "application/octet-stream"}]
+    end
+
+    case Req.get(url, headers: headers, receive_timeout: 60_000, decode_body: false) do
       {:ok, %{status: 200, body: body}} ->
         case File.write(tarball_path, body) do
           :ok -> extract_tarball(tarball_path, build_dir)
