@@ -3024,7 +3024,7 @@ function PageViewPage({slug, navigate}) {
   );
 
   return (
-    <div style={{maxWidth:720,margin:"0 auto",padding:"32px 24px"}}>
+    <div style={{flex:1,overflowY:"auto",padding:"32px 40px"}}>
       <button className="btn-ghost" style={{fontSize:12,padding:"5px 12px",marginBottom:20}}
         onClick={()=>window.history.back()}>
         <i className="fa-solid fa-arrow-left" style={{marginRight:6}}/>Back
