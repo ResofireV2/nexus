@@ -600,6 +600,51 @@ window.NexusExtensions.registerNotificationType("my_ext_event", {
 
 ---
 
+## Phoenix 1.8 compatibility
+
+Nexus runs on Phoenix 1.8. If your in-VM extension includes controllers or a router, you must follow these requirements:
+
+### Controllers
+
+`use Phoenix.Controller` now **requires** a `:formats` option in Phoenix 1.8. Always specify it:
+
+```elixir
+defmodule MyExtension.MyController do
+  use Phoenix.Controller, formats: [:json]
+  import Plug.Conn
+
+  def index(conn, _params) do
+    json(conn, %{items: []})
+  end
+end
+```
+
+Use `formats: [:json]` for API-only controllers. Without the `:formats` option Phoenix 1.8 will emit a deprecation warning and may not route correctly.
+
+### Routers
+
+`use Phoenix.Router` works as expected in Phoenix 1.8 with no changes required:
+
+```elixir
+defmodule MyExtension.ApiRouter do
+  use Phoenix.Router, helpers: false
+  import Plug.Conn
+  import Phoenix.Controller
+
+  pipeline :api do
+    plug :accepts, ["json"]
+    plug :fetch_query_params
+  end
+
+  scope "/" do
+    pipe_through :api
+    get "/items", MyExtension.ItemController, :index
+  end
+end
+```
+
+---
+
 ## Background jobs
 
 Nexus provides a dedicated Oban queue named `:extensions` for extension background work. This queue exists exclusively for extensions — Nexus core never schedules jobs into it. Use it for any work your extension needs to run asynchronously: generating reports, sending notifications, processing imports, scheduling periodic tasks, or any operation too slow to run inline during a request.

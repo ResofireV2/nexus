@@ -127,9 +127,15 @@ defmodule Nexus.Extensions.Registry do
       :ets.insert(:nexus_ext_slots, {{slot, slug}, {component, priority, js_url}})
     end
 
-    # Register routes
+    # Register routes — always insert so an empty result is visible in ETS.
+    # safe_call returns [] both when routes/0 is not exported AND when it
+    # raises. We log a warning for the raise case (safe_call already logs
+    # the error), but we still do the insert so routes_for/1 returns []
+    # rather than a stale entry from a previous registration. Extensions
+    # that truly have no routes (server-side only) return [] intentionally
+    # and that is fine — the warning is suppressed for them.
     routes = safe_call(module, :routes, [], [])
-    if routes != [], do: :ets.insert(:nexus_ext_routes, {slug, routes})
+    :ets.insert(:nexus_ext_routes, {slug, routes})
 
     # Register digest sections
     sections = safe_call(module, :digest_sections, [], [])
