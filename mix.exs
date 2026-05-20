@@ -34,7 +34,7 @@ defmodule Nexus.MixProject do
   defp deps do
     [
       # Phoenix core
-      {:phoenix, "~> 1.7"},
+      {:phoenix, "~> 1.8"},
       {:phoenix_ecto, "~> 4.6"},
       {:ecto_sql, "~> 3.12"},
       {:postgrex, "~> 0.19"},
