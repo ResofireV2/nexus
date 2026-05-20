@@ -129,37 +129,6 @@ defmodule Nexus.Extensions.Loader do
           {:error, reason} -> {:error, "Failed to write tarball: #{inspect(reason)}"}
         end
 
-      {:ok, %{status: 404}} ->
-        # GitHub CDN can lag after a release is created — retry up to 3 times
-        # with a short delay before giving up.
-        retry_download(url, headers, tarball_path, build_dir, 3)
-
-      {:ok, %{status: status}} ->
-        {:error, "Failed to download tarball: HTTP #{status}"}
-
-      {:error, reason} ->
-        {:error, "Network error downloading tarball: #{inspect(reason)}"}
-    end
-  end
-
-  defp retry_download(_url, _headers, _tarball_path, _build_dir, 0) do
-    {:error, "Failed to download tarball: HTTP 404 (retries exhausted)"}
-  end
-
-  defp retry_download(url, headers, tarball_path, build_dir, retries_left) do
-    Logger.info("Loader: tarball returned 404, retrying in 2s (#{retries_left} attempts left)")
-    Process.sleep(2_000)
-
-    case Req.get(url, headers: headers, receive_timeout: 60_000, decode_body: false) do
-      {:ok, %{status: 200, body: body}} ->
-        case File.write(tarball_path, body) do
-          :ok -> extract_tarball(tarball_path, build_dir)
-          {:error, reason} -> {:error, "Failed to write tarball: #{inspect(reason)}"}
-        end
-
-      {:ok, %{status: 404}} ->
-        retry_download(url, headers, tarball_path, build_dir, retries_left - 1)
-
       {:ok, %{status: status}} ->
         {:error, "Failed to download tarball: HTTP #{status}"}
 
@@ -353,30 +322,15 @@ defmodule Nexus.Extensions.Loader do
     # followed by "." or is exactly the prefix — never purge anything else.
     prefix = root_module |> Atom.to_string()
 
-    modules =
-      :code.all_loaded()
-      |> Enum.filter(fn {mod, _} ->
-        mod_str = Atom.to_string(mod)
-        mod_str == prefix || String.starts_with?(mod_str, prefix <> ".")
-      end)
-      |> Enum.map(fn {mod, _} -> mod end)
-
-    Enum.each(modules, fn mod ->
-      # soft_purge returns false if any process is still executing old code.
-      # In that case, forcibly kill those processes so the purge can succeed.
-      # This is necessary for hot code reloading — processes running in-flight
-      # HTTP requests or receive loops must be terminated before their module
-      # can be replaced. Bandit request processes are transient and will be
-      # restarted by the supervisor for any new requests automatically.
-      unless :code.soft_purge(mod) do
-        :code.purge(mod)
-      end
+    :code.all_loaded()
+    |> Enum.filter(fn {mod, _} ->
+      mod_str = Atom.to_string(mod)
+      mod_str == prefix || String.starts_with?(mod_str, prefix <> ".")
+    end)
+    |> Enum.each(fn {mod, _} ->
+      :code.purge(mod)
       :code.delete(mod)
     end)
-
-    # Give the BEAM a moment to fully complete the purge cycle before
-    # recompilation begins, avoiding race conditions in module loading.
-    Process.sleep(100)
 
     :ok
   end
