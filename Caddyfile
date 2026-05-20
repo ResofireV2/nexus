@@ -33,23 +33,6 @@ billyrayfoss.com {
     }
     encode @nosse gzip
 
-    # --- SSE (Server-Sent Events) — disable proxy timeouts and force flush ---
-    # Caddy's default response_header_timeout kills long-lived SSE connections.
-    # flush_interval -1 forces Caddy to flush each chunk immediately.
-    @sse {
-        path */live
-    }
-    handle @sse {
-        reverse_proxy localhost:4000 {
-            header_up X-Forwarded-For {remote_host}
-            flush_interval -1
-            transport http {
-                response_header_timeout 0
-                read_buffer_size 4096
-            }
-        }
-    }
-
     # --- Nexus (catch-all, must be last) ---
     @websockets {
         header Connection *Upgrade*
