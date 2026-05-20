@@ -184,18 +184,29 @@ defmodule Nexus.Extensions.Loader do
       else
         Logger.info("Loader: compiling #{length(ex_files)} file(s) for #{slug}")
 
-        # Use Kernel.ParallelCompiler which resolves inter-module dependencies
-        # automatically — schemas compile before contexts that reference them.
-        case Kernel.ParallelCompiler.compile(ex_files) do
-          {:ok, modules, _warnings} ->
-            find_extension_module(modules, slug)
+        # Tell the Elixir compiler to silently override already-loaded modules
+        # rather than skipping the :code.load_binary call for redefined modules.
+        # Without this, hot-reloading an extension leaves the old module code
+        # in the VM because ParallelCompiler tracks redefines and skips loading.
+        # We restore the previous value after compilation so this option does
+        # not affect anything else running in the VM.
+        prev_conflict_opt = Code.get_compiler_option(:ignore_module_conflict)
+        Code.put_compiler_option(:ignore_module_conflict, true)
 
-          {:error, errors, _warnings} ->
-            messages = Enum.map(errors, fn {file, line, msg} ->
-              "#{Path.basename(file)}:#{line}: #{msg}"
-            end) |> Enum.join(", ")
-            {:error, "Compilation failed: #{messages}"}
-        end
+        result =
+          case Kernel.ParallelCompiler.compile(ex_files) do
+            {:ok, modules, _warnings} ->
+              find_extension_module(modules, slug)
+
+            {:error, errors, _warnings} ->
+              messages = Enum.map(errors, fn {file, line, msg} ->
+                "#{Path.basename(file)}:#{line}: #{msg}"
+              end) |> Enum.join(", ")
+              {:error, "Compilation failed: #{messages}"}
+          end
+
+        Code.put_compiler_option(:ignore_module_conflict, prev_conflict_opt)
+        result
       end
     end
   end
