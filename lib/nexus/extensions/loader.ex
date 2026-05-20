@@ -184,40 +184,17 @@ defmodule Nexus.Extensions.Loader do
       else
         Logger.info("Loader: compiling #{length(ex_files)} file(s) for #{slug}")
 
-        # Use Code.compile_file/1 for each file rather than
-        # Kernel.ParallelCompiler.compile/1. ParallelCompiler is designed
-        # for Mix build pipelines and has caching/state assumptions that
-        # break when reloading already-compiled modules at runtime — it can
-        # skip loading a freshly compiled module if one with the same name is
-        # still present in the VM. Code.compile_file always produces fresh
-        # bytecode and loads it unconditionally via :code.load_binary,
-        # which is the correct behaviour for hot-code-swap scenarios.
-        #
-        # Dependency ordering: sort files so that modules with no
-        # inter-extension dependencies (schemas, migrations) compile first.
-        # Simple heuristic: files deeper in the tree (more path segments)
-        # tend to be leaf modules; compile shallower files first.
-        sorted_files = Enum.sort_by(ex_files, fn f ->
-          f |> Path.split() |> length()
-        end)
+        # Use Kernel.ParallelCompiler which resolves inter-module dependencies
+        # automatically — schemas compile before contexts that reference them.
+        case Kernel.ParallelCompiler.compile(ex_files) do
+          {:ok, modules, _warnings} ->
+            find_extension_module(modules, slug)
 
-        {modules, errors} =
-          Enum.reduce(sorted_files, {[], []}, fn file, {mods, errs} ->
-            try do
-              compiled = Code.compile_file(file)
-              new_mods  = Enum.map(compiled, fn {mod, _bytecode} -> mod end)
-              {mods ++ new_mods, errs}
-            rescue
-              e ->
-                msg = "#{Path.basename(file)}: #{Exception.message(e)}"
-                {mods, errs ++ [msg]}
-            end
-          end)
-
-        if errors != [] do
-          {:error, "Compilation failed: #{Enum.join(errors, ", ")}"}
-        else
-          find_extension_module(modules, slug)
+          {:error, errors, _warnings} ->
+            messages = Enum.map(errors, fn {file, line, msg} ->
+              "#{Path.basename(file)}:#{line}: #{msg}"
+            end) |> Enum.join(", ")
+            {:error, "Compilation failed: #{messages}"}
         end
       end
     end
