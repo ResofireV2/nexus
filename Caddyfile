@@ -25,7 +25,13 @@ billyrayfoss.com {
     }
     header @fonts Cache-Control "public, max-age=31536000, immutable"
 
-    encode gzip
+    # Exclude SSE (Server-Sent Events) endpoints from gzip compression.
+    # Gzip buffers the full response before compressing — this breaks SSE
+    # streams which must flush data to the client incrementally.
+    @nosse {
+        not path */live */events */stream
+    }
+    encode @nosse gzip
 
     # --- Nexus (catch-all, must be last) ---
     @websockets {
