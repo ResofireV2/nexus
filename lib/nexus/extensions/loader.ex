@@ -328,8 +328,11 @@ defmodule Nexus.Extensions.Loader do
       mod_str == prefix || String.starts_with?(mod_str, prefix <> ".")
     end)
     |> Enum.each(fn {mod, _} ->
-      :code.purge(mod)
+      # Correct BEAM sequence: delete first (marks current as old),
+      # then purge (removes old from memory). Reversed order is a no-op
+      # on first update since there is no prior "old" version to purge.
       :code.delete(mod)
+      :code.purge(mod)
     end)
 
     :ok
