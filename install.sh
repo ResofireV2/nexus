@@ -210,7 +210,12 @@ $DOMAIN {
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 
-    encode gzip
+    # Exclude SSE endpoints from gzip — gzip buffers responses which breaks
+    # Server-Sent Events streams that must flush data to the client immediately.
+    @nosse {
+        not path */live
+    }
+    encode @nosse gzip
 }
 $CADDY_WWW
 EOF
@@ -245,6 +250,8 @@ echo -e "${CYAN}▶ Updating Nexus...${NC}"
 cd /opt/nexus
 git pull origin master
 docker compose -f docker-compose.prod.yml up -d --build
+cp /opt/nexus/Caddyfile /etc/caddy/Caddyfile
+systemctl reload caddy
 echo -e "${GREEN}✓ Nexus updated. Database and uploads at /opt/nexus-data are untouched.${NC}"
 UPDATESCRIPT
 chmod +x /usr/local/bin/nexus-update
