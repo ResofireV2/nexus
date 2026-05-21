@@ -81,12 +81,20 @@ defmodule Nexus.Extensions do
           case Nexus.Extensions.Loader.load_from_url(url, ext.slug) do
             {:ok, _module} ->
               Logger.info("Extensions: loaded #{ext.slug}")
-            {:error, reason} ->
-              Logger.error("Extensions: failed to load #{ext.slug}: #{inspect(reason)}")
+              set_load_status(ext.slug, "loaded")
+            {:error, _} = err ->
+              {status, message} = load_error_to_status(err)
+              Logger.error("Extensions: failed to load #{ext.slug}: #{message}")
+              set_load_status(ext.slug, status, message)
           end
 
         {:error, reason} ->
           Logger.warning("Extensions: cannot determine tarball URL for #{ext.slug}: #{reason}")
+          # build_tarball_url failures are always release-or-repo problems —
+          # see its implementation. Use no_release when github_repo is set,
+          # no_repo otherwise.
+          status = if ext.github_repo, do: "no_release", else: "no_repo"
+          set_load_status(ext.slug, status, to_string(reason))
       end
     end
   end
@@ -112,6 +120,12 @@ defmodule Nexus.Extensions do
         |> Map.drop(["hooks", "slots", "settings_schema", "settings_tabs"])
         |> Map.put("manifest", manifest)
         |> Map.put("proxy_secret", proxy_secret)
+        # Start every new row in a known load state. install_from_url overwrites
+        # this immediately after the loader returns; direct callers of
+        # install_extension/1 (e.g. the store one-click install path) leave it
+        # at "not_loaded" so the admin UI shows that clearly until something
+        # else triggers a load.
+        |> Map.put("load_status", "not_loaded")
 
       case %Extension{} |> Extension.changeset(ext_attrs) |> Repo.insert() do
         {:ok, ext} ->
@@ -262,15 +276,79 @@ defmodule Nexus.Extensions do
   end
 
   def toggle_extension(%Extension{} = ext) do
-    ext
-    |> Extension.toggle_changeset()
-    |> Repo.update()
+    # Flip the enabled boolean. Loader state is not actually changed here —
+    # disabling does not unload from the VM, and enabling does not reload —
+    # so the new load_status is informational only: it tells the admin what
+    # *will* happen on the next boot.
+    with {:ok, updated} <- ext |> Extension.toggle_changeset() |> Repo.update() do
+      status = if updated.enabled, do: "not_loaded", else: "disabled"
+      set_load_status(updated.slug, status)
+      {:ok, updated}
+    end
   end
 
   def update_extension_settings(%Extension{} = ext, settings) do
     ext
     |> Extension.settings_changeset(settings)
     |> Repo.update()
+  end
+
+  # ---------------------------------------------------------------------------
+  # Load status tracking
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Records a load-status transition on the extension row identified by `slug`.
+
+  `status` is one of the strings documented in
+  `priv/repo/migrations/20260521000001_add_load_status_to_extensions.exs`.
+  `error` is an optional human-readable message attached to non-success states.
+
+  Looks the extension up by slug rather than taking a struct, because the
+  loader operates from slug + module and does not always hold a fresh struct.
+
+  Returns `{:ok, ext}` on success, `{:error, :not_found}` if no row matches,
+  or `{:error, changeset}` if the update fails. Callers in the loader treat
+  any error as non-fatal and log it — we never want a status update to mask
+  the real load result.
+  """
+  def set_load_status(slug, status, error \\ nil) when is_binary(slug) and is_binary(status) do
+    case Repo.get_by(Extension, slug: slug) do
+      nil ->
+        {:error, :not_found}
+
+      ext ->
+        ext
+        |> Extension.changeset(%{
+          "load_status" => status,
+          "load_error"  => error,
+          "loaded_at"   => DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+        |> Repo.update()
+    end
+  end
+
+  @doc """
+  Maps a Loader error tuple to a `{status, message}` pair for storage.
+
+  The Loader returns `{:error, {step, reason}}` where step is one of
+  `:download | :compile | :migration | :assets | :supervisor | :registry`.
+  Each step has a corresponding load_status string. `reason` is preserved as
+  the human-readable message and stringified for the load_error column.
+  """
+  def load_error_to_status({:error, {step, reason}}) do
+    status =
+      case step do
+        :download   -> "download_failed"
+        :compile    -> "compile_failed"
+        :migration  -> "migration_failed"
+        :assets     -> "compile_failed"   # asset copy is part of the install package — treat as a compile-time issue
+        :supervisor -> "compile_failed"   # child_specs/0 raising is an extension-code issue
+        :registry   -> "compile_failed"   # registry insert should never fail; if it does, classify here
+        _           -> "compile_failed"
+      end
+
+    {status, "#{step}: #{inspect(reason)}"}
   end
 
   # ---------------------------------------------------------------------------
@@ -361,10 +439,25 @@ defmodule Nexus.Extensions do
               end
 
               on_install_safe(module, ext.settings || %{})
+              set_load_status(slug, "loaded")
 
-            {:error, reason} ->
+            {:error, _} = err ->
+              {status, message} = load_error_to_status(err)
               require Logger
-              Logger.warning("install_from_url: saved #{slug} to DB but compile failed: #{inspect(reason)}")
+              Logger.warning("install_from_url: saved #{slug} to DB but loader failed: #{message}")
+              set_load_status(slug, status, message)
+          end
+        else
+          # No tarball URL means we never reached the Loader. Distinguish the
+          # two reasons so the admin UI can show a specific message.
+          if github_repo do
+            set_load_status(slug, "no_release",
+              "GitHub repo #{github_repo} has no published release. " <>
+              "Publish a release on GitHub (Releases → Draft a new release) and reinstall.")
+          else
+            set_load_status(slug, "no_repo",
+              "Could not derive a GitHub repo from #{url}. " <>
+              "Install from a github.com URL or set github_repo in manifest.json.")
           end
         end
 
@@ -540,9 +633,13 @@ defmodule Nexus.Extensions do
               end)
             end
 
-          {:error, reason} ->
+            set_load_status(ext.slug, "loaded")
+
+          {:error, _} = err ->
+            {status, message} = load_error_to_status(err)
             require Logger
-            Logger.error("Failed to reload #{ext.slug} after update: #{inspect(reason)}")
+            Logger.error("Failed to reload #{ext.slug} after update: #{message}")
+            set_load_status(ext.slug, status, message)
         end
 
         {:ok, updated}

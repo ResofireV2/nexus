@@ -40,20 +40,35 @@ defmodule Nexus.Extensions.Loader do
     Logger.info("Loader: loading #{slug} from #{tarball_url}")
     build_dir = Path.join(@extensions_build_dir, slug)
 
-    with :ok          <- download_and_extract(tarball_url, build_dir, token),
-         {:ok, module} <- compile_extension(build_dir, slug),
-         :ok           <- run_migrations(module),
-         :ok           <- copy_static_assets(build_dir, slug, module),
-         :ok           <- ExtensionSupervisor.start_extension(slug, module),
-         :ok           <- Registry.register(slug, module) do
-      {:ok, module}
-    else
-      {:error, reason} ->
-        Logger.error("Loader: failed to load #{slug}: #{inspect(reason)}")
+    # Each step returns either :ok / {:ok, _} or {:error, reason}. We tag
+    # the failure with the step name so the caller can report a specific
+    # load_status ("compile_failed" vs "migration_failed" vs "download_failed")
+    # instead of a generic "failed to load". The reason string is preserved.
+    result =
+      with :ok           <- tag(:download, download_and_extract(tarball_url, build_dir, token)),
+           {:ok, module} <- tag(:compile,  compile_extension(build_dir, slug)),
+           :ok           <- tag(:migration, run_migrations(module)),
+           :ok           <- tag(:assets,    copy_static_assets(build_dir, slug, module)),
+           :ok           <- tag(:supervisor, ExtensionSupervisor.start_extension(slug, module)),
+           :ok           <- tag(:registry,   Registry.register(slug, module)) do
+        {:ok, module}
+      end
+
+    case result do
+      {:ok, module} ->
+        {:ok, module}
+
+      {:error, {step, reason}} ->
+        Logger.error("Loader: failed to load #{slug} at #{step}: #{inspect(reason)}")
         cleanup_build_dir(build_dir)
-        {:error, reason}
+        {:error, {step, reason}}
     end
   end
+
+  # Wraps a step's return value with its step name on failure.
+  defp tag(_step, :ok),               do: :ok
+  defp tag(_step, {:ok, _} = ok),     do: ok
+  defp tag(step,  {:error, reason}),  do: {:error, {step, reason}}
 
   @doc """
   Unloads a running extension. Stops child processes, unregisters from

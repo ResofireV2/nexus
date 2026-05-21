@@ -91,6 +91,63 @@ defmodule Nexus.Extensions.Registry do
     end)
   end
 
+  @doc """
+  Returns everything registered for a given slug, for admin introspection.
+
+  Shape:
+
+      %{
+        module:          atom | nil,
+        hooks:           [%{event: String.t(), priority: integer()}],
+        slots:           [%{slot: String.t(), component: String.t(), priority: integer(), js_bundle_url: String.t() | nil}],
+        routes:          [%{prefix: String.t(), plug: String.t(), opts: list()}],
+        digest_sections: [%{key: String.t(), label: String.t(), icon: String.t(), enabled_by_default: boolean()}],
+      }
+
+  Returns `nil` for `module` if the slug is not currently loaded. Hooks/slots/
+  routes/digest_sections will then be empty lists, since registration is
+  keyed on slug and removed on unregister.
+  """
+  def runtime_info(slug) when is_binary(slug) do
+    %{
+      module:          get_module(slug),
+      hooks:           hooks_for_slug(slug),
+      slots:           slots_for_slug(slug),
+      routes:          routes_info_for_slug(slug),
+      digest_sections: digest_sections_for_slug(slug),
+    }
+  end
+
+  defp hooks_for_slug(slug) do
+    :ets.match_object(:nexus_ext_hooks, {{:_, slug}, :_})
+    |> Enum.sort_by(fn {{_event, _slug}, {_module, priority}} -> priority end)
+    |> Enum.map(fn {{event, _slug}, {_module, priority}} ->
+      %{event: event, priority: priority}
+    end)
+  end
+
+  defp slots_for_slug(slug) do
+    :ets.match_object(:nexus_ext_slots, {{:_, slug}, :_})
+    |> Enum.sort_by(fn {{_slot, _slug}, {_component, priority, _url}} -> priority end)
+    |> Enum.map(fn {{slot, _slug}, {component, priority, js_url}} ->
+      %{slot: slot, component: component, priority: priority, js_bundle_url: js_url}
+    end)
+  end
+
+  defp routes_info_for_slug(slug) do
+    routes_for(slug)
+    |> Enum.map(fn {prefix, plug_mod, opts} ->
+      %{prefix: prefix, plug: inspect(plug_mod), opts: opts}
+    end)
+  end
+
+  defp digest_sections_for_slug(slug) do
+    :ets.match_object(:nexus_ext_digest, {{:_, slug}, :_})
+    |> Enum.map(fn {{key, _slug}, {label, icon, enabled_by_default}} ->
+      %{key: key, label: label, icon: icon, enabled_by_default: enabled_by_default}
+    end)
+  end
+
   # ---------------------------------------------------------------------------
   # Server callbacks
   # ---------------------------------------------------------------------------

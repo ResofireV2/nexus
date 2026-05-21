@@ -32,6 +32,11 @@ config :nexus, :jwt_secret, "dev_jwt_secret_replace_in_production_min_32_chars_x
 config :nexus, :mailer_from, {"Nexus Dev", "dev@nexus.localhost"}
 config :nexus, :env, :dev
 
+# In dev, surface extension exceptions in the JSON response so extension
+# authors can debug without tailing server logs. NEVER set this in prod —
+# it would leak internal paths and stack frames to API clients.
+config :nexus, :show_extension_errors, true
+
 config :logger, level: :debug
 config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view, :debug_heex_annotations, true

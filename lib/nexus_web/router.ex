@@ -314,6 +314,7 @@ defmodule NexusWeb.Router do
     get    "/extensions",                    ExtensionController, :index
     get    "/extensions/store",              ExtensionController, :store
     get    "/extensions/:slug",              ExtensionController, :show
+    get    "/extensions/:slug/runtime",      ExtensionController, :runtime
     post   "/extensions",                    ExtensionController, :install
     post   "/extensions/install-from-url",   ExtensionController, :install_from_url
     post   "/extensions/:slug/toggle",       ExtensionController, :toggle

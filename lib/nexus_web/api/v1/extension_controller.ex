@@ -17,6 +17,40 @@ defmodule NexusWeb.API.V1.ExtensionController do
     end
   end
 
+  # GET /api/v1/admin/extensions/:slug/runtime
+  #
+  # Returns what the in-memory Registry currently knows about a slug:
+  # which module is loaded, which hooks/slots/routes/digest_sections are
+  # registered. Useful for the admin UI to verify that an extension's
+  # registrations went through and to debug "I'm sure I registered that"
+  # situations.
+  #
+  # Note: the DB row is the source of truth for whether the extension is
+  # *installed*, while the Registry is the source of truth for whether
+  # it's currently *loaded into the VM*. They can disagree if a compile
+  # failed after the row was inserted. We 404 only when there is no DB
+  # row at all; if the row exists but the Registry has no module, we
+  # return the runtime payload with module=nil and empty lists so the UI
+  # can show "installed but not loaded".
+  def runtime(conn, %{"slug" => slug}) do
+    case Extensions.get_extension_by_slug(slug) do
+      nil ->
+        conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
+
+      _ext ->
+        info = Nexus.Extensions.Registry.runtime_info(slug)
+        json(conn, %{runtime: %{
+          # `module` from the registry is an atom (or nil). Inspect it for
+          # JSON-safe transport; the UI just displays it as a string.
+          module:          info.module && inspect(info.module),
+          hooks:           info.hooks,
+          slots:           info.slots,
+          routes:          info.routes,
+          digest_sections: info.digest_sections,
+        }})
+    end
+  end
+
   # POST /api/v1/admin/extensions
   # Installs from a raw manifest map (used by the store one-click install)
   def install(conn, params) do
@@ -216,6 +250,11 @@ defmodule NexusWeb.API.V1.ExtensionController do
       installed_version:  ext.installed_version,
       latest_version:     ext.latest_version,
       release_notes:      ext.release_notes,
+      # Load status — populated by the loader / install flow. The admin UI
+      # uses these to show a status badge and inline error message per card.
+      load_status:        ext.load_status,
+      load_error:         ext.load_error,
+      loaded_at:          ext.loaded_at,
       # Never expose proxy_secret to the frontend
       # Expose schema so admin UI can render settings forms automatically
       settings_schema: manifest["settings_schema"] || %{},

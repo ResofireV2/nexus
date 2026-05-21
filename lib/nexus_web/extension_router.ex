@@ -120,11 +120,36 @@ defmodule NexusWeb.ExtensionRouter do
         plug_module.call(conn, plug_opts)
       rescue
         e ->
+          stack = __STACKTRACE__
+          formatted = Exception.format(:error, e, stack)
           require Logger
-          Logger.error("ExtensionRouter: #{plug_module} raised: #{inspect(e)}")
-          conn
-          |> put_status(500)
-          |> json(%{error: "Internal extension error"})
+          Logger.error(
+            "ExtensionRouter: #{plug_module} raised on #{conn.method} #{conn.request_path} " <>
+            "(slug=#{slug})\n#{formatted}"
+          )
+
+          # In dev, return the exception message and a short stack so authors
+          # can diagnose without tailing server logs. Gated on a config key
+          # set in dev.exs so prod stays generic.
+          if Application.get_env(:nexus, :show_extension_errors, false) do
+            conn
+            |> put_status(500)
+            |> json(%{
+              error:        "Internal extension error",
+              exception:    Exception.message(e),
+              extension:    slug,
+              plug:         inspect(plug_module),
+              method:       conn.method,
+              request_path: conn.request_path,
+              # Top 8 frames is enough to locate the source; longer stacks
+              # rarely add information and bloat the response.
+              stacktrace:   stack |> Enum.take(8) |> Enum.map(&Exception.format_stacktrace_entry/1)
+            })
+          else
+            conn
+            |> put_status(500)
+            |> json(%{error: "Internal extension error"})
+          end
       end
     else
       dispatch_to_routes(conn, rest, slug)

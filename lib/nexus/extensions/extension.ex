@@ -27,6 +27,12 @@ defmodule Nexus.Extensions.Extension do
     field :latest_version,    :string   # latest tag from GitHub Releases API
     field :release_notes,     :string   # markdown body of latest release
 
+    # Load status tracking — populated by the loader / install flow.
+    # See migration 20260521000001 for the meaning of each status string.
+    field :load_status,       :string
+    field :load_error,        :string
+    field :loaded_at,         :utc_datetime
+
     has_many :hooks, Nexus.Extensions.Hook
     has_many :slots, Nexus.Extensions.Slot
 
@@ -38,7 +44,8 @@ defmodule Nexus.Extensions.Extension do
     |> cast(attrs, [:name, :slug, :version, :description, :author, :homepage,
                     :enabled, :settings, :manifest, :webhook_url, :js_bundle_url,
                     :manifest_url, :service_url, :proxy_secret, :install_count,
-                    :github_repo, :installed_version, :latest_version, :release_notes])
+                    :github_repo, :installed_version, :latest_version, :release_notes,
+                    :load_status, :load_error, :loaded_at])
     |> validate_required([:name, :slug, :version])
     |> validate_format(:slug, ~r/^[a-z0-9\-]+$/, message: "only lowercase letters, numbers, and hyphens")
     |> validate_format(:webhook_url,   ~r/^https?:\/\//, message: "must be a valid URL", allow_nil: true)

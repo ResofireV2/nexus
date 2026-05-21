@@ -8,6 +8,206 @@ import { Md } from "../components/Markdown";
 
 // ── Extension admin panels + NexusExtensionTemplates ─────────────────────────
 
+// Status presentation lookup. Keys match the load_status values written by
+// the Elixir loader (see priv/repo/migrations/20260521000001_*.exs for the
+// authoritative list). Returns the badge/banner colour + label + icon class.
+// An unknown or null status falls through to a neutral grey "Unknown" state
+// so the UI never crashes on a value we haven't seen.
+const LOAD_STATUS_INFO = {
+  loaded:           {label:"Loaded",           tone:"ok",     icon:"fa-circle-check"},
+  not_loaded:       {label:"Not loaded",       tone:"warn",   icon:"fa-clock"},
+  disabled:         {label:"Disabled",         tone:"muted",  icon:"fa-circle-pause"},
+  no_repo:          {label:"No GitHub repo",   tone:"err",    icon:"fa-triangle-exclamation"},
+  no_release:       {label:"No release",       tone:"err",    icon:"fa-triangle-exclamation"},
+  download_failed:  {label:"Download failed",  tone:"err",    icon:"fa-circle-xmark"},
+  compile_failed:   {label:"Compile failed",   tone:"err",    icon:"fa-circle-xmark"},
+  migration_failed: {label:"Migration failed", tone:"err",    icon:"fa-circle-xmark"},
+};
+
+// Map a tone to CSS colour tokens. Inline-style rather than classes because
+// the surrounding admin UI uses inline-style throughout.
+const STATUS_TONE_STYLE = {
+  ok:    {color:"#34d399", bg:"rgba(52,211,153,0.15)", border:"rgba(52,211,153,0.3)"},
+  warn:  {color:"#fbbf24", bg:"rgba(251,191,36,0.15)", border:"rgba(251,191,36,0.3)"},
+  err:   {color:"#f87171", bg:"rgba(248,113,113,0.15)", border:"rgba(248,113,113,0.35)"},
+  muted: {color:"var(--t4)", bg:"rgba(255,255,255,0.05)", border:"var(--b1)"},
+};
+
+function statusInfo(status) {
+  return LOAD_STATUS_INFO[status] ||
+    {label: status || "Unknown", tone: "muted", icon: "fa-circle-question"};
+}
+
+// Banner shown in the detail view when an extension is anything other than
+// "loaded". For "loaded" returns null (the card-list badge already conveys
+// the OK state and we don't want to clutter the detail view).
+function ExtensionStatusBanner({ext}) {
+  const status = ext.load_status;
+  // If status is null (pre-migration row) treat as loaded and show nothing.
+  if (!status || status === "loaded") return null;
+
+  const info = statusInfo(status);
+  const tone = STATUS_TONE_STYLE[info.tone];
+
+  return (
+    <div style={{
+      display:"flex", alignItems:"flex-start", gap:10,
+      padding:"10px 14px", marginBottom:20,
+      background: tone.bg, border:`0.5px solid ${tone.border}`,
+      borderRadius:8, color: tone.color,
+    }}>
+      <i className={`fa-solid ${info.icon}`} style={{fontSize:13, marginTop:2}}/>
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{fontSize:13, fontWeight:500, marginBottom: ext.load_error ? 4 : 0}}>
+          {info.label}
+        </div>
+        {ext.load_error && (
+          // load_error can be a multi-line compile message. Use a
+          // monospaced block with whitespace preserved and scroll on overflow.
+          <pre style={{
+            fontSize:11, lineHeight:1.5, color: tone.color,
+            background:"rgba(0,0,0,0.15)", border:"0.5px solid rgba(0,0,0,0.2)",
+            borderRadius:6, padding:"6px 8px", margin:"4px 0 0",
+            maxHeight:200, overflow:"auto",
+            whiteSpace:"pre-wrap", wordBreak:"break-word",
+            fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",
+          }}>
+            {ext.load_error}
+          </pre>
+        )}
+        {ext.loaded_at && (
+          <div style={{fontSize:10, color: tone.color, opacity:0.7, marginTop:4}}>
+            since {ago(ext.loaded_at)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Collapsible runtime introspection block. Calls GET /admin/extensions/:slug/runtime
+// on expand and renders the four registered lists. Closed by default; data is
+// fetched lazily and cached for the lifetime of the panel.
+function ExtensionRuntimePanel({slug}) {
+  const [open, setOpen]       = useState(false);
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    // Lazy-load on first expand. Re-fetch on every expand so the admin can
+    // see registrations made since the last view (e.g. after a reload).
+    if (next) {
+      setLoading(true);
+      setError(null);
+      try {
+        const d = await api.get(`/admin/extensions/${slug}/runtime`);
+        if (d.runtime) setData(d.runtime);
+        else           setError(d.error || "Failed to fetch runtime info");
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  return (
+    <div style={{marginBottom:24, border:"0.5px solid var(--b1)", borderRadius:8}}>
+      <button onClick={toggle} style={{
+        width:"100%", display:"flex", alignItems:"center", gap:8,
+        padding:"10px 14px", background:"none", border:"none",
+        cursor:"pointer", color:"var(--t2)", fontSize:13, fontWeight:500,
+        textAlign:"left", fontFamily:"inherit",
+      }}>
+        <i className={`fa-solid fa-chevron-${open ? "down" : "right"}`}
+           style={{fontSize:10, color:"var(--t5)"}}/>
+        Runtime registrations
+        <span style={{flex:1}}/>
+        <span style={{fontSize:11, color:"var(--t5)", fontWeight:400}}>
+          {open ? "" : "what's loaded in the VM right now"}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{padding:"4px 14px 14px", borderTop:"0.5px solid var(--b1)"}}>
+          {loading && (
+            <div style={{fontSize:12, color:"var(--t4)", padding:"12px 0"}}>
+              <i className="fa-solid fa-spinner fa-spin" style={{marginRight:6}}/>
+              Loading…
+            </div>
+          )}
+
+          {error && (
+            <div style={{fontSize:12, color:"#f87171", padding:"8px 0"}}>
+              {error}
+            </div>
+          )}
+
+          {data && !loading && !error && (
+            <div style={{display:"flex", flexDirection:"column", gap:12, paddingTop:8}}>
+              <RuntimeRow label="Module"
+                value={data.module || <em style={{color:"var(--t5)"}}>not loaded</em>}/>
+
+              <RuntimeList label="Hooks" empty="No hooks registered"
+                items={data.hooks}
+                render={h => `${h.event} (priority ${h.priority})`}/>
+
+              <RuntimeList label="Slots" empty="No slot components registered"
+                items={data.slots}
+                render={s => `${s.slot} → ${s.component} (priority ${s.priority})`}/>
+
+              <RuntimeList label="API routes" empty="No routes registered"
+                items={data.routes}
+                render={r => `${r.prefix} → ${r.plug}`}/>
+
+              <RuntimeList label="Digest sections" empty="No digest sections registered"
+                items={data.digest_sections}
+                render={s => `${s.key} — ${s.label}${s.enabled_by_default ? "" : " (off by default)"}`}/>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RuntimeRow({label, value}) {
+  return (
+    <div style={{display:"flex", gap:12, fontSize:12, alignItems:"baseline"}}>
+      <div style={{width:120, color:"var(--t5)", flexShrink:0}}>{label}</div>
+      <div style={{color:"var(--t2)", fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace"}}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function RuntimeList({label, items, render, empty}) {
+  return (
+    <div style={{display:"flex", gap:12, fontSize:12, alignItems:"flex-start"}}>
+      <div style={{width:120, color:"var(--t5)", flexShrink:0, paddingTop:1}}>{label}</div>
+      <div style={{flex:1, minWidth:0}}>
+        {(!items || items.length === 0) ? (
+          <div style={{color:"var(--t5)", fontStyle:"italic"}}>{empty}</div>
+        ) : (
+          <ul style={{margin:0, padding:0, listStyle:"none",
+            display:"flex", flexDirection:"column", gap:3}}>
+            {items.map((it, i) => (
+              <li key={i} style={{color:"var(--t2)",
+                fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace"}}>
+                {render(it)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Extension Settings Form ───────────────────────────────────────────────────
 // Renders a settings form from settings_schema + settings_tabs declared in manifest.
 // No template = "No settings" message.
@@ -185,6 +385,10 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
         </div>
       </div>
 
+      {/* Load status banner — only shown when not "loaded". For "loaded" we
+          stay quiet; the card badge in the list view is enough indication. */}
+      <ExtensionStatusBanner ext={ext}/>
+
       {/* Description */}
       {ext.description&&(
         <div style={{fontSize:13,color:"var(--t3)",marginBottom:20,lineHeight:1.6}}>
@@ -213,6 +417,12 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
           ))}
         </div>
       )}
+
+      {/* Runtime introspection — what's actually registered in the ETS Registry
+          right now. Lazy-loaded on expand so we don't fetch it on every detail
+          view. Useful when load_status says "loaded" but a specific hook/slot/
+          route doesn't seem to be firing. */}
+      <ExtensionRuntimePanel slug={ext.slug}/>
 
       {/* Settings form */}
       <div className="fgt" style={{marginBottom:16}}>Settings</div>
@@ -481,6 +691,9 @@ function AdminExtensionsPanel() {
         latest_version: e.latest_version,
         release_notes: e.release_notes,
         update_available: !!(updates||[]).find(u=>u.slug===e.slug),
+        load_status: e.load_status,
+        load_error:  e.load_error,
+        loaded_at:   e.loaded_at,
       }));
     // For store items that are installed, merge DB values over store entry
     // so that synced logo_url/banner_url always takes precedence over the registry.
@@ -498,6 +711,9 @@ function AdminExtensionsPanel() {
         release_notes:     inst.release_notes,
         update_available:  !!updatesBySlug[item.slug],
         installed:         true,
+        load_status:       inst.load_status,
+        load_error:        inst.load_error,
+        loaded_at:         inst.loaded_at,
       };
     });
     return [...storeWithInstalled, ...installedOnly];
@@ -674,7 +890,7 @@ function AdminExtensionsPanel() {
                         style={{fontSize:20,color:accentColor,
                           display:item.logo_url?"none":"flex"}}/>
                     </div>
-                    {/* Installed / update available badges */}
+                    {/* Installed / update available / load-status badges */}
                     {isInstalled&&(
                       <div style={{position:"absolute",top:10,right:10,display:"flex",gap:6}}>
                         {item.update_available&&(
@@ -685,12 +901,22 @@ function AdminExtensionsPanel() {
                             Update
                           </div>
                         )}
-                        <div style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
-                          background:"rgba(52,211,153,0.15)",border:"0.5px solid rgba(52,211,153,0.3)",
-                          color:"#34d399",display:"flex",alignItems:"center",gap:4}}>
-                          <i className="fa-solid fa-circle-check" style={{fontSize:9}}/>
-                          Installed
-                        </div>
+                        {(() => {
+                          // Show a status pill reflecting the load_status from the
+                          // server. Default to the legacy "Installed" green badge
+                          // for rows that pre-date the load_status field (still
+                          // null on first migrate before load_all_enabled runs).
+                          const info  = statusInfo(item.load_status || "loaded");
+                          const tone  = STATUS_TONE_STYLE[info.tone];
+                          return (
+                            <div style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                              background:tone.bg,border:`0.5px solid ${tone.border}`,
+                              color:tone.color,display:"flex",alignItems:"center",gap:4}}>
+                              <i className={`fa-solid ${info.icon}`} style={{fontSize:9}}/>
+                              {info.label}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
