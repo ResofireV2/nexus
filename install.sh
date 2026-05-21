@@ -240,23 +240,20 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-# ── Write update script ──────────────────────
-banner "Installing management scripts..."
-cat > /usr/local/bin/nexus-update << 'UPDATESCRIPT'
-#!/bin/bash
-set -e
-CYAN='\033[0;36m'; GREEN='\033[0;32m'; NC='\033[0m'
-echo -e "${CYAN}▶ Updating Nexus...${NC}"
-cd /opt/nexus
-git pull origin master
-docker compose -f docker-compose.prod.yml up -d --build
-cp /opt/nexus/Caddyfile /etc/caddy/Caddyfile
-systemctl reload caddy
-echo -e "${GREEN}✓ Nexus updated. Database and uploads at /opt/nexus-data are untouched.${NC}"
-UPDATESCRIPT
-chmod +x /usr/local/bin/nexus-update
-
 # ── Write backup script ──────────────────────
+# Production installs only ship nexus-backup. Updates happen exclusively
+# through the in-app updater (Admin → Updates) because that path goes
+# through Nexus.Updates.apply_update/0, which is aware of running state
+# (Oban jobs, websocket clients) and the tagged-release model this
+# installer uses. A shell-based git-pull tool would be wrong for tarball
+# installs and dangerous for live forums.
+#
+# Developers iterating on Nexus use dev-setup.sh, which installs a
+# git checkout and writes a nexus-update helper there. Production never
+# sees that script — and historically when it did, users naturally
+# reached for it as "the update command" and hit the not-a-git-repo
+# failure mode.
+banner "Installing management scripts..."
 cat > /usr/local/bin/nexus-backup << 'BACKUPSCRIPT'
 #!/bin/bash
 set -e
@@ -280,7 +277,7 @@ echo -e "${GREEN}✓ Backup complete${NC}"
 ls -lh "$BACKUP_DIR/db_$DATE.sql.gz" "$BACKUP_DIR/uploads_$DATE.tar.gz"
 BACKUPSCRIPT
 chmod +x /usr/local/bin/nexus-backup
-ok "nexus-update and nexus-backup installed"
+ok "nexus-backup installed"
 
 echo ""
 echo -e "${GREEN}"
@@ -290,7 +287,7 @@ echo "  URL:        https://$DOMAIN"
 echo "  App code:   $INSTALL_DIR"
 echo "  Data:       $DATA_DIR  ← database + uploads (never deleted on update)"
 echo ""
-echo "  To update:  nexus-update"
+echo "  To update:  log in as admin → Admin → Updates"
 echo "  To backup:  nexus-backup"
 echo "  To view logs: docker compose -f $INSTALL_DIR/docker-compose.prod.yml logs -f app"
 echo -e "${NC}"
