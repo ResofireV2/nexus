@@ -147,15 +147,58 @@ defmodule Nexus.Updates do
   end
 
   defp download_tarball(url, dest) do
+    # raw: true is essential here. Without it, Req's decompress_body step
+    # sees Content-Encoding: gzip on the response from codeload.github.com
+    # and transparently un-gzips the tarball bytes for us, leaving an
+    # uncompressed tar archive on disk. tar -xzf then fails with the
+    # cryptic "invalid magic, short read" because it tries to gunzip
+    # bytes that have already been gunzipped.
+    #
+    # raw: true disables both decompress_body and decode_body, so we get
+    # the exact bytes GitHub sent — which is what we want to write to a
+    # .tar.gz file. See Req.Steps docs for the canonical explanation.
+    #
+    # Accept: application/octet-stream is also more explicit than the
+    # previous application/vnd.github+json. The 302 redirect from
+    # api.github.com to codeload happens either way, but octet-stream
+    # signals "give us the bytes, not metadata about the bytes."
     case Req.get(url,
-           headers: [{"User-Agent", "Nexus-Updater"}, {"Accept", "application/vnd.github+json"}],
+           headers: [
+             {"User-Agent", "Nexus-Updater"},
+             {"Accept", "application/octet-stream"}
+           ],
            receive_timeout: 60_000,
-           redirect: true) do
+           redirect: true,
+           raw: true) do
       {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        File.write(dest, body)
-        :ok
+        # Sanity check: a real gzipped tar starts with 1F 8B. If we got
+        # something else (HTML error page, JSON, truncated body), bail out
+        # with a useful error instead of writing junk to disk and letting
+        # tar fail later with "invalid magic".
+        case body do
+          <<0x1F, 0x8B, _rest::binary>> ->
+            case File.write(dest, body) do
+              :ok ->
+                :ok
+              {:error, reason} ->
+                {:error, "Could not write tarball to #{dest}: #{inspect(reason)}"}
+            end
+
+          _ ->
+            preview =
+              body
+              |> binary_part(0, min(byte_size(body), 80))
+              |> Base.encode16(case: :lower)
+
+            {:error,
+             "Downloaded #{byte_size(body)} bytes but they are not a gzipped tarball " <>
+             "(first bytes: #{preview}). Expected a file starting with 1f8b. " <>
+             "If GitHub returned HTML or JSON, the release may not have an attached source archive."}
+        end
+
       {:ok, %{status: status}} ->
         {:error, "Download failed: HTTP #{status}"}
+
       {:error, reason} ->
         {:error, "Download error: #{inspect(reason)}"}
     end
