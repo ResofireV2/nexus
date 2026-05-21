@@ -158,14 +158,16 @@ defmodule Nexus.Updates do
     # the exact bytes GitHub sent — which is what we want to write to a
     # .tar.gz file. See Req.Steps docs for the canonical explanation.
     #
-    # Accept: application/octet-stream is also more explicit than the
-    # previous application/vnd.github+json. The 302 redirect from
-    # api.github.com to codeload happens either way, but octet-stream
-    # signals "give us the bytes, not metadata about the bytes."
+    # Accept header note: GitHub's /tarball/:ref endpoint rejects
+    # application/octet-stream with 415 Unsupported Media Type. It accepts
+    # application/vnd.github+json (which paradoxically returns a gzip
+    # tarball, not JSON — the 302 redirects to codeload which serves the
+    # actual bytes). Empirically verified against the real endpoint;
+    # do not "improve" this header without testing.
     case Req.get(url,
            headers: [
              {"User-Agent", "Nexus-Updater"},
-             {"Accept", "application/octet-stream"}
+             {"Accept", "application/vnd.github+json"}
            ],
            receive_timeout: 60_000,
            redirect: true,
