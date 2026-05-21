@@ -52,7 +52,7 @@ function ExtensionStatusBanner({ext}) {
   return (
     <div style={{
       display:"flex", alignItems:"flex-start", gap:10,
-      padding:"10px 14px", marginBottom:20,
+      padding:"10px 14px",
       background: tone.bg, border:`0.5px solid ${tone.border}`,
       borderRadius:8, color: tone.color,
     }}>
@@ -115,7 +115,7 @@ function ExtensionRuntimePanel({slug}) {
   };
 
   return (
-    <div style={{marginBottom:24, border:"0.5px solid var(--b1)", borderRadius:8}}>
+    <div style={{border:"0.5px solid var(--b1)", borderRadius:8}}>
       <button onClick={toggle} style={{
         width:"100%", display:"flex", alignItems:"center", gap:8,
         padding:"10px 14px", background:"none", border:"none",
@@ -961,6 +961,21 @@ function AdminExtensionsPanel() {
                       </div>
                     )}
 
+                    {/* Load-status banner — shown inline in the card for any
+                        installed extension that isn't fully loaded. Carries
+                        the full load_error text so the admin can diagnose
+                        without leaving the page. Loaded extensions skip this
+                        (the green pill in the banner overlay is enough). */}
+                    {isInstalled && item.load_status && item.load_status !== "loaded" && (
+                      <ExtensionStatusBanner ext={item}/>
+                    )}
+
+                    {/* Runtime registrations — only meaningful for currently
+                        loaded extensions. Collapsed by default; lazy-fetches
+                        on expand. */}
+                    {isInstalled && item.load_status === "loaded" && (
+                      <ExtensionRuntimePanel slug={item.slug}/>
+                    )}
                     {/* Category tags */}
                     {item.categories?.length>0&&(
                       <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:2}}>
