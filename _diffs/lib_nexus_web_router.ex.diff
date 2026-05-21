@@ -1,0 +1,22 @@
+--- pristine/nexus-master/lib/nexus_web/router.ex	2026-05-20 18:18:35.000000000 +0000
++++ work/nexus/nexus-master/lib/nexus_web/router.ex	2026-05-21 21:33:00.120601230 +0000
+@@ -314,6 +314,7 @@
+     get    "/extensions",                    ExtensionController, :index
+     get    "/extensions/store",              ExtensionController, :store
+     get    "/extensions/:slug",              ExtensionController, :show
++    get    "/extensions/:slug/runtime",      ExtensionController, :runtime
+     post   "/extensions",                    ExtensionController, :install
+     post   "/extensions/install-from-url",   ExtensionController, :install_from_url
+     post   "/extensions/:slug/toggle",       ExtensionController, :toggle
+@@ -360,9 +361,9 @@
+     patch  "/pages/:id",          PageController, :update
+     delete "/pages/:id",          PageController, :delete
+ 
+-    # Updates
++    # Updates — check-only. Updates are applied via the host-side
++    # `nexus-update` script, not through the web UI.
+     get    "/updates/check",           AdminController,  :check_update
+-    post   "/updates/apply",           AdminController,  :apply_update
+     get    "/composition-stats",       AdminController,  :composition_stats
+   end
+ 

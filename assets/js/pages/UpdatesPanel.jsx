@@ -1,21 +1,35 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { toast } from "../components/Toasts";
+import { Md } from "../components/Markdown";
 
 // ── UpdatesPanel ──────────────────────────────────────────────────────────────
+//
+// Check-only updater UI. Applying an update is the job of the host-side
+// `nexus-update` command (installed by install.sh). When an update is
+// available, we surface it here with a copy-to-clipboard field so the
+// admin can paste it into an SSH session.
+//
+// Background: a previous version of this panel called a POST endpoint
+// that tried to download/extract/rebuild from inside the container.
+// That can't work — the container doesn't have tar/rsync/docker and
+// can't restart the host's compose stack. The check half is safe inside
+// the container (just an HTTP call to the GitHub API), so it stays.
+
+// The exact command shown for updating production. Kept as a constant so
+// it can't drift between the displayed text and the clipboard payload.
+const UPDATE_COMMAND = "sudo nexus-update";
 
 function UpdatesPanel() {
-  const [status,   setStatus]   = useState("idle"); // idle | checking | up_to_date | update_available | applying | done | error
-  const [info,     setInfo]     = useState(null);   // { current, latest, up_to_date, release }
-  const [log,      setLog]      = useState([]);     // step-by-step log from apply
-  const [error,    setError]    = useState(null);
-  const [confirm,  setConfirm]  = useState(false);
+  const [status, setStatus] = useState("idle"); // idle | checking | up_to_date | update_available | error
+  const [info,   setInfo]   = useState(null);   // { current, latest, up_to_date, release }
+  const [error,  setError]  = useState(null);
 
-  // Auto-check on mount
+  // Auto-check on mount so the admin sees status without clicking.
   useEffect(()=>{ check(); },[]);
 
   const check = async () => {
-    setStatus("checking"); setError(null); setInfo(null); setLog([]);
+    setStatus("checking"); setError(null); setInfo(null);
     const d = await api.get("/admin/updates/check");
     if(d.ok) {
       setInfo(d.update);
@@ -26,16 +40,14 @@ function UpdatesPanel() {
     }
   };
 
-  const apply = async () => {
-    setConfirm(false);
-    setStatus("applying"); setLog([]); setError(null);
-    const d = await api.post("/admin/updates/apply");
-    setLog(d.log||[]);
-    if(d.ok) {
-      setStatus("done");
-    } else {
-      setError(d.error||"Update failed");
-      setStatus("error");
+  const copyCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(UPDATE_COMMAND);
+      toast("Copied to clipboard");
+    } catch {
+      // navigator.clipboard can fail on insecure origins or older browsers.
+      // Fall back to a select-and-copy hint rather than crashing.
+      toast("Could not copy — select the command manually", "err");
     }
   };
 
@@ -51,8 +63,10 @@ function UpdatesPanel() {
     <div style={{maxWidth:600}}>
       <div style={{fontSize:17,fontWeight:500,color:"var(--t1)",marginBottom:4}}>Nexus updates</div>
       <div style={{fontSize:13,color:"var(--t5)",marginBottom:28}}>
-        Updates are pulled from tagged releases on GitHub. Your <code style={{fontSize:11}}>.env</code>,
-        database, and uploads are never touched.
+        Updates are released as tags on GitHub. To apply an update, SSH into
+        the server hosting Nexus and run the command shown below.
+        Your <code style={{fontSize:11}}>.env</code>, database, and uploads
+        are never touched.
       </div>
 
       {/* Version card */}
@@ -77,57 +91,57 @@ function UpdatesPanel() {
               {status==="checking" && <><i className="fa-solid fa-spinner fa-spin" style={{marginRight:5}}/>Checking for updates…</>}
               {status==="up_to_date" && <><i className="fa-solid fa-circle-check" style={{marginRight:5,color:"var(--green)"}}/>You are on the latest release.</>}
               {status==="update_available" && <><i className="fa-solid fa-circle-up" style={{marginRight:5,color:"var(--ac)"}}/>Version <strong style={{color:"var(--t1)"}}>v{info.latest}</strong> is available.</>}
-              {status==="applying" && <><i className="fa-solid fa-spinner fa-spin" style={{marginRight:5}}/>Applying update…</>}
-              {status==="done" && <><i className="fa-solid fa-circle-check" style={{marginRight:5,color:"var(--green)"}}/>Update applied successfully.</>}
               {status==="error" && <><i className="fa-solid fa-triangle-exclamation" style={{marginRight:5,color:"var(--amber)"}}/>{error}</>}
               {status==="idle" && "—"}
             </div>
           </div>
-          {/* Actions */}
-          <div style={{display:"flex",gap:8,flexShrink:0}}>
-            {(status==="up_to_date"||status==="error")&&(
+          {/* Re-check button — always available when not actively checking */}
+          {status!=="checking"&&(
+            <div style={{display:"flex",gap:8,flexShrink:0}}>
               <button style={btnStyle()} onClick={check}>
                 <i className="fa-solid fa-rotate-right" style={{fontSize:11}}/>
                 Re-check
               </button>
-            )}
-            {status==="update_available"&&!confirm&&(
-              <>
-                <button style={btnStyle()} onClick={check}>
-                  <i className="fa-solid fa-rotate-right" style={{fontSize:11}}/>
-                  Re-check
-                </button>
-                <button style={btnStyle("primary")} onClick={()=>setConfirm(true)}>
-                  <i className="fa-solid fa-circle-up" style={{fontSize:11}}/>
-                  Update to v{info.latest}
-                </button>
-              </>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Confirm banner */}
-        {confirm&&(
-          <div style={{padding:"12px 14px",background:"rgba(167,139,250,0.06)",
-            border:"0.5px solid rgba(167,139,250,0.2)",borderRadius:9,
-            display:"flex",alignItems:"center",gap:12,marginTop:14}}>
-            <i className="fa-solid fa-triangle-exclamation" style={{color:"var(--amber)",fontSize:14,flexShrink:0}}/>
-            <div style={{flex:1,fontSize:12,color:"var(--t3)",lineHeight:1.5}}>
-              This will rebuild the Docker container. The forum will be briefly unavailable.
-              Your <strong style={{color:"var(--t2)"}}>database and uploads are safe</strong> — only app code is updated.
+        {/* Update instructions — only shown when an update is available.
+            Click-to-copy field with the exact CLI command. */}
+        {status==="update_available"&&(
+          <div style={{marginTop:14,paddingTop:14,borderTop:"0.5px solid var(--b1)"}}>
+            <div style={{fontSize:12,color:"var(--t3)",marginBottom:8,lineHeight:1.6}}>
+              SSH into the server and run:
             </div>
-            <div style={{display:"flex",gap:8,flexShrink:0}}>
-              <button style={btnStyle()} onClick={()=>setConfirm(false)}>Cancel</button>
-              <button style={btnStyle("primary")} onClick={apply}>
-                <i className="fa-solid fa-bolt" style={{fontSize:11}}/>
-                Confirm update
-              </button>
+            <button
+              onClick={copyCommand}
+              style={{
+                width:"100%", display:"flex", alignItems:"center", gap:10,
+                padding:"10px 14px",
+                background:"rgba(0,0,0,0.25)",
+                border:"0.5px solid var(--b1)",
+                borderRadius:8,
+                cursor:"pointer",
+                fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize:13, color:"var(--t1)",
+                textAlign:"left",
+              }}
+              title="Click to copy"
+            >
+              <i className="fa-solid fa-terminal" style={{fontSize:12,color:"var(--t5)",flexShrink:0}}/>
+              <span style={{flex:1}}>{UPDATE_COMMAND}</span>
+              <i className="fa-regular fa-copy" style={{fontSize:12,color:"var(--t5)",flexShrink:0}}/>
+            </button>
+            <div style={{fontSize:11,color:"var(--t5)",marginTop:8,lineHeight:1.5}}>
+              The forum will be briefly unavailable during the rebuild
+              (typically a few minutes). Your database and uploads are safe —
+              only application code is updated.
             </div>
           </div>
         )}
 
         {/* Release notes */}
-        {info?.release?.body&&status!=="applying"&&status!=="done"&&(
+        {info?.release?.body&&(
           <div style={{marginTop:16,paddingTop:16,borderTop:"0.5px solid var(--b1)"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
               <div style={{fontSize:12,fontWeight:500,color:"var(--t2)"}}>
@@ -153,33 +167,8 @@ function UpdatesPanel() {
           </div>
         )}
       </div>
-
-      {/* Update log */}
-      {log.length>0&&(
-        <div style={{padding:"14px 16px",background:"var(--s3)",border:"0.5px solid var(--b1)",
-          borderRadius:12,fontFamily:"monospace",fontSize:12,lineHeight:1.8}}>
-          <div style={{fontSize:11,fontWeight:500,color:"var(--t4)",marginBottom:8,fontFamily:"inherit"}}>
-            Update log
-          </div>
-          {log.map((line,i)=>(
-            <div key={i} style={{
-              color: line.startsWith("✓") ? "var(--green)"
-                   : line.startsWith("✗") ? "var(--red)"
-                   : "var(--t3)"}}>
-              {line}
-            </div>
-          ))}
-          {status==="applying"&&(
-            <div style={{color:"var(--t5)",marginTop:4}}>
-              <i className="fa-solid fa-spinner fa-spin" style={{marginRight:6}}/>
-              Working…
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
-
 }
 
 export { UpdatesPanel };

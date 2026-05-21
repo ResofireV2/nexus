@@ -10,11 +10,11 @@ set -e
 #  directories, secrets, Caddy, helper scripts — is identical.
 #
 #  Why a separate script: production users get the latest tagged release
-#  for stability and updates via the in-app updater. Developers want
-#  to pull master directly, run nexus-update (which does git pull), and
-#  iterate. Mixing the two models has bitten us — this split keeps
-#  intent clear and the file-on-disk shape consistent with how each one
-#  expects to be updated.
+#  for stability and updates via the host-side nexus-update command.
+#  Developers want to pull master directly, run nexus-dev-update (which
+#  does git pull), and iterate. Mixing the two models has bitten us —
+#  this split keeps intent clear and the file-on-disk shape consistent
+#  with how each one expects to be updated.
 #
 #  Usage:
 #    curl -fsSL https://raw.githubusercontent.com/ResofireV2/nexus/master/dev-setup.sh -o dev-setup.sh
@@ -240,16 +240,36 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-# ── Write update script ──────────────────────
-# nexus-update for dev installs: git pull master + rebuild. This matches
-# what install.sh has historically written but actually works here because
-# $INSTALL_DIR is a real git checkout, not a tarball extraction.
+# ── Write dev update script ──────────────────
+# nexus-dev-update: git pull master + rebuild. Dev only. Production uses
+# tagged-release-based nexus-update (written by install.sh, not here).
+# The two scripts have different names so an admin SSH'd into a dev box
+# can't accidentally hit the production updater and vice-versa.
 banner "Installing management scripts..."
-cat > /usr/local/bin/nexus-update << 'UPDATESCRIPT'
+cat > /usr/local/bin/nexus-dev-update << 'UPDATESCRIPT'
 #!/bin/bash
 set -e
-CYAN='\033[0;36m'; GREEN='\033[0;32m'; NC='\033[0m'
-echo -e "${CYAN}▶ Updating Nexus...${NC}"
+CYAN='\033[0;36m'; GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
+
+# Refuse to run as non-root. Docker/rsync/systemctl all need root and
+# failing partway through with permission errors is worse than failing
+# at the start.
+if [[ $EUID -ne 0 ]]; then
+  echo -e "${RED}✗ nexus-dev-update must be run as root${NC}"
+  exit 1
+fi
+
+# Serialize concurrent invocations. flock -n exits immediately if the
+# lock is held — two terminals running this at once would race on git
+# pull and the docker compose rebuild.
+LOCK_FILE="/var/lock/nexus-dev-update.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+  echo -e "${RED}✗ Another nexus-dev-update is already running (lock: $LOCK_FILE)${NC}"
+  exit 1
+fi
+
+echo -e "${CYAN}▶ Updating Nexus (dev)...${NC}"
 cd /opt/nexus
 git pull origin master
 docker compose -f docker-compose.prod.yml up -d --build
@@ -257,7 +277,7 @@ cp /opt/nexus/Caddyfile /etc/caddy/Caddyfile
 systemctl reload caddy
 echo -e "${GREEN}✓ Nexus updated. Database and uploads at /opt/nexus-data are untouched.${NC}"
 UPDATESCRIPT
-chmod +x /usr/local/bin/nexus-update
+chmod +x /usr/local/bin/nexus-dev-update
 
 # ── Write backup script ──────────────────────
 cat > /usr/local/bin/nexus-backup << 'BACKUPSCRIPT'
@@ -283,7 +303,7 @@ echo -e "${GREEN}✓ Backup complete${NC}"
 ls -lh "$BACKUP_DIR/db_$DATE.sql.gz" "$BACKUP_DIR/uploads_$DATE.tar.gz"
 BACKUPSCRIPT
 chmod +x /usr/local/bin/nexus-backup
-ok "nexus-update and nexus-backup installed"
+ok "nexus-dev-update and nexus-backup installed"
 
 echo ""
 echo -e "${GREEN}"
@@ -293,7 +313,7 @@ echo "  URL:        https://$DOMAIN"
 echo "  App code:   $INSTALL_DIR  (git checkout, branch master)"
 echo "  Data:       $DATA_DIR  ← database + uploads (never deleted on update)"
 echo ""
-echo "  To update:  nexus-update          (git pull master + rebuild)"
-echo "  To backup:  nexus-backup"
+echo "  To update:  sudo nexus-dev-update    (git pull master + rebuild)"
+echo "  To backup:  sudo nexus-backup"
 echo "  To view logs: docker compose -f $INSTALL_DIR/docker-compose.prod.yml logs -f app"
 echo -e "${NC}"

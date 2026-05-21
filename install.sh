@@ -240,20 +240,112 @@ for i in $(seq 1 60); do
   sleep 5
 done
 
-# ── Write backup script ──────────────────────
-# Production installs only ship nexus-backup. Updates happen exclusively
-# through the in-app updater (Admin → Updates) because that path goes
-# through Nexus.Updates.apply_update/0, which is aware of running state
-# (Oban jobs, websocket clients) and the tagged-release model this
-# installer uses. A shell-based git-pull tool would be wrong for tarball
-# installs and dangerous for live forums.
+# ── Write management scripts ─────────────────
+# Production installs ship two scripts:
 #
-# Developers iterating on Nexus use dev-setup.sh, which installs a
-# git checkout and writes a nexus-update helper there. Production never
-# sees that script — and historically when it did, users naturally
-# reached for it as "the update command" and hit the not-a-git-repo
-# failure mode.
+#   nexus-update — fetches the latest tagged release from GitHub, rsyncs
+#                  it over /opt/nexus (preserving .env and compose files),
+#                  and rebuilds the container. Mirrors what install.sh
+#                  does on a fresh install, minus the system-deps and
+#                  data-directory setup.
+#
+#   nexus-backup — snapshots database and uploads to /opt/nexus-backups,
+#                  keeping the last 10 of each.
+#
+# Both refuse to run as non-root and use flock to prevent concurrent
+# invocations. The admin panel surfaces "an update is available" with
+# copy-to-clipboard instructions for the nexus-update command; applying
+# the update from inside the running container cannot work (no docker
+# CLI, no docker socket, no host filesystem access).
+#
+# Developer installs (dev-setup.sh) write nexus-dev-update instead,
+# which does git pull master rather than tarball fetch. The two scripts
+# are deliberately named differently so an admin can't accidentally hit
+# the wrong one.
 banner "Installing management scripts..."
+
+cat > /usr/local/bin/nexus-update << 'UPDATESCRIPT'
+#!/bin/bash
+set -e
+CYAN='\033[0;36m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+
+# Refuse to run as non-root. Docker, rsync into /opt/nexus, and Caddy
+# reload all require root.
+if [[ $EUID -ne 0 ]]; then
+  echo -e "${RED}✗ nexus-update must be run as root (try: sudo nexus-update)${NC}"
+  exit 1
+fi
+
+# Serialize concurrent invocations. Two simultaneous updates would race
+# on rsync and the docker compose rebuild.
+LOCK_FILE="/var/lock/nexus-update.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+  echo -e "${RED}✗ Another nexus-update is already running (lock: $LOCK_FILE)${NC}"
+  exit 1
+fi
+
+INSTALL_DIR="/opt/nexus"
+
+echo -e "${CYAN}▶ Fetching latest Nexus release...${NC}"
+RELEASE_JSON=$(curl -fsSL \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/ResofireV2/nexus/releases/latest") \
+  || { echo -e "${RED}✗ Could not reach GitHub API${NC}"; exit 1; }
+
+RELEASE_TAG=$(echo "$RELEASE_JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+TARBALL_URL=$(echo "$RELEASE_JSON" | grep -o '"tarball_url": *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+
+if [[ -z "$RELEASE_TAG" || -z "$TARBALL_URL" ]]; then
+  echo -e "${RED}✗ Could not determine latest release tag or tarball URL${NC}"
+  exit 1
+fi
+
+echo -e "${GREEN}✓ Latest release: $RELEASE_TAG${NC}"
+
+# Temp paths — both cleaned up unconditionally on exit so a failed
+# update doesn't leave a half-extracted tarball behind to confuse the
+# next run.
+TMP_ARCHIVE="/tmp/nexus-${RELEASE_TAG}.tar.gz"
+TMP_EXTRACT="/tmp/nexus-${RELEASE_TAG}"
+trap 'rm -rf "$TMP_ARCHIVE" "$TMP_EXTRACT"' EXIT
+
+echo -e "${CYAN}▶ Downloading $RELEASE_TAG...${NC}"
+# Same Accept header that install.sh uses successfully — empirically
+# verified against GitHub. Do not change to application/octet-stream;
+# that returns 415 Unsupported Media Type from the tarball endpoint.
+curl -fsSL -L \
+  -H "Accept: application/vnd.github+json" \
+  "$TARBALL_URL" -o "$TMP_ARCHIVE" \
+  || { echo -e "${RED}✗ Failed to download release tarball${NC}"; exit 1; }
+
+echo -e "${CYAN}▶ Extracting...${NC}"
+mkdir -p "$TMP_EXTRACT"
+tar --strip-components=1 -xzf "$TMP_ARCHIVE" -C "$TMP_EXTRACT" \
+  || { echo -e "${RED}✗ Failed to extract release archive${NC}"; exit 1; }
+
+echo -e "${CYAN}▶ Applying files to $INSTALL_DIR (preserving .env and compose files)...${NC}"
+rsync -a \
+  --exclude=".env" \
+  --exclude="docker-compose.yml" \
+  --exclude="docker-compose.prod.yml" \
+  "$TMP_EXTRACT/" "$INSTALL_DIR/"
+
+echo -e "${CYAN}▶ Rebuilding container (this takes a few minutes)...${NC}"
+cd "$INSTALL_DIR"
+# Migrations run on container boot via Nexus.Release.migrate() — see
+# the compose command in docker-compose.prod.yml. We don't run them
+# explicitly here.
+docker compose -f docker-compose.prod.yml up -d --build
+
+echo -e "${CYAN}▶ Reloading Caddy...${NC}"
+cp /opt/nexus/Caddyfile /etc/caddy/Caddyfile
+systemctl reload caddy
+
+echo -e "${GREEN}✓ Nexus updated to $RELEASE_TAG. Database and uploads at /opt/nexus-data are untouched.${NC}"
+UPDATESCRIPT
+chmod +x /usr/local/bin/nexus-update
+
 cat > /usr/local/bin/nexus-backup << 'BACKUPSCRIPT'
 #!/bin/bash
 set -e
@@ -277,7 +369,7 @@ echo -e "${GREEN}✓ Backup complete${NC}"
 ls -lh "$BACKUP_DIR/db_$DATE.sql.gz" "$BACKUP_DIR/uploads_$DATE.tar.gz"
 BACKUPSCRIPT
 chmod +x /usr/local/bin/nexus-backup
-ok "nexus-backup installed"
+ok "nexus-update and nexus-backup installed"
 
 echo ""
 echo -e "${GREEN}"
@@ -287,7 +379,7 @@ echo "  URL:        https://$DOMAIN"
 echo "  App code:   $INSTALL_DIR"
 echo "  Data:       $DATA_DIR  ← database + uploads (never deleted on update)"
 echo ""
-echo "  To update:  log in as admin → Admin → Updates"
-echo "  To backup:  nexus-backup"
+echo "  To update:  sudo nexus-update    (when a new release is tagged)"
+echo "  To backup:  sudo nexus-backup"
 echo "  To view logs: docker compose -f $INSTALL_DIR/docker-compose.prod.yml logs -f app"
 echo -e "${NC}"

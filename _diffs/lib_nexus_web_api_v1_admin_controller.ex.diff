@@ -1,0 +1,21 @@
+--- pristine/nexus-master/lib/nexus_web/api/v1/admin_controller.ex	2026-05-20 18:18:35.000000000 +0000
++++ work/nexus/nexus-master/lib/nexus_web/api/v1/admin_controller.ex	2026-05-21 21:32:51.504928432 +0000
+@@ -556,18 +556,4 @@
+         conn |> put_status(:internal_server_error) |> json(%{error: reason})
+     end
+   end
+-
+-  # POST /api/v1/admin/updates/apply
+-  def apply_update(conn, _params) do
+-    case Nexus.Updates.apply_update() do
+-      {:ok, log} ->
+-        json(conn, %{ok: true, log: log})
+-
+-      {:error, {reason, log}} ->
+-        conn |> put_status(:internal_server_error) |> json(%{error: reason, log: log})
+-
+-      {:error, reason} ->
+-        conn |> put_status(:internal_server_error) |> json(%{error: reason})
+-    end
+-  end
+ end

@@ -96,39 +96,6 @@ nexus-backup   # back up the database and uploads
 
 ---
 
-## Development
-
-`nexus-update` is a CLI tool installed at `/usr/local/bin/nexus-update` that pulls the latest commit from the `master` branch and rebuilds the container. It is intended for development use only — production instances should update via the admin panel, which pulls tagged releases.
-
-```bash
-# Pull latest master and rebuild (dev only)
-nexus-update
-```
-
-```bash
-# Start the dev environment
-docker compose up
-
-# Forum is running at http://localhost:4000
-# Mailbox preview at http://localhost:4000/dev/mailbox
-```
-
-```bash
-# Run tests
-docker compose run --rm app mix test
-
-# Open an IEx console
-docker compose run --rm app iex -S mix
-
-# Run migrations
-docker compose run --rm app mix ecto.migrate
-
-# Generate a migration
-docker compose run --rm app mix ecto.gen.migration add_something
-```
-
----
-
 ## Tech Stack
 
 | Layer | Choice |

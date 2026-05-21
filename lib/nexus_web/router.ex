@@ -361,9 +361,9 @@ defmodule NexusWeb.Router do
     patch  "/pages/:id",          PageController, :update
     delete "/pages/:id",          PageController, :delete
 
-    # Updates
+    # Updates — check-only. Updates are applied via the host-side
+    # `nexus-update` script, not through the web UI.
     get    "/updates/check",           AdminController,  :check_update
-    post   "/updates/apply",           AdminController,  :apply_update
     get    "/composition-stats",       AdminController,  :composition_stats
   end
 

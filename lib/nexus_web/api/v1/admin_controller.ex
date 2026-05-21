@@ -556,18 +556,4 @@ defmodule NexusWeb.API.V1.AdminController do
         conn |> put_status(:internal_server_error) |> json(%{error: reason})
     end
   end
-
-  # POST /api/v1/admin/updates/apply
-  def apply_update(conn, _params) do
-    case Nexus.Updates.apply_update() do
-      {:ok, log} ->
-        json(conn, %{ok: true, log: log})
-
-      {:error, {reason, log}} ->
-        conn |> put_status(:internal_server_error) |> json(%{error: reason, log: log})
-
-      {:error, reason} ->
-        conn |> put_status(:internal_server_error) |> json(%{error: reason})
-    end
-  end
 end
