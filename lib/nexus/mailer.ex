@@ -658,7 +658,7 @@ defmodule Nexus.Mailer do
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:28px;font-size:16px;vertical-align:middle;">#{medal}</td>
               <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;vertical-align:middle;">#{label}</td>
-              #{if value, do: ~s(<td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;vertical-align:middle;">#{escape(to_string(value))}</td>), else: ""}
+              #{if value, do: ~s|<td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;vertical-align:middle;">#{escape(to_string(value))}</td>|, else: ""}
             </tr></table>
           </td>
         </tr>
@@ -717,11 +717,11 @@ defmodule Nexus.Mailer do
         content =
           case item["url"] do
             u when is_binary(u) and u != "" ->
-              ~s(<a href="#{absolute_url(u, url)}" style="text-decoration:none;">#{label}</a>)
+              ~s|<a href="#{absolute_url(u, url)}" style="text-decoration:none;">#{label}</a>|
             _ ->
               label
           end
-        ~s(<span style="display:inline-block;padding:4px 10px;margin:0 6px 6px 0;border-radius:14px;background:#{bg};color:#{color};font-size:12px;font-weight:500;">#{content}</span>)
+        ~s|<span style="display:inline-block;padding:4px 10px;margin:0 6px 6px 0;border-radius:14px;background:#{bg};color:#{color};font-size:12px;font-weight:500;">#{content}</span>|
       end)
       |> Enum.join()
 
@@ -749,9 +749,9 @@ defmodule Nexus.Mailer do
         value = item["value"]
         thumb =
           if is_binary(image) and image != "" do
-            ~s(<img src="#{absolute_url(image, url)}" width="64" height="64" alt="" style="display:block;width:64px;height:64px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.04);"/>)
+            ~s|<img src="#{absolute_url(image, url)}" width="64" height="64" alt="" style="display:block;width:64px;height:64px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.04);"/>|
           else
-            ~s(<div style="width:64px;height:64px;border-radius:8px;background:rgba(255,255,255,0.04);"></div>)
+            ~s|<div style="width:64px;height:64px;border-radius:8px;background:rgba(255,255,255,0.04);"></div>|
           end
 
         """
@@ -761,8 +761,8 @@ defmodule Nexus.Mailer do
               <td style="width:64px;vertical-align:top;padding-right:12px;">#{thumb}</td>
               <td style="vertical-align:top;">
                 <div style="font-size:14px;font-weight:500;color:#f0eeff;margin-bottom:4px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
-                #{if sublabel, do: ~s(<div style="font-size:12px;color:rgba(255,255,255,0.45);">#{escape(to_string(sublabel))}</div>), else: ""}
-                #{if value, do: ~s(<div style="font-size:11px;color:#{branding.accent};margin-top:4px;">#{escape(to_string(value))}</div>), else: ""}
+                #{if sublabel, do: ~s|<div style="font-size:12px;color:rgba(255,255,255,0.45);">#{escape(to_string(sublabel))}</div>|, else: ""}
+                #{if value, do: ~s|<div style="font-size:11px;color:#{branding.accent};margin-top:4px;">#{escape(to_string(value))}</div>|, else: ""}
               </td>
             </tr></table>
           </td>
@@ -824,9 +824,9 @@ defmodule Nexus.Mailer do
             <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{index}.</td>
             <td>
               <div style="font-size:14px;font-weight:500;color:#f0eeff;margin-bottom:#{if sublabel, do: 4, else: 0}px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
-              #{if sublabel, do: ~s(<div style="font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</div>), else: ""}
+              #{if sublabel, do: ~s|<div style="font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</div>|, else: ""}
             </td>
-            #{if value, do: ~s(<td style="text-align:right;font-size:12px;color:#{branding.accent};font-weight:500;vertical-align:top;padding-top:2px;white-space:nowrap;">#{escape(to_string(value))}</td>), else: ""}
+            #{if value, do: ~s|<td style="text-align:right;font-size:12px;color:#{branding.accent};font-weight:500;vertical-align:top;padding-top:2px;white-space:nowrap;">#{escape(to_string(value))}</td>|, else: ""}
           </tr>
         </table>
       </td>
@@ -841,7 +841,7 @@ defmodule Nexus.Mailer do
     label_text = escape(to_string(item["label"] || ""))
     case item["url"] do
       u when is_binary(u) and u != "" ->
-        ~s(<a href="#{absolute_url(u, base_url)}" style="color:#f0eeff;text-decoration:none;">#{label_text}</a>)
+        ~s|<a href="#{absolute_url(u, base_url)}" style="color:#f0eeff;text-decoration:none;">#{label_text}</a>|
       _ ->
         label_text
     end
@@ -854,7 +854,7 @@ defmodule Nexus.Mailer do
       b when is_binary(b) and b != "" ->
         color = item["badge_color"] || branding.accent
         bg    = color <> "22"
-        ~s(<span style="display:inline-block;padding:1px 6px;margin-left:4px;border-radius:8px;background:#{bg};color:#{color};font-size:10px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;vertical-align:middle;">#{escape(b)}</span>)
+        ~s|<span style="display:inline-block;padding:1px 6px;margin-left:4px;border-radius:8px;background:#{bg};color:#{color};font-size:10px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;vertical-align:middle;">#{escape(b)}</span>|
       _ ->
         ""
     end
