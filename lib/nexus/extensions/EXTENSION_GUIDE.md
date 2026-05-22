@@ -468,19 +468,39 @@ Just like routes and Explore items, `scope.path` entries are relative to your ex
 
 ### Composer toolbar buttons
 
-Add a button to the post composer toolbar, alongside Bold, Italic, etc.
+Add a button to the post and/or reply composer toolbars, alongside Bold, Italic, etc. The button appears in the admin **Layout → Post toolbar** and **Layout → Reply toolbar** drag-to-reorder lists, labeled "from <Your Extension>", and the admin can independently reorder, hide, or remove it from either toolbar.
 
 ```js
 window.NexusExtensions.registerToolbarButton({
-  icon:    "fa-gamepad",
+  slug:    "gamepedia",
+  id:      "link-game",
+  icon:    "fa-solid fa-gamepad",
   tip:     "Link a game",
-  color:   "var(--ac)",
-  onClick(linkedGames, setLinkedGames) {
-    // linkedGames: current array of linked objects
-    // setLinkedGames: call with a new array to update
+  onClick(ctx) {
+    openGamePicker();
   },
-}, priority)
+});
 ```
+
+| Parameter   | Type     | Description                                                                  |
+|-------------|----------|------------------------------------------------------------------------------|
+| `slug`      | string   | Your extension slug. Required.                                               |
+| `id`        | string   | Unique within your extension (e.g. `"link-game"`). Required.                 |
+| `icon`      | string   | Full Font Awesome class with style prefix (e.g. `"fa-solid fa-gamepad"`). Required. |
+| `tip`       | string   | Tooltip shown on hover. Required. Display-only — not used for identity, so you can rename it without losing admins' saved layouts. |
+| `onClick`   | function | Called when the button is clicked. Required.                                  |
+| `scope`     | string   | `"both"` (default) — both toolbars. `"posts"` — post toolbar only. `"replies"` — reply toolbar only. |
+| `priority`  | number   | Lower numbers render before higher numbers among extension buttons. Default `50`. |
+
+The internal button identity is `ext:<slug>:<id>`, which is stable across icon and tip changes and namespaced by slug so two extensions can't collide.
+
+Buttons inherit the same `.comp-tb-btn` styling as built-in buttons — do not pass inline styles or color fields.
+
+> **Note on `onClick`'s signature.** The current signature passes the post's
+> linked-games array as legacy positional arguments — this is a temporary
+> arrangement that exists for Gamepedia integration and will be replaced
+> with a generic post-attachment hook. For now, ignore those arguments if
+> your button does not relate to attaching games to posts.
 
 ---
 

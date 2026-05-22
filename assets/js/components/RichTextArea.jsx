@@ -49,10 +49,14 @@ export const TB_BTNS = [
 ];
 
 // Merges built-in toolbar buttons with any extension-registered ones.
+// Extension entries have a stable type of "ext:<slug>:<id>" — derived from
+// the explicit slug and id fields supplied at registration. Slug is also
+// surfaced on the entry so admin tooling can group or label by extension.
 export function getAllToolbarButtons() {
   const ext = window.NexusExtensions ? window.NexusExtensions.getToolbarButtons() : [];
   const extItems = ext.map(e => ({
-    type:    "_ext_" + (e.config.tip||"").toLowerCase().replace(/\s+/g,"_"),
+    type:    "ext:" + e.config.slug + ":" + e.config.id,
+    slug:    e.config.slug,
     label:   e.config.icon,
     tip:     e.config.tip || "",
     onClick: e.config.onClick,
@@ -453,7 +457,10 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Toolbar */}
       <div className="comp-toolbar" ref={toolbarRef}>
-        {(toolbarItems||getAllToolbarButtons()).filter(b=>!b.hidden).map((b,i)=> b.sep
+        {(toolbarItems||getAllToolbarButtons())
+          .filter(b => !b.hidden)
+          .filter(b => !(b._ext && typeof b.onClick !== "function"))   // drop orphans from uninstalled extensions
+          .map((b,i)=> b.sep
           ? <div key={i} className="comp-tb-sep"/>
           : b._ext
             ? <button key={b.type} className="comp-tb-btn" title={b.tip}

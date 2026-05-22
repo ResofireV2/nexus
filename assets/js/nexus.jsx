@@ -460,61 +460,76 @@ window.NexusExtensions = {
     return () => { this._listeners = this._listeners.filter(f => f !== fn); };
   },
 
-  // Register a toolbar button in the post and/or reply composer.
+  // Register a button in the post and/or reply composer toolbar.
   //
-  // NexusExtensions.registerToolbarButton(config, priority)
+  //   slug:     extension slug — required
+  //   id:       unique within your extension (e.g. "link-game") — required
+  //   icon:     full Font Awesome class string with style prefix — required
+  //               "fa-solid fa-gamepad"   ✓ correct
+  //               "fa-regular fa-star"    ✓ correct
+  //               "fa-gamepad"            ✗ no style prefix, renders as text
+  //   tip:      tooltip shown on hover — required (display only, not used for identity)
+  //   onClick:  called with a context object when the button is clicked
+  //   scope:    "both" (default) | "posts" (post toolbar only) | "replies" (reply toolbar only)
+  //   priority: lower numbers render before higher numbers among extension
+  //             buttons (built-in buttons always come first). Default: 50.
   //
-  // config fields:
-  //   icon     {string}   Required. Full Font Awesome class string for the button icon.
-  //                       Must include both the style prefix and the icon name.
-  //                       Examples:
-  //                         "fa-solid fa-gamepad"      ✓ correct
-  //                         "fa-regular fa-star"       ✓ correct
-  //                         "fa-gamepad"               ✗ missing style prefix — renders as text
-  //                         "fa-solid"                 ✗ missing icon name
+  // The internal button type is `ext:<slug>:<id>`. This identity is stable
+  // across renames of the tip text — change your tip freely without losing
+  // the admin's saved toolbar layout for this button. Two extensions cannot
+  // collide on identity because the slug namespaces it.
   //
-  //   tip      {string}   Required. Tooltip text shown on hover. Also used to generate
-  //                       the internal button type — must be unique across all extensions.
-  //                       Example: "Link a game"
+  // Styling: extension buttons render with the same .comp-tb-btn class as
+  // built-in buttons. Custom inline styles are not supported.
   //
-  //   scope    {string}   Optional. Controls which composer toolbar the button appears in.
-  //                       "both"    — visible in Post toolbar and Reply toolbar (default)
-  //                       "posts"   — visible in Post toolbar, hidden in Reply toolbar
-  //                       "replies" — visible in Reply toolbar, hidden in Post toolbar
-  //                       Admins can always override visibility per-toolbar in the Layout panel.
-  //
-  //   onClick  {function} Required. Called when the button is clicked.
-  //                       Receives (linkedGames, setLinkedGames) — use these to read and
-  //                       write the post's linked games array (Gamepedia integration).
-  //                       For buttons unrelated to games, ignore both arguments.
-  //                       Example:
-  //                         onClick(linkedGames, setLinkedGames) {
-  //                           openMyPicker();
-  //                         }
-  //
-  // Styling:
-  //   Extension buttons inherit the same styling as built-in toolbar buttons via the
-  //   .comp-tb-btn CSS class — muted color at rest, brighter on hover. Do not pass a
-  //   color field; it is ignored. Custom styling via inline styles is not supported.
-  //
-  // priority {number} Optional. Lower numbers appear before higher numbers among
-  //                   extension buttons (built-in buttons always come first).
-  //                   Default: 50.
+  // Admins can reorder and hide your button independently per toolbar in
+  // Admin → Layout → Post toolbar / Reply toolbar.
   //
   // Example:
-  //   NexusExtensions.registerToolbarButton({
-  //     icon:  "fa-solid fa-photo-film",
-  //     tip:   "Insert GIF or Sticker",
-  //     scope: "both",
-  //     onClick(_linkedGames, _setLinkedGames) {
-  //       openGifPicker();
+  //   NE.registerToolbarButton({
+  //     slug: "gamepedia",
+  //     id:   "link-game",
+  //     icon: "fa-solid fa-gamepad",
+  //     tip:  "Link a game",
+  //     onClick(ctx) {
+  //       openGamePicker();
   //     },
-  //   }, 60);
-  //
-  registerToolbarButton(config, priority = 50) {
-    this._toolbarButtons.push({config, priority});
-    this._toolbarButtons.sort((a, b) => a.priority - b.priority);
-    this._toolbarListeners.forEach(fn => fn());
+  //   });
+  registerToolbarButton(config) {
+    if (!config || typeof config !== "object") {
+      console.error("[NexusExtensions] registerToolbarButton: config object is required");
+      return;
+    }
+    var slug = config.slug, id = config.id;
+    if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug)) {
+      console.error("[NexusExtensions] registerToolbarButton: slug must be lowercase alphanumeric+hyphens, got:", slug);
+      return;
+    }
+    if (typeof id !== "string" || !id) {
+      console.error("[NexusExtensions] registerToolbarButton: id is required");
+      return;
+    }
+    if (typeof config.icon !== "string" || !config.icon) {
+      console.error("[NexusExtensions] registerToolbarButton: icon is required");
+      return;
+    }
+    if (typeof config.tip !== "string" || !config.tip) {
+      console.error("[NexusExtensions] registerToolbarButton: tip is required");
+      return;
+    }
+    if (typeof config.onClick !== "function") {
+      console.error("[NexusExtensions] registerToolbarButton: onClick is required");
+      return;
+    }
+    var priority = (typeof config.priority === "number") ? config.priority : 50;
+    // Drop any prior registration for the same (slug, id) so reloads don't stack duplicates.
+    var typeKey = "ext:" + slug + ":" + id;
+    this._toolbarButtons = this._toolbarButtons.filter(function(b) {
+      return ("ext:" + b.config.slug + ":" + b.config.id) !== typeKey;
+    });
+    this._toolbarButtons.push({config: config, priority: priority});
+    this._toolbarButtons.sort(function(a, b) { return a.priority - b.priority; });
+    this._toolbarListeners.forEach(function(fn) { fn(); });
   },
 
   getToolbarButtons() {

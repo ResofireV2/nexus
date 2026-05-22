@@ -55,6 +55,21 @@ const SIDEBAR_SECTIONS = [
   {id:"you",     label:"You"},
 ];
 
+// Look up a human-friendly label for an extension slug, preferring the
+// admin-panel label, then the explore item label, then the slug itself.
+// Used by both the right-sidebar pages list and the toolbar drag list to
+// show "from Gamepedia" style attribution instead of a generic "extension".
+function labelForExtension(slug) {
+  if (!slug || !window.NexusExtensions) return slug || "extension";
+  var panels = window.NexusExtensions.getAdminPanels();
+  var panel  = panels.find(function(p){ return p.slug === slug; });
+  if (panel && panel.label) return panel.label;
+  var items  = window.NexusExtensions.getExploreItems();
+  var item   = items.find(function(i){ return i.slug === slug; });
+  if (item && item.label) return item.label;
+  return slug;
+}
+
 // ── DragList ──────────────────────────────────────────────────────────────────
 function DragList({items, renderItem, onChange}) {
   var [dragging, setDragging] = React.useState(null);
@@ -221,11 +236,14 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     var saved = layoutCfg[key];
     if(!saved || !saved.length) return seedToolbar(scope_key);
     var all = getAllToolbarButtons();
-    // Start from saved, but refresh any built-in button properties (label, tip,
-    // wrap, style) from the live definition — this self-heals stale saved data
-    // such as an old label:"" from a previous install of a button.
+    // Start from saved, but refresh any button properties (label, tip, wrap,
+    // style, onClick for ext) from the live definition — this self-heals stale
+    // saved data such as an old icon from a previous version of an extension.
+    // For ext entries with no live definition (extension not yet loaded or
+    // uninstalled), the saved entry is carried forward so the admin can still
+    // see and remove it.
     var result = saved.map(function(s) {
-      if(s.sep || s._ext) return s;
+      if(s.sep) return s;
       var live = all.find(function(d){ return d.type === s.type; });
       if(!live) return s;
       return Object.assign({}, live, {hidden: s.hidden});
@@ -267,18 +285,6 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   //     extension. This mirrors the resolver in RightPanel.
   //
   // Saved state keys in layoutCfg.right_widgets_by_page follow the same scheme.
-
-  // Look up a human-friendly label for an extension slug, preferring the
-  // admin-panel label, then the explore item label, then the slug itself.
-  function labelForExtension(slug) {
-    var panels = window.NexusExtensions.getAdminPanels();
-    var panel  = panels.find(function(p){ return p.slug === slug; });
-    if (panel && panel.label) return panel.label;
-    var items  = window.NexusExtensions.getExploreItems();
-    var item   = items.find(function(i){ return i.slug === slug; });
-    if (item && item.label) return item.label;
-    return slug;
-  }
 
   // Build the full list of pages: core pages + one row per extension
   // that has any registered widgets.
@@ -618,7 +624,7 @@ function ToolbarEditor({items, onChange, onReset}) {
                     </div>
                     <div>
                       <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{item.tip}</div>
-                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item._ext?"extension":item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
+                      <div style={{fontSize:11,color:"var(--t5)",marginTop:1,fontFamily:"monospace"}}>{item._ext?("from " + labelForExtension(item.slug)):item.type==="image"?"file upload":item.wrap?item.wrap[0]+(item.wrap[0]?'…':'')+(item.wrap[1]||''):''}</div>
                     </div>
                   </div>}
               {/* Toggle visible */}
