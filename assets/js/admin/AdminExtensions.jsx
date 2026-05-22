@@ -1041,21 +1041,23 @@ function AdminExtensionsPanel() {
 // Exposed globally on window.NexusExtensionTemplates so bundles can import them
 // without bundling React or any Nexus internals.
 //
+// Two templates are provided:
+//
+//   SimpleSettingsPanel — flat settings form with one Save button (top bar).
+//                         Use when your extension has a small, ungrouped set
+//                         of settings.
+//
+//   TabbedPanel         — uniform tabbed navigation chrome. Each tab renders
+//                         whatever JSX the extension chooses. Drop a
+//                         SimpleSettingsPanel inside a tab for a settings
+//                         form, or render arbitrary custom content (status
+//                         displays, action buttons, log viewers, etc.).
+//                         Tabs are pure chrome — TabbedPanel has no opinion
+//                         on what lives inside them.
+//
 // Usage from an extension bundle:
 //
-//   const { InfoPanel, SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
-//
-//   // No-settings extension — just show name, version, description
-//   window.NexusExtensions.registerAdminPanel("my-ext", {
-//     label: "My Extension", icon: "fa-star",
-//     component: () => React.createElement(InfoPanel, {
-//       name: "My Extension", version: "1.0.0",
-//       description: "Does something useful.",
-//       status: "active",               // "active" | "inactive" | "error"
-//       statusLabel: "Running",
-//       links: [{ label: "Docs", href: "https://..." }],
-//     }),
-//   });
+//   const { SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
 //
 //   // Simple flat settings — no tabs
 //   window.NexusExtensions.registerAdminPanel("my-ext", {
@@ -1071,71 +1073,31 @@ function AdminExtensionsPanel() {
 //     }),
 //   });
 //
-//   // Tabbed panel — like the PWA panel
+//   // Tabbed panel — each tab renders whatever you want
 //   window.NexusExtensions.registerAdminPanel("my-ext", {
 //     label: "My Extension", icon: "fa-star",
 //     component: () => React.createElement(TabbedPanel, {
-//       slug: "my-ext",
 //       tabs: [
+//         // Tab whose content is a settings form
 //         { key: "general", label: "General", icon: "fa-gear",
-//           fields: [{ key: "api_key", label: "API Key", type: "string", secret: true }] },
-//         { key: "advanced", label: "Advanced", icon: "fa-sliders",
-//           fields: [{ key: "timeout", label: "Timeout (ms)", type: "number" }] },
+//           render: () => React.createElement(SimpleSettingsPanel, {
+//             slug: "my-ext",
+//             fields: [{ key: "api_key", label: "API Key", type: "string", secret: true }],
+//           }) },
+//
+//         // Tab whose content is arbitrary custom JSX
+//         { key: "status", label: "Status", icon: "fa-chart-line",
+//           render: () => React.createElement(MyStatusView, { slug: "my-ext" }) },
 //       ],
 //     }),
 //   });
+//
+// The top-bar Save button automatically wires up to whichever SimpleSettingsPanel
+// is currently mounted. Tabs with no SimpleSettingsPanel inside (pure custom
+// content) leave the Save button disabled, which is the correct UX — nothing
+// is dirty, nothing to save.
 
-// InfoPanel — read-only summary card. No settings, no save button.
-// Props: name, version, description, author, status ("active"|"inactive"|"error"),
-//        statusLabel, links [{ label, href }]
-function ExtensionInfoPanel({ name, version, description, author, status="active", statusLabel, links=[] }) {
-  const statusColor = status==="active" ? "var(--green)" : status==="error" ? "var(--red)" : "var(--t5)";
-  const statusDot   = { width:8, height:8, borderRadius:"50%", background:statusColor, flexShrink:0 };
-  return (
-    <div>
-      <div style={{display:"flex",alignItems:"flex-start",gap:14,padding:"18px 20px",
-        background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:12,marginBottom:20}}>
-        <div style={{width:44,height:44,borderRadius:10,background:"rgba(167,139,250,0.1)",
-          border:"0.5px solid rgba(167,139,250,0.2)",display:"flex",alignItems:"center",
-          justifyContent:"center",flexShrink:0}}>
-          <i className="fa-solid fa-puzzle-piece" style={{fontSize:18,color:"var(--ac)"}}/>
-        </div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-            <div style={{fontSize:15,fontWeight:500,color:"var(--t1)"}}>{name}</div>
-            {version&&<div style={{fontSize:11,color:"var(--t5)"}}>v{version}</div>}
-            <div style={{display:"flex",alignItems:"center",gap:5,marginLeft:"auto"}}>
-              <div style={statusDot}/>
-              <span style={{fontSize:12,color:statusColor}}>{statusLabel||status}</span>
-            </div>
-          </div>
-          {author&&<div style={{fontSize:12,color:"var(--t5)",marginBottom:6}}>by {author}</div>}
-          {description&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6}}>{description}</div>}
-        </div>
-      </div>
-      {links.length>0&&(
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {links.map((l,i)=>(
-            <a key={i} href={l.href} target="_blank" rel="noopener"
-              style={{fontSize:12,padding:"5px 12px",borderRadius:8,
-                border:"0.5px solid var(--b1)",color:"var(--t3)",textDecoration:"none",
-                display:"flex",alignItems:"center",gap:5}}>
-              <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:9}}/>
-              {l.label}
-            </a>
-          ))}
-        </div>
-      )}
-      <div style={{marginTop:32,padding:"16px 20px",background:"var(--s3)",
-        border:"0.5px solid var(--b1)",borderRadius:12,
-        fontSize:13,color:"var(--t5)",textAlign:"center"}}>
-        This extension has no configurable settings.
-      </div>
-    </div>
-  );
-}
-
-// Shared field renderer used by both SimpleSettingsPanel and TabbedPanel.
+// Field renderer used by SimpleSettingsPanel.
 // Reads/writes from a values object via getValue / setValue callbacks.
 function ExtensionFieldRenderer({ field, value, onChange }) {
   const { key, label, hint, type, secret, placeholder, options=[], required } = field;
@@ -1185,7 +1147,7 @@ function ExtensionFieldRenderer({ field, value, onChange }) {
   );
 }
 
-// Shared save logic for SimpleSettingsPanel and TabbedPanel.
+// Save logic for SimpleSettingsPanel.
 // POSTs to /api/v1/admin/extensions/:slug/settings.
 function useExtensionSettings(slug, fields) {
   const allKeys = fields.map(f=>f.key);
@@ -1257,19 +1219,30 @@ function SimpleSettingsPanel({ slug, fields=[] }) {
   );
 }
 
-// TabbedPanel — settings split across tabs, like the PWA panel.
-// Props: slug (string), tabs (array of tab descriptors)
-// Tab descriptor: { key, label, icon (FA class, optional), fields[] }
-function TabbedPanel({ slug, tabs=[] }) {
-  const allFields = tabs.flatMap(t=>t.fields||[]);
-  const { vals, setVals, loaded, saving, save } = useExtensionSettings(slug, allFields);
+// TabbedPanel — uniform tabbed navigation chrome.
+//
+// Props:
+//   tabs — array of tab descriptors
+//
+// Tab descriptor:
+//   { key:    string,                    // unique
+//     label:  string,                    // shown in the tab bar
+//     icon:   "fa-..." (optional),       // Font Awesome solid icon class
+//     render: () => React node }         // arbitrary JSX for this tab
+//
+// TabbedPanel is pure chrome — it owns the tab bar, the active-tab state,
+// and the styling. It has no opinion on what lives inside any tab. Drop a
+// SimpleSettingsPanel inside a tab to get a settings form wired up to the
+// top-bar Save button, or render arbitrary custom JSX (status displays,
+// action buttons, log viewers, nested fetches, anything).
+//
+// The render function is only invoked when its tab is active, so unmounted
+// tabs do not run useEffect or fetch data. Switching tabs unmounts the old
+// content and mounts the new, which is what allows SimpleSettingsPanel
+// instances in different tabs to swap their save-fn registration cleanly.
+function TabbedPanel({ tabs=[] }) {
   const [activeTab, setActiveTab] = React.useState(tabs[0]?.key||"");
 
-  if(!loaded) return (
-    <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
-      <i className="fa-solid fa-spinner fa-spin"/>
-    </div>
-  );
   if(!tabs.length) return (
     <div style={{padding:"32px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
       No tabs defined for this panel.
@@ -1293,10 +1266,7 @@ function TabbedPanel({ slug, tabs=[] }) {
           </button>
         ))}
       </div>
-      {(currentTab.fields||[]).map(f=>(
-        <ExtensionFieldRenderer key={f.key} field={f} value={vals[f.key]}
-          onChange={v=>setVals(p=>({...p,[f.key]:v}))}/>
-      ))}
+      {currentTab.render ? currentTab.render() : null}
     </div>
   );
 }
@@ -1304,7 +1274,6 @@ function TabbedPanel({ slug, tabs=[] }) {
 // Expose templates globally so extension bundles can use them without
 // importing React or any Nexus internals directly.
 window.NexusExtensionTemplates = {
-  InfoPanel: ExtensionInfoPanel,
   SimpleSettingsPanel,
   TabbedPanel,
 };
@@ -1315,5 +1284,5 @@ window._nexusAdminSetDirty = null;
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 export { ExtensionSettingsForm, ExtensionDetail, AdminExtensionsPanel,
-         ExtensionInfoPanel, ExtensionFieldRenderer,
+         ExtensionFieldRenderer,
          useExtensionSettings, SimpleSettingsPanel, TabbedPanel };

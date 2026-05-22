@@ -11,7 +11,7 @@ import { ReportCard, ModerationPage, AdminModerationPanel } from "./AdminModerat
 import { AdminIntegrationsPanel, AdminAntiSpamPanel, AdminLogsPanel,
          AdminDigestPanel, AdminLeaderboardPanel } from "./AdminPanels";
 import { BadgesPage, AdminBadgesPanel } from "./AdminBadges";
-import { AdminExtensionsPanel, SimpleSettingsPanel, TabbedPanel } from "./AdminExtensions";
+import { AdminExtensionsPanel } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { AdminPagesPanel } from "./AdminPages";
@@ -380,8 +380,9 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
 
   if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
   const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");setIsDirty(false);if(key==="appearance")window._applyBranding&&window._applyBranding(value,general);}finally{setSaving(false);}};
-  // Wire global dirty/save hooks so extension panels (SimpleSettingsPanel, TabbedPanel)
-  // can signal changes and be saved via the top-bar Save Changes button.
+  // Wire global dirty/save hooks so extension SimpleSettingsPanel instances
+  // (used standalone or inside a TabbedPanel tab) can signal changes and be
+  // saved via the top-bar Save Changes button.
   window._nexusAdminSetDirty = ()=>setIsDirty(true);
 
   // Re-render when extension bundles register new admin panels at runtime

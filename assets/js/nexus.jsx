@@ -24,9 +24,7 @@ import { AdminIntegrationsPanel, AdminAntiSpamPanel,
 import { RARITY_COLOR, RARITY_BG, RARITY_WEIGHT,
          BadgesPageSidebar, BadgesPage,
          AdminBadgesPanel, TRIGGER_TYPE_LABELS }           from "./admin/AdminBadges";
-import { AdminExtensionsPanel, ExtensionInfoPanel,
-         ExtensionFieldRenderer, SimpleSettingsPanel,
-         TabbedPanel }                                     from "./admin/AdminExtensions";
+import { AdminExtensionsPanel }                              from "./admin/AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt }                 from "./admin/AdminPwaPanel";
 import { AdminPage, VerifyEmailPage, MagicLoginPage }      from "./admin/AdminPage";
 import { LeaderboardPageSidebar,

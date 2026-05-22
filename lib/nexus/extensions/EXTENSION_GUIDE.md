@@ -256,23 +256,16 @@ Use the pre-built templates from `window.NexusExtensionTemplates` — see below.
 **Example:**
 
 ```js
-const { TabbedPanel } = window.NexusExtensionTemplates;
+const { SimpleSettingsPanel } = window.NexusExtensionTemplates;
 
 window.NexusExtensions.registerAdminPanel("my-extension", {
   label: "My Extension",
   icon:  "fa-gamepad",
-  component: () => React.createElement(TabbedPanel, {
+  component: () => React.createElement(SimpleSettingsPanel, {
     slug: "my-extension",
-    tabs: [
-      {
-        key:    "general",
-        label:  "General",
-        icon:   "fa-gear",
-        fields: [
-          { key: "api_key", label: "API Key", type: "string", secret: true },
-          { key: "enabled", label: "Enabled", type: "boolean" },
-        ],
-      },
+    fields: [
+      { key: "api_key", label: "API Key", type: "string", secret: true },
+      { key: "enabled", label: "Enabled", type: "boolean" },
     ],
   }),
 });
@@ -282,34 +275,15 @@ window.NexusExtensions.registerAdminPanel("my-extension", {
 
 ### Admin panel templates — `window.NexusExtensionTemplates`
 
-Three ready-made panel components. Import them at the top of your bundle:
+Two ready-made panel components. Import them at the top of your bundle:
 
 ```js
-const { InfoPanel, SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
-```
-
-#### `InfoPanel`
-
-Read-only card for extensions with no configurable settings.
-
-```js
-React.createElement(InfoPanel, {
-  name:        "My Extension",
-  version:     "1.0.0",
-  description: "Does something useful.",
-  author:      "you",
-  status:      "active",         // "active" | "inactive" | "error"
-  statusLabel: "Running",        // optional override for the status label
-  links: [
-    { label: "Documentation", href: "https://..." },
-    { label: "GitHub",        href: "https://github.com/you/my-extension" },
-  ],
-})
+const { SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
 ```
 
 #### `SimpleSettingsPanel`
 
-Flat list of settings fields with a single Save button. Loads current values from the API automatically.
+Flat list of settings fields with one save flow. Loads current values from the API automatically, tracks dirtiness, and wires itself into the top-bar Save Changes button — when the admin clicks Save, this panel's settings are persisted.
 
 ```js
 React.createElement(SimpleSettingsPanel, {
@@ -324,34 +298,56 @@ React.createElement(SimpleSettingsPanel, {
 
 #### `TabbedPanel`
 
-Settings split across tabs, identical in style to the core PWA panel.
+Uniform tabbed navigation chrome. Use this when your extension is complex enough to benefit from being organised into multiple sections (settings + status, credentials + advanced, etc.).
+
+`TabbedPanel` is pure chrome — it owns the tab bar, the active-tab state, and the styling, and it has no opinion on what lives inside any tab. Each tab supplies a `render` function that returns arbitrary JSX. Drop a `SimpleSettingsPanel` inside a tab to get a settings form wired up to the top-bar Save button, or render any other React content (status displays, action buttons, log viewers, etc.) for tabs that aren't settings forms.
 
 ```js
 React.createElement(TabbedPanel, {
-  slug: "my-extension",
   tabs: [
+    // A settings tab — drop a SimpleSettingsPanel inside the render fn.
     {
       key:    "credentials",
       label:  "Credentials",
       icon:   "fa-key",
-      fields: [
-        { key: "client_id",     label: "Client ID",     type: "string" },
-        { key: "client_secret", label: "Client Secret", type: "string", secret: true },
-      ],
+      render: () => React.createElement(SimpleSettingsPanel, {
+        slug: "my-extension",
+        fields: [
+          { key: "client_id",     label: "Client ID",     type: "string" },
+          { key: "client_secret", label: "Client Secret", type: "string", secret: true },
+        ],
+      }),
     },
+
+    // A custom tab — render whatever JSX you want.
     {
-      key:    "advanced",
-      label:  "Advanced",
-      icon:   "fa-sliders",
-      fields: [
-        { key: "cache_ttl", label: "Cache TTL (seconds)", type: "number" },
-      ],
+      key:    "status",
+      label:  "Status",
+      icon:   "fa-chart-line",
+      render: () => React.createElement(MyStatusView, { slug: "my-extension" }),
     },
   ],
 })
 ```
 
-**Field descriptor properties:**
+**Tab descriptor:**
+
+| Property | Type      | Description                                                  |
+|----------|-----------|--------------------------------------------------------------|
+| `key`    | string    | Unique identifier for the tab                                |
+| `label`  | string    | Label shown in the tab bar                                   |
+| `icon`   | string    | Optional Font Awesome solid class (e.g. `"fa-gear"`)         |
+| `render` | function  | Called when the tab is active — returns the tab's React node |
+
+The `render` function is only invoked when its tab is active. Switching tabs unmounts the old content and mounts the new — this is what allows `SimpleSettingsPanel` instances in different tabs to swap their save-fn registration cleanly. A `useEffect` inside a tab will only run when the admin actually visits that tab.
+
+##### How the top-bar Save button behaves with `TabbedPanel`
+
+- A tab containing a `SimpleSettingsPanel` wires up the top-bar Save button automatically when that tab is active.
+- A tab containing pure custom content leaves the Save button disabled (nothing dirty, nothing to save). This is the correct UX — the button is meaningful, not always-on.
+- Switching tabs swaps the active save fn, so the Save button always saves whichever settings group is currently visible.
+
+#### `SimpleSettingsPanel` field descriptor properties
 
 | Property      | Type    | Description                                             |
 |---------------|---------|---------------------------------------------------------|
@@ -571,17 +567,10 @@ window.NexusExtensions.registerNotificationType("my_ext_event", {
   NE.registerAdminPanel("my-extension", {
     label:     "My Extension",
     icon:      "fa-star",
-    component: () => React.createElement(NET.TabbedPanel, {
+    component: () => React.createElement(NET.SimpleSettingsPanel, {
       slug: "my-extension",
-      tabs: [
-        {
-          key:    "general",
-          label:  "General",
-          icon:   "fa-gear",
-          fields: [
-            { key: "api_key", label: "API Key", type: "string", secret: true },
-          ],
-        },
+      fields: [
+        { key: "api_key", label: "API Key", type: "string", secret: true },
       ],
     }),
   });
