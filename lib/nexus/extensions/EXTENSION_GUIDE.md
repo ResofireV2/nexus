@@ -183,12 +183,10 @@ window.NexusExtensions.registerSlot(slotName, Component, priority)
 function GamelogLink({ username, navigate }) {
   function go(e) {
     e.preventDefault();
-    if (window._nexusNavigate)
-      window._nexusNavigate("ext-route",
-        window.NexusExtensions.matchRoute(`/gamepedia/users/${username}`) || {});
+    window.NexusExtensions.navigate(`/ext/gamepedia/users/${username}`);
   }
   return React.createElement("a", {
-    href: `/gamepedia/users/${username}`,
+    href: `/ext/gamepedia/users/${username}`,
     onClick: go,
   }, "Gamelog");
 }
@@ -202,13 +200,16 @@ window.NexusExtensions.registerSlot("profile_sidebar", GamelogLink, 50);
 
 Register a full-page route in the Nexus SPA. The URL is handled client-side — Nexus renders your component without a page reload.
 
+All extension routes live under `/ext/<your-slug>/...`. This prefix is owned exclusively by extensions, so your routes can never collide with Nexus core URLs. Nexus prefixes paths automatically — do not include `/ext/` in your path.
+
 ```js
-window.NexusExtensions.registerRoute(pattern, Component, options)
+window.NexusExtensions.registerRoute(slug, path, Component, options)
 ```
 
 | Parameter   | Type             | Description                                                          |
 |-------------|------------------|----------------------------------------------------------------------|
-| `pattern`   | string           | URL pattern — colon-prefixed segments become params, e.g. `"/my-ext/users/:username"` |
+| `slug`      | string           | Your extension slug (matches `manifest.json`)                        |
+| `path`      | string           | Path RELATIVE to your namespace — must start with `/`. Colon-prefixed segments become params (e.g. `"/users/:username"`) |
 | `Component` | React component  | Receives `{ navigate, currentUser, ...params }`                      |
 | `options`   | object           | `{ title }` — shown in the back-button header                        |
 
@@ -220,19 +221,21 @@ function GamelogPage({ username, currentUser, navigate }) {
 }
 
 window.NexusExtensions.registerRoute(
-  "/gamepedia/users/:username",
+  "gamepedia",
+  "/users/:username",
   GamelogPage,
   { title: "Gamelog" }
 );
+// → registered at /ext/gamepedia/users/:username
 ```
 
 Navigate to a registered route from anywhere in your bundle:
 
 ```js
-if (window._nexusNavigate)
-  window._nexusNavigate("ext-route",
-    window.NexusExtensions.matchRoute("/gamepedia/users/alice") || {});
+window.NexusExtensions.navigate("/ext/gamepedia/users/alice");
 ```
+
+`NexusExtensions.navigate(url)` accepts any URL within Nexus — extension routes or core routes. It resolves the URL through the same code path as a hard refresh, so click navigation and hard refresh always produce identical state.
 
 ---
 
@@ -368,15 +371,25 @@ Add a nav item to the Explore section of the left sidebar. Appears in the admin 
 
 ```js
 window.NexusExtensions.registerExploreItem({
-  id:       "my-ext-browse",
-  label:    "Browse Games",
+  slug:     "gamepedia",
+  label:    "Games",
   icon:     "fa-gamepad",
-  page:     "ext-route",
-  props:    window.NexusExtensions.matchRoute("/gamepedia") || {},
-  authOnly: false,
-  priority: 50,
+  path:     "/",            // optional — defaults to "/"
 })
+// → links to /ext/gamepedia
 ```
+
+| Parameter  | Type    | Description                                                            |
+|------------|---------|------------------------------------------------------------------------|
+| `slug`     | string  | Your extension slug. Required.                                         |
+| `label`    | string  | Text shown in the sidebar. Required.                                   |
+| `icon`     | string  | Font Awesome solid class (e.g. `"fa-gamepad"`)                         |
+| `path`     | string  | Path within your extension's namespace. Defaults to `"/"`.             |
+| `id`       | string  | Item ID used for layout save/restore. Defaults to `slug`.              |
+| `authOnly` | boolean | If `true`, the item is hidden when the visitor is not logged in.       |
+| `priority` | number  | Lower priority renders higher in the list. Defaults to `50`.           |
+
+The target path must correspond to a route registered via `registerRoute(slug, path, ...)`. Routes and Explore items can be registered in any order — the URL is resolved at click time.
 
 ---
 
@@ -432,8 +445,7 @@ window.NexusExtensions.registerUserAction({
   priority: 50,
   onClick({ user, currentUser, navigate, closeCard }) {
     closeCard();
-    navigate("ext-route",
-      window.NexusExtensions.matchRoute(`/gamepedia/users/${user.username}`) || {});
+    window.NexusExtensions.navigate(`/ext/gamepedia/users/${user.username}`);
   },
 })
 ```
@@ -483,8 +495,7 @@ window.NexusExtensions.registerNotificationType("my_ext_event", {
   },
 
   onClick({ n, navigate }) {
-    navigate("ext-route",
-      window.NexusExtensions.matchRoute("/gamepedia") || {});
+    window.NexusExtensions.navigate("/ext/gamepedia");
   },
 })
 ```
@@ -527,19 +538,17 @@ window.NexusExtensions.registerNotificationType("my_ext_event", {
     );
   }
 
-  NE.registerRoute("/my-ext/browse", BrowsePage, { title: "Browse" });
+  NE.registerRoute("my-extension", "/browse", BrowsePage, { title: "Browse" });
 
   // ── Profile sidebar link ─────────────────────────────────────────────────────
 
   function ProfileLink({ username }) {
     function go(e) {
       e.preventDefault();
-      if (window._nexusNavigate)
-        window._nexusNavigate("ext-route",
-          NE.matchRoute(`/my-ext/users/${username}`) || {});
+      NE.navigate(`/ext/my-extension/users/${username}`);
     }
     return React.createElement("a", {
-      href:    `/my-ext/users/${username}`,
+      href:    `/ext/my-extension/users/${username}`,
       onClick: go,
       style:   { display: "flex", alignItems: "center", padding: "6px 10px",
                  fontSize: 13, color: "var(--t2)", textDecoration: "none",
@@ -555,11 +564,10 @@ window.NexusExtensions.registerNotificationType("my_ext_event", {
   // ── Explore item ─────────────────────────────────────────────────────────────
 
   NE.registerExploreItem({
-    id:    "my-ext-browse",
+    slug:  "my-extension",
     label: "Browse",
     icon:  "fa-star",
-    page:  "ext-route",
-    props: NE.matchRoute("/my-ext/browse") || {},
+    path:  "/browse",
   });
 
   // ── Admin panel ──────────────────────────────────────────────────────────────

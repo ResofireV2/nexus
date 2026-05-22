@@ -421,7 +421,7 @@ function RefPreviewPopup() {
 // Extensions register UI slot components here at runtime via their JS bundle.
 // Usage from extension bundle:
 //   window.NexusExtensions.registerSlot("feed_sidebar", MyComponent, 50);
-//   window.NexusExtensions.registerRoute("/my-ext/users/:username", MyPage);
+//   window.NexusExtensions.registerRoute("my-ext", "/users/:username", MyPage);
 window.NexusExtensions = {
   _slots: {},
   _listeners: [],
@@ -527,13 +527,36 @@ window.NexusExtensions = {
   },
 
   // Register a full-page route for the SPA.
-  // pattern: string like "/my-ext/users/:username" — colon-prefixed segments
-  //          become named params passed as props to the component.
+  //
+  // slug: extension slug — your route lives under /ext/<slug>/...
+  // path: route path RELATIVE to your extension's namespace, e.g.
+  //         "/"              → /ext/<slug>
+  //         "/browse"        → /ext/<slug>/browse
+  //         "/users/:name"   → /ext/<slug>/users/:name  (named params as props)
   // component: React component receiving ({ navigate, currentUser, ...params })
   // options: { title } — optional page title shown in the back-header
+  //
   // Usage from extension bundle:
-  //   window.NexusExtensions.registerRoute("/gamepedia/users/:username", GamelogPage, { title: "Gamelog" });
-  registerRoute(pattern, component, options = {}) {
+  //   NE.registerRoute("gamepedia", "/users/:username", GamelogPage, { title: "Gamelog" });
+  //
+  // Do not include /ext/ in the path — Nexus prefixes it automatically.
+  registerRoute(slug, path, component, options = {}) {
+    if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug)) {
+      console.error("[NexusExtensions] registerRoute: slug must be lowercase alphanumeric+hyphens, got:", slug);
+      return;
+    }
+    if (typeof path !== "string" || !path.startsWith("/")) {
+      console.error("[NexusExtensions] registerRoute: path must start with /, got:", path);
+      return;
+    }
+    if (path.startsWith("/ext/")) {
+      console.error("[NexusExtensions] registerRoute: do not include /ext/ in path — Nexus prefixes it automatically. Got:", path);
+      return;
+    }
+
+    // Build the full pattern: /ext/<slug> for path "/", otherwise /ext/<slug><path>
+    const pattern = path === "/" ? `/ext/${slug}` : `/ext/${slug}${path}`;
+
     // Convert "/foo/:bar/:baz" → a regex that captures named groups
     const keys = [];
     const regexStr = pattern.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) => {
@@ -541,12 +564,19 @@ window.NexusExtensions = {
       return "([^/]+)";
     });
     const regex = new RegExp("^" + regexStr + "$");
-    this._routes.push({ pattern, regex, keys, component, options });
+    // Drop any prior registration for the same pattern so reloads don't stack duplicates.
+    this._routes = this._routes.filter(r => r.pattern !== pattern);
+    this._routes.push({ pattern, regex, keys, component, options, slug });
     this._routeListeners.forEach(fn => fn());
   },
 
   // Match a pathname against registered extension routes.
-  // Returns { component, params, options } or null.
+  // Returns { component, params, options, pattern } or null.
+  //
+  // Advanced helper — normally not needed. Routes are resolved automatically
+  // when the user navigates. Use this only if you need to inspect a route
+  // from inside an extension component (e.g. conditional rendering based on
+  // whether a particular URL is registered).
   matchRoute(pathname) {
     for (const route of this._routes) {
       const m = pathname.match(route.regex);
@@ -559,13 +589,37 @@ window.NexusExtensions = {
     return null;
   },
 
-  // Reconstruct a URL for a registered route by filling in param values.
-  // window.NexusExtensions.routeUrl("/gamepedia/users/:username", { username: "alice" })
-  // → "/gamepedia/users/alice"
+  // Reconstruct a URL for a registered pattern by filling in param values.
+  //   NE.routeUrl("/ext/gamepedia/users/:username", { username: "alice" })
+  //   → "/ext/gamepedia/users/alice"
+  //
+  // Advanced helper — normally not needed. To navigate, use NE.navigate(url)
+  // with a literal URL string; you rarely need to build one from a pattern.
   routeUrl(pattern, params = {}) {
     return pattern.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) =>
       params[k] !== undefined ? encodeURIComponent(params[k]) : `:${k}`
     );
+  },
+
+  // Navigate to any URL within Nexus, including extension routes.
+  //
+  //   NE.navigate("/ext/gamepedia/users/alice");
+  //   NE.navigate("/feed");
+  //
+  // Resolves the URL through the same code path as a hard refresh, so click
+  // navigation and hard refresh always produce identical state. Use this
+  // instead of window._nexusNavigate when you have a URL string in hand.
+  navigate(url) {
+    if (typeof url !== "string" || !url.startsWith("/")) {
+      console.error("[NexusExtensions] navigate: url must start with /, got:", url);
+      return;
+    }
+    if (!window._nexusNavigate || !window._nexusUrlToPage) {
+      console.error("[NexusExtensions] navigate: Nexus SPA not initialised yet.");
+      return;
+    }
+    const { page, props } = window._nexusUrlToPage(url);
+    window._nexusNavigate(page, props);
   },
 
   onRouteChange(fn) {
@@ -604,26 +658,47 @@ window.NexusExtensions = {
   },
 
   // Register an item in the Explore section of the left sidebar.
-  // Extensions call this from their bundle:
   //
-  //   window.NexusExtensions.registerExploreItem({
-  //     id:       "gamepedia",          // unique — used for layout save/restore
+  // slug:  extension slug — the item links to /ext/<slug><path>
+  // path:  route path RELATIVE to your extension's namespace (default "/")
+  //          "/"            → /ext/<slug>           (your extension's home)
+  //          "/browse"      → /ext/<slug>/browse
+  //
+  // The target path must correspond to a route you registered via
+  // NE.registerRoute(slug, path, ...). When the admin clicks the item,
+  // Nexus resolves the URL through the same code path as a hard refresh.
+  //
+  // Usage from extension bundle:
+  //   NE.registerExploreItem({
+  //     slug:     "gamepedia",
   //     label:    "Games",
-  //     icon:     "fa-gamepad",         // any FA solid class
-  //     page:     "ext-route",          // use "ext-route" for extension SPA routes
-  //     props:    { _match: ..., ... }, // passed straight to navigate()
-  //     authOnly: false,                // hide when not logged in (optional)
-  //     priority: 50,                   // lower = higher up (optional, default 50)
+  //     icon:     "fa-gamepad",     // any FA solid class
+  //     path:     "/",              // optional — defaults to "/"
+  //     id:       "gamepedia",      // optional — defaults to slug
+  //     authOnly: false,            // optional — hide when not logged in
+  //     priority: 50,               // optional — lower = higher up (default 50)
   //   });
   //
-  // For linking to a registered route the easiest pattern is:
-  //   page: "ext-route",
-  //   props: window.NexusExtensions.matchRoute("/gamepedia") || {}
-  //
   // The item appears in Explore and in the Layout admin drag-to-reorder list.
-  registerExploreItem({ id, label, icon="fa-puzzle-piece", page, props={}, authOnly=false, priority=50 }) {
-    this._exploreItems = this._exploreItems.filter(i => i.id !== id);
-    this._exploreItems.push({ id, label, icon, page, props, authOnly, priority, _ext: true });
+  registerExploreItem({ slug, path="/", id, label, icon="fa-puzzle-piece", authOnly=false, priority=50 }) {
+    if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug)) {
+      console.error("[NexusExtensions] registerExploreItem: slug must be lowercase alphanumeric+hyphens, got:", slug);
+      return;
+    }
+    if (typeof path !== "string" || !path.startsWith("/")) {
+      console.error("[NexusExtensions] registerExploreItem: path must start with /, got:", path);
+      return;
+    }
+    if (path.startsWith("/ext/")) {
+      console.error("[NexusExtensions] registerExploreItem: do not include /ext/ in path — Nexus prefixes it automatically. Got:", path);
+      return;
+    }
+
+    const url       = path === "/" ? `/ext/${slug}` : `/ext/${slug}${path}`;
+    const itemId    = id || slug;
+
+    this._exploreItems = this._exploreItems.filter(i => i.id !== itemId);
+    this._exploreItems.push({ id: itemId, label, icon, url, slug, authOnly, priority, _ext: true });
     this._exploreItems.sort((a, b) => (a.priority||50) - (b.priority||50));
     this._exploreListeners.forEach(fn => fn());
   },
@@ -706,9 +781,7 @@ window.NexusExtensions = {
   //     icon:     "fa-gamepad",          // FA solid icon class
   //     onClick({ user, currentUser, navigate, closeCard }) {
   //       closeCard();
-  //       navigate("ext-route", window.NexusExtensions.matchRoute(
-  //         `/gamepedia/users/${user.username}`
-  //       ) || {});
+  //       window.NexusExtensions.navigate(`/ext/gamepedia/users/${user.username}`);
   //     },
   //     authOnly: false,   // hide when viewer is not logged in (optional)
   //     priority: 50,      // lower = rendered earlier (optional)
@@ -741,7 +814,7 @@ window.NexusExtensions = {
   //     icon:    "fa-gamepad",
   //     onClick({ currentUser, navigate, close }) {
   //       close();
-  //       navigate("ext-route", ...);
+  //       window.NexusExtensions.navigate(`/ext/gamepedia/users/${currentUser.username}`);
   //     },
   //     priority: 50,
   //   });
@@ -809,7 +882,7 @@ window.NexusExtensions = {
   //     },
   //     // onClick receives { n, navigate } — handle navigation for this type.
   //     onClick({ n, navigate }) {
-  //       navigate("ext-route", window.NexusExtensions.matchRoute("/gamepedia") || {});
+  //       window.NexusExtensions.navigate("/ext/gamepedia");
   //     },
   //   });
   registerNotificationType(type, { icon, iconColor, renderBody, onClick }) {
@@ -1619,9 +1692,10 @@ function urlToPage(pathname) {
   const dmM      = p.match(/^\/messages\/(.+)$/);
   if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
   // Extension SPA routes all live under /ext/* — this prefix is owned exclusively
-  // by extensions so we can match it definitively against the live registry.
-  // On hard refresh the bundle may not have loaded yet; return ext-route with
-  // _match:null so ExtensionRoutePage's polling loop resolves it once loaded.
+  // by extensions. Nexus's registerRoute enforces it; routes outside this
+  // prefix are not supported. On hard refresh the bundle may not have loaded
+  // yet; return ext-route with _match:null so ExtensionRoutePage's polling
+  // loop resolves it once loaded.
   const pageM = p.match(/^\/p\/(.+)$/);
   if (pageM) return {page:"page", props:{slug: pageM[1]}};
   if (p.startsWith("/ext/")) {
@@ -1629,11 +1703,13 @@ function urlToPage(pathname) {
     if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
     return {page:"ext-route", props:{ _match: null }};
   }
-  // Non-extension routes — checked against registry for any edge cases
-  const extRoute = window.NexusExtensions.matchRoute(p);
-  if (extRoute) return {page:"ext-route", props:{ _match: extRoute, ...extRoute.params }};
   return {page:"feed", props:{}};
 }
+
+// Expose urlToPage on window so NexusExtensions.navigate(url) can resolve URLs
+// through the same code path as a hard refresh — guarantees click navigation
+// and hard refresh always produce identical state.
+window._nexusUrlToPage = urlToPage;
 
 function pageToUrl(page, props={}) {
   if (page === "ext-route") {
@@ -2196,12 +2272,13 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
               {divider}<div className="sb-label">Explore</div>
               {exploreItems.map(function(item){
                 if(exploreMap[item.id]) return exploreMap[item.id];
-                // Extension-registered item — render generically using page/props
+                // Extension-registered item — navigate by URL through urlToPage,
+                // the same code path that handles hard refresh.
                 if(item._ext) {
                   if(item.authOnly && !currentUser) return null;
-                  const extActive = page===item.page && JSON.stringify(pageProps)===JSON.stringify(item.props);
+                  const extActive = pageToUrl(page, pageProps) === item.url;
                   return <div key={item.id} className={`sb-item ${extActive?"active":""}`}
-                    onClick={()=>navigate(item.page, item.props)}>
+                    onClick={()=>{ const r = urlToPage(item.url); navigate(r.page, r.props); }}>
                     <i className={`fa-solid ${item.icon}`}/>
                     <span className="sb-item-name">{item.label}</span>
                   </div>;
@@ -3040,7 +3117,7 @@ function PageViewPage({slug, navigate}) {
 // ── Extension route page ──────────────────────────────────────────────────────
 // Generic wrapper rendered when the SPA lands on an extension-registered route.
 // Extensions call:
-//   window.NexusExtensions.registerRoute("/my-ext/users/:username", MyPage, { title: "My Page" });
+//   window.NexusExtensions.registerRoute("my-ext", "/users/:username", MyPage, { title: "My Page" });
 // MyPage receives ({ navigate, currentUser, ...params }) where params are the
 // named segments extracted from the URL (e.g. { username: "alice" }).
 //
