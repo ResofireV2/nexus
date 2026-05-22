@@ -40,6 +40,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
     <!-- Fancybox loaded on demand — see openFancybox() in nexus.jsx -->
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
+    <%= if @extension_manifests != %{} do %>
+    <script>
+      // Manifests for every enabled extension, keyed by slug. Each entry is the
+      // normalized manifest_version 2 JSON document validated by
+      // Nexus.Extensions.ManifestSchema. The extension bundles below read this
+      // at register time to verify each registration was declared in the
+      // manifest; mismatches are logged to console and surfaced in the admin
+      // runtime panel.
+      window._nexusExtensionManifests = <%= raw(Jason.encode!(@extension_manifests, escape: :html_safe)) %>;
+      window._nexusExtensionMismatches = {};
+    </script>
+    <% end %>
     <%= for url <- @extension_bundle_urls do %>
     <script defer type="text/javascript" src={url}></script>
     <% end %>

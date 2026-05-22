@@ -417,11 +417,102 @@ function RefPreviewPopup() {
 }
 
 
+// ── Manifest cross-check ─────────────────────────────────────────────────────
+// At register-time, each register* call on NexusExtensions verifies that what
+// it's registering was declared in the extension's manifest.json. Undeclared
+// registrations log a console warning and accumulate in
+// window._nexusExtensionMismatches[slug] so the admin runtime panel can
+// surface them. The registration itself still goes through — Nexus does not
+// break the UI mid-render over a developer-feedback issue.
+//
+// `kind` is the manifest field to check (e.g. "slots", "routes",
+// "right_widgets", "toolbar_buttons", "hooks", "admin_panel", "explore").
+// `value` is the specific item being registered: a slot name string, a route
+// path, a widget id, etc. — whatever uniquely identifies the registration
+// within its kind.
+//
+// For object-shaped manifest fields (admin_panel, explore — declared as a
+// single object, not an array), pass kind="admin_panel" or kind="explore"
+// and value=true; presence of the manifest field is all we check.
+//
+// If `window._nexusExtensionManifests` is not present (development without
+// installed extensions, or a page that doesn't inject the map), validation is
+// silently skipped.
+function _validateAgainstManifest(slug, kind, value) {
+  var manifests = window._nexusExtensionManifests;
+  if (!manifests) return;  // no manifests injected → skip validation
+
+  var manifest = manifests[slug];
+  if (!manifest) {
+    // Extension is registering things but has no manifest in the page. This
+    // happens during a hot-reload before the page picks up a refreshed
+    // manifest map, or in dev when an extension is loaded outside the normal
+    // install flow. Log once per slug and move on.
+    _recordMismatch(slug, kind, value, "no manifest for slug \"" + slug + "\" available in the page");
+    return;
+  }
+
+  // Singular object fields are present-or-absent; truthiness of the manifest
+  // entry is enough.
+  if (kind === "admin_panel" || kind === "explore") {
+    if (!manifest[kind]) {
+      _recordMismatch(slug, kind, value,
+        "registered a " + kind + " but manifest does not declare one");
+    }
+    return;
+  }
+
+  // Array-of-strings fields (hooks, slots).
+  if (kind === "hooks" || kind === "slots") {
+    var list = manifest[kind] || [];
+    if (list.indexOf(value) === -1) {
+      _recordMismatch(slug, kind, value,
+        "registered " + kind + " entry \"" + value + "\" but manifest does not declare it. " +
+        "Declared: " + (list.length ? list.join(", ") : "(none)"));
+    }
+    return;
+  }
+
+  // Array-of-objects fields (routes, right_widgets, toolbar_buttons,
+  // digest_sections) — entries declared by a string `id` or `path`/`key`.
+  if (kind === "routes") {
+    var declared = (manifest.routes || []).map(function(r){ return r.path; });
+    if (declared.indexOf(value) === -1) {
+      _recordMismatch(slug, "routes", value,
+        "registered route path \"" + value + "\" but manifest does not declare it. " +
+        "Declared: " + (declared.length ? declared.join(", ") : "(none)"));
+    }
+    return;
+  }
+
+  if (kind === "right_widgets" || kind === "toolbar_buttons" || kind === "digest_sections") {
+    var idField = (kind === "digest_sections") ? "key" : "id";
+    var declaredIds = (manifest[kind] || []).map(function(e){ return e[idField]; });
+    if (declaredIds.indexOf(value) === -1) {
+      _recordMismatch(slug, kind, value,
+        "registered " + kind + " " + idField + " \"" + value + "\" but manifest does not declare it. " +
+        "Declared: " + (declaredIds.length ? declaredIds.join(", ") : "(none)"));
+    }
+    return;
+  }
+
+  // Unknown kind — coding bug in the caller. Surface loudly.
+  console.error("[NexusExtensions] _validateAgainstManifest called with unknown kind:", kind);
+}
+
+function _recordMismatch(slug, kind, value, message) {
+  if (!window._nexusExtensionMismatches) window._nexusExtensionMismatches = {};
+  if (!window._nexusExtensionMismatches[slug]) window._nexusExtensionMismatches[slug] = [];
+  window._nexusExtensionMismatches[slug].push({ kind: kind, value: value, message: message });
+  console.warn("[" + slug + "] " + message);
+}
+
+
 // ── Extension slot registry ──────────────────────────────────────────────────
 // Extensions register UI slot components here at runtime via their JS bundle.
 // Usage from extension bundle:
-//   window.NexusExtensions.registerSlot("feed_sidebar", MyComponent, 50);
-//   window.NexusExtensions.registerRoute("my-ext", "/users/:username", MyPage);
+//   window.NexusExtensions.registerSlot({slug:"gamepedia", slot:"feed_sidebar", component: MyComponent});
+//   window.NexusExtensions.registerRoute("gamepedia", "/users/:username", MyPage);
 window.NexusExtensions = {
   _slots: {},
   _listeners: [],
@@ -444,11 +535,42 @@ window.NexusExtensions = {
   _notifTypes: {},
   _notifTypeListeners: [],
 
-  registerSlot(slotName, component, priority = 50) {
-    if (!this._slots[slotName]) this._slots[slotName] = [];
-    this._slots[slotName].push({component, priority});
-    this._slots[slotName].sort((a, b) => a.priority - b.priority);
-    this._listeners.forEach(fn => fn(slotName));
+  // Register a UI slot component.
+  //
+  //   slug:      extension slug — required
+  //   slot:      slot name — required (must be one of the @ui_slots declared
+  //              in lib/nexus/extensions/extensions.ex; e.g. "post_footer")
+  //   component: React component — required
+  //   priority:  lower priority renders earlier (optional, default 50)
+  //
+  // The slot must be declared in your manifest's `slots: [...]` array.
+  // Undeclared registrations log a warning but still take effect — Nexus
+  // won't break your UI mid-render over a developer-feedback issue.
+  //
+  // Usage from extension bundle:
+  //   NE.registerSlot({
+  //     slug:      "gamepedia",
+  //     slot:      "post_footer",
+  //     component: GameAttachmentFooter,
+  //   });
+  registerSlot({ slug, slot, component, priority = 50 } = {}) {
+    if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug)) {
+      console.error("[NexusExtensions] registerSlot: slug must be lowercase alphanumeric+hyphens, got:", slug);
+      return;
+    }
+    if (typeof slot !== "string" || !slot) {
+      console.error("[NexusExtensions] registerSlot: slot is required");
+      return;
+    }
+    if (typeof component !== "function") {
+      console.error("[NexusExtensions] registerSlot: component must be a React component, got:", component);
+      return;
+    }
+    _validateAgainstManifest(slug, "slots", slot);
+    if (!this._slots[slot]) this._slots[slot] = [];
+    this._slots[slot].push({component, priority, slug});
+    this._slots[slot].sort((a, b) => a.priority - b.priority);
+    this._listeners.forEach(fn => fn(slot));
   },
 
   getSlot(slotName) {
@@ -522,6 +644,7 @@ window.NexusExtensions = {
       return;
     }
     var priority = (typeof config.priority === "number") ? config.priority : 50;
+    _validateAgainstManifest(slug, "toolbar_buttons", id);
     // Drop any prior registration for the same (slug, id) so reloads don't stack duplicates.
     var typeKey = "ext:" + slug + ":" + id;
     this._toolbarButtons = this._toolbarButtons.filter(function(b) {
@@ -568,6 +691,7 @@ window.NexusExtensions = {
       console.error("[NexusExtensions] registerRoute: do not include /ext/ in path — Nexus prefixes it automatically. Got:", path);
       return;
     }
+    _validateAgainstManifest(slug, "routes", path);
 
     // Build the full pattern: /ext/<slug> for path "/", otherwise /ext/<slug><path>
     const pattern = path === "/" ? `/ext/${slug}` : `/ext/${slug}${path}`;
@@ -658,6 +782,7 @@ window.NexusExtensions = {
   // For the component, use one of the pre-built templates exposed on
   // window.NexusExtensionTemplates, or supply a fully custom component.
   registerAdminPanel(slug, { label, icon = "fa-puzzle-piece", component }) {
+    _validateAgainstManifest(slug, "admin_panel", true);
     this._adminPanels = this._adminPanels.filter(p => p.slug !== slug);
     this._adminPanels.push({ slug, label, icon, component });
     this._adminPanelListeners.forEach(fn => fn());
@@ -708,6 +833,7 @@ window.NexusExtensions = {
       console.error("[NexusExtensions] registerExploreItem: do not include /ext/ in path — Nexus prefixes it automatically. Got:", path);
       return;
     }
+    _validateAgainstManifest(slug, "explore", true);
 
     const url       = path === "/" ? `/ext/${slug}` : `/ext/${slug}${path}`;
     const itemId    = id || slug;
@@ -796,6 +922,7 @@ window.NexusExtensions = {
     }
 
     this._rightWidgets = this._rightWidgets.filter(w => w.id !== id);
+    _validateAgainstManifest(slug, "right_widgets", id);
     this._rightWidgets.push({ id, label, component, priority, pages, slug, _ext: true });
     this._rightWidgets.sort((a, b) => (a.priority||50) - (b.priority||50));
     this._rightWidgetListeners.forEach(fn => fn());

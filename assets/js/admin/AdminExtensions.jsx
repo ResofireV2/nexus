@@ -148,25 +148,20 @@ function ExtensionRuntimePanel({slug}) {
           )}
 
           {data && !loading && !error && (
-            <div style={{display:"flex", flexDirection:"column", gap:12, paddingTop:8}}>
+            <div style={{display:"flex", flexDirection:"column", gap:14, paddingTop:8}}>
               <RuntimeRow label="Module"
                 value={data.module || <em style={{color:"var(--t5)"}}>not loaded</em>}/>
 
-              <RuntimeList label="Hooks" empty="No hooks registered"
-                items={data.hooks}
-                render={h => `${h.event} (priority ${h.priority})`}/>
+              {/* Declared: what the manifest promises this extension contributes.
+                  Empty sub-sections are hidden to keep the panel scannable —
+                  most extensions only declare a subset of the possible kinds. */}
+              <DeclaredVsRegisteredPanel slug={slug} data={data}/>
 
-              <RuntimeList label="Slots" empty="No slot components registered"
-                items={data.slots}
-                render={s => `${s.slot} → ${s.component} (priority ${s.priority})`}/>
-
-              <RuntimeList label="API routes" empty="No routes registered"
-                items={data.routes}
-                render={r => `${r.prefix} → ${r.plug}`}/>
-
-              <RuntimeList label="Digest sections" empty="No digest sections registered"
-                items={data.digest_sections}
-                render={s => `${s.key} — ${s.label}${s.enabled_by_default ? "" : " (off by default)"}`}/>
+              {/* JS-side mismatches captured at register-time. Surfaces the case
+                  where the bundle registers something the manifest didn't
+                  declare — undeclared registrations are warnings, not errors,
+                  but admins should see them. */}
+              <MismatchList slug={slug}/>
             </div>
           )}
         </div>
@@ -205,6 +200,162 @@ function RuntimeList({label, items, render, empty}) {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+// Shows what the manifest declares vs what's actually registered (server-side
+// from the registry, client-side from window.NexusExtensions). Each row shows
+// declared/registered side-by-side. Items appearing on only one side are
+// flagged so the admin can see the mismatch at a glance.
+function DeclaredVsRegisteredPanel({slug, data}) {
+  const declared = data.declared || {};
+
+  // Live JS-side registrations for this slug. Pulled directly from the
+  // NexusExtensions runtime state — no API call needed, the data is already
+  // in the page.
+  const liveSlots = (window.NexusExtensions && window.NexusExtensions._slots)
+    ? Object.entries(window.NexusExtensions._slots).flatMap(([slotName, comps]) =>
+        comps.filter(c => c.slug === slug).map(_ => slotName))
+    : [];
+  const liveRoutes = (window.NexusExtensions && window.NexusExtensions._routes)
+    ? window.NexusExtensions._routes
+        .filter(r => r.slug === slug)
+        // Strip /ext/<slug> prefix to compare against manifest-relative paths
+        .map(r => r.pattern.replace(new RegExp("^/ext/" + slug), "") || "/")
+    : [];
+  const liveRightWidgets = (window.NexusExtensions && window.NexusExtensions._rightWidgets)
+    ? window.NexusExtensions._rightWidgets.filter(w => w.slug === slug).map(w => w.id)
+    : [];
+  const liveToolbarButtons = (window.NexusExtensions && window.NexusExtensions._toolbarButtons)
+    ? window.NexusExtensions._toolbarButtons
+        .filter(b => b.config?.slug === slug)
+        .map(b => b.config.id)
+    : [];
+  const liveAdminPanel = !!(window.NexusExtensions && window.NexusExtensions._adminPanels
+    && window.NexusExtensions._adminPanels.find(p => p.slug === slug));
+  const liveExploreItem = !!(window.NexusExtensions && window.NexusExtensions._exploreItems
+    && window.NexusExtensions._exploreItems.find(i => i.slug === slug));
+
+  // Server-side registrations come from `data` (the /runtime endpoint).
+  const serverHooks = (data.hooks || []).map(h => h.event);
+  const serverDigest = (data.digest_sections || []).map(s => s.key);
+
+  // Build the comparison rows. Each entry is shown only if either side has
+  // anything to show — empty rows are noise.
+  const rows = [
+    {kind: "hooks",           declared: declared.hooks || [],
+                              registered: serverHooks,           side: "server"},
+    {kind: "slots",           declared: declared.slots || [],
+                              registered: liveSlots,             side: "client"},
+    {kind: "routes",          declared: (declared.routes || []).map(r => r.path),
+                              registered: liveRoutes,            side: "client"},
+    {kind: "right_widgets",   declared: (declared.right_widgets || []).map(w => w.id),
+                              registered: liveRightWidgets,      side: "client"},
+    {kind: "toolbar_buttons", declared: (declared.toolbar_buttons || []).map(b => b.id),
+                              registered: liveToolbarButtons,    side: "client"},
+    {kind: "digest_sections", declared: (declared.digest_sections || []).map(s => s.key),
+                              registered: serverDigest,          side: "server"},
+    {kind: "admin_panel",     declared: declared.admin_panel ? ["✓ declared"] : [],
+                              registered: liveAdminPanel ? ["✓ registered"] : [],   side: "client"},
+    {kind: "explore",         declared: declared.explore ? ["✓ declared"] : [],
+                              registered: liveExploreItem ? ["✓ registered"] : [],  side: "client"},
+  ].filter(r => r.declared.length > 0 || r.registered.length > 0);
+
+  if (rows.length === 0) {
+    return (
+      <div style={{fontSize:12, color:"var(--t5)", fontStyle:"italic"}}>
+        Extension declares no contributions and has registered nothing.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{display:"flex", flexDirection:"column", gap:10}}>
+      <div style={{display:"flex", gap:12, fontSize:11, color:"var(--t5)", fontWeight:600,
+                   borderBottom:"0.5px solid var(--b1)", paddingBottom:6}}>
+        <div style={{width:120, flexShrink:0}}>Kind</div>
+        <div style={{flex:1, minWidth:0}}>Declared in manifest</div>
+        <div style={{flex:1, minWidth:0}}>Registered at runtime</div>
+      </div>
+      {rows.map(row => (
+        <ComparisonRow key={row.kind} row={row}/>
+      ))}
+    </div>
+  );
+}
+
+function ComparisonRow({row}) {
+  const declaredSet   = new Set(row.declared);
+  const registeredSet = new Set(row.registered);
+  // Items missing from one side are flagged.
+  const onlyDeclared   = row.declared.filter(d   => !registeredSet.has(d));
+  const onlyRegistered = row.registered.filter(r => !declaredSet.has(r));
+  const hasMismatch    = onlyDeclared.length > 0 || onlyRegistered.length > 0;
+
+  return (
+    <div style={{display:"flex", gap:12, fontSize:12, alignItems:"flex-start"}}>
+      <div style={{width:120, color:hasMismatch ? "#fbbf24" : "var(--t5)", flexShrink:0, paddingTop:1,
+                   fontWeight: hasMismatch ? 600 : 400}}>
+        {row.kind}
+        {hasMismatch && <i className="fa-solid fa-triangle-exclamation" style={{marginLeft:6, fontSize:10}}/>}
+      </div>
+      <ListColumn items={row.declared} highlight={onlyDeclared} side="declared"/>
+      <ListColumn items={row.registered} highlight={onlyRegistered} side="registered"/>
+    </div>
+  );
+}
+
+function ListColumn({items, highlight, side}) {
+  if (!items || items.length === 0) {
+    return <div style={{flex:1, minWidth:0, color:"var(--t5)", fontStyle:"italic"}}>—</div>;
+  }
+  const hiSet = new Set(highlight || []);
+  return (
+    <ul style={{flex:1, minWidth:0, margin:0, padding:0, listStyle:"none",
+                display:"flex", flexDirection:"column", gap:3}}>
+      {items.map((it, i) => {
+        const isHi = hiSet.has(it);
+        return (
+          <li key={i} style={{color: isHi ? "#fbbf24" : "var(--t2)",
+            fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",
+            wordBreak:"break-all"}}
+            title={isHi
+              ? (side === "declared"
+                  ? "Declared in manifest but not registered at runtime"
+                  : "Registered at runtime but not declared in manifest")
+              : null}>
+            {it}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// Surfaces JS-side warnings collected at register-time by _validateAgainstManifest.
+// These are undeclared registrations: the bundle registered something the
+// manifest didn't promise. Distinct from the declared-vs-registered comparison
+// because those mismatches are computed from current state, while this list is
+// the chronological record of warnings logged during registration.
+function MismatchList({slug}) {
+  const mismatches = (window._nexusExtensionMismatches && window._nexusExtensionMismatches[slug]) || [];
+  if (mismatches.length === 0) return null;
+  return (
+    <div style={{display:"flex", gap:12, fontSize:12, alignItems:"flex-start",
+                 borderTop:"0.5px solid var(--b1)", paddingTop:10}}>
+      <div style={{width:120, color:"#fbbf24", flexShrink:0, paddingTop:1, fontWeight:600}}>
+        <i className="fa-solid fa-triangle-exclamation" style={{marginRight:6, fontSize:10}}/>
+        Warnings
+      </div>
+      <ul style={{flex:1, minWidth:0, margin:0, padding:0, listStyle:"none",
+                  display:"flex", flexDirection:"column", gap:4}}>
+        {mismatches.map((m, i) => (
+          <li key={i} style={{color:"var(--t2)", lineHeight:1.5}}>
+            {m.message}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -25,6 +25,22 @@ defmodule NexusWeb.API.V1.ExtensionController do
   # registrations went through and to debug "I'm sure I registered that"
   # situations.
   #
+  # GET /api/v1/admin/extensions/:slug/runtime
+  #
+  # Returns the runtime-introspection payload the admin runtime panel uses to
+  # show what the extension actually has loaded into the VM right now AND
+  # what its manifest declared. The two halves are compared in the UI to
+  # surface mismatches:
+  #
+  #   * `runtime.declared` — the validated normalized manifest as stored in
+  #     :nexus_ext_declared at load time. Source of truth for what the
+  #     extension promised.
+  #
+  #   * `runtime.module`, `runtime.hooks`, `runtime.slots`, `runtime.routes`,
+  #     `runtime.digest_sections` — what the registry actually has registered.
+  #     `runtime.module` is the resolved Elixir module name. The lists are
+  #     populated from the ETS registry tables.
+  #
   # Note: the DB row is the source of truth for whether the extension is
   # *installed*, while the Registry is the source of truth for whether
   # it's currently *loaded into the VM*. They can disagree if a compile
@@ -39,6 +55,8 @@ defmodule NexusWeb.API.V1.ExtensionController do
 
       _ext ->
         info = Nexus.Extensions.Registry.runtime_info(slug)
+        declared = Nexus.Extensions.Registry.get_declared(slug)
+
         json(conn, %{runtime: %{
           # `module` from the registry is an atom (or nil). Inspect it for
           # JSON-safe transport; the UI just displays it as a string.
@@ -47,6 +65,7 @@ defmodule NexusWeb.API.V1.ExtensionController do
           slots:           info.slots,
           routes:          info.routes,
           digest_sections: info.digest_sections,
+          declared:        declared,
         }})
     end
   end
