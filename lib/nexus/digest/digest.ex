@@ -251,8 +251,8 @@ defmodule Nexus.Digest do
     }
 
     # Collect sections from installed extensions that declare digest_sections.
-    # Each extension webhook is called synchronously (with a short timeout)
-    # and its response is merged into the sections map.
+    # Each extension's handle_digest_section/3 callback is invoked directly
+    # and its return value is merged into the sections map.
     extension_sections = collect_extension_sections(frequency, %{
       from: from_dt,
       to:   to_dt,
@@ -286,49 +286,45 @@ defmodule Nexus.Digest do
   @doc """
   Queries all enabled installed extensions for digest content.
 
-  An extension opts in by declaring a `digest_sections` array in its manifest:
+  An extension opts in by exporting `digest_sections/0` and
+  `handle_digest_section/3` (or `/4` for branded rendering). The sections list
+  is registered in the in-memory Registry when the extension is loaded.
 
-      "digest_sections": [
-        {
-          "key": "gamepedia_new_games",
-          "label": "New Games",
-          "icon": "fa-gamepad",
-          "webhook_path": "/digest/new_games",
-          "enabled_by_default": true
-        }
-      ]
+  For each registered section, Nexus calls the extension's
+  `handle_digest_section/3` callback directly with:
 
-  Nexus calls `POST {webhook_url_base}{webhook_path}` with a JSON body:
-
-      {
-        "from": "2026-05-02T00:00:00Z",
-        "to":   "2026-05-09T00:00:00Z",
-        "frequency": "weekly",
-        "period_label": "this week"
+      key     :: String.t()
+      period  :: %{
+        from:         DateTime.t(),
+        to:           DateTime.t(),
+        frequency:    "daily" | "weekly" | "monthly",
+        period_label: "today" | "this week" | "this month"
       }
+      settings :: map()
 
-  The extension must respond with a JSON body matching the digest section schema:
+  The callback must return a map matching the digest section schema:
 
-      {
-        "title":  "New Games",
-        "layout": "list",          // "list" | "stat_bars" | "leaderboard" | "pill_grid"
-        "cta": {                   // optional
-          "label": "Browse all games",
-          "url":   "https://gamepedia.example.com"
+      %{
+        title:  "New Games",
+        layout: "list",          # "list" | "stat_bars" | "leaderboard" | "pill_grid"
+        cta:    %{               # optional
+          label: "Browse all games",
+          url:   "https://gamepedia.example.com"
         },
-        "items": [
-          {
-            "label":       "Elden Ring",
-            "sublabel":    "Action RPG · FromSoftware",
-            "badge":       "NEW",          // optional pill text
-            "badge_color": "#34d399",      // optional
-            "value":       "1,204",        // optional — shown right-aligned (leaderboard/stat_bars)
-            "url":         "https://..."   // optional — makes label a link
+        items: [
+          %{
+            label:       "Elden Ring",
+            sublabel:    "Action RPG · FromSoftware",
+            badge:       "NEW",          # optional pill text
+            badge_color: "#34d399",      # optional
+            value:       "1,204",        # optional — shown right-aligned (leaderboard/stat_bars)
+            url:         "https://..."   # optional — makes label a link
           }
         ]
       }
 
-  If the request fails or times out, the section is silently omitted.
+  If the callback raises or returns no usable items, the section is silently
+  omitted from the digest.
   """
   def collect_extension_sections(frequency, context, branding \\ %{}) do
     require Logger

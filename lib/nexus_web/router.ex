@@ -371,10 +371,6 @@ defmodule NexusWeb.Router do
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through :api
     get "/slots/:slot", ExtensionController, :slots
-
-    # Extension bundle URLs — served from the extension's static assets directory.
-    # No proxy, no separate service — assets live inside the Nexus uploads directory.
-    get "/extensions/:slug/assets/*path", ExtensionController, :serve_asset
   end
 
   # Extension static assets — served without pipeline restrictions so script tags

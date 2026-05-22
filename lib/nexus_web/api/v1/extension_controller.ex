@@ -167,39 +167,11 @@ defmodule NexusWeb.API.V1.ExtensionController do
         ext ->
           case Extensions.update_extension_from_release(ext) do
             {:ok, updated} ->
-              # rebuilding is true when the extension has a service_url
-              # (meaning a deploy webhook was fired to trigger a rebuild)
-              json(conn, %{
-                extension: extension_json(updated),
-                rebuilding: not is_nil(updated.service_url)
-              })
+              json(conn, %{extension: extension_json(updated)})
             {:error, reason} ->
               conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
           end
       end
-    end
-  end
-
-  # GET /api/v1/extensions/:slug/assets/*path
-  # Serves static assets from the extension's uploaded assets directory.
-  # Used for the JS bundle URL stored in slots/all.
-  def serve_asset(conn, %{"slug" => slug, "path" => path_parts}) do
-    filename  = Path.join(path_parts)
-    asset_dir = Path.join([
-      Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
-      "extensions", slug, "assets"
-    ])
-    asset_path = Path.join(asset_dir, filename)
-
-    if File.exists?(asset_path) do
-      conn
-      |> Plug.Conn.put_resp_header("access-control-allow-origin", "*")
-      |> Plug.Conn.put_resp_header("cache-control", "public, max-age=86400")
-      |> Plug.Conn.send_file(200, asset_path)
-    else
-      conn
-      |> put_status(:not_found)
-      |> json(%{error: "Asset not found"})
     end
   end
 
@@ -240,12 +212,10 @@ defmodule NexusWeb.API.V1.ExtensionController do
       homepage:       ext.homepage,
       enabled:        ext.enabled,
       settings:       ext.settings,
-      webhook_url:    ext.webhook_url,
       js_bundle_url:  ext.js_bundle_url,
       manifest_url:   ext.manifest_url,
-      service_url:    ext.service_url,
-      logo_url:           resolve_asset_url(manifest["logo_url"], ext),
-      banner_url:         resolve_asset_url(manifest["banner_url"], ext),
+      logo_url:           manifest["logo_url"],
+      banner_url:         manifest["banner_url"],
       github_repo:        ext.github_repo,
       installed_version:  ext.installed_version,
       latest_version:     ext.latest_version,
@@ -255,16 +225,9 @@ defmodule NexusWeb.API.V1.ExtensionController do
       load_status:        ext.load_status,
       load_error:         ext.load_error,
       loaded_at:          ext.loaded_at,
-      # Never expose proxy_secret to the frontend
       # Expose schema so admin UI can render settings forms automatically
       settings_schema: manifest["settings_schema"] || %{},
       settings_tabs:   manifest["settings_tabs"]   || [],
-      hooks: Enum.map(ext.hooks, fn h ->
-        %{id: h.id, event: h.event, handler: h.handler, priority: h.priority, enabled: h.enabled}
-      end),
-      slots: Enum.map(ext.slots, fn s ->
-        %{id: s.id, slot: s.slot, component: s.component, priority: s.priority, enabled: s.enabled}
-      end)
     }
   end
 
@@ -272,21 +235,5 @@ defmodule NexusWeb.API.V1.ExtensionController do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", if(is_binary(v), do: v, else: inspect(v))) end)
     end)
-  end
-
-  # Resolve a logo/banner URL — if it's already absolute use it directly,
-  # if it's a relative /ext/ path resolve it through the extension's service_url,
-  # otherwise fall back to nil.
-  defp resolve_asset_url(nil, _ext), do: nil
-  defp resolve_asset_url(url, ext) do
-    cond do
-      String.starts_with?(url, "http") ->
-        url
-      String.starts_with?(url, "/ext/") && ext.service_url ->
-        path = String.replace_prefix(url, "/ext/#{ext.slug}", "")
-        String.trim_trailing(ext.service_url, "/") <> path
-      true ->
-        url
-    end
   end
 end

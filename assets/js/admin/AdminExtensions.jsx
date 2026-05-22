@@ -396,28 +396,6 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
         </div>
       )}
 
-      {/* Hook + slot summary */}
-      {(ext.hooks?.length > 0 || ext.slots?.length > 0) && (
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
-          {ext.hooks?.map(h=>(
-            <div key={h.id} style={{fontSize:11,padding:"3px 10px",borderRadius:20,
-              background:"rgba(167,139,250,0.08)",border:"0.5px solid rgba(167,139,250,0.2)",
-              color:"#c4b5fd"}}>
-              <i className="fa-solid fa-bolt" style={{fontSize:9,marginRight:5}}/>
-              {h.event}
-            </div>
-          ))}
-          {ext.slots?.map(s=>(
-            <div key={s.id} style={{fontSize:11,padding:"3px 10px",borderRadius:20,
-              background:"rgba(52,211,153,0.08)",border:"0.5px solid rgba(52,211,153,0.2)",
-              color:"#6ee7b7"}}>
-              <i className="fa-solid fa-puzzle-piece" style={{fontSize:9,marginRight:5}}/>
-              {s.slot}
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Runtime introspection — what's actually registered in the ETS Registry
           right now. Lazy-loaded on expand so we don't fetch it on every detail
           view. Useful when load_status says "loaded" but a specific hook/slot/
@@ -480,89 +458,6 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 // ── Admin Extensions Panel ────────────────────────────────────────────────────
 // Unified extensions page — store, installed state, and install-from-URL
 // all live on one screen. No separate "browse store" view.
-// ── RebuildingOverlay ────────────────────────────────────────────────────────
-// Shown after an extension update is applied to a service-backed extension.
-// Polls the extension's health endpoint every 4 seconds until the reported
-// version matches the expected new version, then calls onDone.
-function RebuildingOverlay({slug, onDone, onError}) {
-  const [elapsed, setElapsed] = React.useState(0);
-  const [status, setStatus]   = React.useState("Waiting for rebuild to start…");
-  const MAX_WAIT = 300; // 5 minutes max
-
-  React.useEffect(() => {
-    let cancelled = false;
-    let seconds   = 0;
-
-    const tick = async () => {
-      if(cancelled) return;
-      seconds += 4;
-      setElapsed(seconds);
-
-      if(seconds > MAX_WAIT) {
-        onError("Rebuild timed out after 5 minutes. Check the server logs.");
-        return;
-      }
-
-      try {
-        const r = await fetch(`/api/v1/extensions/${slug}/api/health`, {
-          headers: {"Accept": "application/json"}
-        });
-
-        if(r.ok) {
-          const data = await r.json();
-          const version = data.version || data.vsn;
-          setStatus(`Service is up — detected version ${version || "unknown"}`);
-          if(version) {
-            onDone(version);
-            return;
-          }
-        } else {
-          setStatus("Service restarting… waiting to come back online");
-        }
-      } catch {
-        setStatus("Service is down — rebuild in progress…");
-      }
-
-      setTimeout(tick, 4000);
-    };
-
-    // Give the service a moment before first poll — rebuild takes time to start
-    setStatus("Deploy triggered — waiting for rebuild to begin…");
-    setTimeout(tick, 6000);
-
-    return () => { cancelled = true; };
-  }, [slug]);
-
-  const mins  = Math.floor(elapsed / 60);
-  const secs  = elapsed % 60;
-  const timer = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-
-  return (
-    <div style={{
-      position:"absolute", inset:0, zIndex:100,
-      background:"var(--bg)", borderRadius:12,
-      display:"flex", flexDirection:"column",
-      alignItems:"center", justifyContent:"center",
-      gap:20, padding:48, textAlign:"center",
-      border:"0.5px solid var(--b1)",
-    }}>
-      <i className="fa-solid fa-spinner fa-spin" style={{fontSize:36,color:"var(--ac)"}}/>
-      <div>
-        <div style={{fontSize:16,fontWeight:500,color:"var(--t1)",marginBottom:8}}>
-          Rebuilding extension service
-        </div>
-        <div style={{fontSize:13,color:"var(--t4)",marginBottom:4}}>{status}</div>
-        {elapsed > 0&&(
-          <div style={{fontSize:12,color:"var(--t5)"}}>Waiting {timer}…</div>
-        )}
-      </div>
-      <div style={{fontSize:12,color:"var(--t5)",maxWidth:420,lineHeight:1.7}}>
-        The service is being pulled from GitHub and rebuilt. This typically takes 30–90 seconds.
-        The overlay will dismiss automatically when the new version is detected.
-      </div>
-    </div>
-  );
-}
 
 function AdminExtensionsPanel() {
   const [tab, setTab]                   = useState("all");       // "all" | "installed" | "url"
@@ -986,28 +881,6 @@ function AdminExtensionsPanel() {
                             {c}
                           </span>
                         ))}
-                      </div>
-                    )}
-
-                    {/* Hooks + slots summary */}
-                    {(item.hooks?.length>0||item.slots?.length>0)&&(
-                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:2}}>
-                        {item.hooks?.length>0&&(
-                          <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,
-                            background:"rgba(167,139,250,0.08)",border:"0.5px solid rgba(167,139,250,0.2)",
-                            color:"#c4b5fd",display:"flex",alignItems:"center",gap:4}}>
-                            <i className="fa-solid fa-bolt" style={{fontSize:8}}/>
-                            {item.hooks.length} hook{item.hooks.length!==1?"s":""}
-                          </span>
-                        )}
-                        {item.slots?.length>0&&(
-                          <span style={{fontSize:10,padding:"2px 8px",borderRadius:20,
-                            background:"rgba(52,211,153,0.08)",border:"0.5px solid rgba(52,211,153,0.2)",
-                            color:"#6ee7b7",display:"flex",alignItems:"center",gap:4}}>
-                            <i className="fa-solid fa-puzzle-piece" style={{fontSize:8}}/>
-                            {item.slots.length} slot{item.slots.length!==1?"s":""}
-                          </span>
-                        )}
                       </div>
                     )}
 
@@ -1442,5 +1315,5 @@ window._nexusAdminSetDirty = null;
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 export { ExtensionSettingsForm, ExtensionDetail, AdminExtensionsPanel,
-         RebuildingOverlay, ExtensionInfoPanel, ExtensionFieldRenderer,
+         ExtensionInfoPanel, ExtensionFieldRenderer,
          useExtensionSettings, SimpleSettingsPanel, TabbedPanel };

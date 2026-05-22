@@ -9,14 +9,16 @@ cd extensions/my-extension
 
 ## Extension structure
 
-A Nexus extension is a GitHub repository containing a `manifest.json` and a JS bundle. The service-side code (webhook handlers, API, database) lives in a separate deployment — the extension repository is just the manifest and frontend bundle that Nexus pulls in.
+A Nexus extension is a GitHub repository containing a `manifest.json`, Elixir source code, and an optional JS bundle. Nexus fetches the release tarball, compiles the source into the running VM, runs any migrations, starts any declared processes, and registers hooks/slots/routes/digest sections in its in-memory registry. There is no separate service to deploy and no webhook delivery — extension code runs in-process alongside Nexus core.
 
 ```
 my-extension/
-├── manifest.json        # Tells Nexus about the extension
-├── assets/
-│   └── js/
-│       └── my-extension.js  # Frontend bundle (compiled, self-contained)
+├── manifest.json           # Identity, branding, settings schema, release pointer
+├── lib/
+│   └── my_extension.ex     # Module implementing Nexus.Extensions.Behaviour
+├── priv/
+│   └── static/
+│       └── my-extension.js # Optional frontend bundle (compiled, self-contained)
 └── README.md
 ```
 
@@ -33,14 +35,6 @@ my-extension/
   "logo_url":       "https://my-extension.example.com/assets/logo.png",
   "banner_url":     "https://my-extension.example.com/assets/banner.png",
   "categories":     ["games", "integrations"],
-  "webhook_url":    "https://my-extension.example.com/webhook",
-  "js_bundle_url":  "https://my-extension.example.com/assets/my-extension.js",
-  "hooks": [
-    { "event": "post_created", "priority": 50 }
-  ],
-  "slots": [
-    { "slot": "post_footer", "component": "MyPostFooter", "priority": 50 }
-  ],
   "settings_schema": {
     "api_key": {
       "type":        "string",
@@ -65,6 +59,8 @@ my-extension/
   ]
 }
 ```
+
+Hooks and slots are not declared in `manifest.json` in the in-VM model. They are derived from your module: hooks come from your `handle_event/3` callback, slots come from the `:slots` key returned by `manifest/0` in your Elixir module. See [`behaviour.ex`](behaviour.ex) for the full callback contract.
 
 ### Branding fields
 
@@ -98,42 +94,49 @@ In the Nexus admin panel go to **Forum Settings → Extensions → Install from 
 
 ---
 
-## Webhook hooks
+## Event hooks
 
-Nexus fires a `POST` request to your `webhook_url` for each registered event. The body is JSON:
+When a forum event occurs, Nexus invokes `handle_event/3` on every loaded extension that exports it:
 
-```json
-{
-  "event":     "post_created",
-  "payload":   { "post_id": 42 },
-  "settings":  { "api_key": "sk-...", "enabled": true },
-  "extension": "my-extension",
-  "timestamp": 1717000000
-}
+```elixir
+def handle_event("post_created", %{post_id: id}, _settings) do
+  MyExtension.do_something_with_post(id)
+end
+
+def handle_event(_event, _payload, _settings), do: :ok
 ```
+
+Each call runs in a supervised `Task` — crashes are caught and logged without affecting the caller or other extensions. Return values are ignored.
 
 ### Available hook events
 
 | Event             | Payload                              | Fired when                    |
 |-------------------|--------------------------------------|-------------------------------|
-| `post_created`    | `{ post_id }`                        | A post is published           |
-| `post_updated`    | `{ post_id }`                        | A post is edited              |
-| `post_deleted`    | `{ post_id }`                        | A post is deleted             |
-| `reply_created`   | `{ reply_id, post_id }`              | A reply is posted             |
-| `user_registered` | `{ user_id }`                        | A new user registers          |
-| `user_login`      | `{ user_id }`                        | A user logs in                |
-| `reaction_added`  | `{ emoji, user_id, post_id }`        | A reaction is added           |
-| `report_created`  | `{ report_id }`                      | Content is reported           |
+| `post_created`    | `%{post_id: id}`                     | A post is published           |
+| `post_updated`    | `%{post_id: id}`                     | A post is edited              |
+| `post_deleted`    | `%{post_id: id}`                     | A post is deleted             |
+| `reply_created`   | `%{reply_id: id, post_id: pid}`      | A reply is posted             |
+| `user_registered` | `%{user_id: id}`                     | A new user registers          |
+| `user_login`      | `%{user_id: id}`                     | A user logs in                |
+| `reaction_added`  | `%{emoji: e, user_id: uid, post_id: pid}` | A reaction is added      |
+| `report_created`  | `%{report_id: id}`                   | Content is reported           |
 
-### Webhook signature verification
-
-If you set a **Webhook Secret** in the extension settings, Nexus signs every delivery with an `X-Nexus-Signature: sha256=<hex>` header. Verify it against the raw request body using HMAC-SHA256.
+The `settings` argument is the extension's stored settings map at the time of dispatch. Do not call `Nexus.Extensions.get_extension_by_slug/1` to fetch them — they are already passed in.
 
 ---
 
 ## Frontend bundle
 
-Your `js_bundle_url` is loaded by Nexus after the forum SPA initialises. It must be a self-contained IIFE — no ES module syntax, no external imports. React is available on `window.React`; do not bundle it.
+Place your compiled bundle at `priv/static/my-extension.js` in your extension repository and tell Nexus where it is by implementing `js_bundle_path/0`:
+
+```elixir
+@impl true
+def js_bundle_path, do: "my-extension.js"
+```
+
+Nexus copies the file into the extension's assets directory at install/update time and serves it at `/ext/<slug>/assets/<file>`. The script tag is injected into the HTML head before React mounts.
+
+The bundle must be a self-contained IIFE — no ES module syntax, no external imports. React is available on `window.React`; do not bundle it.
 
 Minimal bundle structure:
 
@@ -337,11 +340,11 @@ React.createElement(TabbedPanel, {
       ],
     },
     {
-      key:    "security",
-      label:  "Security",
-      icon:   "fa-shield",
+      key:    "advanced",
+      label:  "Advanced",
+      icon:   "fa-sliders",
       fields: [
-        { key: "webhook_secret", label: "Webhook Secret", type: "string", secret: true },
+        { key: "cache_ttl", label: "Cache TTL (seconds)", type: "number" },
       ],
     },
   ],
@@ -721,43 +724,32 @@ Do not use it for work that must complete synchronously before returning an HTTP
 
 ---
 
-## Deploying your extension service
-
-Your extension backend (webhook receiver, API, JS bundle server) can be any language or framework. The only requirements are:
-
-- `GET  /assets/my-extension.js` — serves the JS bundle with `Access-Control-Allow-Origin: *`
-- `POST /webhook` — receives Nexus hook events
-- `GET  /api/*` — any API routes your frontend needs
-
-Use Caddy or nginx to proxy both your service and Nexus behind the same domain. Drop a `Caddyfile` snippet in your extension repo and add `import /opt/my-extension/Caddyfile` to your Nexus `Caddyfile` once. Future extension updates never require touching the Nexus `Caddyfile` again.
-
----
-
 ## Digest email sections
 
-Extensions can contribute sections to Nexus digest emails. When a digest is sent, Nexus calls a webhook on your extension for each section it declares. Your extension queries its own database, builds the response, and Nexus renders it using the native email template — so it looks visually consistent with the built-in sections.
+Extensions can contribute sections to Nexus digest emails. When a digest is sent, Nexus invokes your `handle_digest_section/3` callback for each section you declare. Your callback queries the database, returns a section payload, and Nexus renders it using the native email template — so it looks visually consistent with the built-in sections.
 
-### 1. Declare sections in manifest.json
+### 1. Declare sections from your module
 
-```json
-{
-  "digest_sections": [
-    {
-      "key": "gamepedia_new_games",
-      "label": "New Games",
-      "icon": "fa-gamepad",
-      "webhook_path": "/digest/new_games",
-      "enabled_by_default": true
+Implement `digest_sections/0` to return a list of section descriptors:
+
+```elixir
+@impl true
+def digest_sections do
+  [
+    %{
+      key: "gamepedia_new_games",
+      label: "New Games",
+      icon: "fa-gamepad",
+      enabled_by_default: true
     },
-    {
-      "key": "gamepedia_top_discussed",
-      "label": "Most Discussed Games",
-      "icon": "fa-fire",
-      "webhook_path": "/digest/top_discussed",
-      "enabled_by_default": true
+    %{
+      key: "gamepedia_top_discussed",
+      label: "Most Discussed Games",
+      icon: "fa-fire",
+      enabled_by_default: true
     }
   ]
-}
+end
 ```
 
 | Field | Required | Description |
@@ -765,41 +757,42 @@ Extensions can contribute sections to Nexus digest emails. When a digest is sent
 | `key` | ✓ | Unique identifier. Use your extension slug as a prefix (e.g. `gamepedia_new_games`) to avoid collisions. |
 | `label` | ✓ | Section heading shown in the email and admin UI. |
 | `icon` | | FontAwesome icon class for the admin UI (e.g. `fa-gamepad`). |
-| `webhook_path` | ✓ | Path appended to your `webhook_url` base. Must start with `/`. |
 | `enabled_by_default` | | Whether the section is on by default. Admins can toggle it. |
 
-### 2. Handle the webhook
+### 2. Handle the callback
 
-Nexus sends a `POST` request to `{your_webhook_base}{webhook_path}` with:
+Implement `handle_digest_section/3`. Nexus calls it with the section key, the digest period, and your extension's stored settings:
 
-```json
-{
-  "from": "2026-05-02T00:00:00Z",
-  "to":   "2026-05-09T00:00:00Z",
-  "frequency": "weekly",
-  "period_label": "this week",
-  "extension": "gamepedia",
-  "settings": { }
+```elixir
+@impl true
+def handle_digest_section(key, period, settings)
+```
+
+Where `period` is:
+
+```elixir
+%{
+  from:         ~U[2026-05-02 00:00:00Z],   # DateTime
+  to:           ~U[2026-05-09 00:00:00Z],   # DateTime
+  frequency:    "weekly",                    # "daily" | "weekly" | "monthly"
+  period_label: "this week"
 }
 ```
 
-Use `from` and `to` to scope your queries to the digest period. Your extension responds with:
+Use `period.from` and `period.to` to scope your queries to the digest window. Return a map matching the digest section schema:
 
-```json
-{
-  "title": "New Games",
-  "layout": "list",
-  "cta": {
-    "label": "Browse all games",
-    "url": "https://gamepedia.billyrayfoss.com"
-  },
-  "items": [
-    {
-      "label": "Elden Ring",
-      "sublabel": "Action RPG · FromSoftware · 2022",
-      "badge": "NEW",
-      "badge_color": "#34d399",
-      "url": "https://gamepedia.billyrayfoss.com/games/elden-ring"
+```elixir
+%{
+  title:  "New Games",
+  layout: "list",
+  cta:    %{label: "Browse all games", url: "https://gamepedia.billyrayfoss.com"},
+  items: [
+    %{
+      label:       "Elden Ring",
+      sublabel:    "Action RPG · FromSoftware · 2022",
+      badge:       "NEW",
+      badge_color: "#34d399",
+      url:         "https://gamepedia.billyrayfoss.com/games/elden-ring"
     }
   ]
 }
@@ -827,70 +820,77 @@ Choose the layout that best fits your data:
 | `badge_color` | list, stat_bars, pill_grid | Hex color for badge or bar |
 | `url` | all | Makes the label a clickable link |
 
-### 5. Example — Gamepedia new games (Elixir/Phoenix)
+If `items` is empty, the section is silently omitted from the digest. If the callback raises, the error is logged and the section is omitted — it never aborts the digest.
+
+### 5. Example — Gamepedia new games
 
 ```elixir
-# router.ex
-post "/digest/new_games", DigestController, :new_games
-post "/digest/top_discussed", DigestController, :top_discussed
+defmodule Gamepedia do
+  @behaviour Nexus.Extensions.Behaviour
+  use Nexus.Extensions.Behaviour
 
-# digest_controller.ex
-def new_games(conn, params) do
-  from_dt = parse_dt(params["from"])
-  to_dt   = parse_dt(params["to"])
-  limit   = 5
+  import Ecto.Query
+  alias Nexus.Repo
+  alias Gamepedia.{Game, GameLog}
 
-  games = Repo.all(
-    from g in Game,
-    where: g.inserted_at >= ^from_dt and g.inserted_at <= ^to_dt,
-    order_by: [desc: g.inserted_at],
-    limit: ^limit
-  )
+  @impl true
+  def digest_sections do
+    [
+      %{key: "gamepedia_new_games",    label: "New Games",         icon: "fa-gamepad", enabled_by_default: true},
+      %{key: "gamepedia_top_discussed", label: "Most Discussed Games", icon: "fa-fire", enabled_by_default: true}
+    ]
+  end
 
-  items = Enum.map(games, fn g ->
+  @impl true
+  def handle_digest_section("gamepedia_new_games", period, _settings) do
+    games = Repo.all(
+      from g in Game,
+      where: g.inserted_at >= ^period.from and g.inserted_at <= ^period.to,
+      order_by: [desc: g.inserted_at],
+      limit: 5
+    )
+
+    items = Enum.map(games, fn g ->
+      %{
+        label:       g.title,
+        sublabel:    "#{g.genre} · #{g.developer}",
+        badge:       "NEW",
+        badge_color: "#34d399",
+        url:         "https://gamepedia.billyrayfoss.com/games/#{g.slug}"
+      }
+    end)
+
     %{
-      label:    g.title,
-      sublabel: "#{g.genre} · #{g.developer}",
-      badge:    "NEW",
-      badge_color: "#34d399",
-      url:      "https://gamepedia.billyrayfoss.com/games/#{g.slug}"
+      title:  "New Games",
+      layout: "list",
+      cta:    %{label: "Browse all games", url: "https://gamepedia.billyrayfoss.com"},
+      items:  items
     }
-  end)
+  end
 
-  json(conn, %{
-    title:  "New Games",
-    layout: "list",
-    cta:    %{label: "Browse all games", url: "https://gamepedia.billyrayfoss.com"},
-    items:  items
-  })
-end
+  def handle_digest_section("gamepedia_top_discussed", period, _settings) do
+    games = Repo.all(
+      from g in Game,
+      join: gl in GameLog, on: gl.game_id == g.id,
+      where: gl.inserted_at >= ^period.from,
+      group_by: [g.id, g.title, g.slug],
+      order_by: [desc: count(gl.id)],
+      limit: 5,
+      select: %{title: g.title, slug: g.slug, log_count: count(gl.id)}
+    )
 
-def top_discussed(conn, params) do
-  from_dt = parse_dt(params["from"])
+    items = Enum.map(games, fn g ->
+      %{
+        label: g.title,
+        value: "#{g.log_count} logs",
+        url:   "https://gamepedia.billyrayfoss.com/games/#{g.slug}"
+      }
+    end)
 
-  games = Repo.all(
-    from g in Game,
-    join: gl in GameLog, on: gl.game_id == g.id,
-    where: gl.inserted_at >= ^from_dt,
-    group_by: [g.id, g.title, g.slug],
-    order_by: [desc: count(gl.id)],
-    limit: 5,
-    select: %{title: g.title, slug: g.slug, log_count: count(gl.id)}
-  )
+    %{title: "Most Discussed Games", layout: "leaderboard", items: items}
+  end
 
-  items = Enum.map(games, fn g ->
-    %{
-      label:    g.title,
-      value:    "#{g.log_count} logs",
-      url:      "https://gamepedia.billyrayfoss.com/games/#{g.slug}"
-    }
-  end)
-
-  json(conn, %{
-    title:  "Most Discussed Games",
-    layout: "leaderboard",
-    items:  items
-  })
+  def handle_digest_section(_key, _period, _settings), do: %{items: []}
 end
 ```
 
