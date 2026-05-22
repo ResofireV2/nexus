@@ -1903,6 +1903,38 @@ function pageToUrl(page, props={}) {
     default:              return "/";
   }
 }
+
+// Strip non-serializable values (functions, DOM elements, React components,
+// etc.) from a props object so it can survive history.pushState's structured
+// clone algorithm. Used by navigate() to keep history state cloneable when
+// extension routes (and any future feature) pass component references in
+// props.
+//
+// Keeps primitives, plain objects, arrays, dates. Drops anything else
+// (functions become undefined, the parent key is omitted).
+function stripNonSerializable(value) {
+  if (value === null) return null;
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean") return value;
+  if (t === "undefined") return undefined;
+  if (t === "function") return undefined;
+  if (t === "symbol") return undefined;
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) {
+    return value.map(stripNonSerializable).filter(v => v !== undefined);
+  }
+  if (t === "object") {
+    const out = {};
+    for (const k in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, k)) continue;
+      const cleaned = stripNonSerializable(value[k]);
+      if (cleaned !== undefined) out[k] = cleaned;
+    }
+    return out;
+  }
+  return undefined;
+}
+
 let _cssEl = null;
 
 // Strip CSS constructs that can be used to exfiltrate data:
@@ -3971,7 +4003,21 @@ function App() {
 
   const navigate=useCallback((p,props={})=>{
     const url = pageToUrl(p, props);
-    window.history.pushState({page:p, props}, "", url);
+    // history.pushState uses the structured clone algorithm, which throws on
+    // functions and other non-clonable values. Extension routes pass
+    // _match objects containing the route's React component (a function),
+    // so we strip those before storing in history state. The component can
+    // be re-resolved from the slug+path on popstate. React state retains
+    // the original props for the current render.
+    const serializableProps = stripNonSerializable(props);
+    try {
+      window.history.pushState({page:p, props: serializableProps}, "", url);
+    } catch (e) {
+      // If structured-clone still fails, log it and continue without the
+      // history entry — the React state update below still navigates the
+      // user, they just lose back-button support for this hop.
+      console.warn("navigate: pushState failed, navigation continues without history entry:", e);
+    }
     if(p==="messages") setMsgPageKey(k=>k+1);
     setPage(p);setPageProps(props);window.scrollTo(0,0);
     window._nexusNavigate = navigate;
