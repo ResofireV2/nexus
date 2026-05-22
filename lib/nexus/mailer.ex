@@ -429,155 +429,35 @@ defmodule Nexus.Mailer do
     |> deliver_dynamic()
   end
 
-  defp render_digest_section("posts", posts, url, _site_name, _branding) when is_list(posts) and posts != [] do
-    rows =
-      posts
-      |> Enum.with_index(1)
-      |> Enum.map(fn {p, i} ->
-        post_url = "#{url}/post/#{p.id}"
-        av = avatar_html(%{avatar_url: p.avatar_url, avatar_color: p.avatar_color, id: p.author_id, username: p.author})
-        """
-        <tr>
-          <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
-            <table cellpadding="0" cellspacing="0" width="100%">
-              <tr>
-                <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{i}.</td>
-                <td>
-                  <a href="#{post_url}" style="font-size:14px;font-weight:500;color:#f0eeff;text-decoration:none;display:block;margin-bottom:6px;">#{p.title}</a>
-                  <table cellpadding="0" cellspacing="0"><tr>
-                    <td style="vertical-align:middle;padding-right:6px;">#{av}</td>
-                    <td style="vertical-align:middle;font-size:11px;color:rgba(255,255,255,0.3);">#{p.author} &nbsp;·&nbsp; #{p.space_name} &nbsp;·&nbsp; #{p.reply_count} replies &nbsp;·&nbsp; #{p.reaction_count} hearts</td>
-                  </tr></table>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-        """
-      end)
-      |> Enum.join()
+  # ─────────────────────────────────────────────────────────────────────────
+  # Built-in sections — map raw query data to the structured shape and
+  # delegate to render_layout. Each built-in section is just a structured
+  # section authored by Nexus core; the renderer treats it identically to
+  # an extension's section.
+  #
+  # This means visual consistency is enforced by construction: it's
+  # impossible for a built-in's appearance to drift from an extension's,
+  # because they go through the same render_layout chain.
+  # ─────────────────────────────────────────────────────────────────────────
 
-    """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Top posts</p>
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
-    #{divider()}
-    """
+  defp render_digest_section("posts", posts, url, _site_name, branding) when is_list(posts) and posts != [] do
+    render_layout("list", build_posts_section(posts, url), url, branding)
   end
 
-  defp render_digest_section("leaderboard", %{top3: top3, points_name: points_name}, _url, _site_name, branding) when top3 != [] do
-    medals = ["🥇", "🥈", "🥉"]
-    rows =
-      top3
-      |> Enum.with_index()
-      |> Enum.map(fn {u, i} ->
-        av = avatar_html(%{avatar_url: u.avatar_url, avatar_color: u.avatar_color, id: u.user_id, username: u.username})
-        """
-        <tr>
-          <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
-            <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="width:28px;font-size:16px;vertical-align:middle;">#{Enum.at(medals, i, "")}</td>
-              <td style="vertical-align:middle;padding-right:8px;">#{av}</td>
-              <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;vertical-align:middle;">#{u.username}</td>
-              <td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;vertical-align:middle;">#{u.score} #{points_name}</td>
-            </tr></table>
-          </td>
-        </tr>
-        """
-      end)
-      |> Enum.join()
-
-    """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Leaderboard</p>
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
-    #{divider()}
-    """
+  defp render_digest_section("leaderboard", %{top3: top3, points_name: points_name}, url, _site_name, branding) when top3 != [] do
+    render_layout("leaderboard", build_leaderboard_section(top3, points_name, url), url, branding)
   end
 
-  defp render_digest_section("badges", badges, _url, _site_name, _branding) when is_list(badges) and badges != [] do
-    rows =
-      Enum.map(badges, fn b ->
-        holders = Enum.join(b.holders, ", ")
-        """
-        <tr>
-          <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
-            <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="width:28px;">
-                <div style="width:24px;height:24px;border-radius:6px;background:#{b.badge_color}22;display:inline-flex;align-items:center;justify-content:center;">
-                  <span style="font-size:11px;color:#{b.badge_color};">●</span>
-                </div>
-              </td>
-              <td>
-                <span style="font-size:13px;font-weight:500;color:#{b.badge_color};">#{b.badge_name}</span>
-                <span style="font-size:11px;color:rgba(255,255,255,0.35);margin-left:8px;">#{holders}</span>
-              </td>
-            </tr></table>
-          </td>
-        </tr>
-        """
-      end)
-      |> Enum.join()
-
-    """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Badges awarded</p>
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
-    #{divider()}
-    """
+  defp render_digest_section("badges", badges, url, _site_name, branding) when is_list(badges) and badges != [] do
+    render_layout("list", build_badges_section(badges), url, branding)
   end
 
-  defp render_digest_section("members", members, _url, _site_name, _branding) when is_list(members) and members != [] do
-    count = length(members)
-    rows =
-      Enum.map(members, fn m ->
-        av = avatar_html(%{avatar_url: m.avatar_url, avatar_color: m.avatar_color, id: m.id, username: m.username})
-        """
-        <tr>
-          <td style="padding:5px 0;">
-            <table cellpadding="0" cellspacing="0"><tr>
-              <td style="vertical-align:middle;padding-right:8px;">#{av}</td>
-              <td style="font-size:13px;color:rgba(255,255,255,0.65);vertical-align:middle;">#{m.username}</td>
-            </tr></table>
-          </td>
-        </tr>
-        """
-      end)
-      |> Enum.join()
-
-    """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">New members (#{count})</p>
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
-    #{divider()}
-    """
+  defp render_digest_section("members", members, url, _site_name, branding) when is_list(members) and members != [] do
+    render_layout("list", build_members_section(members), url, branding)
   end
 
-  defp render_digest_section("spaces", spaces, _url, _site_name, _branding) when is_list(spaces) and spaces != [] do
-    max_count = spaces |> Enum.map(& &1.post_count) |> Enum.max(fn -> 1 end)
-
-    rows =
-      Enum.map(spaces, fn s ->
-        pct = max(4, round(s.post_count / max_count * 100))
-        """
-        <tr>
-          <td style="padding:6px 0;">
-            <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="width:100px;font-size:12px;color:rgba(255,255,255,0.5);">#{s.name}</td>
-              <td>
-                <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);">
-                  <div style="height:4px;border-radius:2px;background:#{s.color};width:#{pct}%;"></div>
-                </div>
-              </td>
-              <td style="width:36px;text-align:right;font-size:11px;color:#{s.color};padding-left:8px;">#{s.post_count}</td>
-            </tr></table>
-          </td>
-        </tr>
-        """
-      end)
-      |> Enum.join()
-
-    """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">Trending spaces</p>
-    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">#{rows}</table>
-    #{divider()}
-    """
+  defp render_digest_section("spaces", spaces, url, _site_name, branding) when is_list(spaces) and spaces != [] do
+    render_layout("stat_bars", build_spaces_section(spaces), url, branding)
   end
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -602,17 +482,13 @@ defmodule Nexus.Mailer do
   # ─────────────────────────────────────────────────────────────────────────
   defp render_digest_section(_key, %{"items" => items, "layout" => layout} = section, url, _site_name, branding)
        when is_list(items) and items != [] do
-    title = section["title"] || ""
-    cta   = section["cta"]
-    render_layout(layout, title, items, cta, url, branding)
+    render_layout(layout, section, url, branding)
   end
 
   # Default layout when extension returns items without an explicit `layout` key.
   defp render_digest_section(_key, %{"items" => items} = section, url, _site_name, branding)
        when is_list(items) and items != [] do
-    title = section["title"] || ""
-    cta   = section["cta"]
-    render_layout("list", title, items, cta, url, branding)
+    render_layout("list", section, url, branding)
   end
 
   # Extension pre-rendered HTML — injected verbatim. Extensions taking this
@@ -633,31 +509,50 @@ defmodule Nexus.Mailer do
   # visually identical at the section-shape level.
   # ─────────────────────────────────────────────────────────────────────────
 
-  defp render_layout("list", title, items, cta, url, branding) do
+  defp render_layout("list", section, url, branding) do
+    title    = section["title"] || ""
+    items    = section["items"] || []
+    cta      = section["cta"]
+    # `numbered` defaults to true. Sections like "members" set it false to
+    # suppress the "1.", "2." index column.
+    numbered = if section["numbered"] == false, do: false, else: true
+
     rows =
       items
       |> Enum.with_index(1)
-      |> Enum.map(fn {item, i} -> render_list_item(item, i, url, branding) end)
+      |> Enum.map(fn {item, i} -> render_list_item(item, i, numbered, url, branding) end)
       |> Enum.join()
 
     section_wrapper(title, rows, cta, url, branding)
   end
 
-  defp render_layout("leaderboard", title, items, cta, url, branding) do
+  defp render_layout("leaderboard", section, url, branding) do
+    title = section["title"] || ""
+    items = section["items"] || []
+    cta   = section["cta"]
     medals = ["🥇", "🥈", "🥉"]
     rows =
       items
       |> Enum.with_index()
       |> Enum.map(fn {item, i} ->
         medal = Enum.at(medals, i, "")
-        label = item_label_with_url(item, url, branding)
+        label_color = item["label_color"] || "rgba(255,255,255,0.75)"
+        label = item_label_with_url(item, label_color, url, branding)
         value = item["value"]
+        avatar = item["avatar"]
+        avatar_cell =
+          if avatar do
+            ~s|<td style="vertical-align:middle;padding-right:8px;">#{avatar_html(normalize_avatar(avatar))}</td>|
+          else
+            ""
+          end
         """
         <tr>
           <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:28px;font-size:16px;vertical-align:middle;">#{medal}</td>
-              <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;vertical-align:middle;">#{label}</td>
+              #{avatar_cell}
+              <td style="font-size:13px;color:#{label_color};font-weight:500;vertical-align:middle;">#{label}</td>
               #{if value, do: ~s|<td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;vertical-align:middle;">#{escape(to_string(value))}</td>|, else: ""}
             </tr></table>
           </td>
@@ -669,7 +564,10 @@ defmodule Nexus.Mailer do
     section_wrapper(title, rows, cta, url, branding)
   end
 
-  defp render_layout("stat_bars", title, items, cta, url, branding) do
+  defp render_layout("stat_bars", section, url, branding) do
+    title = section["title"] || ""
+    items = section["items"] || []
+    cta   = section["cta"]
     # Scale bars to the highest numeric `value`; falls back to label count if
     # values aren't numeric.
     max_val =
@@ -683,13 +581,14 @@ defmodule Nexus.Mailer do
         n = numeric_value(item)
         pct = max(4, round(n / max_val * 100))
         color = item["badge_color"] || branding.accent
-        label = item_label_with_url(item, url, branding)
+        label_color = item["label_color"] || "rgba(255,255,255,0.5)"
+        label = item_label_with_url(item, label_color, url, branding)
         value_display = item["value"] || n
         """
         <tr>
           <td style="padding:6px 0;">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
-              <td style="width:120px;font-size:12px;color:rgba(255,255,255,0.5);">#{label}</td>
+              <td style="width:120px;font-size:12px;color:#{label_color};">#{label}</td>
               <td>
                 <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);">
                   <div style="height:4px;border-radius:2px;background:#{color};width:#{pct}%;"></div>
@@ -706,7 +605,10 @@ defmodule Nexus.Mailer do
     section_wrapper(title, rows, cta, url, branding)
   end
 
-  defp render_layout("pill_grid", title, items, cta, url, branding) do
+  defp render_layout("pill_grid", section, url, branding) do
+    title = section["title"] || ""
+    items = section["items"] || []
+    cta   = section["cta"]
     # All pills wrap into one cell; the section-wrapper table provides the
     # outer header + divider.
     pills =
@@ -736,14 +638,18 @@ defmodule Nexus.Mailer do
     section_wrapper(title, row, cta, url, branding)
   end
 
-  defp render_layout("card", title, items, cta, url, branding) do
+  defp render_layout("card", section, url, branding) do
+    title = section["title"] || ""
+    items = section["items"] || []
+    cta   = section["cta"]
     # Thumbnail-rich cards — for content where a visual matters (game covers,
     # book covers, video thumbnails). Each item renders as a 64px-wide image
     # on the left + label/sublabel/value on the right.
     rows =
       Enum.map(items, fn item ->
         image = item["image_url"]
-        label = item_label_with_url(item, url, branding)
+        label_color = item["label_color"] || "#f0eeff"
+        label = item_label_with_url(item, label_color, url, branding)
         sublabel = item["sublabel"]
         badge_html = badge_pill(item, branding)
         value = item["value"]
@@ -760,7 +666,7 @@ defmodule Nexus.Mailer do
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:64px;vertical-align:top;padding-right:12px;">#{thumb}</td>
               <td style="vertical-align:top;">
-                <div style="font-size:14px;font-weight:500;color:#f0eeff;margin-bottom:4px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
+                <div style="font-size:14px;font-weight:500;color:#{label_color};margin-bottom:4px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
                 #{if sublabel, do: ~s|<div style="font-size:12px;color:rgba(255,255,255,0.45);">#{escape(to_string(sublabel))}</div>|, else: ""}
                 #{if value, do: ~s|<div style="font-size:11px;color:#{branding.accent};margin-top:4px;">#{escape(to_string(value))}</div>|, else: ""}
               </td>
@@ -775,8 +681,8 @@ defmodule Nexus.Mailer do
   end
 
   # Unknown layout — fall back to list.
-  defp render_layout(_other, title, items, cta, url, branding) do
-    render_layout("list", title, items, cta, url, branding)
+  defp render_layout(_other, section, url, branding) do
+    render_layout("list", section, url, branding)
   end
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -809,22 +715,66 @@ defmodule Nexus.Mailer do
     """
   end
 
-  # Renders a single row for the "list" layout: index, label (linked if url),
-  # optional badge, optional sublabel.
-  defp render_list_item(item, index, base_url, branding) do
-    label = item_label_with_url(item, base_url, branding)
+  # Renders a single row for the "list" layout. The `numbered` flag controls
+  # whether the index column is shown — set to false for non-ranked content
+  # like new members.
+  #
+  # Avatar placement is automatic and follows the pattern Nexus uses elsewhere:
+  #   - Sublabel present  → avatar pairs with the sublabel
+  #                         (matches "posts" section: title on top, avatar
+  #                         next to author/meta text below)
+  #   - No sublabel       → avatar pairs with the label inline
+  #                         (matches "members" / "leaderboard": avatar next
+  #                         to the username on the same row)
+  defp render_list_item(item, index, numbered, base_url, branding) do
+    label_color = item["label_color"] || "#f0eeff"
+    label = item_label_with_url(item, label_color, base_url, branding)
     sublabel = item["sublabel"]
     badge_html = badge_pill(item, branding)
     value = item["value"]
+    avatar = item["avatar"]
+
+    label_block =
+      if avatar && !sublabel do
+        # Avatar with label — inline.
+        ~s|<table cellpadding="0" cellspacing="0"><tr>| <>
+        ~s|<td style="vertical-align:middle;padding-right:8px;">#{avatar_html(normalize_avatar(avatar))}</td>| <>
+        ~s|<td style="vertical-align:middle;font-size:14px;font-weight:500;color:#{label_color};">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</td>| <>
+        ~s|</tr></table>|
+      else
+        ~s|<div style="font-size:14px;font-weight:500;color:#{label_color};margin-bottom:#{if sublabel, do: 6, else: 0}px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>|
+      end
+
+    sublabel_html =
+      cond do
+        avatar && sublabel ->
+          # Avatar with sublabel — matches the posts section's visual idiom.
+          ~s|<table cellpadding="0" cellspacing="0"><tr>| <>
+          ~s|<td style="vertical-align:middle;padding-right:6px;">#{avatar_html(normalize_avatar(avatar))}</td>| <>
+          ~s|<td style="vertical-align:middle;font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</td>| <>
+          ~s|</tr></table>|
+        sublabel ->
+          ~s|<div style="font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</div>|
+        true ->
+          ""
+      end
+
+    index_cell =
+      if numbered do
+        ~s|<td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{index}.</td>|
+      else
+        ""
+      end
+
     """
     <tr>
       <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
         <table cellpadding="0" cellspacing="0" width="100%">
           <tr>
-            <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{index}.</td>
+            #{index_cell}
             <td>
-              <div style="font-size:14px;font-weight:500;color:#f0eeff;margin-bottom:#{if sublabel, do: 4, else: 0}px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
-              #{if sublabel, do: ~s|<div style="font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</div>|, else: ""}
+              #{label_block}
+              #{sublabel_html}
             </td>
             #{if value, do: ~s|<td style="text-align:right;font-size:12px;color:#{branding.accent};font-weight:500;vertical-align:top;padding-top:2px;white-space:nowrap;">#{escape(to_string(value))}</td>|, else: ""}
           </tr>
@@ -836,12 +786,14 @@ defmodule Nexus.Mailer do
 
   # Renders the item label as either an anchor or plain text depending on
   # whether the item has a `url`. URL escaping: only the href value goes
-  # through absolute_url+escape; label text always escapes.
-  defp item_label_with_url(item, base_url, _branding) do
+  # through absolute_url+escape; label text always escapes. The label_color
+  # is applied to anchored labels (plain labels inherit color from their
+  # surrounding <div>).
+  defp item_label_with_url(item, label_color, base_url, _branding) do
     label_text = escape(to_string(item["label"] || ""))
     case item["url"] do
       u when is_binary(u) and u != "" ->
-        ~s|<a href="#{absolute_url(u, base_url)}" style="color:#f0eeff;text-decoration:none;">#{label_text}</a>|
+        ~s|<a href="#{absolute_url(u, base_url)}" style="color:#{label_color};text-decoration:none;">#{label_text}</a>|
       _ ->
         label_text
     end
@@ -895,6 +847,142 @@ defmodule Nexus.Mailer do
     |> String.replace("'", "&#39;")
   end
   defp escape(other), do: escape(to_string(other))
+
+  # Coerces an item's `avatar` field (either string-keyed or atom-keyed) into
+  # the atom-keyed shape that avatar_html/1 pattern-matches on. Extension
+  # sections arrive through deep_stringify with string keys; built-in mapping
+  # functions can pass atom keys directly. Either works.
+  #
+  # Returns a map with at least `:avatar_color`, `:id`, `:username` set;
+  # `:avatar_url` is included when present and non-empty.
+  defp normalize_avatar(%{} = av) do
+    url      = av[:avatar_url]      || av["avatar_url"]
+    color    = av[:avatar_color]    || av["avatar_color"]
+    id       = av[:id]              || av["id"] || av[:user_id] || av["user_id"] || 0
+    username = av[:username]        || av["username"] || ""
+
+    base = %{avatar_color: color, id: id, username: username}
+    if is_binary(url) and url != "", do: Map.put(base, :avatar_url, url), else: base
+  end
+  defp normalize_avatar(_), do: %{avatar_color: nil, id: 0, username: ""}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Built-in → structured section mappers.
+  #
+  # Each function takes the raw data shape that Digest.build/1 produces for
+  # a particular built-in section and converts it to the structured
+  # %{"title", "layout", "items", "cta"?, "numbered"?} shape used by the
+  # shared layout renderers.
+  #
+  # The string-keyed return is intentional — it matches the shape extension
+  # sections arrive in (post deep_stringify), so render_layout sees one
+  # consistent shape regardless of source.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  # Top posts → `list` layout with index, post title as label, author + space +
+  # engagement counts as sublabel, author avatar inline. Links to the post.
+  defp build_posts_section(posts, url) do
+    items =
+      Enum.map(posts, fn p ->
+        %{
+          "label"    => to_string(p.title),
+          "sublabel" => "#{p.author} · #{p.space_name} · #{p.reply_count} replies · #{p.reaction_count} hearts",
+          "url"      => "#{url}/post/#{p.id}",
+          "avatar"   => %{
+            "avatar_url"   => p.avatar_url,
+            "avatar_color" => p.avatar_color,
+            "id"           => p.author_id,
+            "username"     => p.author
+          }
+        }
+      end)
+
+    %{"title" => "Top posts", "items" => items}
+  end
+
+  # Leaderboard → `leaderboard` layout. Top 3 with medal icons + avatars.
+  defp build_leaderboard_section(top3, points_name, _url) do
+    items =
+      Enum.map(top3, fn u ->
+        %{
+          "label"  => to_string(u.username),
+          "value"  => "#{u.score} #{points_name}",
+          "avatar" => %{
+            "avatar_url"   => u.avatar_url,
+            "avatar_color" => u.avatar_color,
+            "id"           => u.user_id,
+            "username"     => u.username
+          }
+        }
+      end)
+
+    %{"title" => "Leaderboard", "items" => items}
+  end
+
+  # Badges → `list` layout. Badge name is the label, colored by badge_color
+  # (via the new label_color field). Holders are the sublabel.
+  #
+  # Visual change from the bespoke renderer: the colored "●" indicator chip
+  # in front of each badge name is dropped — the colored label name itself
+  # carries the badge-color signal. Simpler row, same information.
+  defp build_badges_section(badges) do
+    items =
+      Enum.map(badges, fn b ->
+        %{
+          "label"       => to_string(b.badge_name),
+          "label_color" => b.badge_color,
+          "sublabel"    => Enum.join(b.holders, ", ")
+        }
+      end)
+
+    %{
+      "title" => "Badges awarded",
+      "items" => items,
+      "numbered" => false
+    }
+  end
+
+  # New members → `list` layout, unnumbered. Each row is just the username
+  # next to their avatar (avatar in sublabel position, no separate text).
+  defp build_members_section(members) do
+    count = length(members)
+    items =
+      Enum.map(members, fn m ->
+        %{
+          "label"  => to_string(m.username),
+          "avatar" => %{
+            "avatar_url"   => m.avatar_url,
+            "avatar_color" => m.avatar_color,
+            "id"           => m.id,
+            "username"     => m.username
+          }
+        }
+      end)
+
+    %{
+      "title"    => "New members (#{count})",
+      "items"    => items,
+      "numbered" => false
+    }
+  end
+
+  # Trending spaces → `stat_bars` layout. Each space's `color` controls the
+  # bar tint (via badge_color) AND the label tint (via label_color), so the
+  # whole row reads in the space's color the way it did in the bespoke
+  # renderer.
+  defp build_spaces_section(spaces) do
+    items =
+      Enum.map(spaces, fn s ->
+        %{
+          "label"       => to_string(s.name),
+          "value"       => s.post_count,
+          "badge_color" => s.color,
+          "label_color" => s.color
+        }
+      end)
+
+    %{"title" => "Trending spaces", "items" => items}
+  end
 
   defp build_digest_text(user, digest, site_name, url) do
     period = digest.period_label
