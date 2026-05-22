@@ -48,7 +48,7 @@
       // at register time to verify each registration was declared in the
       // manifest; mismatches are logged to console and surfaced in the admin
       // runtime panel.
-      window._nexusExtensionManifests = <%= raw(Jason.encode!(@extension_manifests, escape: :html_safe)) %>;
+      window._nexusExtensionManifests = <%= Phoenix.HTML.raw(Jason.encode!(@extension_manifests, escape: :html_safe)) %>;
       window._nexusExtensionMismatches = {};
     </script>
     <% end %>
