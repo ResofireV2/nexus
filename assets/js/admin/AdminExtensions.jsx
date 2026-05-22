@@ -21,6 +21,7 @@ const LOAD_STATUS_INFO = {
   no_release:       {label:"No release",       tone:"err",    icon:"fa-triangle-exclamation"},
   download_failed:  {label:"Download failed",  tone:"err",    icon:"fa-circle-xmark"},
   compile_failed:   {label:"Compile failed",   tone:"err",    icon:"fa-circle-xmark"},
+  manifest_invalid: {label:"Invalid manifest", tone:"err",    icon:"fa-file-circle-xmark"},
   migration_failed: {label:"Migration failed", tone:"err",    icon:"fa-circle-xmark"},
 };
 

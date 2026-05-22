@@ -199,8 +199,8 @@ defmodule Nexus.Extensions do
     raw_url = to_raw_manifest_url(ext.manifest_url)
 
     with {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
-         {:ok, manifest}                   <- parse_manifest(body),
-         :ok                               <- validate_manifest(manifest) do
+         {:ok, raw_manifest}               <- parse_manifest(body),
+         {:ok, manifest}                   <- validate_manifest(raw_manifest) do
 
       # Fields we allow the manifest to update on sync — settings and slug are excluded
       # intentionally: settings are admin-managed, slug changes would break installs.
@@ -304,13 +304,14 @@ defmodule Nexus.Extensions do
   def load_error_to_status({:error, {step, reason}}) do
     status =
       case step do
-        :download   -> "download_failed"
-        :compile    -> "compile_failed"
-        :migration  -> "migration_failed"
-        :assets     -> "compile_failed"   # asset copy is part of the install package — treat as a compile-time issue
-        :supervisor -> "compile_failed"   # child_specs/0 raising is an extension-code issue
-        :registry   -> "compile_failed"   # registry insert should never fail; if it does, classify here
-        _           -> "compile_failed"
+        :download         -> "download_failed"
+        :compile          -> "compile_failed"
+        :manifest_invalid -> "manifest_invalid"   # manifest.json failed schema validation or disagreed with module exports
+        :migration        -> "migration_failed"
+        :assets           -> "compile_failed"   # asset copy is part of the install package — treat as a compile-time issue
+        :supervisor       -> "compile_failed"   # child_specs/0 raising is an extension-code issue
+        :registry         -> "compile_failed"   # registry insert should never fail; if it does, classify here
+        _                 -> "compile_failed"
       end
 
     {status, "#{step}: #{inspect(reason)}"}
@@ -333,8 +334,8 @@ defmodule Nexus.Extensions do
 
     with :ok                <- Nexus.URLSafeGuard.validate(raw_url),
          {:ok, %{status: 200, body: body}} <- Req.get(raw_url, receive_timeout: 10_000),
-         {:ok, manifest}    <- parse_manifest(body),
-         :ok                <- validate_manifest(manifest) do
+         {:ok, raw_manifest} <- parse_manifest(body),
+         {:ok, manifest}     <- validate_manifest(raw_manifest) do
 
       github_repo = Nexus.Extensions.GitHub.repo_from_url(url)
       token       = Nexus.Extensions.GitHub.get_token()
@@ -535,9 +536,9 @@ defmodule Nexus.Extensions do
   def update_extension_from_release(%Extension{} = ext) do
     token = Nexus.Extensions.GitHub.get_token()
 
-    with {:ok, release}  <- Nexus.Extensions.GitHub.latest_release(ext.github_repo, token),
-         {:ok, manifest} <- Nexus.Extensions.GitHub.manifest_at_tag(ext.github_repo, release.tag, token),
-         :ok             <- validate_manifest(manifest) do
+    with {:ok, release}      <- Nexus.Extensions.GitHub.latest_release(ext.github_repo, token),
+         {:ok, raw_manifest} <- Nexus.Extensions.GitHub.manifest_at_tag(ext.github_repo, release.tag, token),
+         {:ok, manifest}     <- validate_manifest(raw_manifest) do
 
       # Strip leading "v" from the tag so version strings are consistent.
       # e.g. "v0.2.0" → "0.2.0" — the UI adds "v" prefix for display.
@@ -749,14 +750,30 @@ defmodule Nexus.Extensions do
   end
   defp parse_manifest(_), do: {:error, "Unexpected manifest format"}
 
+  # Validates a parsed manifest against the manifest_version 2 schema and
+  # returns the normalized form (with defaults applied) on success. Callers
+  # should consume the normalized manifest, not the raw decoded JSON — that
+  # way every downstream consumer sees the same canonical shape regardless
+  # of what the developer wrote in manifest.json.
   defp validate_manifest(manifest) do
-    required = ["name", "slug"]
-    missing  = Enum.filter(required, &(not Map.has_key?(manifest, &1)))
+    case Nexus.Extensions.ManifestSchema.validate(manifest) do
+      {:ok, normalized, _warnings} ->
+        # Warnings are intentionally discarded here. They are surfaced by the
+        # admin runtime panel (sub-stage 7D), not at install time, because
+        # they don't indicate a problem the operator can fix during install.
+        {:ok, normalized}
 
-    if missing == [] do
-      :ok
-    else
-      {:error, "manifest.json is missing required fields: #{Enum.join(missing, ", ")}"}
+      {:error, errors} ->
+        # Concatenate up to the first 3 errors into a single message — the
+        # admin UI shows one error line, so a deluge of validator messages
+        # would be unhelpful. Full validation output is logged.
+        require Logger
+        Logger.warning("manifest validation failed: #{Enum.join(errors, "; ")}")
+        summary =
+          errors
+          |> Enum.take(3)
+          |> Enum.join("; ")
+        {:error, "manifest.json is invalid: #{summary}"}
     end
   end
 end

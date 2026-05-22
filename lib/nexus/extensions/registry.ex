@@ -14,6 +14,12 @@ defmodule Nexus.Extensions.Registry do
   - :nexus_ext_slots    — {slot, slug}  → {component, priority, js_bundle_url}
   - :nexus_ext_routes   — slug → [{path, plug, opts}]
   - :nexus_ext_digest   — {section_key, slug} → {label, icon, enabled_by_default}
+  - :nexus_ext_declared — slug → manifest    (normalized JSON manifest; the
+                                             extension's declared contract,
+                                             stored alongside the live
+                                             registrations so the admin
+                                             runtime panel can compare them
+                                             in sub-stage 7D)
   """
 
   use GenServer
@@ -26,6 +32,7 @@ defmodule Nexus.Extensions.Registry do
     :nexus_ext_slots,
     :nexus_ext_routes,
     :nexus_ext_digest,
+    :nexus_ext_declared,
   ]
 
   # ---------------------------------------------------------------------------
@@ -34,14 +41,42 @@ defmodule Nexus.Extensions.Registry do
 
   def start_link(_), do: GenServer.start_link(__MODULE__, [], name: __MODULE__)
 
-  @doc "Register a loaded extension module."
-  def register(slug, module) do
-    GenServer.call(__MODULE__, {:register, slug, module})
+  @doc """
+  Register a loaded extension module.
+
+  The optional `manifest` argument is the normalized JSON manifest produced
+  by `Nexus.Extensions.ManifestSchema.validate/1`. When provided, it is
+  stored in :nexus_ext_declared for later comparison against runtime
+  registrations (sub-stage 7D).
+
+  The 2-arity form is preserved for callers that have not been updated to
+  pass a manifest (for example, future test helpers that register a stub
+  module without going through the full loader flow).
+  """
+  def register(slug, module, manifest \\ nil) do
+    GenServer.call(__MODULE__, {:register, slug, module, manifest})
   end
 
   @doc "Unregister an extension (on uninstall or disable)."
   def unregister(slug) do
     GenServer.call(__MODULE__, {:unregister, slug})
+  end
+
+  @doc """
+  Returns the declared (manifest) view of an extension's contract, or nil.
+  This is the validated JSON manifest as stored at load time. Compare with
+  the live registrations to find discrepancies.
+  """
+  def get_declared(slug) do
+    case :ets.lookup(:nexus_ext_declared, slug) do
+      [{^slug, manifest}] -> manifest
+      []                  -> nil
+    end
+  end
+
+  @doc "Returns all declared manifests as a {slug, manifest} list."
+  def all_declared do
+    :ets.tab2list(:nexus_ext_declared)
   end
 
   @doc "Returns the module for a loaded extension slug, or nil."
@@ -161,10 +196,21 @@ defmodule Nexus.Extensions.Registry do
   end
 
   @impl true
-  def handle_call({:register, slug, module}, _from, state) do
-    manifest = safe_call(module, :manifest, [], %{})
+  def handle_call({:register, slug, module, json_manifest}, _from, state) do
+    # The legacy module-callback manifest (a map with atom keys, returned by
+    # mod.manifest/0). Still used to derive slot registrations in 7B; 7C will
+    # flip that derivation to read from the JSON manifest instead.
+    module_manifest = safe_call(module, :manifest, [], %{})
 
     :ets.insert(:nexus_ext_modules, {slug, module})
+
+    # Store the normalized JSON manifest when supplied. The fresh-install and
+    # update paths pass it; the boot-time DB-rehydration path does not yet
+    # (it falls back to nil). The declared table is what 7D's admin runtime
+    # panel reads to compare against live JS registrations.
+    if json_manifest do
+      :ets.insert(:nexus_ext_declared, {slug, json_manifest})
+    end
 
     # Register hooks
     events = Nexus.Extensions.hook_events()
@@ -174,9 +220,9 @@ defmodule Nexus.Extensions.Registry do
       end
     end
 
-    # Register slots — derived from manifest
+    # Register slots — derived from the module-callback manifest (legacy).
     for %{slot: slot, component: component, priority: priority} <-
-        Map.get(manifest, :slots, []) do
+        Map.get(module_manifest, :slots, []) do
       js_url = safe_call(module, :js_bundle_path, [], nil)
         |> then(fn path ->
           if path, do: "/ext/#{slug}/assets/#{path}", else: nil
@@ -206,7 +252,8 @@ defmodule Nexus.Extensions.Registry do
 
   @impl true
   def handle_call({:unregister, slug}, _from, state) do
-    :ets.delete(:nexus_ext_modules, slug)
+    :ets.delete(:nexus_ext_modules,  slug)
+    :ets.delete(:nexus_ext_declared, slug)
 
     :ets.match_delete(:nexus_ext_hooks,   {{:_, slug}, :_})
     :ets.match_delete(:nexus_ext_slots,   {{:_, slug}, :_})

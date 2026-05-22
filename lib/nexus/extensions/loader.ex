@@ -45,12 +45,13 @@ defmodule Nexus.Extensions.Loader do
     # load_status ("compile_failed" vs "migration_failed" vs "download_failed")
     # instead of a generic "failed to load". The reason string is preserved.
     result =
-      with :ok           <- tag(:download, download_and_extract(tarball_url, build_dir, token)),
-           {:ok, module} <- tag(:compile,  compile_extension(build_dir, slug)),
-           :ok           <- tag(:migration, run_migrations(module)),
-           :ok           <- tag(:assets,    copy_static_assets(build_dir, slug, module)),
-           :ok           <- tag(:supervisor, ExtensionSupervisor.start_extension(slug, module)),
-           :ok           <- tag(:registry,   Registry.register(slug, module)) do
+      with :ok              <- tag(:download,         download_and_extract(tarball_url, build_dir, token)),
+           {:ok, module}    <- tag(:compile,          compile_extension(build_dir, slug)),
+           {:ok, manifest}  <- tag(:manifest_invalid, cross_check_manifest(build_dir, module, slug)),
+           :ok              <- tag(:migration,        run_migrations(module)),
+           :ok              <- tag(:assets,           copy_static_assets(build_dir, slug, module)),
+           :ok              <- tag(:supervisor,       ExtensionSupervisor.start_extension(slug, module)),
+           :ok              <- tag(:registry,         Registry.register(slug, module, manifest)) do
         {:ok, module}
       end
 
@@ -242,6 +243,92 @@ defmodule Nexus.Extensions.Loader do
     case root do
       nil -> {:error, "No module implementing Nexus.Extensions.Behaviour with slug \"#{slug}\" found"}
       mod -> {:ok, mod}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private — manifest cross-check
+  #
+  # After the module is compiled and discovered, read the canonical
+  # manifest.json from the extracted tarball and verify that:
+  #   1. The manifest passes schema validation (manifest_version 2).
+  #   2. Declared hooks match the module's actual exports.
+  #   3. Declared digest sections match the module's actual exports.
+  #
+  # Slot, route, widget, and toolbar declarations are JS-side concerns and
+  # cannot be cross-checked here — they're validated at runtime by the bundle
+  # (sub-stage 7D). We just store the normalized manifest for that check.
+  #
+  # Returns {:ok, normalized_manifest} or {:error, reason_string}.
+  # ---------------------------------------------------------------------------
+
+  defp cross_check_manifest(build_dir, module, slug) do
+    manifest_path = Path.join(build_dir, "manifest.json")
+
+    with {:ok, body}       <- File.read(manifest_path),
+         {:ok, raw}        <- Jason.decode(body),
+         {:ok, manifest}   <- validate_against_schema(raw),
+         :ok               <- check_slug_match(manifest, slug),
+         :ok               <- check_hook_exports(manifest, module),
+         :ok               <- check_digest_exports(manifest, module) do
+      {:ok, manifest}
+    else
+      {:error, :enoent} ->
+        {:error, "manifest.json is missing from the extension package"}
+
+      {:error, %Jason.DecodeError{}} ->
+        {:error, "manifest.json is not valid JSON"}
+
+      {:error, reason} when is_binary(reason) ->
+        {:error, reason}
+
+      {:error, reason} ->
+        {:error, "manifest cross-check failed: #{inspect(reason)}"}
+    end
+  end
+
+  defp validate_against_schema(raw) do
+    case Nexus.Extensions.ManifestSchema.validate(raw) do
+      {:ok, normalized, warnings} ->
+        # Log warnings; surfacing them in the admin UI is sub-stage 7D's job.
+        for w <- warnings, do: Logger.warning("manifest warning: #{w}")
+        {:ok, normalized}
+
+      {:error, errors} ->
+        # Take the top 3 errors for the load_error message; full list is logged.
+        Logger.warning("manifest validation failed: #{Enum.join(errors, "; ")}")
+        summary =
+          errors
+          |> Enum.take(3)
+          |> Enum.join("; ")
+        {:error, summary}
+    end
+  end
+
+  defp check_slug_match(%{"slug" => slug}, slug), do: :ok
+  defp check_slug_match(%{"slug" => other}, expected) do
+    {:error, "manifest slug #{inspect(other)} does not match the slug being installed #{inspect(expected)}"}
+  end
+
+  defp check_hook_exports(%{"hooks" => []}, _module), do: :ok
+  defp check_hook_exports(%{"hooks" => [_ | _]}, module) do
+    if function_exported?(module, :handle_event, 3) do
+      :ok
+    else
+      {:error,
+       "manifest declares hook subscriptions but #{inspect(module)} does not export handle_event/3. " <>
+         "Add a handle_event/3 callback (with a catch-all clause) to handle the declared events."}
+    end
+  end
+
+  defp check_digest_exports(%{"digest_sections" => []}, _module), do: :ok
+  defp check_digest_exports(%{"digest_sections" => [_ | _]}, module) do
+    if function_exported?(module, :handle_digest_section, 3) do
+      :ok
+    else
+      {:error,
+       "manifest declares digest_sections but #{inspect(module)} does not export handle_digest_section/3. " <>
+         "Add a handle_digest_section/3 callback to produce content for each declared section."}
     end
   end
 
