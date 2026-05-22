@@ -9,25 +9,31 @@ defmodule Nexus.Extensions.Behaviour do
 
   ## Minimal example
 
-      defmodule MyExtension do
-        @behaviour Nexus.Extensions.Behaviour
+  Each extension consists of a `manifest.json` describing what it contributes,
+  and an Elixir module implementing whichever callbacks correspond to those
+  declarations.
 
-        @impl true
-        def manifest do
-          %{
-            slug:        "my-extension",
-            name:        "My Extension",
-            version:     "1.0.0",
-            description: "Does something cool.",
-            author:      "your-github-username",
-            homepage:    "https://github.com/you/my-extension",
-            categories:  ["utilities"],
-          }
-        end
+      // manifest.json
+      {
+        "manifest_version": 2,
+        "name":             "My Extension",
+        "slug":             "my-extension",
+        "version":          "1.0.0",
+        "description":      "Does something cool.",
+        "author":           "your-github-username",
+        "homepage":         "https://github.com/you/my-extension",
+        "module":           "MyExtension"
+      }
+
+      # lib/my_extension.ex
+      defmodule MyExtension do
+        use Nexus.Extensions.Behaviour
+        # That's it. Override callbacks below as needed.
       end
 
-  All callbacks except `manifest/0` are optional — the default implementations
-  are no-ops. Only implement what your extension needs.
+  Every callback in this behaviour is optional. The `use` macro supplies no-op
+  defaults; you only override what your extension needs. See the JSON schema
+  at `/manifest_schema.json` for the full set of manifest fields.
 
   ## Available packages
 
@@ -54,39 +60,16 @@ defmodule Nexus.Extensions.Behaviour do
   """
 
   # ---------------------------------------------------------------------------
-  # Required callbacks
+  # Required: none.
+  #
+  # In manifest_version 2, an extension's identity (name, slug, version,
+  # description, etc.) is declared in manifest.json — not in a manifest/0
+  # callback on the module. The behaviour does not require any single
+  # callback be implemented; each is optional and only matters if the
+  # manifest declares an intent the callback fulfills (handle_event/3 for
+  # declared hooks, handle_digest_section/3 for declared digest_sections,
+  # etc.).
   # ---------------------------------------------------------------------------
-
-  @doc """
-  Returns extension metadata. This is the single source of truth for the
-  extension's identity — slug, name, version, description, author, etc.
-
-  The `slug` must be unique across all installed extensions and must match
-  the GitHub repo name (used for update checking). Use only lowercase letters,
-  numbers, and hyphens.
-
-  The `version` must be a semver string matching the GitHub release tag
-  (without the leading "v") — e.g. "1.0.0" for the tag "v1.0.0".
-
-  Optional keys:
-  - `homepage`   — GitHub repo URL or documentation URL
-  - `logo_url`   — URL to a square icon (displayed at 48×48px)
-  - `banner_url` — URL to a wide banner image (displayed at full card width, 120px tall)
-  - `categories` — list of short category strings, e.g. ["games", "integrations"]
-  - `github_repo` — "owner/repo" override (auto-derived from homepage if omitted)
-  """
-  @callback manifest() :: %{
-    required(:slug)        => String.t(),
-    required(:name)        => String.t(),
-    required(:version)     => String.t(),
-    required(:description) => String.t(),
-    required(:author)      => String.t(),
-    optional(:homepage)    => String.t() | nil,
-    optional(:logo_url)    => String.t() | nil,
-    optional(:banner_url)  => String.t() | nil,
-    optional(:categories)  => [String.t()],
-    optional(:github_repo) => String.t() | nil,
-  }
 
   # ---------------------------------------------------------------------------
   # Optional callbacks — implement only what your extension needs
@@ -179,16 +162,6 @@ defmodule Nexus.Extensions.Behaviour do
   @callback on_uninstall() :: :ok
 
   @doc """
-  Returns the filename of the JS bundle within the extension's `priv/static/`
-  directory. Nexus serves it at `/ext/:slug/assets/{filename}`.
-
-  Return nil if the extension has no frontend bundle (server-side only).
-
-      def js_bundle_path, do: "my-extension.js"
-  """
-  @callback js_bundle_path() :: String.t() | nil
-
-  @doc """
   Returns the extension's settings schema for the admin panel UI.
   Same format as the current manifest settings_schema — see EXTENSION_GUIDE.md.
 
@@ -209,20 +182,10 @@ defmodule Nexus.Extensions.Behaviour do
   @callback settings_tabs() :: [map()]
 
   @doc """
-  Returns digest section definitions. Each map must have:
-  - key: unique identifier (prefix with your slug)
-  - label: section heading
-  - icon: FontAwesome icon class
-  - enabled_by_default: boolean
-
-  When a digest is sent, Nexus calls handle_digest_section/3 for each enabled
-  section to get the content to include.
-  """
-  @callback digest_sections() :: [map()]
-
-  @doc """
   Handles a digest section request. Called by Nexus's digest system when
-  building an email. Returns a map with title, layout, items, and optional cta.
+  building an email. The list of declared digest sections lives in the
+  manifest's `digest_sections` field; this callback produces the content
+  for each one. Returns a map with title, layout, items, and optional cta.
   See EXTENSION_GUIDE.md for the full response format.
   """
   @callback handle_digest_section(
@@ -246,17 +209,15 @@ defmodule Nexus.Extensions.Behaviour do
       def on_install(_settings), do: :ok
       def on_update(_from, _to), do: :ok
       def on_uninstall,    do: :ok
-      def js_bundle_path,  do: nil
       def settings_schema, do: %{}
       def settings_tabs,   do: []
-      def digest_sections, do: []
       def handle_digest_section(_key, _period, _settings), do: %{items: []}
 
       defoverridable [
         migrations: 0, child_specs: 0, routes: 0,
         handle_event: 3, on_install: 1, on_update: 2, on_uninstall: 0,
-        js_bundle_path: 0, settings_schema: 0, settings_tabs: 0,
-        digest_sections: 0, handle_digest_section: 3,
+        settings_schema: 0, settings_tabs: 0,
+        handle_digest_section: 3,
       ]
     end
   end
@@ -264,7 +225,7 @@ defmodule Nexus.Extensions.Behaviour do
   @optional_callbacks [
     migrations: 0, child_specs: 0, routes: 0,
     handle_event: 3, on_install: 1, on_update: 2, on_uninstall: 0,
-    js_bundle_path: 0, settings_schema: 0, settings_tabs: 0,
-    digest_sections: 0, handle_digest_section: 3,
+    settings_schema: 0, settings_tabs: 0,
+    handle_digest_section: 3,
   ]
 end

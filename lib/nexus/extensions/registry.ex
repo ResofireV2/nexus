@@ -197,37 +197,29 @@ defmodule Nexus.Extensions.Registry do
 
   @impl true
   def handle_call({:register, slug, module, json_manifest}, _from, state) do
-    # The legacy module-callback manifest (a map with atom keys, returned by
-    # mod.manifest/0). Still used to derive slot registrations in 7B; 7C will
-    # flip that derivation to read from the JSON manifest instead.
-    module_manifest = safe_call(module, :manifest, [], %{})
+    # The JSON manifest is the authoritative source for what this extension
+    # declares. Default to an empty map only as a defensive fallback for
+    # bootstrap code paths that haven't been updated to pass a manifest.
+    manifest = json_manifest || %{}
 
     :ets.insert(:nexus_ext_modules, {slug, module})
 
-    # Store the normalized JSON manifest when supplied. The fresh-install and
-    # update paths pass it; the boot-time DB-rehydration path does not yet
-    # (it falls back to nil). The declared table is what 7D's admin runtime
-    # panel reads to compare against live JS registrations.
+    # Store the normalized JSON manifest. Read back via get_declared/1 by the
+    # admin runtime panel (7D) and by anywhere else that needs to know the
+    # extension's declared contract.
     if json_manifest do
       :ets.insert(:nexus_ext_declared, {slug, json_manifest})
     end
 
-    # Register hooks
-    events = Nexus.Extensions.hook_events()
+    # Register hooks. Only events declared in the manifest are wired up —
+    # this prevents an extension from accidentally subscribing to every
+    # known hook event just by exporting handle_event/3 with a catch-all.
+    declared_hooks = Map.get(manifest, "hooks", [])
+
     if function_exported?(module, :handle_event, 3) do
-      for event <- events do
+      for event <- declared_hooks do
         :ets.insert(:nexus_ext_hooks, {{event, slug}, {module, 50}})
       end
-    end
-
-    # Register slots — derived from the module-callback manifest (legacy).
-    for %{slot: slot, component: component, priority: priority} <-
-        Map.get(module_manifest, :slots, []) do
-      js_url = safe_call(module, :js_bundle_path, [], nil)
-        |> then(fn path ->
-          if path, do: "/ext/#{slug}/assets/#{path}", else: nil
-        end)
-      :ets.insert(:nexus_ext_slots, {{slot, slug}, {component, priority, js_url}})
     end
 
     # Register routes — always insert so an empty result is visible in ETS.
@@ -240,10 +232,17 @@ defmodule Nexus.Extensions.Registry do
     routes = safe_call(module, :routes, [], [])
     :ets.insert(:nexus_ext_routes, {slug, routes})
 
-    # Register digest sections
-    sections = safe_call(module, :digest_sections, [], [])
-    for %{key: key, label: label, icon: icon, enabled_by_default: enabled} <- sections do
-      :ets.insert(:nexus_ext_digest, {{key, slug}, {label, icon, enabled}})
+    # Register digest sections from the JSON manifest. Each declared section
+    # becomes a row in :nexus_ext_digest keyed on {key, slug}. The legacy
+    # module.digest_sections/0 callback is no longer consulted — the manifest
+    # is the source of truth.
+    for section <- Map.get(manifest, "digest_sections", []) do
+      key                = section["key"]
+      label              = section["label"]
+      icon               = section["icon"]
+      enabled_by_default = section["enabled_by_default"] || false
+
+      :ets.insert(:nexus_ext_digest, {{key, slug}, {label, icon, enabled_by_default}})
     end
 
     Logger.info("Registry: registered #{slug} (#{inspect(module)})")

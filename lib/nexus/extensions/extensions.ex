@@ -84,7 +84,7 @@ defmodule Nexus.Extensions do
       case build_tarball_url(ext) do
         {:ok, url} ->
           case Nexus.Extensions.Loader.load_from_url(url, ext.slug) do
-            {:ok, _module} ->
+            {:ok, _module, _manifest} ->
               Logger.info("Extensions: loaded #{ext.slug}")
               set_load_status(ext.slug, "loaded")
             {:error, _} = err ->
@@ -104,26 +104,61 @@ defmodule Nexus.Extensions do
     end
   end
 
-  def install_extension(attrs) do
-    # Store settings_schema, settings_tabs, logo_url and banner_url inside the manifest field
-    # so extension_json can read them back without needing extra DB columns.
-    manifest = %{
-      "settings_schema" => Map.get(attrs, "settings_schema", %{}),
-      "settings_tabs"   => Map.get(attrs, "settings_tabs", []),
-      "logo_url"        => Map.get(attrs, "logo_url"),
-      "banner_url"      => Map.get(attrs, "banner_url"),
-    }
+  @doc """
+  Inserts a new extension row from a manifest map.
 
-    ext_attrs =
-      attrs
-      |> Map.drop(["hooks", "slots", "settings_schema", "settings_tabs"])
-      |> Map.put("manifest", manifest)
+  The full normalized manifest is stored in the `manifest` JSON column —
+  this is the authoritative source for the extension's declared contract.
+  Scalar columns (slug, name, version, description, author, homepage,
+  github_repo, manifest_url, installed_version) are populated from
+  matching fields in the manifest plus any install-flow extras present
+  in `attrs` that the manifest itself doesn't carry.
+
+  This function validates the manifest before doing anything else.
+  Callers that have already validated (like `install_from_url/1`) pay
+  the cost twice — that's fine, the validator is pure and fast — but
+  every direct entry point goes through the guard.
+  """
+  def install_extension(attrs) do
+    case Nexus.Extensions.ManifestSchema.validate(attrs) do
+      {:ok, manifest, _warnings} ->
+        do_install_extension(manifest, attrs)
+
+      {:error, errors} ->
+        require Logger
+        Logger.warning("install_extension: manifest validation failed: #{Enum.join(errors, "; ")}")
+        summary = errors |> Enum.take(3) |> Enum.join("; ")
+        {:error, "manifest is invalid: #{summary}"}
+    end
+  end
+
+  defp do_install_extension(manifest, attrs) do
+    # The scalar DB columns are derived from the manifest. Install-flow extras
+    # (manifest_url, github_repo, installed_version, js_bundle_url, version)
+    # are passed through from `attrs` when present — these are populated by
+    # install_from_url; direct callers that omit them get sensible defaults.
+    ext_attrs = %{
+      "slug"              => manifest["slug"],
+      "name"              => manifest["name"],
+      "version"           => attrs["version"] || manifest["version"],
+      "description"       => manifest["description"],
+      "author"            => manifest["author"],
+      "homepage"          => manifest["homepage"],
+      "github_repo"       => attrs["github_repo"],
+      "manifest_url"      => attrs["manifest_url"],
+      "installed_version" => attrs["installed_version"] || manifest["version"],
+      "js_bundle_url"     => attrs["js_bundle_url"],
+      # Store the full normalized manifest. Downstream code (loader, registry,
+      # digest controller, admin UI) reads its declared contract from here
+      # rather than calling legacy behaviour callbacks on the loaded module.
+      "manifest"          => manifest,
       # Start every new row in a known load state. install_from_url overwrites
       # this immediately after the loader returns; direct callers of
       # install_extension/1 (e.g. the store one-click install path) leave it
       # at "not_loaded" so the admin UI shows that clearly until something
       # else triggers a load.
-      |> Map.put("load_status", "not_loaded")
+      "load_status"       => "not_loaded"
+    }
 
     %Extension{} |> Extension.changeset(ext_attrs) |> Repo.insert()
   end
@@ -206,20 +241,27 @@ defmodule Nexus.Extensions do
       # intentionally: settings are admin-managed, slug changes would break installs.
       github_repo = Nexus.Extensions.GitHub.repo_from_url(ext.manifest_url) || ext.github_repo
 
+      # Derive the served js bundle URL from the manifest's relative js_bundle path.
+      # The asset is copied to /ext/<slug>/assets/ at load time; here we only need
+      # the URL the frontend will fetch it from.
+      js_bundle_url =
+        case manifest["js_bundle"] do
+          nil  -> ext.js_bundle_url
+          path -> "/ext/#{ext.slug}/assets/#{path}"
+        end
+
       update_attrs = %{
         "name"          => manifest["name"],
         "version"       => ext.version,
         "description"   => manifest["description"],
         "author"        => manifest["author"],
         "homepage"      => manifest["homepage"],
-        "js_bundle_url" => manifest["js_bundle_url"],
+        "js_bundle_url" => js_bundle_url,
         "github_repo"   => github_repo,
-        "manifest"      => Map.merge(ext.manifest || %{}, %{
-          "settings_schema" => manifest["settings_schema"] || %{},
-          "settings_tabs"   => manifest["settings_tabs"]   || [],
-          "logo_url"        => manifest["logo_url"],
-          "banner_url"      => manifest["banner_url"],
-        }),
+        # Store the full normalized manifest. This replaces the previous
+        # 4-field selective merge — downstream code now reads the whole
+        # declared contract (hooks, slots, routes, widgets, etc.) from here.
+        "manifest"      => manifest
       }
 
       ext
@@ -376,22 +418,14 @@ defmodule Nexus.Extensions do
         # Load the extension into the VM if we have a tarball URL
         if tarball_url do
           case Nexus.Extensions.Loader.load_from_url(tarball_url, slug, token) do
-            {:ok, module} ->
-              # Derive js_bundle_url from the loaded module.
+            {:ok, module, manifest} ->
+              # Derive js_bundle_url from the validated manifest. This replaces
+              # the previous module.js_bundle_path/0 callback read — the
+              # manifest is now the single source of truth for what gets served.
               bundle_url =
-                try do
-                  path = module.js_bundle_path()
-                  require Logger
-                  Logger.info("install_from_url: #{slug} js_bundle_path() = #{inspect(path)}, module = #{inspect(module)}")
-                  case path do
-                    nil  -> nil
-                    path -> "/ext/#{slug}/assets/#{path}"
-                  end
-                rescue
-                  e ->
-                    require Logger
-                    Logger.error("install_from_url: js_bundle_path() raised for #{slug}: #{inspect(e)}")
-                    nil
+                case manifest["js_bundle"] do
+                  nil  -> nil
+                  path -> "/ext/#{slug}/assets/#{path}"
                 end
 
               require Logger
@@ -544,22 +578,26 @@ defmodule Nexus.Extensions do
       # e.g. "v0.2.0" → "0.2.0" — the UI adds "v" prefix for display.
       clean_tag = String.trim_leading(release.tag, "v")
 
+      # Derive js_bundle_url from the manifest's relative js_bundle path.
+      js_bundle_url =
+        case manifest["js_bundle"] do
+          nil  -> ext.js_bundle_url
+          path -> "/ext/#{ext.slug}/assets/#{path}"
+        end
+
       update_attrs = %{
         "name"              => manifest["name"],
         "version"           => clean_tag,
         "description"       => manifest["description"],
         "author"            => manifest["author"],
         "homepage"          => manifest["homepage"],
-        "js_bundle_url"     => manifest["js_bundle_url"],
+        "js_bundle_url"     => js_bundle_url,
         "installed_version" => clean_tag,
         "latest_version"    => clean_tag,
         "release_notes"     => release.body,
-        "manifest"          => Map.merge(ext.manifest || %{}, %{
-          "settings_schema" => manifest["settings_schema"] || %{},
-          "settings_tabs"   => manifest["settings_tabs"]   || [],
-          "logo_url"        => manifest["logo_url"],
-          "banner_url"      => manifest["banner_url"],
-        }),
+        # Store the full normalized manifest — single source of truth for the
+        # extension's declared contract.
+        "manifest"          => manifest
       }
 
       tarball_url = "https://github.com/#{ext.github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
@@ -568,19 +606,18 @@ defmodule Nexus.Extensions do
       with {:ok, updated} <- ext |> Extension.changeset(update_attrs) |> Repo.update() do
         # Reload the extension in the VM — stop old, compile new, restart
         case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module, token) do
-          {:ok, new_module} ->
-            # Update bundle URL from reloaded module
-            bundle_url =
-              if function_exported?(new_module, :js_bundle_path, 0) do
-                case new_module.js_bundle_path() do
-                  nil  -> nil
-                  path -> "/ext/#{ext.slug}/assets/#{path}"
-                end
+          {:ok, new_module, reloaded_manifest} ->
+            # Re-derive bundle URL from the freshly loaded manifest — if the
+            # release happened to change the js_bundle path, this picks it up.
+            reloaded_bundle_url =
+              case reloaded_manifest["js_bundle"] do
+                nil  -> nil
+                path -> "/ext/#{ext.slug}/assets/#{path}"
               end
 
-            if bundle_url do
+            if reloaded_bundle_url do
               updated
-              |> Extension.changeset(%{"js_bundle_url" => bundle_url})
+              |> Extension.changeset(%{"js_bundle_url" => reloaded_bundle_url})
               |> Repo.update()
             end
 

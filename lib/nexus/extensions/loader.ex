@@ -34,7 +34,8 @@ defmodule Nexus.Extensions.Loader do
   @doc """
   Loads an extension from a GitHub release tarball URL.
   Downloads, compiles, migrates, and registers the extension.
-  Returns {:ok, module} or {:error, reason}.
+  Returns `{:ok, module, manifest}` (where `manifest` is the validated
+  normalized JSON manifest) or `{:error, {step, reason}}`.
   """
   def load_from_url(tarball_url, slug, token \\ nil) do
     Logger.info("Loader: loading #{slug} from #{tarball_url}")
@@ -44,20 +45,27 @@ defmodule Nexus.Extensions.Loader do
     # the failure with the step name so the caller can report a specific
     # load_status ("compile_failed" vs "migration_failed" vs "download_failed")
     # instead of a generic "failed to load". The reason string is preserved.
+    #
+    # The manifest is read and validated BEFORE compile so subsequent steps
+    # can use its declared `module` field to find the right module among the
+    # compiled outputs. The validated normalized manifest is threaded through
+    # the rest of the pipeline and returned to the caller.
     result =
-      with :ok              <- tag(:download,         download_and_extract(tarball_url, build_dir, token)),
-           {:ok, module}    <- tag(:compile,          compile_extension(build_dir, slug)),
-           {:ok, manifest}  <- tag(:manifest_invalid, cross_check_manifest(build_dir, module, slug)),
-           :ok              <- tag(:migration,        run_migrations(module)),
-           :ok              <- tag(:assets,           copy_static_assets(build_dir, slug, module)),
-           :ok              <- tag(:supervisor,       ExtensionSupervisor.start_extension(slug, module)),
-           :ok              <- tag(:registry,         Registry.register(slug, module, manifest)) do
-        {:ok, module}
+      with :ok             <- tag(:download,         download_and_extract(tarball_url, build_dir, token)),
+           {:ok, manifest} <- tag(:manifest_invalid, read_and_validate_manifest(build_dir, slug)),
+           {:ok, modules}  <- tag(:compile,          compile_extension(build_dir, slug)),
+           {:ok, module}   <- tag(:manifest_invalid, find_declared_module(modules, manifest)),
+           :ok             <- tag(:manifest_invalid, check_module_exports(manifest, module)),
+           :ok             <- tag(:migration,        run_migrations(module)),
+           :ok             <- tag(:assets,           copy_static_assets(build_dir, slug, module)),
+           :ok             <- tag(:supervisor,       ExtensionSupervisor.start_extension(slug, module)),
+           :ok             <- tag(:registry,         Registry.register(slug, module, manifest)) do
+        {:ok, module, manifest}
       end
 
     case result do
-      {:ok, module} ->
-        {:ok, module}
+      {:ok, module, manifest} ->
+        {:ok, module, manifest}
 
       {:error, {step, reason}} ->
         Logger.error("Loader: failed to load #{slug} at #{step}: #{inspect(reason)}")
@@ -212,7 +220,7 @@ defmodule Nexus.Extensions.Loader do
         result =
           case Kernel.ParallelCompiler.compile(ex_files) do
             {:ok, modules, _warnings} ->
-              find_extension_module(modules, slug)
+              {:ok, modules}
 
             {:error, errors, _warnings} ->
               messages = Enum.map(errors, fn {file, line, msg} ->
@@ -227,50 +235,61 @@ defmodule Nexus.Extensions.Loader do
     end
   end
 
-  defp find_extension_module(modules, slug) do
-    # Find the module that implements Nexus.Extensions.Behaviour and whose
-    # manifest/0 returns the matching slug.
-    root = Enum.find(modules, fn mod ->
-      behaviours = mod.module_info(:attributes)
-        |> Keyword.get_values(:behaviour)
-        |> List.flatten()
+  # Find the compiled module whose name matches the manifest's "module" field.
+  # The manifest is the source of truth for which module is the extension's
+  # root; we no longer scan for "the module implementing the behaviour with
+  # the right manifest()/0 slug." We DO still confirm the resolved module
+  # implements Nexus.Extensions.Behaviour as a sanity check.
+  defp find_declared_module(modules, manifest) do
+    declared_name = manifest["module"]
 
-      Nexus.Extensions.Behaviour in behaviours &&
-        function_exported?(mod, :manifest, 0) &&
-        match?(%{slug: ^slug}, mod.manifest())
-    end)
+    target = Module.concat([declared_name])
 
-    case root do
-      nil -> {:error, "No module implementing Nexus.Extensions.Behaviour with slug \"#{slug}\" found"}
-      mod -> {:ok, mod}
+    cond do
+      target in modules ->
+        behaviours =
+          target.module_info(:attributes)
+          |> Keyword.get_values(:behaviour)
+          |> List.flatten()
+
+        if Nexus.Extensions.Behaviour in behaviours do
+          {:ok, target}
+        else
+          {:error,
+           "module #{inspect(target)} declared in manifest does not implement Nexus.Extensions.Behaviour. " <>
+             "Add `use Nexus.Extensions.Behaviour` to that module."}
+        end
+
+      true ->
+        {:error,
+         "manifest declares module #{inspect(declared_name)} but no such module was produced by compiling the extension's source. " <>
+           "Check that the module name in manifest.json matches the one defined in lib/."}
     end
   end
 
   # ---------------------------------------------------------------------------
-  # Private — manifest cross-check
+  # Private — manifest read + cross-check
   #
-  # After the module is compiled and discovered, read the canonical
-  # manifest.json from the extracted tarball and verify that:
-  #   1. The manifest passes schema validation (manifest_version 2).
-  #   2. Declared hooks match the module's actual exports.
-  #   3. Declared digest sections match the module's actual exports.
+  # The manifest is the canonical declaration of what the extension contributes
+  # to Nexus. read_and_validate_manifest/2 runs as the first step after the
+  # tarball is extracted, so subsequent steps (compile, module discovery,
+  # export-check) can rely on a validated, normalized manifest.
+  #
+  # check_module_exports/2 runs after compile and verifies the module actually
+  # implements the callbacks it declared subscriptions to.
   #
   # Slot, route, widget, and toolbar declarations are JS-side concerns and
   # cannot be cross-checked here — they're validated at runtime by the bundle
   # (sub-stage 7D). We just store the normalized manifest for that check.
-  #
-  # Returns {:ok, normalized_manifest} or {:error, reason_string}.
   # ---------------------------------------------------------------------------
 
-  defp cross_check_manifest(build_dir, module, slug) do
+  defp read_and_validate_manifest(build_dir, slug) do
     manifest_path = Path.join(build_dir, "manifest.json")
 
-    with {:ok, body}       <- File.read(manifest_path),
-         {:ok, raw}        <- Jason.decode(body),
-         {:ok, manifest}   <- validate_against_schema(raw),
-         :ok               <- check_slug_match(manifest, slug),
-         :ok               <- check_hook_exports(manifest, module),
-         :ok               <- check_digest_exports(manifest, module) do
+    with {:ok, body}     <- File.read(manifest_path),
+         {:ok, raw}      <- Jason.decode(body),
+         {:ok, manifest} <- validate_against_schema(raw),
+         :ok             <- check_slug_match(manifest, slug) do
       {:ok, manifest}
     else
       {:error, :enoent} ->
@@ -283,7 +302,14 @@ defmodule Nexus.Extensions.Loader do
         {:error, reason}
 
       {:error, reason} ->
-        {:error, "manifest cross-check failed: #{inspect(reason)}"}
+        {:error, "manifest read failed: #{inspect(reason)}"}
+    end
+  end
+
+  defp check_module_exports(manifest, module) do
+    with :ok <- check_hook_exports(manifest, module),
+         :ok <- check_digest_exports(manifest, module) do
+      :ok
     end
   end
 
@@ -320,6 +346,7 @@ defmodule Nexus.Extensions.Loader do
          "Add a handle_event/3 callback (with a catch-all clause) to handle the declared events."}
     end
   end
+  defp check_hook_exports(_, _), do: :ok
 
   defp check_digest_exports(%{"digest_sections" => []}, _module), do: :ok
   defp check_digest_exports(%{"digest_sections" => [_ | _]}, module) do
@@ -331,6 +358,7 @@ defmodule Nexus.Extensions.Loader do
          "Add a handle_digest_section/3 callback to produce content for each declared section."}
     end
   end
+  defp check_digest_exports(_, _), do: :ok
 
   # ---------------------------------------------------------------------------
   # Private — migrations

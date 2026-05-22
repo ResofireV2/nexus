@@ -28,20 +28,24 @@ defmodule NexusWeb.API.V1.DigestController do
       %{id: "members",     label: "New members",     icon: "fa-users",         toggleable: true,  cfg_key: "include_new_members"},
       %{id: "spaces",      label: "Trending spaces", icon: "fa-layer-group",   toggleable: true,  cfg_key: "include_trending_spaces"},
     ]
+
+    # Read declared digest sections from each loaded extension's normalized
+    # JSON manifest. The manifest is the source of truth; the legacy
+    # module.digest_sections/0 callback is no longer consulted.
     ext_sections =
-      Nexus.Extensions.Registry.all_modules()
-      |> Enum.flat_map(fn {_slug, module} ->
-        if function_exported?(module, :digest_sections, 0) do
-          try do
-            module.digest_sections()
-            |> Enum.map(fn s ->
-              %{id: s[:key]||s["key"], label: s[:label]||s["label"]||s[:key]||s["key"],
-                icon: s[:icon]||s["icon"]||"fa-puzzle-piece", toggleable: true, ext: true}
-            end)
-          rescue _ -> []
-          end
-        else [] end
+      Nexus.Extensions.Registry.all_declared()
+      |> Enum.flat_map(fn {_slug, manifest} ->
+        for section <- Map.get(manifest, "digest_sections", []) do
+          %{
+            id:        section["key"],
+            label:     section["label"] || section["key"],
+            icon:      section["icon"]  || "fa-puzzle-piece",
+            toggleable: true,
+            ext:       true
+          }
+        end
       end)
+
     json(conn, %{sections: builtin ++ ext_sections})
   end
 
