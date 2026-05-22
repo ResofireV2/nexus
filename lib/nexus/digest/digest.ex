@@ -251,14 +251,22 @@ defmodule Nexus.Digest do
     }
 
     # Collect sections from installed extensions that declare digest_sections.
-    # Each extension's handle_digest_section/3 callback is invoked directly
-    # and its return value is merged into the sections map.
+    # Each extension's handle_digest_section/3 (or /4) callback is invoked
+    # directly and its return value is merged into the sections map.
+    #
+    # Branding is fetched from the mailer's branding_context so that any
+    # extension exporting the 4-arity callback receives a populated branding
+    # map. Without this, extensions doing things like `branding.accent` would
+    # raise KeyError on an empty map, get caught by the collector's rescue
+    # clause, and silently disappear from the digest.
+    branding_for_collect = Nexus.Mailer.branding_context()
+
     extension_sections = collect_extension_sections(frequency, %{
       from: from_dt,
       to:   to_dt,
       frequency: frequency,
       period_label: period_label
-    })
+    }, branding_for_collect)
 
     # Merge: built-in wins on key collision (extensions cannot override core sections)
     sections = Map.merge(extension_sections, built_in_sections)
