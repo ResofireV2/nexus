@@ -583,7 +583,7 @@ window.NexusExtensions = {
       if (m) {
         const params = {};
         route.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
-        return { component: route.component, params, options: route.options, pattern: route.pattern };
+        return { component: route.component, params, options: route.options, pattern: route.pattern, slug: route.slug };
       }
     }
     return null;
@@ -711,22 +711,77 @@ window.NexusExtensions = {
   },
 
   // Register a widget in the right sidebar.
-  // Extensions call this from their bundle:
   //
-  //   window.NexusExtensions.registerRightWidget({
-  //     id:        "gamepedia-recent",      // unique
-  //     label:     "Recent Games",          // shown in Layout admin drag list
-  //     component: MyWidget,               // React component, receives ({ navigate, currentUser })
-  //     priority:  50,                     // lower = higher up (optional, default 50)
-  //     pages:     ["ext-route:gamepedia"], // optional — restrict to specific pages.
-  //                                        // Format: "page" or "ext-route:patternPrefix"
-  //                                        // Omit to show on all pages (default behaviour).
+  //   slug:      extension slug — required.
+  //   id:        unique widget id (typically prefixed with your slug)
+  //   label:     shown in the Layout admin drag-to-reorder list
+  //   component: React component receiving ({ navigate, currentUser, pageProps })
+  //   priority:  lower = higher up (optional, default 50)
+  //   scope:     where the widget appears (optional, default "extension")
+  //                "extension" — on every /ext/<slug>/* page (default)
+  //                "global"    — on every page in Nexus
+  //                { path: "/x" }            — on /ext/<slug>/x
+  //                { path: ["/x", "/y"] }    — on the listed paths
+  //                { corePages: ["profile"]} — on the named core pages
+  //
+  // The widget appears in the right panel and is grouped under your extension
+  // in the Layout admin drag-to-reorder list. Admins can override your defaults
+  // by reordering or hiding the widget per page.
+  //
+  // Usage from extension bundle:
+  //   NE.registerRightWidget({
+  //     slug:      "gamepedia",
+  //     id:        "gamepedia-now-playing",
+  //     label:     "Now Playing",
+  //     component: NowPlayingWidget,
   //   });
-  //
-  // The widget appears in the right panel and in the Layout admin drag-to-reorder list.
-  registerRightWidget({ id, label, component, priority=50, pages=null }) {
+  registerRightWidget({ slug, id, label, component, priority=50, scope="extension" }) {
+    if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug)) {
+      console.error("[NexusExtensions] registerRightWidget: slug must be lowercase alphanumeric+hyphens, got:", slug);
+      return;
+    }
+    if (typeof id !== "string" || !id) {
+      console.error("[NexusExtensions] registerRightWidget: id is required");
+      return;
+    }
+    if (typeof label !== "string" || !label) {
+      console.error("[NexusExtensions] registerRightWidget: label is required");
+      return;
+    }
+    if (typeof component !== "function") {
+      console.error("[NexusExtensions] registerRightWidget: component must be a React component, got:", component);
+      return;
+    }
+
+    // Derive internal `pages` field from `scope`. The resolver in RightPanel
+    // and the Layout admin both read this; built-in widgets use the same field.
+    let pages;
+    if (scope === "global") {
+      pages = "global";
+    } else if (scope === "extension") {
+      pages = { extension: slug };
+    } else if (scope && typeof scope === "object" && Array.isArray(scope.corePages)) {
+      pages = scope.corePages.slice();
+    } else if (scope && typeof scope === "object" && scope.path !== undefined) {
+      const paths = Array.isArray(scope.path) ? scope.path : [scope.path];
+      for (const p of paths) {
+        if (typeof p !== "string" || !p.startsWith("/")) {
+          console.error("[NexusExtensions] registerRightWidget: scope.path entries must start with /, got:", p);
+          return;
+        }
+        if (p.startsWith("/ext/")) {
+          console.error("[NexusExtensions] registerRightWidget: do not include /ext/ in scope.path — Nexus prefixes it automatically. Got:", p);
+          return;
+        }
+      }
+      pages = paths.map(p => p === "/" ? `/ext/${slug}` : `/ext/${slug}${p}`);
+    } else {
+      console.error("[NexusExtensions] registerRightWidget: invalid scope:", scope);
+      return;
+    }
+
     this._rightWidgets = this._rightWidgets.filter(w => w.id !== id);
-    this._rightWidgets.push({ id, label, component, priority, pages, _ext: true });
+    this._rightWidgets.push({ id, label, component, priority, pages, slug, _ext: true });
     this._rightWidgets.sort((a, b) => (a.priority||50) - (b.priority||50));
     this._rightWidgetListeners.forEach(fn => fn());
   },
@@ -736,40 +791,6 @@ window.NexusExtensions = {
   onRightWidgetChange(fn) {
     this._rightWidgetListeners.push(fn);
     return () => { this._rightWidgetListeners = this._rightWidgetListeners.filter(f => f !== fn); };
-  },
-
-  // Register a custom right sidebar layout for a specific extension page or
-  // pattern of pages. When the user is on a matching route, RightPanel renders
-  // exactly the widget IDs supplied (in order) instead of the default layout.
-  // Core built-in widget IDs: "live_activity", "spaces_by_pulse", "stats".
-  // Extension widgets are referenced by their registered id.
-  //
-  // pattern: a string prefix matched against the current ext-route pattern.
-  //   "/ext/gamepedia/"  matches any Gamepedia route
-  //   "/ext/gamepedia/browse" matches only the browse page
-  //
-  // widgetIds: ordered array of widget IDs to render. Any ID not found in the
-  //   built-in or registered widget maps is silently skipped.
-  //
-  // Usage from extension bundle:
-  //   NE.registerPageSidebar("/ext/gamepedia/", [
-  //     "live_activity",
-  //     "gamepedia-most-discussed",
-  //     "gamepedia-most-gamelogd",
-  //     "gamepedia-genre-explorer",
-  //     "stats",
-  //     "gamepedia-now-playing",
-  //   ]);
-  registerPageSidebar(pattern, widgetIds) {
-    this._pageSidebars = this._pageSidebars || [];
-    this._pageSidebars = this._pageSidebars.filter(p => p.pattern !== pattern);
-    this._pageSidebars.push({ pattern, widgetIds });
-    this._rightWidgetListeners.forEach(fn => fn());
-  },
-
-  getPageSidebar(routePattern) {
-    if (!this._pageSidebars || !routePattern) return null;
-    return this._pageSidebars.find(p => routePattern.startsWith(p.pattern)) || null;
   },
 
   // Register an action button in the user card popover and mobile user menu.
@@ -3006,23 +3027,46 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
     return undefined;
   }
 
-  // Resolve ordered, visible widget list for the current page
-  function resolveWidgets(pageId) {
+  // Resolve ordered, visible widget list for the current page.
+  // For ext-route pages, all widgets (core globals + that extension's widgets +
+  // path-specific widgets matching the URL) share a single saved-state entry
+  // keyed by "ext:<slug>", so the admin configures one consolidated layout per
+  // extension rather than per-route-pattern.
+  function widgetMatchesPage(w, pageId, currentSlug, currentPattern) {
+    var wp = w.pages;
+    if (wp === "global") return true;
+    // Per-extension scope (extension widgets default to this)
+    if (wp && typeof wp === "object" && !Array.isArray(wp) && wp.extension) {
+      return currentSlug && wp.extension === currentSlug;
+    }
+    if (Array.isArray(wp)) {
+      // Path-specific patterns are full route patterns (e.g. "/ext/gamepedia/:slug").
+      // Match those against the current route pattern. Core-page IDs ("post", "feed")
+      // match against pageId. Both shapes live in the same array.
+      if (wp.indexOf(pageId) !== -1) return true;
+      if (currentPattern && wp.indexOf(currentPattern) !== -1) return true;
+      return false;
+    }
+    return false;
+  }
+
+  function resolveWidgets(pageId, currentSlug, currentPattern) {
     var allExt = window.NexusExtensions.getRightWidgets();
     var candidates = [];
     RIGHT_WIDGETS.forEach(function(w) {
-      if(w.pages === "global" || (Array.isArray(w.pages) && w.pages.indexOf(pageId) !== -1)) {
+      if(widgetMatchesPage(w, pageId, currentSlug, currentPattern)) {
         candidates.push(Object.assign({}, w));
       }
     });
     allExt.forEach(function(w) {
-      var wp = w.pages;
-      if(!wp || wp === "global" || (Array.isArray(wp) && wp.indexOf(pageId) !== -1)) {
+      if(widgetMatchesPage(w, pageId, currentSlug, currentPattern)) {
         candidates.push(Object.assign({}, w));
       }
     });
+    // Saved-state key: "ext:<slug>" for ext-route pages, the page id otherwise.
+    var savedKey = currentSlug ? ("ext:" + currentSlug) : pageId;
     var savedByPage = layoutCfg.right_widgets_by_page || {};
-    var saved = savedByPage[pageId];
+    var saved = savedByPage[savedKey];
     if(!saved || !saved.length) return candidates.filter(function(w){ return !w.hidden; });
     var result = [];
     saved.forEach(function(s) {
@@ -3036,15 +3080,16 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
     return result;
   }
 
-  // For ext-routes use the pattern as the page id so each route gets its own widget config
-  var resolvedPage = (page === "ext-route" && pageProps?._match?.pattern)
-    ? pageProps._match.pattern
-    : page;
+  // Identify which extension (if any) we're currently inside, plus the route
+  // pattern for path-scoped widget matching.
+  var currentSlug    = (page === "ext-route" && pageProps?._match?.slug)    || null;
+  var currentPattern = (page === "ext-route" && pageProps?._match?.pattern) || null;
+  var resolvedPage   = page;  // core page id, or "ext-route" for extension pages
 
   // Enrich pageProps passed to widgets — search widget needs spaces/tags
   var enrichedPageProps = Object.assign({}, pageProps, {spaces: spaces, tags: tags});
 
-  var widgets = resolveWidgets(resolvedPage);
+  var widgets = resolveWidgets(resolvedPage, currentSlug, currentPattern);
 
   return (
     <div className={mobile?"mob-rightpanel-inner":"right-panel"}>

@@ -168,6 +168,18 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     };
   }, []);
 
+  // Re-render when extension bundles register widgets, admin panels, or
+  // explore items at runtime — getAllPages reads from all three sources.
+  var [, forceUpdate] = React.useState(0);
+  useEffect(function() {
+    var unsubs = [
+      window.NexusExtensions.onRightWidgetChange(function(){ forceUpdate(function(n){ return n + 1; }); }),
+      window.NexusExtensions.onAdminPanelChange(function(){ forceUpdate(function(n){ return n + 1; }); }),
+      window.NexusExtensions.onExploreChange(function(){ forceUpdate(function(n){ return n + 1; }); }),
+    ];
+    return function() { unsubs.forEach(function(fn){ fn(); }); };
+  }, []);
+
   function markDirty() {
     if(window._nexusAdminSetDirty) window._nexusAdminSetDirty();
   }
@@ -246,20 +258,70 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   }
 
   // ── Right sidebar helpers ────────────────────────────────────────────────
-  // Build the full list of pages: core pages + any extension pages
+  //
+  // Pages model:
+  //   - Core pages (CORE_PAGES) have id "post", "feed", etc.
+  //   - Extension pages have id "ext:<slug>". One row per extension, regardless
+  //     of how many routes or widgets that extension has. The admin configures
+  //     a single consolidated layout that applies to every page of that
+  //     extension. This mirrors the resolver in RightPanel.
+  //
+  // Saved state keys in layoutCfg.right_widgets_by_page follow the same scheme.
+
+  // Look up a human-friendly label for an extension slug, preferring the
+  // admin-panel label, then the explore item label, then the slug itself.
+  function labelForExtension(slug) {
+    var panels = window.NexusExtensions.getAdminPanels();
+    var panel  = panels.find(function(p){ return p.slug === slug; });
+    if (panel && panel.label) return panel.label;
+    var items  = window.NexusExtensions.getExploreItems();
+    var item   = items.find(function(i){ return i.slug === slug; });
+    if (item && item.label) return item.label;
+    return slug;
+  }
+
+  // Build the full list of pages: core pages + one row per extension
+  // that has any registered widgets.
   function getAllPages() {
     var pages = CORE_PAGES.slice();
     var extWidgets = window.NexusExtensions.getRightWidgets();
+    var seenSlugs = {};
     extWidgets.forEach(function(w) {
-      if(!w.pages || w.pages === "global") return;
-      var wPages = Array.isArray(w.pages) ? w.pages : [w.pages];
-      wPages.forEach(function(p) {
-        if(!pages.find(function(pg){ return pg.id === p; })) {
-          pages.push({id: p, label: p.charAt(0).toUpperCase() + p.slice(1), _ext: true});
-        }
+      if (!w.slug || seenSlugs[w.slug]) return;
+      seenSlugs[w.slug] = true;
+      pages.push({
+        id:    "ext:" + w.slug,
+        label: labelForExtension(w.slug),
+        _ext:  true,
       });
     });
     return pages;
+  }
+
+  // Decide whether a widget belongs on a given pageId.
+  //   - "global" — always
+  //   - {extension: slug} — when pageId is "ext:<slug>"
+  //   - [paths...] — when pageId is "ext:<slug>" AND any path is /ext/<slug>/...
+  //                  OR when pageId matches one of the core-page ids in the array
+  function widgetMatchesPage(w, pageId) {
+    var wp = w.pages;
+    if (wp === "global") return true;
+    if (wp && typeof wp === "object" && !Array.isArray(wp) && wp.extension) {
+      return pageId === "ext:" + wp.extension;
+    }
+    if (Array.isArray(wp)) {
+      if (wp.indexOf(pageId) !== -1) return true;
+      // Path-specific extension widget — match if pageId is the owning extension
+      if (pageId && pageId.indexOf("ext:") === 0) {
+        var slug = pageId.slice("ext:".length);
+        var prefix = "/ext/" + slug;
+        return wp.some(function(p) {
+          return typeof p === "string" && (p === prefix || p.indexOf(prefix + "/") === 0);
+        });
+      }
+      return false;
+    }
+    return false;
   }
 
   // Build the full widget list for a given page, merging saved state
@@ -269,15 +331,14 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
 
     // Add built-in widgets that belong on this page
     RIGHT_WIDGETS.forEach(function(w) {
-      if(w.pages === "global" || (Array.isArray(w.pages) && w.pages.indexOf(pageId) !== -1)) {
+      if (widgetMatchesPage(w, pageId)) {
         allWidgets.push(Object.assign({}, w));
       }
     });
 
     // Add extension widgets that belong on this page
     extWidgets.forEach(function(w) {
-      var wPages = w.pages;
-      if(wPages === "global" || (Array.isArray(wPages) && wPages.indexOf(pageId) !== -1)) {
+      if (widgetMatchesPage(w, pageId)) {
         allWidgets.push(Object.assign({}, w));
       }
     });

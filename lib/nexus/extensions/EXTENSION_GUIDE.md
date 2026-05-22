@@ -395,22 +395,74 @@ The target path must correspond to a route registered via `registerRoute(slug, p
 
 ### Right sidebar widgets
 
-Add a widget card to the right sidebar. Appears in the admin **Layout → Right Sidebar** drag-to-reorder list.
+Add a widget card to the right sidebar. By default, widgets appear on every page of your extension. The admin can reorder or hide them via **Layout → Right Sidebar**, where your widgets are grouped under your extension's name.
 
 ```js
-function NowPlayingWidget({ navigate, currentUser }) {
+function NowPlayingWidget({ navigate, currentUser, pageProps }) {
   // return React content
 }
 
 window.NexusExtensions.registerRightWidget({
-  id:        "my-ext-now-playing",
+  slug:      "gamepedia",
+  id:        "gamepedia-now-playing",
   label:     "Now Playing",
   component: NowPlayingWidget,
-  priority:  50,
 })
 ```
 
-The component receives `{ navigate, currentUser }` and is wrapped in a standard widget card with a label header.
+| Parameter   | Type             | Description                                                                     |
+|-------------|------------------|---------------------------------------------------------------------------------|
+| `slug`      | string           | Your extension slug. Required.                                                  |
+| `id`        | string           | Unique widget ID. Prefix with your slug to avoid collisions with other extensions. Required. |
+| `label`     | string           | Shown in the Layout admin drag list. Required.                                  |
+| `component` | React component  | Receives `{ navigate, currentUser, pageProps }`. Required.                       |
+| `priority`  | number           | Lower priority renders higher among extension widgets. Defaults to `50`.        |
+| `scope`     | various          | Where the widget appears. See below. Defaults to `"extension"`.                 |
+
+The component is wrapped in the standard widget card (label header, padding, border) automatically — render only the content.
+
+#### Scope
+
+`scope` controls where your widget appears:
+
+```js
+// Default — every page of your extension
+NE.registerRightWidget({
+  slug: "gamepedia", id: "gamepedia-now-playing", label: "Now Playing",
+  component: NowPlayingWidget,
+  // scope: "extension"  ← this is the default, no need to write it
+});
+
+// On every page in Nexus, including core pages
+NE.registerRightWidget({
+  slug: "gamepedia", id: "gamepedia-global-stats", label: "Gamepedia Stats",
+  component: StatsWidget,
+  scope: "global",
+});
+
+// On one specific page within your extension
+NE.registerRightWidget({
+  slug: "gamepedia", id: "gamepedia-credits", label: "Credits",
+  component: CreditsWidget,
+  scope: { path: "/:slug" },          // matches /ext/gamepedia/:slug
+});
+
+// On multiple specific pages within your extension
+NE.registerRightWidget({
+  slug: "gamepedia", id: "gamepedia-trending", label: "Trending",
+  component: TrendingWidget,
+  scope: { path: ["/", "/browse"] },  // home + browse, not detail pages
+});
+
+// On a specific core page (rare — e.g. a Gamepedia widget on user profiles)
+NE.registerRightWidget({
+  slug: "gamepedia", id: "gamepedia-user-card", label: "Recent Plays",
+  component: GamelogCardWidget,
+  scope: { corePages: ["profile"] },
+});
+```
+
+Just like routes and Explore items, `scope.path` entries are relative to your extension's namespace — Nexus prefixes them with `/ext/<slug>` automatically. Do not include `/ext/` yourself.
 
 ---
 
