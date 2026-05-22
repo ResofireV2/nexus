@@ -580,14 +580,321 @@ defmodule Nexus.Mailer do
     """
   end
 
-  # Extension pre-rendered HTML — injected verbatim
+  # ─────────────────────────────────────────────────────────────────────────
+  # Structured-data extension sections.
+  #
+  # Extensions return %{title, layout, items, cta} from handle_digest_section/3
+  # (or /4 with branding). The mailer dispatches on `layout` to the appropriate
+  # renderer below. Five layouts are supported:
+  #
+  #   list         — ranked list with optional badge + sublabel per item
+  #   leaderboard  — top N with medal icons and right-aligned values
+  #   stat_bars    — horizontal bar chart scaled to the highest value
+  #   pill_grid    — wrapping colored pills (tags, genres, categories)
+  #   card         — thumbnail-rich cards (book covers, game covers, videos)
+  #
+  # The optional `cta` is rendered as a small footer button below the items.
+  # All layouts share the same section header style as the built-in sections.
+  # Extensions writing the structured shape never write inline styles — the
+  # mailer applies all branding here.
+  #
+  # Section keys arrive string-keyed (deep_stringify in Digest.collect_extension_sections).
+  # ─────────────────────────────────────────────────────────────────────────
+  defp render_digest_section(_key, %{"items" => items, "layout" => layout} = section, url, _site_name, branding)
+       when is_list(items) and items != [] do
+    title = section["title"] || ""
+    cta   = section["cta"]
+    render_layout(layout, title, items, cta, url, branding)
+  end
+
+  # Default layout when extension returns items without an explicit `layout` key.
+  defp render_digest_section(_key, %{"items" => items} = section, url, _site_name, branding)
+       when is_list(items) and items != [] do
+    title = section["title"] || ""
+    cta   = section["cta"]
+    render_layout("list", title, items, cta, url, branding)
+  end
+
+  # Extension pre-rendered HTML — injected verbatim. Extensions taking this
+  # path are responsible for matching the email's visual design themselves
+  # (use branding map for colors). Reserved for sections that genuinely need
+  # custom layout — image-heavy summaries, chart visualisations, etc.
   defp render_digest_section(_key, %{"_rendered_html" => html}, _url, _site_name, _branding) when is_binary(html) and html != "" do
     html
   end
 
-
   # Fallback for empty/nil sections
   defp render_digest_section(_key, _data, _url, _site_name, _branding), do: ""
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Layout renderers — consume the structured shape, produce HTML rows.
+  # Each layout uses the same section header + table + divider scaffolding
+  # as the built-in renderers, so extension and built-in sections look
+  # visually identical at the section-shape level.
+  # ─────────────────────────────────────────────────────────────────────────
+
+  defp render_layout("list", title, items, cta, url, branding) do
+    rows =
+      items
+      |> Enum.with_index(1)
+      |> Enum.map(fn {item, i} -> render_list_item(item, i, url, branding) end)
+      |> Enum.join()
+
+    section_wrapper(title, rows, cta, url, branding)
+  end
+
+  defp render_layout("leaderboard", title, items, cta, url, branding) do
+    medals = ["🥇", "🥈", "🥉"]
+    rows =
+      items
+      |> Enum.with_index()
+      |> Enum.map(fn {item, i} ->
+        medal = Enum.at(medals, i, "")
+        label = item_label_with_url(item, url, branding)
+        value = item["value"]
+        """
+        <tr>
+          <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="width:28px;font-size:16px;vertical-align:middle;">#{medal}</td>
+              <td style="font-size:13px;color:rgba(255,255,255,0.75);font-weight:500;vertical-align:middle;">#{label}</td>
+              #{if value, do: ~s(<td style="text-align:right;font-size:13px;color:#{branding.accent};font-weight:500;vertical-align:middle;">#{escape(to_string(value))}</td>), else: ""}
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    section_wrapper(title, rows, cta, url, branding)
+  end
+
+  defp render_layout("stat_bars", title, items, cta, url, branding) do
+    # Scale bars to the highest numeric `value`; falls back to label count if
+    # values aren't numeric.
+    max_val =
+      items
+      |> Enum.map(&numeric_value/1)
+      |> Enum.max(fn -> 1 end)
+      |> max(1)
+
+    rows =
+      Enum.map(items, fn item ->
+        n = numeric_value(item)
+        pct = max(4, round(n / max_val * 100))
+        color = item["badge_color"] || branding.accent
+        label = item_label_with_url(item, url, branding)
+        value_display = item["value"] || n
+        """
+        <tr>
+          <td style="padding:6px 0;">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="width:120px;font-size:12px;color:rgba(255,255,255,0.5);">#{label}</td>
+              <td>
+                <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);">
+                  <div style="height:4px;border-radius:2px;background:#{color};width:#{pct}%;"></div>
+                </div>
+              </td>
+              <td style="width:48px;text-align:right;font-size:11px;color:#{color};padding-left:8px;">#{escape(to_string(value_display))}</td>
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    section_wrapper(title, rows, cta, url, branding)
+  end
+
+  defp render_layout("pill_grid", title, items, cta, url, branding) do
+    # All pills wrap into one cell; the section-wrapper table provides the
+    # outer header + divider.
+    pills =
+      Enum.map(items, fn item ->
+        color = item["badge_color"] || branding.accent
+        bg    = color <> "22"   # hex w/ alpha 0x22 for translucent fill
+        label = escape(to_string(item["label"] || ""))
+        content =
+          case item["url"] do
+            u when is_binary(u) and u != "" ->
+              ~s(<a href="#{absolute_url(u, url)}" style="text-decoration:none;">#{label}</a>)
+            _ ->
+              label
+          end
+        ~s(<span style="display:inline-block;padding:4px 10px;margin:0 6px 6px 0;border-radius:14px;background:#{bg};color:#{color};font-size:12px;font-weight:500;">#{content}</span>)
+      end)
+      |> Enum.join()
+
+    row = """
+    <tr>
+      <td style="padding:6px 0;line-height:1.8;">
+        #{pills}
+      </td>
+    </tr>
+    """
+
+    section_wrapper(title, row, cta, url, branding)
+  end
+
+  defp render_layout("card", title, items, cta, url, branding) do
+    # Thumbnail-rich cards — for content where a visual matters (game covers,
+    # book covers, video thumbnails). Each item renders as a 64px-wide image
+    # on the left + label/sublabel/value on the right.
+    rows =
+      Enum.map(items, fn item ->
+        image = item["image_url"]
+        label = item_label_with_url(item, url, branding)
+        sublabel = item["sublabel"]
+        badge_html = badge_pill(item, branding)
+        value = item["value"]
+        thumb =
+          if is_binary(image) and image != "" do
+            ~s(<img src="#{absolute_url(image, url)}" width="64" height="64" alt="" style="display:block;width:64px;height:64px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.04);"/>)
+          else
+            ~s(<div style="width:64px;height:64px;border-radius:8px;background:rgba(255,255,255,0.04);"></div>)
+          end
+
+        """
+        <tr>
+          <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+            <table cellpadding="0" cellspacing="0" width="100%"><tr>
+              <td style="width:64px;vertical-align:top;padding-right:12px;">#{thumb}</td>
+              <td style="vertical-align:top;">
+                <div style="font-size:14px;font-weight:500;color:#f0eeff;margin-bottom:4px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
+                #{if sublabel, do: ~s(<div style="font-size:12px;color:rgba(255,255,255,0.45);">#{escape(to_string(sublabel))}</div>), else: ""}
+                #{if value, do: ~s(<div style="font-size:11px;color:#{branding.accent};margin-top:4px;">#{escape(to_string(value))}</div>), else: ""}
+              </td>
+            </tr></table>
+          </td>
+        </tr>
+        """
+      end)
+      |> Enum.join()
+
+    section_wrapper(title, rows, cta, url, branding)
+  end
+
+  # Unknown layout — fall back to list.
+  defp render_layout(_other, title, items, cta, url, branding) do
+    render_layout("list", title, items, cta, url, branding)
+  end
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Layout helpers
+  # ─────────────────────────────────────────────────────────────────────────
+
+  # Standard section scaffolding: header, table of rows, optional CTA button,
+  # trailing divider. Matches the visual idiom of the built-in section
+  # renderers exactly so extension sections look indistinguishable from
+  # built-ins at the chrome level.
+  defp section_wrapper(title, rows_html, cta, base_url, branding) do
+    cta_html =
+      case cta do
+        %{"label" => label, "url" => href} when is_binary(label) and is_binary(href) ->
+          """
+          <table cellpadding="0" cellspacing="0" style="margin:4px 0 16px;"><tr>
+            <td style="padding:8px 14px;border-radius:6px;background:#{branding.accent}22;">
+              <a href="#{absolute_url(href, base_url)}" style="font-size:12px;font-weight:500;color:#{branding.accent};text-decoration:none;">#{escape(label)} →</a>
+            </td>
+          </tr></table>
+          """
+        _ -> ""
+      end
+
+    """
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">#{escape(title)}</p>
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:#{if cta_html == "", do: 24, else: 8}px;">#{rows_html}</table>
+    #{cta_html}
+    #{divider()}
+    """
+  end
+
+  # Renders a single row for the "list" layout: index, label (linked if url),
+  # optional badge, optional sublabel.
+  defp render_list_item(item, index, base_url, branding) do
+    label = item_label_with_url(item, base_url, branding)
+    sublabel = item["sublabel"]
+    badge_html = badge_pill(item, branding)
+    value = item["value"]
+    """
+    <tr>
+      <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+        <table cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{index}.</td>
+            <td>
+              <div style="font-size:14px;font-weight:500;color:#f0eeff;margin-bottom:#{if sublabel, do: 4, else: 0}px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
+              #{if sublabel, do: ~s(<div style="font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</div>), else: ""}
+            </td>
+            #{if value, do: ~s(<td style="text-align:right;font-size:12px;color:#{branding.accent};font-weight:500;vertical-align:top;padding-top:2px;white-space:nowrap;">#{escape(to_string(value))}</td>), else: ""}
+          </tr>
+        </table>
+      </td>
+    </tr>
+    """
+  end
+
+  # Renders the item label as either an anchor or plain text depending on
+  # whether the item has a `url`. URL escaping: only the href value goes
+  # through absolute_url+escape; label text always escapes.
+  defp item_label_with_url(item, base_url, _branding) do
+    label_text = escape(to_string(item["label"] || ""))
+    case item["url"] do
+      u when is_binary(u) and u != "" ->
+        ~s(<a href="#{absolute_url(u, base_url)}" style="color:#f0eeff;text-decoration:none;">#{label_text}</a>)
+      _ ->
+        label_text
+    end
+  end
+
+  # Renders the optional badge pill (used by list and card layouts). Empty
+  # string when no badge is set.
+  defp badge_pill(item, branding) do
+    case item["badge"] do
+      b when is_binary(b) and b != "" ->
+        color = item["badge_color"] || branding.accent
+        bg    = color <> "22"
+        ~s(<span style="display:inline-block;padding:1px 6px;margin-left:4px;border-radius:8px;background:#{bg};color:#{color};font-size:10px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;vertical-align:middle;">#{escape(b)}</span>)
+      _ ->
+        ""
+    end
+  end
+
+  # Coerces an item's `value` field to a number for bar-scaling. Accepts
+  # raw integers, floats, strings starting with digits ("1,204 logs"),
+  # and falls back to 1 for non-numeric values.
+  defp numeric_value(item) do
+    case item["value"] do
+      n when is_integer(n) -> n
+      f when is_float(f)   -> f
+      s when is_binary(s)  ->
+        case Integer.parse(String.replace(s, ~r/[^\d\-]/, "")) do
+          {n, _} -> n
+          :error -> 1
+        end
+      _ -> 1
+    end
+  end
+
+  # Resolves a possibly-relative URL against the site's base URL. Lets
+  # extensions return either "/path/to/thing" or "https://elsewhere.com/x".
+  defp absolute_url("http" <> _ = absolute, _base), do: absolute
+  defp absolute_url("//" <> _ = protocol_relative, _base), do: protocol_relative
+  defp absolute_url(<<"/", _::binary>> = path, base), do: base <> path
+  defp absolute_url(other, _base), do: other
+
+  # Conservative HTML escaping for text that may appear inside an attribute
+  # OR element content. Strips the five XML special characters.
+  defp escape(nil), do: ""
+  defp escape(s) when is_binary(s) do
+    s
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
+    |> String.replace("'", "&#39;")
+  end
+  defp escape(other), do: escape(to_string(other))
 
   defp build_digest_text(user, digest, site_name, url) do
     period = digest.period_label
@@ -619,6 +926,39 @@ defmodule Nexus.Mailer do
         {"spaces", spaces} when is_list(spaces) and spaces != [] ->
           space_lines = Enum.map(spaces, fn s -> "#{s.name}: #{s.post_count} posts" end)
           ["TRENDING SPACES", ""] ++ space_lines ++ [""]
+        # Structured-data extension sections: %{"title", "items", optional "cta"}.
+        # Each item renders as a plain-text line using label / sublabel / value.
+        # Layout-specific HTML niceties (medals, bars, pills) collapse to plain
+        # text — the structured shape carries all the data we need to do this.
+        {_key, %{"items" => items} = section} when is_list(items) and items != [] ->
+          title = (section["title"] || "") |> String.upcase()
+          ext_lines = Enum.with_index(items, 1) |> Enum.map(fn {item, i} ->
+            label    = to_string(item["label"] || "")
+            value    = item["value"]
+            sublabel = item["sublabel"]
+            url_part = case item["url"] do
+              u when is_binary(u) and u != "" -> " — #{absolute_url(u, url)}"
+              _ -> ""
+            end
+            parts = [
+              "#{i}. #{label}",
+              if(value,    do: " (#{value})", else: ""),
+              if(sublabel, do: " — #{sublabel}", else: ""),
+              url_part
+            ]
+            Enum.join(parts)
+          end)
+          cta_line = case section["cta"] do
+            %{"label" => l, "url" => u} when is_binary(l) and is_binary(u) ->
+              ["", "#{l}: #{absolute_url(u, url)}"]
+            _ -> []
+          end
+          [title, ""] ++ ext_lines ++ cta_line ++ [""]
+        # _rendered_html extensions can't degrade to text automatically.
+        # Best we can do: emit the title (if known via section_order key) and
+        # a placeholder line so the recipient knows something was there.
+        {key, %{"_rendered_html" => html}} when is_binary(html) and html != "" ->
+          [String.upcase(to_string(key)), "(see HTML version)", ""]
         _ -> []
       end
     end)
