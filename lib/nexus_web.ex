@@ -1,5 +1,5 @@
 defmodule NexusWeb do
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt sw.js)
+  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt sw.js manifest_schema.json)
 
   def router do
     quote do

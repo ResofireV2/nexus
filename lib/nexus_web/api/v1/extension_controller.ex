@@ -62,7 +62,6 @@ defmodule NexusWeb.API.V1.ExtensionController do
           # JSON-safe transport; the UI just displays it as a string.
           module:          info.module && inspect(info.module),
           hooks:           info.hooks,
-          slots:           info.slots,
           routes:          info.routes,
           digest_sections: info.digest_sections,
           declared:        declared,
@@ -192,26 +191,6 @@ defmodule NexusWeb.API.V1.ExtensionController do
           end
       end
     end
-  end
-
-  # GET /api/v1/slots/:slot  (public — no auth required)
-  def slots(conn, %{"slot" => slot}) do
-    components = Extensions.slots_for(slot)
-    json(conn, %{slot: slot, components: components})
-  end
-
-  # GET /api/v1/slots/all  (public — returns all unique JS bundle URLs for enabled extensions)
-  def slots_all(conn, _params) do
-    bundles =
-      Extensions.list_extensions()
-      |> Enum.filter(& &1.enabled && &1.js_bundle_url)
-      |> Enum.map(fn ext ->
-        vsn = ext.installed_version || ext.version || "0"
-        "#{ext.js_bundle_url}?v=#{vsn}"
-      end)
-      |> Enum.uniq()
-
-    json(conn, %{bundles: bundles})
   end
 
   # ---------------------------------------------------------------------------

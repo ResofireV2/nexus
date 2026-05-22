@@ -128,7 +128,6 @@ defmodule NexusWeb.Router do
     get "/badges",                 BadgeController,  :index
     get "/leaderboard/streaks",    LeaderboardController, :streaks
     get "/leaderboard",            LeaderboardController, :index
-    get "/slots/all",              ExtensionController,  :slots_all
     get "/pwa/vapid-public-key",   PwaController,        :vapid_public_key
   end
 
@@ -365,12 +364,6 @@ defmodule NexusWeb.Router do
     # `nexus-update` script, not through the web UI.
     get    "/updates/check",           AdminController,  :check_update
     get    "/composition-stats",       AdminController,  :composition_stats
-  end
-
-  # Public slot endpoint
-  scope "/api/v1", NexusWeb.API.V1 do
-    pipe_through :api
-    get "/slots/:slot", ExtensionController, :slots
   end
 
   # Extension static assets — served without pipeline restrictions so script tags

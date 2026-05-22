@@ -11,15 +11,19 @@ defmodule Nexus.Extensions.Registry do
   Tables:
   - :nexus_ext_modules  — slug → module
   - :nexus_ext_hooks    — {event, slug} → {module, priority}
-  - :nexus_ext_slots    — {slot, slug}  → {component, priority, js_bundle_url}
   - :nexus_ext_routes   — slug → [{path, plug, opts}]
   - :nexus_ext_digest   — {section_key, slug} → {label, icon, enabled_by_default}
   - :nexus_ext_declared — slug → manifest    (normalized JSON manifest; the
                                              extension's declared contract,
                                              stored alongside the live
                                              registrations so the admin
-                                             runtime panel can compare them
-                                             in sub-stage 7D)
+                                             runtime panel can compare them)
+
+  UI slots are not tracked server-side — they're a purely client-side
+  concept. Extensions register slot components via NexusExtensions.registerSlot
+  from their JS bundle, and React reads them from window.NexusExtensions._slots
+  at render time. The admin runtime panel reads the same client-side state
+  and compares it against the manifest's declared slots.
   """
 
   use GenServer
@@ -29,7 +33,6 @@ defmodule Nexus.Extensions.Registry do
   @tables [
     :nexus_ext_modules,
     :nexus_ext_hooks,
-    :nexus_ext_slots,
     :nexus_ext_routes,
     :nexus_ext_digest,
     :nexus_ext_declared,
@@ -99,16 +102,6 @@ defmodule Nexus.Extensions.Registry do
     |> Enum.map(fn {{_event, slug}, {module, _priority}} -> {slug, module} end)
   end
 
-  @doc "Returns slot registrations for a slot name, ordered by priority."
-  def slots_for(slot) do
-    :ets.match_object(:nexus_ext_slots, {{slot, :_}, :_})
-    |> Enum.sort_by(fn {{_slot, _slug}, {_component, priority, _url}} -> priority end)
-    |> Enum.map(fn {{_slot, slug}, {component, priority, js_url}} ->
-      %{slot: slot, extension_slug: slug, component: component,
-        priority: priority, js_bundle_url: js_url}
-    end)
-  end
-
   @doc "Returns API routes for an extension slug."
   def routes_for(slug) do
     case :ets.lookup(:nexus_ext_routes, slug) do
@@ -134,20 +127,22 @@ defmodule Nexus.Extensions.Registry do
       %{
         module:          atom | nil,
         hooks:           [%{event: String.t(), priority: integer()}],
-        slots:           [%{slot: String.t(), component: String.t(), priority: integer(), js_bundle_url: String.t() | nil}],
         routes:          [%{prefix: String.t(), plug: String.t(), opts: list()}],
         digest_sections: [%{key: String.t(), label: String.t(), icon: String.t(), enabled_by_default: boolean()}],
       }
 
-  Returns `nil` for `module` if the slug is not currently loaded. Hooks/slots/
-  routes/digest_sections will then be empty lists, since registration is
-  keyed on slug and removed on unregister.
+  Returns `nil` for `module` if the slug is not currently loaded. Lists
+  will then be empty, since registration is keyed on slug and removed on
+  unregister.
+
+  Slot registrations are NOT returned — they live entirely on the client
+  side (window.NexusExtensions._slots). The admin runtime panel reads
+  them from there and compares against the manifest's declared slots.
   """
   def runtime_info(slug) when is_binary(slug) do
     %{
       module:          get_module(slug),
       hooks:           hooks_for_slug(slug),
-      slots:           slots_for_slug(slug),
       routes:          routes_info_for_slug(slug),
       digest_sections: digest_sections_for_slug(slug),
     }
@@ -158,14 +153,6 @@ defmodule Nexus.Extensions.Registry do
     |> Enum.sort_by(fn {{_event, _slug}, {_module, priority}} -> priority end)
     |> Enum.map(fn {{event, _slug}, {_module, priority}} ->
       %{event: event, priority: priority}
-    end)
-  end
-
-  defp slots_for_slug(slug) do
-    :ets.match_object(:nexus_ext_slots, {{:_, slug}, :_})
-    |> Enum.sort_by(fn {{_slot, _slug}, {_component, priority, _url}} -> priority end)
-    |> Enum.map(fn {{slot, _slug}, {component, priority, js_url}} ->
-      %{slot: slot, component: component, priority: priority, js_bundle_url: js_url}
     end)
   end
 
@@ -255,7 +242,6 @@ defmodule Nexus.Extensions.Registry do
     :ets.delete(:nexus_ext_declared, slug)
 
     :ets.match_delete(:nexus_ext_hooks,   {{:_, slug}, :_})
-    :ets.match_delete(:nexus_ext_slots,   {{:_, slug}, :_})
     :ets.match_delete(:nexus_ext_digest,  {{:_, slug}, :_})
     :ets.delete(:nexus_ext_routes, slug)
 

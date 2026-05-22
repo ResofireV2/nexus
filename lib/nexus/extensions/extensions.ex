@@ -740,16 +740,6 @@ defmodule Nexus.Extensions do
   def fire(_event, _payload), do: :ok
 
   # ---------------------------------------------------------------------------
-  # Slot lookup
-  # ---------------------------------------------------------------------------
-
-  def slots_for(slot_name) when slot_name in @ui_slots do
-    Nexus.Extensions.Registry.slots_for(slot_name)
-  end
-
-  def slots_for(_), do: []
-
-  # ---------------------------------------------------------------------------
   # Private — manifest helpers
   # ---------------------------------------------------------------------------
 
