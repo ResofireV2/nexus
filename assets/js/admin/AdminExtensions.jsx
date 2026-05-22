@@ -256,10 +256,17 @@ function DeclaredVsRegisteredPanel({slug, data}) {
                               registered: liveToolbarButtons,    side: "client"},
     {kind: "digest_sections", declared: (declared.digest_sections || []).map(s => s.key),
                               registered: serverDigest,          side: "server"},
-    {kind: "admin_panel",     declared: declared.admin_panel ? ["✓ declared"] : [],
-                              registered: liveAdminPanel ? ["✓ registered"] : [],   side: "client"},
-    {kind: "explore",         declared: declared.explore ? ["✓ declared"] : [],
-                              registered: liveExploreItem ? ["✓ registered"] : [],  side: "client"},
+    // Presence-check rows: admin_panel and explore are declared as singular
+    // map entries on the manifest, not arrays of ids. They either exist or
+    // they don't — there's no id to compare. We use a single sentinel "✓"
+    // on both sides so the set-comparison logic in ComparisonRow correctly
+    // identifies them as matching when both sides have something. The
+    // "declared" / "registered" semantics come from the column position,
+    // not the sentinel text itself.
+    {kind: "admin_panel",     declared: declared.admin_panel ? ["✓"] : [],
+                              registered: liveAdminPanel ? ["✓"] : [],   side: "client"},
+    {kind: "explore",         declared: declared.explore ? ["✓"] : [],
+                              registered: liveExploreItem ? ["✓"] : [],  side: "client"},
   ].filter(r => r.declared.length > 0 || r.registered.length > 0);
 
   if (rows.length === 0) {
