@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus/manifest_schema.json",
+  "title": "Nexus extension manifest",
+  "description": "Schema for the manifest.json document that declares a Nexus extension's identity and all surfaces it contributes to the forum. Mirrors the validation behaviour of Nexus.Extensions.ManifestSchema in the Elixir codebase.",
+  "type": "object",
+  "required": ["manifest_version", "name", "slug", "version", "module"],
+  "additionalProperties": true,
+
+  "properties": {
+    "manifest_version": {
+      "description": "Manifest schema version. Currently only version 2 is supported.",
+      "type": "integer",
+      "enum": [2]
+    },
+
+    "name": {
+      "description": "Human-readable name shown to admins and in the extension store.",
+      "type": "string",
+      "minLength": 1
+    },
+    "slug": {
+      "description": "Lowercase, URL-safe identifier. Used as the extension's namespace under /ext/<slug>.",
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "version": {
+      "description": "Semantic version of this manifest (e.g. \"1.0.0\" or \"1.0.0-beta.1\").",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z\\-.]+)?$"
+    },
+
+    "description": { "type": "string" },
+    "author":      { "type": "string" },
+
+    "homepage":   { "type": "string", "format": "uri-reference" },
+    "repository": { "type": "string", "format": "uri-reference" },
+    "license":    { "type": "string" },
+    "tags":       { "type": "array", "items": { "type": "string" } },
+    "compatible_with": {
+      "description": "Semver-style constraint on the Nexus version this extension supports (e.g. \"^4.0\").",
+      "type": "string"
+    },
+
+    "logo_url":   { "type": "string" },
+    "banner_url": { "type": "string" },
+
+    "module": {
+      "description": "The Elixir module name implementing Nexus.Extensions.Behaviour (e.g. \"Gamepedia\" or \"Gamepedia.Extension\").",
+      "type": "string",
+      "pattern": "^[A-Z][A-Za-z0-9_.]*$"
+    },
+    "js_bundle": {
+      "description": "Relative path to the JS bundle within the extension's priv/static directory (e.g. \"gamepedia.js\"). Must not be absolute or contain '..'.",
+      "type": ["string", "null"]
+    },
+
+    "settings_schema": {
+      "description": "Declarative schema for the admin settings form. See EXTENSION_GUIDE.md.",
+      "type": "object"
+    },
+    "settings_tabs": {
+      "description": "Optional tab grouping for the admin settings form.",
+      "type": "array"
+    },
+
+    "capabilities": {
+      "description": "Capabilities this extension declares it needs. Enforcement is planned for a future Nexus version; declared values are advisory for now.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "side_data": {
+      "description": "Entity types this extension wants to attach side-data to (e.g. [\"post\", \"user\"]). Declared now; enforced once the side-data feature ships.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+
+    "hooks": {
+      "description": "Hook event names this extension's handle_event/3 callback subscribes to.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "post_created", "post_updated", "post_deleted",
+          "reply_created",
+          "user_registered", "user_login",
+          "reaction_added",
+          "report_created"
+        ]
+      }
+    },
+
+    "slots": {
+      "description": "UI slot names this extension's JS bundle registers components into.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "feed_top", "feed_bottom", "feed_sidebar",
+          "post_header", "post_footer", "post_sidebar",
+          "reply_footer",
+          "profile_header", "profile_sidebar",
+          "nav_top", "nav_bottom",
+          "admin_sidebar"
+        ]
+      }
+    },
+
+    "routes": {
+      "description": "SPA routes this extension owns. Paths are relative to /ext/<slug>; do not include /ext/ yourself.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^/(?!ext/)",
+            "description": "Path relative to /ext/<slug>, must start with /."
+          },
+          "title": {
+            "type": ["string", "null"],
+            "description": "Title shown in the page back-header. Optional."
+          }
+        }
+      }
+    },
+
+    "admin_panel": {
+      "description": "Adds an entry to the admin sidebar under 'installed extensions'. The component is registered via the JS bundle.",
+      "type": ["object", "null"],
+      "required": ["label", "icon"],
+      "properties": {
+        "label": { "type": "string" },
+        "icon":  { "type": "string", "description": "Font Awesome solid icon class, e.g. \"fa-gamepad\"." }
+      }
+    },
+
+    "explore": {
+      "description": "Adds an entry to the left sidebar Explore section.",
+      "type": ["object", "null"],
+      "required": ["label", "icon"],
+      "properties": {
+        "label": { "type": "string" },
+        "icon":  { "type": "string" },
+        "path":  {
+          "type": "string",
+          "pattern": "^/(?!ext/)",
+          "description": "Path within your extension namespace (defaults to /). The Explore item links to /ext/<slug><path>."
+        }
+      }
+    },
+
+    "digest_sections": {
+      "description": "Sections this extension contributes to the digest email. Each section's data is produced by handle_digest_section/3.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label"],
+        "properties": {
+          "key":   { "type": "string" },
+          "label": { "type": "string" },
+          "icon":  { "type": "string" },
+          "enabled_by_default": { "type": "boolean" }
+        }
+      }
+    },
+
+    "right_widgets": {
+      "description": "Right sidebar widgets this extension's JS bundle registers.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {
+          "id":    { "type": "string" },
+          "label": { "type": "string" },
+          "priority": { "type": "number" },
+          "scope": {
+            "description": "Where the widget appears. Defaults to \"extension\".",
+            "oneOf": [
+              { "type": "string", "enum": ["extension", "global"] },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^/(?!ext/)" },
+                      { "type": "array", "items": { "type": "string", "pattern": "^/(?!ext/)" } }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "corePages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "feed", "post", "profile", "members", "leaderboard",
+                        "badges", "search", "notifications", "messages",
+                        "saved", "drafts"
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+
+    "toolbar_buttons": {
+      "description": "Composer toolbar buttons this extension's JS bundle registers.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "icon", "tip"],
+        "properties": {
+          "id":   { "type": "string" },
+          "icon": {
+            "type": "string",
+            "description": "Full Font Awesome class with style prefix (e.g. \"fa-solid fa-gamepad\")."
+          },
+          "tip":   { "type": "string" },
+          "scope": { "type": "string", "enum": ["both", "posts", "replies"] },
+          "priority": { "type": "number" }
+        }
+      }
+    }
+  }
+}

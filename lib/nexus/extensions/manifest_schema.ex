@@ -1,0 +1,812 @@
+defmodule Nexus.Extensions.ManifestSchema do
+  @moduledoc """
+  Validates extension `manifest.json` documents against the manifest_version 2
+  schema.
+
+  An extension's manifest is the canonical declaration of what the extension
+  contributes to Nexus — hooks it handles, slots it fills, routes it owns,
+  admin and explore entries it adds, right sidebar widgets it provides,
+  toolbar buttons it registers, digest sections it produces, capabilities it
+  claims, and so on.
+
+  This module is the single source of truth for what a valid manifest looks
+  like. The install flow, the loader, the admin UI, and any tooling that
+  inspects extensions all flow through `validate/1`.
+
+  ## Strictness
+
+  The validator is strict about structure and identifiers it can verify
+  against the running Nexus instance:
+
+    * Unknown hook event names → hard error (typo, will silently never fire).
+    * Unknown slot names → hard error (typo, will silently never render).
+    * Malformed routes/widgets/buttons → hard error.
+
+  It is permissive about forward-compatible declarations Nexus can't yet
+  resolve:
+
+    * Unknown capability strings → warning (capabilities are declared in
+      piece 7 but only enforced in a later piece; rejecting unknown ones
+      would block early adopters from declaring future capabilities).
+    * Unknown side_data entity types → warning (same reasoning).
+
+  Warnings are returned alongside the normalized manifest on success so
+  the caller can decide whether to surface them. Errors halt validation.
+
+  ## Return shape
+
+      {:ok, normalized_manifest, warnings}
+      {:error, errors}
+
+  Where `errors` and `warnings` are lists of human-readable strings.
+
+  Errors are accumulated; the validator reports as many problems as it can
+  in one pass rather than bailing on the first.
+
+  ## Manifest schema (manifest_version 2)
+
+  See the published JSON Schema document at `/manifest_schema.json` for the
+  authoritative definition. This module's `validate/1` produces identical
+  accept/reject behaviour.
+  """
+
+  # ---------------------------------------------------------------------------
+  # Authoritative whitelists
+  # ---------------------------------------------------------------------------
+
+  # Mirror of Nexus.Extensions.@hook_events. Kept here as a literal so this
+  # module has no compile-time dependency on the context module — keeps the
+  # validator usable from any phase of the install pipeline.
+  @known_hook_events ~w(
+    post_created
+    post_updated
+    post_deleted
+    reply_created
+    user_registered
+    user_login
+    reaction_added
+    report_created
+  )
+
+  # Mirror of Nexus.Extensions.@ui_slots.
+  @known_slots ~w(
+    feed_top
+    feed_bottom
+    feed_sidebar
+    post_header
+    post_footer
+    post_sidebar
+    reply_footer
+    profile_header
+    profile_sidebar
+    nav_top
+    nav_bottom
+    admin_sidebar
+  )
+
+  # Mirror of CORE_PAGES in assets/js/admin/AdminLayout.jsx. Used to validate
+  # right-widget `scope: { corePages: [...] }` references.
+  @known_core_pages ~w(
+    feed post profile members leaderboard badges search
+    notifications messages saved drafts
+  )
+
+  @supported_manifest_versions [2]
+
+  @slug_regex ~r/^[a-z0-9-]+$/
+  @semver_regex ~r/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z\-.]+)?$/
+
+  def known_hook_events, do: @known_hook_events
+  def known_slots,       do: @known_slots
+  def known_core_pages,  do: @known_core_pages
+  def supported_manifest_versions, do: @supported_manifest_versions
+
+  # ---------------------------------------------------------------------------
+  # Public API
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Validates a parsed manifest map.
+
+  Accepts a map with string keys (as produced by `Jason.decode/1` on a
+  manifest.json document). Returns `{:ok, normalized, warnings}` if the
+  manifest is structurally valid, or `{:error, errors}` if not.
+
+  The `normalized` manifest has all optional fields filled with their
+  defaults so downstream code never needs to do `manifest["foo"] || default`.
+  """
+  @spec validate(map()) :: {:ok, map(), [String.t()]} | {:error, [String.t()]}
+  def validate(manifest) when is_map(manifest) do
+    acc = %{errors: [], warnings: [], normalized: %{}}
+
+    acc
+    |> check_manifest_version(manifest)
+    |> check_identity(manifest)
+    |> check_metadata(manifest)
+    |> check_module_and_bundle(manifest)
+    |> check_settings(manifest)
+    |> check_capabilities(manifest)
+    |> check_side_data(manifest)
+    |> check_hooks(manifest)
+    |> check_slots(manifest)
+    |> check_routes(manifest)
+    |> check_admin_panel(manifest)
+    |> check_explore(manifest)
+    |> check_digest_sections(manifest)
+    |> check_right_widgets(manifest)
+    |> check_toolbar_buttons(manifest)
+    |> finalize()
+  end
+
+  def validate(other) do
+    {:error, ["manifest must be a JSON object, got: #{inspect(other)}"]}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Field-by-field checks
+  #
+  # Each check_X function takes the accumulator + raw manifest, validates the
+  # relevant field(s), and returns an updated accumulator. Errors are pushed
+  # onto :errors; warnings onto :warnings; the cleaned value (with defaults
+  # applied) onto :normalized under the same key.
+  # ---------------------------------------------------------------------------
+
+  defp check_manifest_version(acc, m) do
+    case m["manifest_version"] do
+      v when v in @supported_manifest_versions ->
+        put_norm(acc, "manifest_version", v)
+
+      nil ->
+        err(acc, "manifest_version is required (supported: #{inspect(@supported_manifest_versions)})")
+
+      other ->
+        err(acc, "manifest_version must be one of #{inspect(@supported_manifest_versions)}, got: #{inspect(other)}")
+    end
+  end
+
+  defp check_identity(acc, m) do
+    acc
+    |> require_string(m, "name")
+    |> require_string(m, "slug")
+    |> validate_slug(m)
+    |> require_string(m, "version")
+    |> validate_semver(m, "version")
+  end
+
+  defp check_metadata(acc, m) do
+    acc
+    |> optional_string(m, "description")
+    |> optional_string(m, "author")
+    |> optional_url(m, "homepage")
+    |> optional_url(m, "repository")
+    |> optional_string(m, "license")
+    |> optional_url(m, "logo_url")
+    |> optional_url(m, "banner_url")
+    |> optional_string_array(m, "tags")
+    |> optional_string(m, "compatible_with")
+  end
+
+  defp check_module_and_bundle(acc, m) do
+    acc =
+      case m["module"] do
+        nil ->
+          err(acc, "module is required (the Elixir module name implementing Nexus.Extensions.Behaviour, e.g. \"Gamepedia\")")
+
+        v when is_binary(v) ->
+          if Regex.match?(~r/^[A-Z][A-Za-z0-9_.]*$/, v) do
+            put_norm(acc, "module", v)
+          else
+            err(acc, "module must be a valid Elixir module name, got: #{inspect(v)}")
+          end
+
+        other ->
+          err(acc, "module must be a string, got: #{inspect(other)}")
+      end
+
+    acc =
+      case m["js_bundle"] do
+        nil ->
+          put_norm(acc, "js_bundle", nil)
+
+        v when is_binary(v) ->
+          cond do
+            String.starts_with?(v, "/") ->
+              err(acc, "js_bundle must be a relative path inside priv/static/, not absolute (got: #{inspect(v)})")
+
+            String.contains?(v, "..") ->
+              err(acc, "js_bundle must not contain '..' path traversal (got: #{inspect(v)})")
+
+            true ->
+              put_norm(acc, "js_bundle", v)
+          end
+
+        other ->
+          err(acc, "js_bundle must be a string or null, got: #{inspect(other)}")
+      end
+
+    acc
+  end
+
+  defp check_settings(acc, m) do
+    acc
+    |> put_norm("settings_schema", m["settings_schema"] || %{})
+    |> put_norm("settings_tabs",   m["settings_tabs"]   || [])
+  end
+
+  defp check_capabilities(acc, m) do
+    case m["capabilities"] do
+      nil ->
+        put_norm(acc, "capabilities", [])
+
+      list when is_list(list) ->
+        case Enum.find(list, &(not is_binary(&1))) do
+          nil ->
+            # All strings. Unknown capability names are warnings (declare-now,
+            # enforce-later per the design).
+            put_norm(acc, "capabilities", list)
+
+          bad ->
+            err(acc, "capabilities entries must be strings, got: #{inspect(bad)}")
+        end
+
+      other ->
+        err(acc, "capabilities must be a list of strings, got: #{inspect(other)}")
+    end
+  end
+
+  defp check_side_data(acc, m) do
+    case m["side_data"] do
+      nil ->
+        put_norm(acc, "side_data", [])
+
+      list when is_list(list) ->
+        case Enum.find(list, &(not is_binary(&1))) do
+          nil ->
+            put_norm(acc, "side_data", list)
+
+          bad ->
+            err(acc, "side_data entries must be strings, got: #{inspect(bad)}")
+        end
+
+      other ->
+        err(acc, "side_data must be a list of strings, got: #{inspect(other)}")
+    end
+  end
+
+  defp check_hooks(acc, m) do
+    case m["hooks"] do
+      nil ->
+        put_norm(acc, "hooks", [])
+
+      list when is_list(list) ->
+        {good, bad} =
+          Enum.split_with(list, fn h ->
+            is_binary(h) and h in @known_hook_events
+          end)
+
+        acc = put_norm(acc, "hooks", good)
+
+        Enum.reduce(bad, acc, fn entry, a ->
+          cond do
+            not is_binary(entry) ->
+              err(a, "hooks entries must be strings, got: #{inspect(entry)}")
+
+            true ->
+              err(a, "hooks entry #{inspect(entry)} is not a known hook event. Known events: #{Enum.join(@known_hook_events, ", ")}")
+          end
+        end)
+
+      other ->
+        err(acc, "hooks must be a list of strings, got: #{inspect(other)}")
+    end
+  end
+
+  defp check_slots(acc, m) do
+    case m["slots"] do
+      nil ->
+        put_norm(acc, "slots", [])
+
+      list when is_list(list) ->
+        {good, bad} =
+          Enum.split_with(list, fn s ->
+            is_binary(s) and s in @known_slots
+          end)
+
+        acc = put_norm(acc, "slots", good)
+
+        Enum.reduce(bad, acc, fn entry, a ->
+          cond do
+            not is_binary(entry) ->
+              err(a, "slots entries must be strings, got: #{inspect(entry)}")
+
+            true ->
+              err(a, "slots entry #{inspect(entry)} is not a known UI slot. Known slots: #{Enum.join(@known_slots, ", ")}")
+          end
+        end)
+
+      other ->
+        err(acc, "slots must be a list of strings, got: #{inspect(other)}")
+    end
+  end
+
+  defp check_routes(acc, m) do
+    case m["routes"] do
+      nil ->
+        put_norm(acc, "routes", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {acc_good, acc_err} ->
+            case validate_route_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | acc_good], acc_err}
+              {:error, messages} -> {acc_good, messages ++ acc_err}
+            end
+          end)
+
+        acc = put_norm(acc, "routes", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "routes must be a list of objects, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_route_entry(entry, idx) when is_map(entry) do
+    case entry["path"] do
+      nil ->
+        {:error, ["routes[#{idx}].path is required"]}
+
+      p when is_binary(p) ->
+        errors =
+          cond do
+            not String.starts_with?(p, "/") ->
+              ["routes[#{idx}].path must start with '/' (got: #{inspect(p)})"]
+
+            String.starts_with?(p, "/ext/") ->
+              ["routes[#{idx}].path must not include /ext/ — Nexus prefixes it automatically (got: #{inspect(p)})"]
+
+            true ->
+              []
+          end
+
+        if errors == [] do
+          title =
+            case entry["title"] do
+              nil -> nil
+              t when is_binary(t) -> t
+              _ -> nil
+            end
+
+          {:ok, %{"path" => p, "title" => title}}
+        else
+          {:error, errors}
+        end
+
+      other ->
+        {:error, ["routes[#{idx}].path must be a string, got: #{inspect(other)}"]}
+    end
+  end
+
+  defp validate_route_entry(other, idx) do
+    {:error, ["routes[#{idx}] must be an object with a 'path' field, got: #{inspect(other)}"]}
+  end
+
+  defp check_admin_panel(acc, m) do
+    case m["admin_panel"] do
+      nil ->
+        put_norm(acc, "admin_panel", nil)
+
+      %{} = obj ->
+        case validate_label_icon_pair(obj, "admin_panel") do
+          {:ok, normalized}  -> put_norm(acc, "admin_panel", normalized)
+          {:error, messages} -> Enum.reduce(messages, acc, &err(&2, &1))
+        end
+
+      other ->
+        err(acc, "admin_panel must be an object or null, got: #{inspect(other)}")
+    end
+  end
+
+  defp check_explore(acc, m) do
+    case m["explore"] do
+      nil ->
+        put_norm(acc, "explore", nil)
+
+      %{} = obj ->
+        case validate_label_icon_pair(obj, "explore") do
+          {:ok, normalized} ->
+            # explore additionally supports an optional `path` field (defaults
+            # to "/" — Nexus prefixes /ext/<slug> automatically)
+            path =
+              case obj["path"] do
+                nil -> "/"
+                p when is_binary(p) and binary_part(p, 0, 1) == "/" -> p
+                _ -> "/"
+              end
+
+            put_norm(acc, "explore", Map.put(normalized, "path", path))
+
+          {:error, messages} ->
+            Enum.reduce(messages, acc, &err(&2, &1))
+        end
+
+      other ->
+        err(acc, "explore must be an object or null, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_label_icon_pair(obj, field) do
+    label = obj["label"]
+    icon  = obj["icon"]
+
+    errors =
+      [
+        if(is_binary(label), do: nil, else: "#{field}.label must be a string"),
+        if(is_binary(icon),  do: nil, else: "#{field}.icon must be a string")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      {:ok, %{"label" => label, "icon" => icon}}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp check_digest_sections(acc, m) do
+    case m["digest_sections"] do
+      nil ->
+        put_norm(acc, "digest_sections", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_digest_section_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
+
+        acc = put_norm(acc, "digest_sections", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "digest_sections must be a list, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_digest_section_entry(entry, idx) when is_map(entry) do
+    key = entry["key"]
+    label = entry["label"]
+    icon = entry["icon"]
+    enabled_default = entry["enabled_by_default"]
+
+    errors =
+      [
+        if(is_binary(key)   and key   != "", do: nil, else: "digest_sections[#{idx}].key is required (string)"),
+        if(is_binary(label) and label != "", do: nil, else: "digest_sections[#{idx}].label is required (string)"),
+        if(is_nil(icon) or is_binary(icon),  do: nil, else: "digest_sections[#{idx}].icon must be a string if present"),
+        if(is_nil(enabled_default) or is_boolean(enabled_default),
+           do: nil,
+           else: "digest_sections[#{idx}].enabled_by_default must be a boolean if present")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      {:ok,
+       %{
+         "key"                => key,
+         "label"              => label,
+         "icon"               => icon,
+         "enabled_by_default" => enabled_default || false
+       }}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_digest_section_entry(other, idx),
+    do: {:error, ["digest_sections[#{idx}] must be an object, got: #{inspect(other)}"]}
+
+  defp check_right_widgets(acc, m) do
+    case m["right_widgets"] do
+      nil ->
+        put_norm(acc, "right_widgets", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_right_widget_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
+
+        acc = put_norm(acc, "right_widgets", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "right_widgets must be a list, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_right_widget_entry(entry, idx) when is_map(entry) do
+    id       = entry["id"]
+    label    = entry["label"]
+    scope    = entry["scope"]
+    priority = entry["priority"]
+
+    base_errors =
+      [
+        if(is_binary(id)    and id    != "", do: nil, else: "right_widgets[#{idx}].id is required (string)"),
+        if(is_binary(label) and label != "", do: nil, else: "right_widgets[#{idx}].label is required (string)"),
+        if(is_nil(priority) or is_number(priority), do: nil, else: "right_widgets[#{idx}].priority must be a number if present")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    {scope_errors, normalized_scope} = validate_widget_scope(scope, "right_widgets[#{idx}]")
+
+    errors = base_errors ++ scope_errors
+
+    if errors == [] do
+      {:ok,
+       %{
+         "id"       => id,
+         "label"    => label,
+         "scope"    => normalized_scope,
+         "priority" => priority || 50
+       }}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_right_widget_entry(other, idx),
+    do: {:error, ["right_widgets[#{idx}] must be an object, got: #{inspect(other)}"]}
+
+  # Scope grammar mirrors the JS-side registerRightWidget contract:
+  #   "extension" (default), "global",
+  #   {"path": "/x"} | {"path": ["/x", "/y"]},
+  #   {"corePages": ["profile"]}
+  defp validate_widget_scope(nil, _ctx), do: {[], "extension"}
+  defp validate_widget_scope("extension", _ctx), do: {[], "extension"}
+  defp validate_widget_scope("global", _ctx), do: {[], "global"}
+
+  defp validate_widget_scope(%{"path" => p}, ctx) when is_binary(p) do
+    cond do
+      not String.starts_with?(p, "/") ->
+        {["#{ctx}.scope.path must start with '/' (got: #{inspect(p)})"], nil}
+
+      String.starts_with?(p, "/ext/") ->
+        {["#{ctx}.scope.path must not include /ext/ — Nexus prefixes it automatically (got: #{inspect(p)})"], nil}
+
+      true ->
+        {[], %{"path" => [p]}}
+    end
+  end
+
+  defp validate_widget_scope(%{"path" => paths}, ctx) when is_list(paths) do
+    errors =
+      paths
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {p, i} ->
+        cond do
+          not is_binary(p) ->
+            ["#{ctx}.scope.path[#{i}] must be a string, got: #{inspect(p)}"]
+
+          not String.starts_with?(p, "/") ->
+            ["#{ctx}.scope.path[#{i}] must start with '/' (got: #{inspect(p)})"]
+
+          String.starts_with?(p, "/ext/") ->
+            ["#{ctx}.scope.path[#{i}] must not include /ext/ — Nexus prefixes it automatically (got: #{inspect(p)})"]
+
+          true ->
+            []
+        end
+      end)
+
+    if errors == [] do
+      {[], %{"path" => paths}}
+    else
+      {errors, nil}
+    end
+  end
+
+  defp validate_widget_scope(%{"corePages" => pages}, ctx) when is_list(pages) do
+    {good, errors} =
+      pages
+      |> Enum.with_index()
+      |> Enum.reduce({[], []}, fn {p, i}, {g, e} ->
+        cond do
+          not is_binary(p) ->
+            {g, ["#{ctx}.scope.corePages[#{i}] must be a string, got: #{inspect(p)}" | e]}
+
+          p not in @known_core_pages ->
+            {g,
+             ["#{ctx}.scope.corePages[#{i}] is not a known core page #{inspect(p)}. Known: #{Enum.join(@known_core_pages, ", ")}"
+              | e]}
+
+          true ->
+            {[p | g], e}
+        end
+      end)
+
+    if errors == [] do
+      {[], %{"corePages" => Enum.reverse(good)}}
+    else
+      {Enum.reverse(errors), nil}
+    end
+  end
+
+  defp validate_widget_scope(other, ctx) do
+    {["#{ctx}.scope must be \"extension\", \"global\", {\"path\": ...}, or {\"corePages\": [...]}, got: #{inspect(other)}"], nil}
+  end
+
+  defp check_toolbar_buttons(acc, m) do
+    case m["toolbar_buttons"] do
+      nil ->
+        put_norm(acc, "toolbar_buttons", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_toolbar_button_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
+
+        acc = put_norm(acc, "toolbar_buttons", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "toolbar_buttons must be a list, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_toolbar_button_entry(entry, idx) when is_map(entry) do
+    id       = entry["id"]
+    icon     = entry["icon"]
+    tip      = entry["tip"]
+    scope    = entry["scope"]
+    priority = entry["priority"]
+
+    scope_ok = scope in [nil, "both", "posts", "replies"]
+
+    errors =
+      [
+        if(is_binary(id)   and id   != "", do: nil, else: "toolbar_buttons[#{idx}].id is required (string)"),
+        if(is_binary(icon) and icon != "", do: nil, else: "toolbar_buttons[#{idx}].icon is required (string, full Font Awesome class)"),
+        if(is_binary(tip)  and tip  != "", do: nil, else: "toolbar_buttons[#{idx}].tip is required (string)"),
+        if(scope_ok, do: nil, else: "toolbar_buttons[#{idx}].scope must be \"both\", \"posts\", or \"replies\", got: #{inspect(scope)}"),
+        if(is_nil(priority) or is_number(priority), do: nil, else: "toolbar_buttons[#{idx}].priority must be a number if present")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      {:ok,
+       %{
+         "id"       => id,
+         "icon"     => icon,
+         "tip"      => tip,
+         "scope"    => scope || "both",
+         "priority" => priority || 50
+       }}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_toolbar_button_entry(other, idx),
+    do: {:error, ["toolbar_buttons[#{idx}] must be an object, got: #{inspect(other)}"]}
+
+  # ---------------------------------------------------------------------------
+  # Field validation primitives
+  # ---------------------------------------------------------------------------
+
+  defp require_string(acc, m, field) do
+    case m[field] do
+      v when is_binary(v) and v != "" -> put_norm(acc, field, v)
+      nil -> err(acc, "#{field} is required (string)")
+      other -> err(acc, "#{field} must be a non-empty string, got: #{inspect(other)}")
+    end
+  end
+
+  defp optional_string(acc, m, field) do
+    case m[field] do
+      nil -> put_norm(acc, field, nil)
+      v when is_binary(v) -> put_norm(acc, field, v)
+      other -> err(acc, "#{field} must be a string if present, got: #{inspect(other)}")
+    end
+  end
+
+  defp optional_url(acc, m, field) do
+    case m[field] do
+      nil ->
+        put_norm(acc, field, nil)
+
+      v when is_binary(v) ->
+        if String.starts_with?(v, ["http://", "https://"]) or String.starts_with?(v, "/") do
+          put_norm(acc, field, v)
+        else
+          err(acc, "#{field} must be a URL starting with http://, https://, or / (got: #{inspect(v)})")
+        end
+
+      other ->
+        err(acc, "#{field} must be a string if present, got: #{inspect(other)}")
+    end
+  end
+
+  defp optional_string_array(acc, m, field) do
+    case m[field] do
+      nil ->
+        put_norm(acc, field, [])
+
+      list when is_list(list) ->
+        case Enum.find(list, &(not is_binary(&1))) do
+          nil -> put_norm(acc, field, list)
+          bad -> err(acc, "#{field} entries must be strings, got: #{inspect(bad)}")
+        end
+
+      other ->
+        err(acc, "#{field} must be a list of strings, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_slug(acc, m) do
+    case m["slug"] do
+      v when is_binary(v) ->
+        if Regex.match?(@slug_regex, v) do
+          acc
+        else
+          err(acc, "slug must match #{inspect(Regex.source(@slug_regex))} (lowercase letters, digits, hyphens), got: #{inspect(v)}")
+        end
+
+      _ ->
+        # missing/non-string already reported by require_string
+        acc
+    end
+  end
+
+  defp validate_semver(acc, m, field) do
+    case m[field] do
+      v when is_binary(v) ->
+        if Regex.match?(@semver_regex, v) do
+          acc
+        else
+          err(acc, "#{field} must be a semver string like \"1.0.0\" or \"2.3.4-beta.1\", got: #{inspect(v)}")
+        end
+
+      _ ->
+        acc
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Accumulator helpers
+  # ---------------------------------------------------------------------------
+
+  defp put_norm(acc, key, value) do
+    %{acc | normalized: Map.put(acc.normalized, key, value)}
+  end
+
+  defp err(acc, msg) do
+    %{acc | errors: [msg | acc.errors]}
+  end
+
+  defp finalize(%{errors: [], normalized: norm, warnings: warnings}) do
+    {:ok, norm, Enum.reverse(warnings)}
+  end
+
+  defp finalize(%{errors: errors}) do
+    {:error, Enum.reverse(errors)}
+  end
+end
