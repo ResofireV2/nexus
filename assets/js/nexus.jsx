@@ -3636,17 +3636,15 @@ function PageViewPage({slug, navigate}) {
 
   return (
     <div className="post-content-wrap">
-      <div style={{maxWidth:720,margin:"0 auto"}}>
-        <button className="btn-ghost" style={{fontSize:12,padding:"5px 12px",marginBottom:20}}
-          onClick={()=>window.history.back()}>
-          <i className="fa-solid fa-arrow-left" style={{marginRight:6}}/>Back
-        </button>
-        <h1 style={{fontSize:24,fontWeight:700,color:"var(--t1)",marginBottom:6,letterSpacing:"-.3px"}}>{page.title}</h1>
-        <div style={{fontSize:12,color:"var(--t5)",marginBottom:28}}>
-          Last updated {new Date(page.updated_at).toLocaleDateString()}
-        </div>
-        <div className="md-body" dangerouslySetInnerHTML={{__html: renderMd(page.body || "")}}/>
+      <button className="btn-ghost" style={{fontSize:12,padding:"5px 12px",marginBottom:20}}
+        onClick={()=>window.history.back()}>
+        <i className="fa-solid fa-arrow-left" style={{marginRight:6}}/>Back
+      </button>
+      <h1 style={{fontSize:24,fontWeight:700,color:"var(--t1)",marginBottom:6,letterSpacing:"-.3px"}}>{page.title}</h1>
+      <div style={{fontSize:12,color:"var(--t5)",marginBottom:28}}>
+        Last updated {new Date(page.updated_at).toLocaleDateString()}
       </div>
+      <div className="md-body" dangerouslySetInnerHTML={{__html: renderMd(page.body || "")}}/>
     </div>
   );
 }
