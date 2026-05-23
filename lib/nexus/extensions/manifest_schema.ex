@@ -268,33 +268,82 @@ defmodule Nexus.Extensions.ManifestSchema do
     end
   end
 
+  # hooks declarations may take either form:
+  #
+  #   "post_created"                                  — bare string, back-compat
+  #   %{"event" => "post_created"}                    — object without priority
+  #   %{"event" => "post_created", "priority" => 10}  — object with priority
+  #
+  # All three normalize to the object form with explicit priority. Default
+  # priority is 50. Lower priorities run first at dispatch time (matches
+  # right_widgets, toolbar_buttons, profile_tabs conventions).
+  #
+  # We accept the bare string form for back-compat with manifests authored
+  # before piece 2.5. New manifests should use the object form when they
+  # care about ordering; the string form is fine for hooks where execution
+  # order doesn't matter.
   defp check_hooks(acc, m) do
     case m["hooks"] do
       nil ->
         put_norm(acc, "hooks", [])
 
       list when is_list(list) ->
-        {good, bad} =
-          Enum.split_with(list, fn h ->
-            is_binary(h) and h in @known_hook_events
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_hook_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
           end)
 
-        acc = put_norm(acc, "hooks", good)
-
-        Enum.reduce(bad, acc, fn entry, a ->
-          cond do
-            not is_binary(entry) ->
-              err(a, "hooks entries must be strings, got: #{inspect(entry)}")
-
-            true ->
-              err(a, "hooks entry #{inspect(entry)} is not a known hook event. Known events: #{Enum.join(@known_hook_events, ", ")}")
-          end
-        end)
+        acc = put_norm(acc, "hooks", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
 
       other ->
-        err(acc, "hooks must be a list of strings, got: #{inspect(other)}")
+        err(acc, "hooks must be a list, got: #{inspect(other)}")
     end
   end
+
+  defp validate_hook_entry(entry, idx) when is_binary(entry) do
+    # Bare string form — back-compat. Validate event name, normalize to
+    # object with default priority.
+    if entry in @known_hook_events do
+      {:ok, %{"event" => entry, "priority" => 50}}
+    else
+      {:error,
+       ["hooks[#{idx}] #{inspect(entry)} is not a known hook event. " <>
+        "Known events: #{Enum.join(@known_hook_events, ", ")}"]}
+    end
+  end
+
+  defp validate_hook_entry(entry, idx) when is_map(entry) do
+    event    = entry["event"]
+    priority = entry["priority"]
+
+    errors =
+      [
+        if(is_binary(event) and event in @known_hook_events,
+          do: nil,
+          else: "hooks[#{idx}].event is required and must be one of: " <>
+                Enum.join(@known_hook_events, ", ") <>
+                ". Got: #{inspect(event)}"),
+        if(is_nil(priority) or is_number(priority),
+          do: nil,
+          else: "hooks[#{idx}].priority must be a number if present, got: #{inspect(priority)}")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      {:ok, %{"event" => event, "priority" => priority || 50}}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_hook_entry(other, idx),
+    do: {:error, ["hooks[#{idx}] must be a string or object, got: #{inspect(other)}"]}
 
   defp check_slots(acc, m) do
     case m["slots"] do

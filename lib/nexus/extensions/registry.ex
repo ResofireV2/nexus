@@ -201,11 +201,18 @@ defmodule Nexus.Extensions.Registry do
     # Register hooks. Only events declared in the manifest are wired up —
     # this prevents an extension from accidentally subscribing to every
     # known hook event just by exporting handle_event/3 with a catch-all.
+    #
+    # Each hook entry is a normalized map %{"event" => name, "priority" => n}
+    # produced by manifest validation. Priority is stored alongside the
+    # module reference so hooks_for/1 can return handlers in priority
+    # order at dispatch time.
     declared_hooks = Map.get(manifest, "hooks", [])
 
     if function_exported?(module, :handle_event, 3) do
-      for event <- declared_hooks do
-        :ets.insert(:nexus_ext_hooks, {{event, slug}, {module, 50}})
+      for hook <- declared_hooks do
+        event    = hook["event"]
+        priority = hook["priority"] || 50
+        :ets.insert(:nexus_ext_hooks, {{event, slug}, {module, priority}})
       end
     end
 

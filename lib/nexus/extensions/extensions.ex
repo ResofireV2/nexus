@@ -787,12 +787,46 @@ defmodule Nexus.Extensions do
           "payload. Got event=#{inspect(event)}, payload=#{inspect(payload)}."
   end
 
+  # Dispatches an event to all subscribed handlers sequentially, in priority
+  # order, inside a single background Task.
+  #
+  # ## Ordering semantics (piece 2.5)
+  #
+  # `Registry.hooks_for/1` returns handlers already sorted by their manifest-
+  # declared priority (lower runs first; default 50). We iterate in that
+  # order. Each handler waits for the previous one to return before running.
+  #
+  # This is what "priority" actually means: handler A at priority 10 is
+  # guaranteed to finish before handler B at priority 50 starts, so B can
+  # observe any side effects A performed (DB writes, settings changes, etc.).
+  #
+  # ## Why a single Task wraps the loop
+  #
+  # The outer fire() call is still async — the controller fires the hook
+  # and returns immediately, without waiting for any handler. Inside the
+  # Task we run handlers sequentially because parallel-with-priority is a
+  # semantic contradiction.
+  #
+  # ## Failure isolation
+  #
+  # Each handler runs inside a try/rescue. A crashing extension logs the
+  # error and the loop continues to the next handler. One bad extension
+  # cannot block or skip others.
+  #
+  # ## Performance note for extension authors
+  #
+  # Because dispatch is sequential, a slow handler delays every later
+  # handler subscribed to the same event. Extensions doing expensive work
+  # (HTTP calls, large DB queries) should enqueue an Oban job from their
+  # handle_event/3 and return quickly. The handler itself should be fast.
   defp dispatch_to_handlers(event, payload) do
-    for {slug, module} <- Nexus.Extensions.Registry.hooks_for(event) do
-      ext = get_extension_by_slug(slug)
-      settings = if ext, do: ext.settings || %{}, else: %{}
+    handlers = Nexus.Extensions.Registry.hooks_for(event)
 
-      Task.start(fn ->
+    Task.start(fn ->
+      for {slug, module} <- handlers do
+        ext = get_extension_by_slug(slug)
+        settings = if ext, do: ext.settings || %{}, else: %{}
+
         try do
           module.handle_event(event, payload, settings)
         rescue
@@ -800,8 +834,8 @@ defmodule Nexus.Extensions do
             require Logger
             Logger.error("Extension #{slug} raised in handle_event(#{event}): #{inspect(e)}")
         end
-      end)
-    end
+      end
+    end)
 
     :ok
   end

@@ -76,16 +76,40 @@
     },
 
     "hooks": {
-      "description": "Hook event names this extension's handle_event/3 callback subscribes to.",
+      "description": "Hook event subscriptions for this extension's handle_event/3 callback. Each entry is either the event name as a string (default priority 50) or an object with explicit priority. Handlers run in priority order at dispatch time, lowest first; within the same priority, order is undefined.",
       "type": "array",
       "items": {
-        "type": "string",
-        "enum": [
-          "post_created", "post_updated", "post_deleted",
-          "reply_created",
-          "user_registered", "user_login",
-          "reaction_added",
-          "report_created"
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "post_created", "post_updated", "post_deleted",
+              "reply_created",
+              "reaction_added", "reaction_removed",
+              "report_created", "report_resolved",
+              "user_registered", "user_login"
+            ]
+          },
+          {
+            "type": "object",
+            "required": ["event"],
+            "properties": {
+              "event": {
+                "type": "string",
+                "enum": [
+                  "post_created", "post_updated", "post_deleted",
+                  "reply_created",
+                  "reaction_added", "reaction_removed",
+                  "report_created", "report_resolved",
+                  "user_registered", "user_login"
+                ]
+              },
+              "priority": {
+                "type": "number",
+                "description": "Lower runs first. Defaults to 50. Handlers within the same priority have undefined order."
+              }
+            }
+          }
         ]
       }
     },

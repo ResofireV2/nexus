@@ -261,12 +261,32 @@ function DeclaredVsRegisteredPanel({slug, data, hookContracts}) {
   const serverHooks = (data.hooks || []).map(h => h.event);
   const serverDigest = (data.digest_sections || []).map(s => s.key);
 
+  // Piece 2.5: hooks declarations are now objects %{event, priority} after
+  // normalization. We extract event names for the set-comparison logic and
+  // build a priorities lookup so the renderer can show priority next to
+  // each event (declared priority from manifest, registered priority from
+  // the runtime endpoint).
+  const declaredHookObjects   = declared.hooks || [];
+  const declaredHookEvents    = declaredHookObjects.map(h =>
+    typeof h === "string" ? h : h.event);
+  const declaredHookPriorities = {};
+  for (const h of declaredHookObjects) {
+    if (typeof h === "string") declaredHookPriorities[h] = 50;
+    else                       declaredHookPriorities[h.event] = h.priority ?? 50;
+  }
+  const registeredHookPriorities = {};
+  for (const h of (data.hooks || [])) {
+    registeredHookPriorities[h.event] = h.priority ?? 50;
+  }
+
   // Build the comparison rows. Each entry is shown only if either side has
   // anything to show — empty rows are noise.
   const rows = [
-    {kind: "hooks",           declared: declared.hooks || [],
+    {kind: "hooks",           declared: declaredHookEvents,
                               registered: serverHooks,           side: "server",
-                              contracts: hookContracts},
+                              contracts: hookContracts,
+                              priorities: {declared: declaredHookPriorities,
+                                           registered: registeredHookPriorities}},
     {kind: "slots",           declared: declared.slots || [],
                               registered: liveSlots,             side: "client"},
     {kind: "routes",          declared: (declared.routes || []).map(r => r.path),
@@ -330,13 +350,17 @@ function ComparisonRow({row}) {
         {row.kind}
         {hasMismatch && <i className="fa-solid fa-triangle-exclamation" style={{marginLeft:6, fontSize:10}}/>}
       </div>
-      <ListColumn items={row.declared} highlight={onlyDeclared} side="declared" details={row.contracts}/>
-      <ListColumn items={row.registered} highlight={onlyRegistered} side="registered" details={row.contracts}/>
+      <ListColumn items={row.declared} highlight={onlyDeclared} side="declared"
+                  details={row.contracts}
+                  priorities={row.priorities?.declared}/>
+      <ListColumn items={row.registered} highlight={onlyRegistered} side="registered"
+                  details={row.contracts}
+                  priorities={row.priorities?.registered}/>
     </div>
   );
 }
 
-function ListColumn({items, highlight, side, details}) {
+function ListColumn({items, highlight, side, details, priorities}) {
   if (!items || items.length === 0) {
     return <div style={{flex:1, minWidth:0, color:"var(--t5)", fontStyle:"italic"}}>—</div>;
   }
@@ -349,7 +373,10 @@ function ListColumn({items, highlight, side, details}) {
         // Look up contract detail for this item if a details map is provided.
         // Currently only the hooks row populates `details` (with payload
         // schemas); other rows pass nothing and detail is undefined.
-        const detail = details && details[it];
+        const detail   = details && details[it];
+        // Priority is shown for hooks only (priorities lookup is populated
+        // for the hooks row). Other rows pass nothing.
+        const priority = priorities && priorities[it];
         return (
           <li key={i} style={{color: isHi ? "#fbbf24" : "var(--t2)",
             fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",
@@ -360,6 +387,13 @@ function ListColumn({items, highlight, side, details}) {
                   : "Registered at runtime but not declared in manifest")
               : (detail?.description || null)}>
             {it}
+            {priority !== undefined && (
+              <span style={{fontSize:10, color:"var(--t5)", fontWeight:400,
+                            marginLeft:8,
+                            fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace"}}>
+                priority: {priority}
+              </span>
+            )}
             {detail && detail.payload && (
               <div style={{fontSize:10, color:"var(--t5)", fontWeight:400,
                            paddingLeft:8, marginTop:1,
