@@ -292,6 +292,37 @@
           "priority": { "type": "number", "description": "Lower values render earlier in the tab bar. Defaults to 50." }
         }
       }
+    },
+
+    "notification_types": {
+      "description": "Notification types this extension sends. Each declared type appears as a row in the user's notification preferences page (grouped under a per-extension header) and is used to validate notification data payloads at send time. Send notifications matching these keys via Nexus.Notifications.notify_extension/3 server-side, or POST /api/v1/notifications/extension from the JS bundle.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "description", "channels"],
+        "properties": {
+          "key":         { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64, "description": "Stable identifier sent as data.ext_type. Should be prefixed with the extension slug for clarity (e.g. \"gamepedia_new_game\")." },
+          "label":       { "type": "string", "maxLength": 64, "description": "Short user-facing name shown in the preferences row (e.g. \"New game added\")." },
+          "description": { "type": "string", "maxLength": 200, "description": "Sublabel shown below the label in preferences, explaining what triggers this notification." },
+          "icon":        { "type": "string", "description": "Optional Font Awesome solid icon class. Defaults to fa-bell." },
+          "channels":    {
+            "type": "array",
+            "items": { "type": "string", "enum": ["web", "email", "push"] },
+            "minItems": 1,
+            "description": "Which delivery channels this notification type supports. The user can independently toggle each. Channels not in this list render as a greyed-out '—' in the preferences row and never deliver."
+          },
+          "default_preferences": {
+            "type": "object",
+            "description": "Per-channel default toggle state for new users. Keys must be channels declared above; values are booleans. Defaults to web=true, others=false.",
+            "additionalProperties": { "type": "boolean" }
+          },
+          "payload_schema": {
+            "type": "object",
+            "description": "Optional contract for the data payload at send time. Keys are field names; values are human-readable descriptions of what each field is for. When present, Nexus validates outgoing notifications of this type against the schema and rejects ones missing declared fields.",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
     }
   }
 }

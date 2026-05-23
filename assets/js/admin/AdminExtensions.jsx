@@ -261,6 +261,13 @@ function DeclaredVsRegisteredPanel({slug, data, hookContracts}) {
     && window.NexusExtensions._adminPanels.find(p => p.slug === slug));
   const liveExploreItem = !!(window.NexusExtensions && window.NexusExtensions._exploreItems
     && window.NexusExtensions._exploreItems.find(i => i.slug === slug));
+  // Piece 7: extension notification types registered at runtime via
+  // NE.registerNotificationType. We compare declared keys against all keys
+  // currently in _notifTypes. Since notification types are typically
+  // slug-prefixed, this is close enough to a per-extension check.
+  const liveNotifTypes = (window.NexusExtensions && window.NexusExtensions._notifTypes)
+    ? Object.keys(window.NexusExtensions._notifTypes)
+    : [];
 
   // Server-side registrations come from `data` (the /runtime endpoint).
   const serverHooks = (data.hooks || []).map(h => h.event);
@@ -307,6 +314,12 @@ function DeclaredVsRegisteredPanel({slug, data, hookContracts}) {
                               side: "server"},
     {kind: "digest_sections", declared: (declared.digest_sections || []).map(s => s.key),
                               registered: serverDigest,          side: "server"},
+    {kind: "notification_types",
+                              declared: (declared.notification_types || []).map(t => t.key),
+                              registered: (declared.notification_types || [])
+                                            .map(t => t.key)
+                                            .filter(k => liveNotifTypes.includes(k)),
+                              side: "client"},
     // Presence-check rows: admin_panel and explore are declared as singular
     // map entries on the manifest, not arrays of ids. They either exist or
     // they don't — there's no id to compare. We use a single sentinel "✓"

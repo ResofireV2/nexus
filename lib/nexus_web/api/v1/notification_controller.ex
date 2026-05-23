@@ -27,6 +27,15 @@ defmodule NexusWeb.API.V1.NotificationController do
     json(conn, %{count: count})
   end
 
+  # GET /api/v1/notifications/declared-types
+  # Piece 7: returns declared notification types from all currently-enabled
+  # extensions, grouped per-extension. The preferences page renders one
+  # section per extension below the built-in notification types.
+  def declared_types(conn, _params) do
+    groups = Nexus.Extensions.Registry.declared_notification_types_grouped()
+    json(conn, %{groups: groups})
+  end
+
   # PATCH /api/v1/notifications/:id/read
   def mark_read(conn, %{"id" => id}) do
     case Notifications.mark_read(id, conn.assigns.current_user.id) do
@@ -115,9 +124,12 @@ defmodule NexusWeb.API.V1.NotificationController do
     json(conn, %{ok: true})
   end
   # Called by extension JS bundles to notify a specific user.
-  # The caller must supply target_user_id and a type string.
+  # The caller must supply slug (their extension's slug), target_user_id,
+  # and a type string. Piece 7: validates against the declared notification
+  # type when one exists; returns 422 on validation failure.
   def create_extension(conn, params) do
     actor    = conn.assigns.current_user
+    slug     = params["slug"]
     user_id  = params["target_user_id"]
     type     = params["type"]
     data     = params["data"] || %{}
@@ -125,6 +137,14 @@ defmodule NexusWeb.API.V1.NotificationController do
     reply_id = params["reply_id"]
 
     cond do
+      is_nil(slug) or not is_binary(slug) ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "slug is required"})
+
+      not Nexus.Extensions.Registry.enabled?(slug) ->
+        # Either the extension doesn't exist or is currently disabled.
+        # In either case, the notification shouldn't fire.
+        conn |> put_status(:forbidden) |> json(%{error: "Extension \"#{slug}\" is not enabled"})
+
       is_nil(user_id) or is_nil(type) ->
         conn |> put_status(:unprocessable_entity) |> json(%{error: "target_user_id and type are required"})
 
@@ -132,13 +152,21 @@ defmodule NexusWeb.API.V1.NotificationController do
         conn |> put_status(:unprocessable_entity) |> json(%{error: "type must be 64 characters or fewer"})
 
       true ->
-        Notifications.notify_extension(user_id, type,
+        result = Notifications.notify_extension(slug, type,
+          user_id:  user_id,
           actor_id: actor.id,
           post_id:  post_id,
           reply_id: reply_id,
           data:     data
         )
-        json(conn, %{ok: true})
+
+        case result do
+          {:ok, _} ->
+            json(conn, %{ok: true})
+
+          {:error, reason} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+        end
     end
   end
 

@@ -119,7 +119,9 @@ defmodule Nexus.Workers.DeliverNotification do
     # Respect the "web" (in-app) notification preference.
     # If the user has disabled web notifications for this type, skip entirely —
     # don't create the DB row, don't push, don't email.
-    if web_enabled_for?(user, attrs.type) do
+    # Piece 7: ctx-aware variant resolves ext_type → preference key for
+    # extension notifications.
+    if web_enabled_for_ctx?(user, attrs) do
       case Notifications.create_notification(attrs) do
         {:ok, notification} ->
           notification = Nexus.Repo.preload(notification, [:actor, :post, :reply])
@@ -146,7 +148,8 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp do_maybe_send_email(notification) do
     user = Nexus.Accounts.get_user(notification.user_id)
-    with true <- email_enabled_for?(user, notification.type),
+    # Piece 7: ctx-aware variant for extension ext_type resolution.
+    with true <- email_enabled_for_ctx?(user, notification),
          actor_name <- actor_display(notification.actor) do
       Task.start(fn ->
         Nexus.Mailer.send_notification_email(user, %{
@@ -163,6 +166,19 @@ defmodule Nexus.Workers.DeliverNotification do
     prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
     Map.get(prefs, "email", false) == true
   end
+
+  # Piece 7: variant that takes the full notification context. For
+  # extension notifications, the preference key is the ext_type (the
+  # extension's own notification key), not the generic "extension" string.
+  # The default value also comes from the extension's declared
+  # default_preferences when present.
+  defp email_enabled_for_ctx?(nil, _ctx), do: false
+  defp email_enabled_for_ctx?(user, %{type: "extension", data: data}) when is_map(data) do
+    key = data["ext_type"]
+    slug = data["ext_slug"]
+    check_extension_channel(user, slug, key, "email")
+  end
+  defp email_enabled_for_ctx?(user, %{type: type}), do: email_enabled_for?(user, type)
 
   # ---------------------------------------------------------------------------
   # Public helper called by Nexus.Notifications for DM push
@@ -272,7 +288,7 @@ defmodule Nexus.Workers.DeliverNotification do
       is_nil(user) ->
         :ok
 
-      not push_enabled_for?(user, notification.type) ->
+      not push_enabled_for_ctx?(user, notification) ->
         Logger.info("Push: user #{user.id} has push disabled for type #{notification.type}")
         :ok
 
@@ -416,6 +432,15 @@ defmodule Nexus.Workers.DeliverNotification do
     Map.get(prefs, "push", true) != false
   end
 
+  # Piece 7: ctx-aware variant — see email_enabled_for_ctx? for rationale.
+  defp push_enabled_for_ctx?(nil, _ctx), do: false
+  defp push_enabled_for_ctx?(user, %{type: "extension", data: data}) when is_map(data) do
+    key = data["ext_type"]
+    slug = data["ext_slug"]
+    check_extension_channel(user, slug, key, "push")
+  end
+  defp push_enabled_for_ctx?(user, %{type: type}), do: push_enabled_for?(user, type)
+
   # Check whether the user has in-app (web) notifications enabled for this type.
   # Default is true — only suppress if explicitly set to false.
   defp web_enabled_for?(nil, _type), do: true
@@ -423,4 +448,69 @@ defmodule Nexus.Workers.DeliverNotification do
     prefs = get_in(user.preferences || %{}, ["notifications", type]) || %{}
     Map.get(prefs, "web", true) != false
   end
+
+  # Piece 7: ctx-aware variant — see email_enabled_for_ctx? for rationale.
+  defp web_enabled_for_ctx?(nil, _ctx), do: true
+  defp web_enabled_for_ctx?(user, %{type: "extension", data: data}) when is_map(data) do
+    key = data["ext_type"]
+    slug = data["ext_slug"]
+    check_extension_channel(user, slug, key, "web")
+  end
+  defp web_enabled_for_ctx?(user, %{type: type}), do: web_enabled_for?(user, type)
+
+  # Piece 7: shared channel resolver for extension notifications.
+  #
+  # The user's preference JSON looks like:
+  #
+  #     %{
+  #       "notifications" => %{
+  #         "reply"        => %{"web" => true, "email" => false},   # built-in
+  #         "smoke_notif"  => %{"web" => true, "email" => false}    # ext key
+  #       }
+  #     }
+  #
+  # For an extension notification with key "smoke_notif", we look up
+  # prefs["smoke_notif"][channel]. If the user has explicitly toggled
+  # it, that wins. If not, we fall back to the extension's declared
+  # default_preferences for this type. If the type isn't declared
+  # (back-compat — extension hasn't migrated yet), we default to true
+  # for web, false for email/push.
+  defp check_extension_channel(_user, nil, _key, channel) do
+    # No slug means we can't look up declarations. Use the conservative
+    # defaults.
+    default_for_undeclared(channel)
+  end
+  defp check_extension_channel(user, slug, key, channel) when is_binary(key) do
+    prefs = get_in(user.preferences || %{}, ["notifications", key]) || %{}
+
+    cond do
+      Map.has_key?(prefs, channel) ->
+        # User has explicitly set this — honor it.
+        Map.get(prefs, channel) == true
+
+      true ->
+        # Fall back to the extension's declared default, or the universal
+        # default if the type isn't declared.
+        case Nexus.Extensions.Registry.notification_type_for(slug, key) do
+          nil ->
+            default_for_undeclared(channel)
+
+          %{"default_preferences" => defaults, "channels" => channels} ->
+            cond do
+              channel not in channels ->
+                # Type explicitly excludes this channel — never deliver.
+                false
+              true ->
+                Map.get(defaults || %{}, channel, default_for_undeclared(channel))
+            end
+        end
+    end
+  end
+  defp check_extension_channel(_user, _slug, _key, channel),
+    do: default_for_undeclared(channel)
+
+  defp default_for_undeclared("web"),   do: true
+  defp default_for_undeclared("email"), do: false
+  defp default_for_undeclared("push"),  do: false
+  defp default_for_undeclared(_),       do: false
 end

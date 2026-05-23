@@ -454,6 +454,37 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   });
   const [notifSaving, setNotifSaving] = useState(false);
 
+  // Piece 7: extension notification types. Fetched on mount from
+  // /api/v1/notifications/declared-types. Grouped per-extension, each
+  // group rendered as a section after the built-in types.
+  const [extNotifGroups, setExtNotifGroups] = useState([]);
+  useEffect(()=>{
+    api.get("/notifications/declared-types").then(d=>{
+      if(d.groups) {
+        setExtNotifGroups(d.groups);
+        // Initialize notif prefs for any extension types not yet in the
+        // saved prefs, using the extension's declared defaults.
+        setNotifPrefs(p => {
+          const next = {...p};
+          d.groups.forEach(g => {
+            g.notification_types.forEach(t => {
+              if (!next[t.key]) {
+                const defaults = t.default_preferences || {};
+                next[t.key] = {
+                  web:   defaults.web   ?? (t.channels.includes("web")),
+                  email: defaults.email ?? false,
+                  push:  defaults.push  ?? false,
+                  ...(savedPrefs[t.key]||{})
+                };
+              }
+            });
+          });
+          return next;
+        });
+      }
+    }).catch(()=>{});
+  },[]);
+
   // Push subscription state
   const [pushSubscribed, setPushSubscribed] = useState(!!currentUser?.has_push_subscription);
   const [pushLoading, setPushLoading]       = useState(false);
@@ -733,6 +764,44 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
                     ?<Toggle on={notifPrefs[row.k]?.push} onClick={()=>toggleNotif(row.k,"push")}/>
                     :<div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>off</div>}
                 </div>
+              </div>
+            ))}
+
+            {/* Piece 7: extension notification type groups. One section per
+                installed+enabled extension that declares notification_types.
+                Channels not declared by a type show '—' instead of a toggle. */}
+            {extNotifGroups.map(group=>(
+              <div key={group.slug}>
+                <div style={{marginTop:20,marginBottom:6,paddingBottom:4,
+                             borderBottom:"0.5px solid var(--b1)"}}>
+                  <div style={{fontSize:10,fontWeight:500,color:"var(--t5)",
+                               textTransform:"uppercase",letterSpacing:"0.6px"}}>
+                    {group.extension_name}
+                  </div>
+                </div>
+                {group.notification_types.map(t=>(
+                  <div key={t.key} style={{display:"grid",gridTemplateColumns:"1fr 64px 64px 64px",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid var(--b1)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <i className={`fa-solid ${t.icon || "fa-bell"}`} style={{fontSize:12,color:"var(--t4)",width:14}}/>
+                      <div>
+                        <div style={{fontSize:13,color:"var(--t2)",marginBottom:2}}>{t.label}</div>
+                        <div style={{fontSize:11,color:"var(--t5)"}}>{t.description}</div>
+                      </div>
+                    </div>
+                    {["web","email","push"].map(ch=>(
+                      <div key={ch} style={{display:"flex",justifyContent:"center"}}>
+                        {!t.channels.includes(ch)
+                          ? <div style={{fontSize:11,color:"var(--t5)"}}>—</div>
+                          : ch === "push" && !pushSubscribed
+                            ? <div style={{fontSize:10,fontWeight:500,padding:"3px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t5)",border:"0.5px solid var(--b1)",whiteSpace:"nowrap"}}>off</div>
+                          : ch === "email" && emailLocked
+                            ? <Toggle on={false} disabled={true}/>
+                          : <Toggle on={notifPrefs[t.key]?.[ch]} onClick={()=>toggleNotif(t.key, ch)}/>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             ))}
 

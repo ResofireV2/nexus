@@ -138,6 +138,7 @@ defmodule Nexus.Extensions.ManifestSchema do
     |> check_right_widgets(manifest)
     |> check_toolbar_buttons(manifest)
     |> check_profile_tabs(manifest)
+    |> check_notification_types(manifest)
     |> finalize()
   end
 
@@ -884,6 +885,139 @@ defmodule Nexus.Extensions.ManifestSchema do
 
   defp validate_profile_tab_entry(other, idx),
     do: {:error, ["profile_tabs[#{idx}] must be an object, got: #{inspect(other)}"]}
+
+  # ---------------------------------------------------------------------------
+  # Notification type declarations (piece 7)
+  #
+  # Extensions declare notification types here. Each entry tells the host:
+  #   - what key the extension will send (data["ext_type"] in notify_extension/3)
+  #   - how to render it in the preferences UI (label, description, icon)
+  #   - which channels make sense for it (web, email, push)
+  #   - what user-preference defaults to apply on first install
+  #   - optionally, what fields the payload data is expected to contain
+  #
+  # The host uses these declarations to:
+  #   - render extra rows in the user-facing notification preferences page
+  #     (grouped per-extension via a header)
+  #   - validate notification data payloads at send time
+  #   - surface declared-vs-registered in the admin runtime panel
+  # ---------------------------------------------------------------------------
+
+  @valid_notification_channels ~w(web email push)
+  @notif_key_regex ~r/^[a-z][a-z0-9_]*$/
+
+  defp check_notification_types(acc, m) do
+    case m["notification_types"] do
+      nil ->
+        put_norm(acc, "notification_types", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_notification_type_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
+
+        acc = put_norm(acc, "notification_types", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "notification_types must be a list, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_notification_type_entry(entry, idx) when is_map(entry) do
+    key            = entry["key"]
+    label          = entry["label"]
+    description    = entry["description"]
+    icon           = entry["icon"]
+    channels       = entry["channels"]
+    default_prefs  = entry["default_preferences"] || %{}
+    payload_schema = entry["payload_schema"]
+
+    key_ok =
+      is_binary(key) and key != "" and Regex.match?(@notif_key_regex, key) and
+        String.length(key) <= 64
+
+    label_ok       = is_binary(label) and label != "" and String.length(label) <= 64
+    description_ok = is_binary(description) and description != "" and String.length(description) <= 200
+    icon_ok        = is_nil(icon) or (is_binary(icon) and icon != "")
+
+    channels_ok =
+      is_list(channels) and channels != [] and
+        Enum.all?(channels, &(&1 in @valid_notification_channels))
+
+    default_prefs_ok =
+      is_map(default_prefs) and
+        Enum.all?(default_prefs, fn {k, v} ->
+          k in @valid_notification_channels and is_boolean(v)
+        end)
+
+    payload_schema_ok =
+      is_nil(payload_schema) or
+        (is_map(payload_schema) and Enum.all?(payload_schema, fn {k, v} ->
+          is_binary(k) and is_binary(v)
+        end))
+
+    errors =
+      [
+        if(key_ok, do: nil,
+          else: "notification_types[#{idx}].key is required, must match #{inspect(@notif_key_regex.source)}, max 64 chars (got: #{inspect(key)})"),
+        if(label_ok, do: nil,
+          else: "notification_types[#{idx}].label is required (string, max 64 chars)"),
+        if(description_ok, do: nil,
+          else: "notification_types[#{idx}].description is required (string, max 200 chars)"),
+        if(icon_ok, do: nil,
+          else: "notification_types[#{idx}].icon must be a non-empty string if present"),
+        if(channels_ok, do: nil,
+          else: "notification_types[#{idx}].channels is required, must be a non-empty list with values from #{inspect(@valid_notification_channels)}"),
+        if(default_prefs_ok, do: nil,
+          else: "notification_types[#{idx}].default_preferences must be a map with channel keys and boolean values"),
+        if(payload_schema_ok, do: nil,
+          else: "notification_types[#{idx}].payload_schema must be a map of string field name → string description if present")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      # Validate default_prefs only mention declared channels. Anything
+      # declared for a channel not in `channels` is silently dropped at
+      # normalization time — user-friendly behavior, since the channel
+      # not being supported is the higher-level constraint.
+      normalized_default_prefs =
+        @valid_notification_channels
+        |> Enum.reduce(%{}, fn ch, acc ->
+          cond do
+            ch in channels and Map.has_key?(default_prefs, ch) ->
+              Map.put(acc, ch, default_prefs[ch])
+            ch in channels ->
+              # Default: web on, others off
+              Map.put(acc, ch, ch == "web")
+            true ->
+              acc
+          end
+        end)
+
+      {:ok,
+       %{
+         "key"                 => key,
+         "label"               => label,
+         "description"         => description,
+         "icon"                => icon || "fa-bell",
+         "channels"            => channels,
+         "default_preferences" => normalized_default_prefs,
+         "payload_schema"      => payload_schema
+       }}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_notification_type_entry(other, idx),
+    do: {:error, ["notification_types[#{idx}] must be an object, got: #{inspect(other)}"]}
 
   # ---------------------------------------------------------------------------
   # Field validation primitives

@@ -188,23 +188,99 @@ defmodule Nexus.Notifications do
   end
 
   @doc """
-  Send a notification from an extension. The `type` string identifies the
-  notification within the extension (e.g. "new_review"). It is stored in
+  Send a notification from an extension. The `slug` identifies the
+  extension and is used to look up the declared notification type for
+  validation. The `key` (formerly `type`) identifies the notification
+  within the extension (e.g. "new_review") and must match a declared
+  notification_types entry in the extension's manifest. It's stored in
   data["ext_type"] and the DB record uses the generic "extension" type,
   keeping the schema valid while allowing unlimited extension-defined types.
-  Extensions register a frontend handler via registerNotificationType().
-  """
-  def notify_extension(user_id, type, opts \\ []) do
-    attrs = %{
-      type:     "extension",
-      user_id:  user_id,
-      actor_id: Keyword.get(opts, :actor_id),
-      post_id:  Keyword.get(opts, :post_id),
-      reply_id: Keyword.get(opts, :reply_id),
-      data:     Map.merge(%{"ext_type" => type}, Keyword.get(opts, :data, %{}))
-    }
 
-    enqueue_notification(attrs)
+  When the extension declares a payload_schema for this type, the data
+  payload is validated against it — missing required fields produce
+  `{:error, reason}` instead of an enqueued notification.
+
+  Returns `{:ok, job}` on success, `{:error, reason}` on validation
+  failure.
+  """
+  def notify_extension(slug, key, opts \\ []) when is_binary(slug) and is_binary(key) do
+    data = Keyword.get(opts, :data, %{})
+
+    case validate_extension_notification(slug, key, data) do
+      :ok ->
+        attrs = %{
+          type:     "extension",
+          user_id:  Keyword.fetch!(opts, :user_id),
+          actor_id: Keyword.get(opts, :actor_id),
+          post_id:  Keyword.get(opts, :post_id),
+          reply_id: Keyword.get(opts, :reply_id),
+          data:     Map.merge(%{"ext_type" => key, "ext_slug" => slug}, data)
+        }
+
+        enqueue_notification(attrs)
+        {:ok, :enqueued}
+
+      {:error, reason} ->
+        require Logger
+        Logger.warning("Notifications: rejected extension notification " <>
+                       "#{slug}/#{key}: #{reason}")
+        {:error, reason}
+    end
+  end
+
+  # Back-compat shim for the old 2-arg form (user_id, type, opts). Extensions
+  # using this haven't declared their notification types in the manifest yet;
+  # we log a deprecation warning and send anyway with slug="legacy".
+  @deprecated "Pass slug as the first argument: notify_extension(slug, key, user_id: user_id, ...)"
+  def notify_extension(user_id, key, opts) when is_integer(user_id) or is_binary(user_id) do
+    require Logger
+    Logger.warning("Notifications.notify_extension/3 called with legacy " <>
+                   "2-positional form (user_id, key, opts). Pass slug as " <>
+                   "the first argument so notification type validation works.")
+
+    notify_extension("legacy", key, Keyword.put(opts, :user_id, user_id))
+  end
+
+  # Validates a notification payload against the extension's declared
+  # notification type, if one exists. Returns :ok if either:
+  #   - The extension declares a type with this key and the payload matches
+  #     its payload_schema (all declared fields present in data)
+  #   - The extension does NOT declare a type with this key (back-compat:
+  #     log but allow). This is the soft-mode behavior — extensions can
+  #     adopt declared types incrementally without breaking existing flows.
+  # Returns {:error, reason} when the declared payload_schema is violated.
+  defp validate_extension_notification(slug, key, data) do
+    case Nexus.Extensions.Registry.notification_type_for(slug, key) do
+      nil ->
+        # No declaration. Allow but log (soft mode). Extensions declaring
+        # the type would get strict validation; ones not declaring opt
+        # out by omission.
+        require Logger
+        Logger.debug("Notifications: extension #{slug} sending undeclared " <>
+                     "notification type #{inspect(key)} — declare it in " <>
+                     "manifest.notification_types for validation and " <>
+                     "user-facing preferences UI.")
+        :ok
+
+      %{"payload_schema" => nil} ->
+        :ok
+
+      %{"payload_schema" => schema} when is_map(schema) ->
+        missing =
+          schema
+          |> Map.keys()
+          |> Enum.reject(fn k ->
+            # Field present if either string or atom key is in the data map
+            Map.has_key?(data, k) or Map.has_key?(data, String.to_atom(k))
+          end)
+
+        if missing == [] do
+          :ok
+        else
+          {:error,
+           "missing required fields per payload_schema: #{Enum.join(missing, ", ")}"}
+        end
+    end
   end
 
   # ---------------------------------------------------------------------------

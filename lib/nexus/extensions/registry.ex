@@ -153,6 +153,52 @@ defmodule Nexus.Extensions.Registry do
     :ok
   end
 
+  @doc """
+  Returns all declared notification types across all currently-enabled
+  extensions, grouped by extension. Used by the user-facing notification
+  preferences page (piece 7) to render extra rows alongside built-in
+  notification types.
+
+  Returns a list of:
+
+      %{
+        slug:               "foundation-smoke-test",
+        extension_name:     "Foundation Smoke Test",
+        notification_types: [%{"key" => "...", "label" => "...", ...}, ...]
+      }
+
+  Disabled extensions are filtered out — their notification types
+  disappear from the preferences UI until re-enabled (matches piece 5's
+  live disable semantics).
+  """
+  def declared_notification_types_grouped do
+    :ets.tab2list(:nexus_ext_declared)
+    |> Enum.filter(fn {slug, _manifest} -> enabled?(slug) end)
+    |> Enum.map(fn {slug, manifest} ->
+      %{
+        slug:               slug,
+        extension_name:     manifest["name"] || slug,
+        notification_types: manifest["notification_types"] || []
+      }
+    end)
+    |> Enum.reject(fn %{notification_types: types} -> types == [] end)
+    |> Enum.sort_by(& &1.extension_name)
+  end
+
+  @doc """
+  Returns the declared notification type entry for a given {slug, key}
+  pair, or nil if no extension declares it. Used at send time to look up
+  payload_schema for validation and channels for channel-gating.
+  """
+  def notification_type_for(slug, key) when is_binary(slug) and is_binary(key) do
+    case :ets.lookup(:nexus_ext_declared, slug) do
+      [{^slug, manifest}] ->
+        Enum.find(manifest["notification_types"] || [], fn t -> t["key"] == key end)
+      [] ->
+        nil
+    end
+  end
+
   @doc "Returns API routes for an extension slug."
   def routes_for(slug) do
     case :ets.lookup(:nexus_ext_routes, slug) do

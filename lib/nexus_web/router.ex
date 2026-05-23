@@ -146,6 +146,7 @@ defmodule NexusWeb.Router do
     # Notifications (read-only and housekeeping — no outward-facing interaction)
     get  "/notifications",          NotificationController, :index
     get  "/notifications/unread",   NotificationController, :unread
+    get  "/notifications/declared-types", NotificationController, :declared_types
     post "/notifications/read-all",     NotificationController, :mark_all_read
     post "/notifications/extension",         NotificationController, :create_extension
     post "/notifications/mark-read-by-post",   NotificationController, :mark_read_by_post
