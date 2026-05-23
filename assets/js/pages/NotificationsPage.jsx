@@ -75,15 +75,24 @@ function NotificationsPage({navigate, onCountChange}) {
   const ICON={reply:"fa-reply",mention:"fa-at",reaction:"fa-heart",dm:"fa-message",announcement:"fa-bullhorn",badge:"fa-medal",followed_post:"fa-bookmark",extension:"fa-bell"};
   const ICON_COLOR={reply:"var(--ac)",mention:"var(--blue)",reaction:"var(--red)",dm:"var(--green)",announcement:"var(--amber)",badge:"var(--amber)",followed_post:"var(--ac)",extension:"var(--ac)"};
 
-  const getIcon      = n => window.NexusExtensions.getNotifType(n.type)?.icon      || ICON[n.type]      || "fa-bell";
-  const getIconColor = n => window.NexusExtensions.getNotifType(n.type)?.iconColor || ICON_COLOR[n.type]|| "var(--ac)";
+  // Resolve the registered extension handler for this notification, accounting
+  // for the two-layer typing: extension notifications have n.type === "extension"
+  // (the generic DB type) and n.data.ext_type === "<extension's key>" (the
+  // extension's actual identifier). For built-in types we look up by n.type
+  // directly. Falls back to null when no registered handler exists.
+  const resolveExtType = n => {
+    if (n.type === "extension") return window.NexusExtensions.getNotifType(n.data?.ext_type);
+    return window.NexusExtensions.getNotifType(n.type);
+  };
+
+  const getIcon      = n => resolveExtType(n)?.icon      || ICON[n.type]      || "fa-bell";
+  const getIconColor = n => resolveExtType(n)?.iconColor || ICON_COLOR[n.type]|| "var(--ac)";
   const renderBody   = n => {
-    const extType = window.NexusExtensions.getNotifType(n.type);
+    const extType = resolveExtType(n);
     if (extType?.renderBody) return extType.renderBody(n);
     if (n.type==="badge") return <><strong style={{color:"var(--t1)"}}>{n.data?.badge_name||"A badge"}</strong> <span style={{color:"var(--t3)"}}>was awarded to you</span></>;
     if (n.type==="extension") {
-      const extBodyType = window.NexusExtensions.getNotifType(n.data?.ext_type);
-      if (extBodyType?.renderBody) return extBodyType.renderBody(n);
+      // No registered handler — fall back to a generic actor + ext_type rendering.
       return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>{n.data?.ext_type||"sent a notification"}</span></>;
     }
     const count = n.group_count || 1;
@@ -101,7 +110,7 @@ function NotificationsPage({navigate, onCountChange}) {
       // Fire-and-forget — we don't need to wait for this
       api.patch(`/notifications/${n.id}/read`,{}).catch(()=>{});
     }
-    const extType = window.NexusExtensions.getNotifType(n.type);
+    const extType = resolveExtType(n);
     if (extType?.onClick) { extType.onClick({ n, navigate }); return; }
     if(n.type==="dm"&&n.data?.thread_id) navigate("dm",{threadId:n.data.thread_id,threadName:n.actor?.username||"DM"});
     else if(n.type==="badge") { navigate("badges"); }
