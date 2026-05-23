@@ -1972,7 +1972,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .profile-tabs-mob{display:none;}
 .settings-tabs-mob{display:none;}
 .settings-desktop-tabs{display:flex;}
-@media(max-width:600px){
+@media(max-width:767.99px){
   .profile-tabs{display:none;}
   .profile-tabs-mob{display:block;padding:0 16px;border-bottom:0.5px solid var(--b1);}
   .profile-tabs-mob details{position:relative;z-index:50;}
@@ -2008,9 +2008,22 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .admin-tab i{font-size:11px;}
 .admin-tab:hover{color:var(--t2);}
 .admin-tab.active{background:var(--s3);border-color:var(--b1);border-bottom-color:var(--s3);color:var(--t1);}
+
+/* Underline desktop variant — used by built-in admin pages (PWA, Layout,
+   AdminPanels, extensions list) for their existing visual identity. The
+   .admin-tabs-mob mobile dropdown is shared between this and the pill
+   variant above. */
+.admin-tabs-underline{display:flex;gap:0;align-items:center;border-bottom:0.5px solid var(--b1);margin-bottom:24px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.admin-tabs-underline::-webkit-scrollbar{display:none;}
+.admin-tab-underline{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;color:var(--t4);cursor:pointer;font-family:inherit;font-size:13px;font-weight:400;margin-bottom:-1px;transition:color .12s;white-space:nowrap;}
+.admin-tab-underline i{font-size:12px;}
+.admin-tab-underline:hover{color:var(--t2);}
+.admin-tab-underline.active{border-bottom-color:var(--ac);color:var(--ac-text);font-weight:500;}
+
 .admin-tabs-mob{display:none;}
 @media(max-width:767.99px){
   .admin-tabs{display:none;}
+  .admin-tabs-underline{display:none;}
   .admin-tabs-mob{display:block;border-bottom:0.5px solid var(--b1);margin-bottom:24px;}
   .admin-tabs-mob details{position:relative;z-index:50;}
   .admin-tabs-mob summary{list-style:none;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;color:var(--t1);background:var(--s2);border:0.5px solid var(--b2);margin:10px 0;gap:8px;}

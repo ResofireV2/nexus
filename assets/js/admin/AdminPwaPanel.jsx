@@ -182,15 +182,41 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
 
   return (
     <div>
-      {/* Tab bar */}
-      <div style={{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:24,flexWrap:"wrap"}}>
+      {/* Tab bar — desktop: underline buttons; mobile: dropdown. */}
+      <div className="admin-tabs-underline">
         {PWA_TABS.map(t=>(
           <button key={t.k} onClick={()=>setPwaTab(t.k)}
-            style={{background:"none",border:"none",borderBottom:`2px solid ${pwaTab===t.k?"var(--ac)":"transparent"}`,marginBottom:-1,padding:"10px 20px",cursor:"pointer",color:pwaTab===t.k?"var(--ac-text)":"var(--t4)",fontSize:13,fontWeight:pwaTab===t.k?600:400,transition:"color .12s",display:"inline-flex",alignItems:"center",gap:6,fontFamily:"inherit",whiteSpace:"nowrap"}}>
-            <i className={`fa-solid ${t.icon}`} style={{fontSize:12}}/>
+            className={`admin-tab-underline${pwaTab===t.k?" active":""}`}>
+            <i className={`fa-solid ${t.icon}`}/>
             {t.label}
           </button>
         ))}
+      </div>
+      <div className="admin-tabs-mob">
+        <details>
+          <summary>
+            <span className="atm-label">
+              {(()=>{
+                const cur = PWA_TABS.find(t=>t.k===pwaTab) || PWA_TABS[0];
+                return <>
+                  <i className={`fa-solid ${cur.icon}`} style={{fontSize:12,color:"var(--t4)"}}/>
+                  <span>{cur.label}</span>
+                </>;
+              })()}
+            </span>
+            <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+          </summary>
+          <div className="atm-menu">
+            {PWA_TABS.map(t=>(
+              <div key={t.k}
+                className={`atm-item${pwaTab===t.k?" active":""}`}
+                onClick={e=>{setPwaTab(t.k); e.currentTarget.closest("details").removeAttribute("open");}}>
+                <i className={`fa-solid ${t.icon}`} style={{fontSize:12,color:"var(--t5)",width:14}}/>
+                {t.label}
+              </div>
+            ))}
+          </div>
+        </details>
       </div>
 
       {/* ── General tab ── */}

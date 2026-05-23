@@ -388,23 +388,36 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   ];
 
   return React.createElement('div', null,
-    // Tab bar
-    React.createElement('div', {style:{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:24}},
+    // Tab bar — desktop: underline buttons; mobile: dropdown.
+    React.createElement('div', {className: "admin-tabs-underline"},
       TABS.map(function(t) {
         var active = tab === t.id;
         return React.createElement('button', {
           key: t.id,
           onClick: function(){setTab(t.id);},
-          style:{
-            padding:"10px 20px", background:"none", border:"none",
-            borderBottom: active ? "2px solid var(--ac)" : "2px solid transparent",
-            color: active ? "var(--ac-text)" : "var(--t4)",
-            fontWeight: active ? 500 : 400,
-            fontSize:13, cursor:"pointer", fontFamily:"inherit",
-            marginBottom:-1, transition:"color .1s"
-          }
+          className: "admin-tab-underline" + (active ? " active" : "")
         }, t.label);
       })
+    ),
+    React.createElement('div', {className: "admin-tabs-mob"},
+      React.createElement('details', null,
+        React.createElement('summary', null,
+          React.createElement('span', {className: "atm-label"},
+            React.createElement('span', null, (TABS.find(function(t){return t.id===tab;})||TABS[0]).label)
+          ),
+          React.createElement('i', {className: "fa-solid fa-chevron-down", style:{fontSize:11,color:"var(--t5)"}})
+        ),
+        React.createElement('div', {className: "atm-menu"},
+          TABS.map(function(t) {
+            var active = tab === t.id;
+            return React.createElement('div', {
+              key: t.id,
+              className: "atm-item" + (active ? " active" : ""),
+              onClick: function(e){ setTab(t.id); e.currentTarget.closest("details").removeAttribute("open"); }
+            }, t.label);
+          })
+        )
+      )
     ),
 
     // Post toolbar tab

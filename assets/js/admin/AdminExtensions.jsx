@@ -1208,18 +1208,33 @@ function AdminExtensionsPanel() {
     <div style={{position:"relative"}}>
       {/* Tab bar + search */}
       <div style={{marginBottom:24}}>
-        {/* Tabs row — scrollable so all tabs stay visible on narrow screens */}
-        <div style={{display:"flex",alignItems:"center",gap:0,borderBottom:"0.5px solid var(--b1)",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        {/* Tabs row — desktop: underline buttons; mobile: dropdown. */}
+        <div className="admin-tabs-underline">
           {TABS.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
-              style={{padding:"10px 18px",background:"none",border:"none",
-                borderBottom:tab===t.id?"2px solid var(--ac)":"2px solid transparent",
-                color:tab===t.id?"var(--ac-text)":"var(--t4)",
-                fontWeight:tab===t.id?500:400,fontSize:13,cursor:"pointer",
-                fontFamily:"inherit",marginBottom:-1,transition:"color .1s",whiteSpace:"nowrap"}}>
+              className={`admin-tab-underline${tab===t.id?" active":""}`}>
               {t.label}
             </button>
           ))}
+        </div>
+        <div className="admin-tabs-mob">
+          <details>
+            <summary>
+              <span className="atm-label">
+                <span>{(TABS.find(t=>t.id===tab)||TABS[0]).label}</span>
+              </span>
+              <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+            </summary>
+            <div className="atm-menu">
+              {TABS.map(t=>(
+                <div key={t.id}
+                  className={`atm-item${tab===t.id?" active":""}`}
+                  onClick={e=>{setTab(t.id); e.currentTarget.closest("details").removeAttribute("open");}}>
+                  {t.label}
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
         {/* Actions row — search + check for updates + refresh */}
         <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,flexWrap:"wrap"}}>

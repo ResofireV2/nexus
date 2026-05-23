@@ -311,15 +311,38 @@ function AdminLogsPanel() {
       <div style={{fontSize:18,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,marginBottom:4}}>Logs</div>
       <div style={{fontSize:12,color:"var(--t4)",marginBottom:20}}>Job failures and settings changes.</div>
 
-      {/* Tab bar */}
-      <div style={{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:20}}>
-        {[{id:"jobs",label:"Job failures"},{id:"settings",label:"Settings changes"}].map(t=>(
-          <div key={t.id} onClick={()=>setTab(t.id)}
-            style={{fontSize:13,color:tab===t.id?"var(--t1)":"var(--t4)",padding:"10px 0",marginRight:24,cursor:"pointer",borderBottom:`1.5px solid ${tab===t.id?"var(--ac)":"transparent"}`,marginBottom:-1}}>
-            {t.label}
+      {/* Tab bar — desktop: underline buttons; mobile: dropdown. */}
+      {(()=>{
+        const PANELS_TABS=[{id:"jobs",label:"Job failures"},{id:"settings",label:"Settings changes"}];
+        const curTab = PANELS_TABS.find(t=>t.id===tab) || PANELS_TABS[0];
+        return <>
+          <div className="admin-tabs-underline">
+            {PANELS_TABS.map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)}
+                className={`admin-tab-underline${tab===t.id?" active":""}`}>
+                {t.label}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+          <div className="admin-tabs-mob">
+            <details>
+              <summary>
+                <span className="atm-label"><span>{curTab.label}</span></span>
+                <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+              </summary>
+              <div className="atm-menu">
+                {PANELS_TABS.map(t=>(
+                  <div key={t.id}
+                    className={`atm-item${tab===t.id?" active":""}`}
+                    onClick={e=>{setTab(t.id); e.currentTarget.closest("details").removeAttribute("open");}}>
+                    {t.label}
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        </>;
+      })()}
 
       {loading && <div style={{padding:"40px 0",textAlign:"center",color:"var(--t5)"}}>Loading…</div>}
 
