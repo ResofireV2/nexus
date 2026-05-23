@@ -942,6 +942,8 @@ A few things to know about how hooks dispatch:
 
 The three lifecycle callbacks fire at the extension's three lifecycle moments. All optional; default to no-ops.
 
+These callbacks are **discrete-event** callbacks, not boot-time callbacks. None of them runs when Nexus restarts — `on_install/1` runs only the first time the extension is installed, `on_update/2` only when the admin clicks Update, `on_uninstall/0` only at uninstall. For work that must run on every boot, use `child_specs/0` (§8.7). See §10.5 for the full picture of what runs when.
+
 ```elixir
 @impl true
 def on_install(settings) do
@@ -1058,6 +1060,16 @@ To stay safe:
 - **Avoid short forms like `V001`, `V002`.** They're valid per the regex but vulnerable to colliding with literally any other extension that uses the same convention, since version `1` is a popular pick.
 
 Nexus does not currently namespace `schema_migrations` per extension. This is a known limitation of the shared-database design — keep your version integers in their own date range and you'll be fine.
+
+#### Replay on boot
+
+Your `migrations/0` list runs in full on every Nexus restart, not just at install time. This is safe because Ecto's `schema_migrations` table tracks applied versions and silently skips already-applied ones — but it's worth knowing the contract:
+
+- Migrations that succeeded previously will no-op on every subsequent boot.
+- New migrations you add (in a release the host eventually downloads) will run on the boot that first sees them.
+- The silent-skip behavior is the same mechanism described above, so the version-collision rules apply on every boot too.
+
+See §10.5 for the full picture of what the loader pipeline does on each restart.
 
 #### Rollback
 
@@ -2615,6 +2627,53 @@ The full set of load_status values, what they mean, and how to recover:
 | `no_repo`            | The manifest URL didn't yield a `<user>/<repo>` pair, and `repository` wasn't in the manifest. | Use a URL Nexus can parse (raw.githubusercontent.com is the canonical form), or add a `repository` field to the manifest. |
 
 In every failure state, the `load_error` column holds a human-readable message describing the specific cause. This is what the admin sees in the per-extension page under "Status."
+
+### 10.5 Boot and reload
+
+When Nexus restarts — a deployment, a server reboot, a `mix phx.server` cycle in development — every enabled extension is reloaded. This is not the same code path as install, but it shares most of it: the loader pipeline (§10.1) runs in full, from the download step through registry insertion. Authors are sometimes surprised by what this means.
+
+#### What runs on every boot
+
+For every enabled extension, in parallel with each other, Nexus:
+
+1. Fetches the release tarball from GitHub. Same network call as install — yes, every boot re-downloads.
+2. Validates the manifest (now from the tarball, since this is a fresh extraction).
+3. Compiles every `.ex` file.
+4. Runs `migrations/0`. **Already-applied versions no-op via `schema_migrations`** — Ecto's idempotency makes this safe. The exception is the silent-skip bug from §8.5: if a previous boot wrote a version row before a later migration failed, the later migration will keep getting skipped on every boot.
+5. Copies bundled assets.
+6. Calls `child_specs/0` and starts the resulting children under your extension's supervisor.
+7. Registers your hooks, slots, routes, etc., into the in-memory registry.
+
+#### What does *not* run on boot
+
+The two lifecycle callbacks tied to discrete events are **not** invoked on boot:
+
+| Callback        | Runs on  | Does NOT run on            |
+|-----------------|----------|-----------------------------|
+| `on_install/1`  | First install only. | Boot. Update. Re-enabling. |
+| `on_update/2`   | Updates only.        | Boot. Install. Re-enabling. |
+| `on_uninstall/0`| Uninstall only.      | Boot. Disabling.           |
+
+If your extension needs initialization work that runs on every boot (warming a cache, opening an external connection, scheduling a recurring job), put it in `child_specs/0`. Those processes start on every boot, and the BEAM supervises them for you. Don't put boot-time work in `on_install/1` — it'll only run once, ever.
+
+#### Practical consequences
+
+A few things worth knowing about the boot path:
+
+- **Boot time scales linearly with installed extension count.** Each extension's pipeline includes a network fetch from GitHub plus a compile pass. Roughly seconds per extension on a fast connection, more on a slow one. Plan accordingly if you're going to run many extensions on the same install.
+- **GitHub availability matters at boot.** If GitHub is rate-limiting you or temporarily unreachable when Nexus restarts, the affected extensions land in `download_failed` and do not load at all — there's no fallback to a previously-cached state. The admin sees `download_failed` on the extensions list until they retry (toggle off and on, or restart again with GitHub reachable).
+- **In-memory state in child processes is reset.** Anything your `child_specs/0` children kept in their state (caches, counters, in-flight work) is gone after a restart. Persist anything that needs to survive a boot to the database or the filesystem.
+- **Compiled module state is reset.** Module attributes initialized at compile time get re-initialized. Process dictionaries are gone. This is standard OTP behavior, but worth noting if you were relying on module-level memoization.
+- **Disabled extensions don't load.** `load_all_enabled` filters by the `enabled` flag on the DB row. A disabled extension is skipped entirely on boot — modules don't compile, migrations don't replay (which means no silent-skip risk from disabled extensions), children don't start. Re-enabling triggers a fresh load.
+- **Boot failures use the same `load_status` values as install failures.** If compile fails on boot, you see `compile_failed`. If a child crashes during startup, you see `compile_failed` (the supervisor step is grouped with compile in the load_status mapping — see §10.4). The admin's recovery path is the same: toggle off and on, or fix the underlying issue and let the next boot try again.
+
+#### Design implications for extension authors
+
+Two patterns to internalize:
+
+**Idempotency.** Anything that runs in `migrations/0`, `child_specs/0`, or your registered children's startup should be safe to run again. Migrations get this for free via Ecto. Children should expect their state to be empty on startup and rebuild from persisted sources. If you create files at child startup, check whether they exist first.
+
+**`on_install/1` is for one-time setup.** Seeding initial data, generating an API token, sending a welcome email — these belong in `on_install/1` precisely because they should happen exactly once. Don't try to make `on_install/1` boot-safe; that's not what it's for.
 
 
 ---
