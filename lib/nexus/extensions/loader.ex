@@ -130,11 +130,42 @@ defmodule Nexus.Extensions.Loader do
   # Private — download and extract
   # ---------------------------------------------------------------------------
 
+  # Rewrite GitHub's archive URL to point directly at the codeload host.
+  # github.com/<owner>/<repo>/archive/refs/tags/<tag>.tar.gz responds with
+  # HTTP 302 → codeload.github.com/<owner>/<repo>/tar.gz/refs/tags/<tag>.
+  # Req's default redirect following has had intermittent issues when
+  # combined with an Authorization header (the security policy strips
+  # auth on cross-origin redirects, and the resulting bare request to
+  # codeload has occasionally returned non-200 in production).
+  #
+  # Going directly to codeload bypasses the redirect entirely. codeload
+  # serves the tarball directly without requiring authentication for
+  # public repos; private repos still need the token (which we pass).
+  #
+  # Non-GitHub URLs (other forges, direct hosted tarballs) pass through
+  # unchanged.
+  defp rewrite_github_archive_url(url) do
+    case Regex.run(
+      ~r{^https://github\.com/([^/]+)/([^/]+)/archive/refs/tags/(.+)\.tar\.gz$},
+      url
+    ) do
+      [_, owner, repo, tag] ->
+        "https://codeload.github.com/#{owner}/#{repo}/tar.gz/refs/tags/#{tag}"
+      _ ->
+        url
+    end
+  end
+
   defp download_and_extract(url, build_dir, token \\ nil) do
     File.rm_rf(build_dir)
     File.mkdir_p!(build_dir)
 
     tarball_path = Path.join(build_dir, "release.tar.gz")
+
+    resolved_url = rewrite_github_archive_url(url)
+    if resolved_url != url do
+      Logger.info("Loader: rewrote archive URL to codeload host: #{resolved_url}")
+    end
 
     # Pass the GitHub token if provided — required for private repo tarballs.
     # The token is supplied by the caller (install/update actions) and is never
@@ -146,7 +177,8 @@ defmodule Nexus.Extensions.Loader do
       [{"Accept", "application/octet-stream"}]
     end
 
-    case Req.get(url, headers: headers, receive_timeout: 60_000, decode_body: false) do
+    case Req.get(resolved_url, headers: headers, receive_timeout: 60_000,
+                 decode_body: false, redirect: true) do
       {:ok, %{status: 200, body: body}} ->
         case File.write(tarball_path, body) do
           :ok -> extract_tarball(tarball_path, build_dir)
@@ -154,7 +186,7 @@ defmodule Nexus.Extensions.Loader do
         end
 
       {:ok, %{status: status}} ->
-        {:error, "Failed to download tarball: HTTP #{status}"}
+        {:error, "Failed to download tarball: HTTP #{status} from #{resolved_url}"}
 
       {:error, reason} ->
         {:error, "Network error downloading tarball: #{inspect(reason)}"}
