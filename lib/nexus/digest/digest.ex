@@ -272,9 +272,25 @@ defmodule Nexus.Digest do
     sections = Map.merge(extension_sections, built_in_sections)
 
     # Ensure any newly-seen extension section keys are appended to the order
-    # (so they appear in the email even before the admin explicitly reorders them)
+    # (so they appear in the email even before the admin explicitly reorders them).
+    #
+    # We derive the order from each extension's manifest declaration, NOT from
+    # Map.keys(extension_sections), because Map.keys returns keys in internal
+    # hash order — non-deterministic and divergent from the order the admin
+    # Digest panel uses (which iterates the manifest's digest_sections array
+    # directly). Using the manifest array here keeps email ordering aligned
+    # with admin-panel ordering: what you see is what you send.
     known_keys = MapSet.new(section_order)
-    new_keys   = extension_sections |> Map.keys() |> Enum.reject(&MapSet.member?(known_keys, &1))
+    new_keys =
+      Nexus.Extensions.Registry.all_declared()
+      |> Enum.flat_map(fn {_slug, manifest} ->
+        Map.get(manifest, "digest_sections", [])
+        |> Enum.map(fn s -> s["key"] end)
+      end)
+      |> Enum.reject(&MapSet.member?(known_keys, &1))
+      |> Enum.filter(&Map.has_key?(extension_sections, &1))
+      |> Enum.uniq()
+
     section_order = section_order ++ new_keys
 
     %{
