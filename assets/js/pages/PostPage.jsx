@@ -999,7 +999,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>
         </div>
         {/* post_footer slot — extension components rendered here */}
-        <PostFooterSlot postId={post.id} />
+        <PostFooterSlot post={post} />
         {reactionsModal && <ReactionsModal {...reactionsModal} onClose={()=>setReactionsModal(null)}/>}
         <div className="replies-header">
           <span className="replies-count">{post.reply_count} {post.reply_count===1?"reply":"replies"}</span>
@@ -1208,7 +1208,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   );
 }
 
-function PostFooterSlot({postId}) {
+function PostFooterSlot({post}) {
   const [, forceUpdate] = React.useReducer(x => x+1, 0);
   useEffect(() => {
     const unsub = window.NexusExtensions.onChange(() => forceUpdate());
@@ -1216,16 +1216,19 @@ function PostFooterSlot({postId}) {
   }, []);
   const components = window.NexusExtensions.getSlot("post_footer");
   if (!components.length) return null;
+  // Slot contract: post_footer slotted components receive {post_id}.
+  // Anything else this render site has in scope stays out of the props bag.
+  const slotProps = window.NexusExtensions.propsForSlot("post_footer", {post});
   return (
     <div className="post-footer-slot">
-      {components.map(({component: Comp, priority}, i) => (
-        <Comp key={i} postId={postId} />
+      {components.map(({component: Comp}, i) => (
+        <Comp key={i} {...slotProps} />
       ))}
     </div>
   );
 }
 
-function ProfileSidebarSlot({username, currentUser, navigate}) {
+function ProfileSidebarSlot({username, currentUser}) {
   const [, forceUpdate] = React.useReducer(x => x+1, 0);
   useEffect(() => {
     const unsub = window.NexusExtensions.onChange(() => forceUpdate());
@@ -1233,10 +1236,17 @@ function ProfileSidebarSlot({username, currentUser, navigate}) {
   }, []);
   const components = window.NexusExtensions.getSlot("profile_sidebar");
   if (!components.length) return null;
+  // Slot contract: profile_sidebar slotted components receive {username,
+  // current_user}. The `navigate` function previously passed here is now
+  // out of scope — extensions navigate via window.NexusExtensions.navigate.
+  const slotProps = window.NexusExtensions.propsForSlot("profile_sidebar", {
+    username,
+    current_user: currentUser,
+  });
   return (
     <div style={{padding:"12px 28px 0",display:"flex",flexDirection:"column",gap:4}}>
       {components.map(({component: Comp}, i) => (
-        <Comp key={i} username={username} currentUser={currentUser} navigate={navigate}/>
+        <Comp key={i} {...slotProps}/>
       ))}
     </div>
   );

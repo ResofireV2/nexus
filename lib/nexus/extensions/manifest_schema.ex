@@ -68,20 +68,12 @@ defmodule Nexus.Extensions.ManifestSchema do
     report_created
   )
 
-  # Mirror of Nexus.Extensions.@ui_slots.
+  # Mirror of Nexus.Extensions.@ui_slots. Must stay in sync with that list
+  # and with Nexus.Extensions.SlotContracts. See @ui_slots in extensions.ex
+  # for the canonical list and the contract-update procedure.
   @known_slots ~w(
-    feed_top
-    feed_bottom
-    feed_sidebar
-    post_header
     post_footer
-    post_sidebar
-    reply_footer
-    profile_header
     profile_sidebar
-    nav_top
-    nav_bottom
-    admin_sidebar
   )
 
   # Mirror of CORE_PAGES in assets/js/admin/AdminLayout.jsx. Used to validate

@@ -159,6 +159,17 @@ defmodule NexusWeb.API.V1.ExtensionController do
     end
   end
 
+  # GET /api/v1/admin/extensions/slot-contracts
+  #
+  # Returns the declared slot contracts — what slots exist, what they're
+  # for, and what props each slot's registered components receive.
+  # Sourced from Nexus.Extensions.SlotContracts. Surfaced in the admin
+  # runtime panel so extension authors can see slot signatures alongside
+  # other manifest-declared surfaces.
+  def slot_contracts(conn, _params) do
+    json(conn, %{contracts: Nexus.Extensions.SlotContracts.all()})
+  end
+
   # POST /api/v1/admin/extensions/check-updates
   def check_updates(conn, _params) do
     token = Nexus.Extensions.GitHub.get_token()

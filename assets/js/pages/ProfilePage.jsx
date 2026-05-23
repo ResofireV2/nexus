@@ -282,8 +282,11 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
           </div>
         </div>
 
-        {/* profile_sidebar slot — extension components rendered here */}
-        <ProfileSidebarSlot username={username} currentUser={currentUser} navigate={navigate}/>
+        {/* profile_sidebar slot — extension components rendered here.
+            Slot contract: components receive {username, current_user}. The
+            navigate function previously passed here is no longer in the
+            contract; extensions navigate via NE.navigate(url) instead. */}
+        <ProfileSidebarSlot username={username} currentUser={currentUser}/>
 
         {/* Tabs — desktop: horizontal bar, mobile: dropdown */}
         <div className="profile-tabs">

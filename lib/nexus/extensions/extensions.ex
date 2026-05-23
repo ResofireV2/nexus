@@ -39,19 +39,24 @@ defmodule Nexus.Extensions do
   # Well-known UI slots
   # ---------------------------------------------------------------------------
 
+  # UI slots are positional render points in the host UI where extensions
+  # can contribute components. Each name in this list MUST correspond to a
+  # real `getSlot(name)` call in the host React code; advertising a slot
+  # that has no render site produces phantom registrations (extensions
+  # register, but nothing appears on screen).
+  #
+  # Per-slot contracts (purpose, render conditions, declared props) live in
+  # Nexus.Extensions.SlotContracts. Both this list and that module must be
+  # updated in lockstep when adding or removing a slot.
+  #
+  # When adding a new slot here, also:
+  #   1. Add an entry to Nexus.Extensions.SlotContracts.@contracts
+  #   2. Add a corresponding entry to @known_slots in manifest_schema.ex
+  #   3. Add a getSlot call at the new render site in the JS, using
+  #      propsForSlot to resolve declared props
   @ui_slots ~w(
-    feed_top
-    feed_bottom
-    feed_sidebar
-    post_header
     post_footer
-    post_sidebar
-    reply_footer
-    profile_header
     profile_sidebar
-    nav_top
-    nav_bottom
-    admin_sidebar
   )
 
   def ui_slots, do: @ui_slots

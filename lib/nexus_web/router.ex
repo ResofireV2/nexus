@@ -312,6 +312,7 @@ defmodule NexusWeb.Router do
     # Extensions
     get    "/extensions",                    ExtensionController, :index
     get    "/extensions/store",              ExtensionController, :store
+    get    "/extensions/slot-contracts",     ExtensionController, :slot_contracts
     get    "/extensions/:slug",              ExtensionController, :show
     get    "/extensions/:slug/runtime",      ExtensionController, :runtime
     post   "/extensions",                    ExtensionController, :install

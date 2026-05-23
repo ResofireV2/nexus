@@ -577,6 +577,58 @@ window.NexusExtensions = {
     return this._slots[slotName] || [];
   },
 
+  // Resolve the prop bag that components in a given slot should receive,
+  // derived from a render-site context object. This is the runtime authority
+  // for slot prop contracts: any field that isn't returned here doesn't
+  // reach slotted components, period. There's no implicit spread of host
+  // values into slots.
+  //
+  // The Elixir module Nexus.Extensions.SlotContracts holds the canonical
+  // contract metadata (descriptions for docs/admin UI); this function holds
+  // the *actual* runtime prop pipeline. The two MUST stay in sync — if you
+  // declare `current_user` in a slot's contract there, you must wire it
+  // here too, and vice versa.
+  //
+  // Usage from a host render site:
+  //
+  //   const components = NE.getSlot("post_footer");
+  //   const props      = NE.propsForSlot("post_footer", {post});
+  //   {components.map(({component: C}, i) => <C key={i} {...props}/>)}
+  //
+  // The context object can include anything the render site has on hand;
+  // this function picks out and renames only what each slot's contract
+  // declares. Extra fields are ignored without warning.
+  //
+  // Adding a new slot here is one step of adding a slot overall — see the
+  // procedure documented in Nexus.Extensions.SlotContracts.
+  propsForSlot(slotName, ctx = {}) {
+    switch (slotName) {
+
+      // post_footer — bottom of /post/:id pages, below post body, above
+      // any reply thread. One render per post.
+      case "post_footer":
+        return {
+          post_id: ctx.post?.id,
+        };
+
+      // profile_sidebar — left rail of /profile/:username pages, above the
+      // profile's main content area.
+      case "profile_sidebar":
+        return {
+          username:     ctx.username,
+          current_user: ctx.current_user ?? null,
+        };
+
+      default:
+        // Unknown slot — return empty bag and warn. This catches typos at
+        // render-site callers AND catches getSlot calls left behind after
+        // a slot has been removed from the contract list.
+        console.warn("[NexusExtensions] propsForSlot: unknown slot", slotName,
+          "— check Nexus.Extensions.SlotContracts for the current slot list");
+        return {};
+    }
+  },
+
   onChange(fn) {
     this._listeners.push(fn);
     return () => { this._listeners = this._listeners.filter(f => f !== fn); };
