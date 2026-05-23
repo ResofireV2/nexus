@@ -500,8 +500,6 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
                 }}>
                 <i className={b.label} style={{fontSize:16}}/>
               </button>
-                <i className={b.label} style={{fontSize:16}}/>
-              </button>
             : b.type==="emoji"
               ? <button key="emoji" ref={emojiAnchorRef} className={`comp-tb-btn${emojiOpen?" comp-tb-btn--active":""}`} title="Emoji"
                   onMouseDown={e=>{e.preventDefault(); toggleEmoji();}}>
