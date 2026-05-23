@@ -524,6 +524,102 @@ window.NexusExtensions = {
   _adminPanelListeners: [],
   _exploreItems: [],
   _exploreListeners: [],
+
+  // Set of currently-active extension slugs. Used by every getter that
+  // returns extension-contributed surfaces (explore items, toolbar buttons,
+  // right widgets, profile tabs, post actions, notification types, slots).
+  //
+  // An extension is "active" when its bundle was loaded AND it's currently
+  // enabled AND it's currently installed. This set is the client-side
+  // analogue of piece 5's server-side Registry.enabled? — when an admin
+  // disables or uninstalls an extension, we update this set so its
+  // registered surfaces stop appearing without the user reloading the page.
+  //
+  // The set is seeded from window._nexusExtensionManifests on bundle init
+  // (server inlines that map for only enabled+loaded extensions).
+  //
+  // Public mutators: setExtensionActive(slug, active), removeExtension(slug).
+  _activeExtensions: null,
+
+  _isExtActive(slug) {
+    if (!slug) return true;  // built-ins (no slug) always pass through
+    if (this._activeExtensions === null) {
+      // First read — lazy-init from the SSR'd manifest map. Any extension
+      // present there is presumed active.
+      this._activeExtensions = new Set();
+      const manifests = window._nexusExtensionManifests || {};
+      Object.keys(manifests).forEach(s => this._activeExtensions.add(s));
+    }
+    return this._activeExtensions.has(slug);
+  },
+
+  setExtensionActive(slug, active) {
+    if (!slug) return;
+    this._isExtActive(slug);  // ensure lazy init has run
+    if (active) this._activeExtensions.add(slug);
+    else        this._activeExtensions.delete(slug);
+    // Fan out to every listener so consumers re-render.
+    this._exploreListeners.forEach(fn => fn());
+    this._toolbarListeners.forEach(fn => fn());
+    this._rightWidgetListeners.forEach(fn => fn());
+    this._profileTabListeners.forEach(fn => fn());
+    this._postActionListeners.forEach(fn => fn());
+    this._notifTypeListeners.forEach(fn => fn());
+    this._adminPanelListeners.forEach(fn => fn());
+    this._listeners.forEach(fn => fn());  // slot listeners
+    this._accountActionListeners.forEach(fn => fn());
+  },
+
+  isExtensionActive(slug) {
+    return this._isExtActive(slug);
+  },
+
+  // Permanent removal (uninstall). Drops the slug from active set AND
+  // strips its registrations from every in-memory store, so they're not
+  // just hidden but actually gone.
+  //
+  // Surfaces strip cleanly when their registration carries a slug field.
+  // Slot, toolbar, explore, right widget, profile tab, admin panel,
+  // account action are all slug-tagged. Notification types are looked up
+  // via the extension's declared types in the manifest. Post actions
+  // currently lack slug-tagging — their cleanup happens implicitly on
+  // page reload after uninstall.
+  removeExtension(slug) {
+    if (!slug) return;
+    this._isExtActive(slug);
+    this._activeExtensions.delete(slug);
+
+    if (this._exploreItems)   this._exploreItems   = this._exploreItems.filter(i => i.slug !== slug);
+    if (this._toolbarButtons) this._toolbarButtons = this._toolbarButtons.filter(b => b.config.slug !== slug);
+    if (this._rightWidgets)   this._rightWidgets   = this._rightWidgets.filter(w => w.slug !== slug);
+    if (this._profileTabs)    this._profileTabs    = this._profileTabs.filter(t => t.slug !== slug);
+    if (this._adminPanels)    this._adminPanels    = this._adminPanels.filter(p => p.slug !== slug);
+    if (this._accountActions) this._accountActions = this._accountActions.filter(a => a.slug !== slug);
+    if (this._slots) {
+      Object.keys(this._slots).forEach(name => {
+        this._slots[name] = this._slots[name].filter(s => s.slug !== slug);
+      });
+    }
+    // Notification types are keyed by type string; resolve via the
+    // extension's manifest declaration.
+    if (this._notifTypes && window._nexusExtensionManifests) {
+      const mani = window._nexusExtensionManifests[slug];
+      if (mani && Array.isArray(mani.notification_types)) {
+        mani.notification_types.forEach(t => { delete this._notifTypes[t.key]; });
+      }
+    }
+
+    // Fan out so consumers re-render with the trimmed lists.
+    this._exploreListeners.forEach(fn => fn());
+    this._toolbarListeners.forEach(fn => fn());
+    this._rightWidgetListeners.forEach(fn => fn());
+    this._profileTabListeners.forEach(fn => fn());
+    this._postActionListeners.forEach(fn => fn());
+    this._notifTypeListeners.forEach(fn => fn());
+    this._adminPanelListeners.forEach(fn => fn());
+    this._listeners.forEach(fn => fn());
+    this._accountActionListeners.forEach(fn => fn());
+  },
   _rightWidgets: [],
   _rightWidgetListeners: [],
   _profileTabs: [],
@@ -576,7 +672,9 @@ window.NexusExtensions = {
   },
 
   getSlot(slotName) {
-    return this._slots[slotName] || [];
+    var items = this._slots[slotName] || [];
+    var self  = this;
+    return items.filter(function(item) { return self._isExtActive(item.slug); });
   },
 
   // Resolve the prop bag that components in a given slot should receive,
@@ -738,7 +836,8 @@ window.NexusExtensions = {
   },
 
   getToolbarButtons() {
-    return this._toolbarButtons;
+    var self = this;
+    return this._toolbarButtons.filter(function(b) { return self._isExtActive(b.config.slug); });
   },
 
   onToolbarChange(fn) {
@@ -871,7 +970,8 @@ window.NexusExtensions = {
   },
 
   getAdminPanels() {
-    return this._adminPanels;
+    var self = this;
+    return this._adminPanels.filter(function(p) { return self._isExtActive(p.slug); });
   },
 
   onAdminPanelChange(fn) {
@@ -926,7 +1026,7 @@ window.NexusExtensions = {
     this._exploreListeners.forEach(fn => fn());
   },
 
-  getExploreItems() { return this._exploreItems; },
+  getExploreItems() { return this._exploreItems.filter(i => this._isExtActive(i.slug)); },
 
   onExploreChange(fn) {
     this._exploreListeners.push(fn);
@@ -1010,7 +1110,7 @@ window.NexusExtensions = {
     this._rightWidgetListeners.forEach(fn => fn());
   },
 
-  getRightWidgets() { return this._rightWidgets; },
+  getRightWidgets() { return this._rightWidgets.filter(w => this._isExtActive(w.slug)); },
 
   onRightWidgetChange(fn) {
     this._rightWidgetListeners.push(fn);
@@ -1068,7 +1168,7 @@ window.NexusExtensions = {
   // applying visibility filters and priority sort there. This function does
   // not filter by visibility — that's per-render-context, not registration-
   // context.
-  getProfileTabs() { return this._profileTabs; },
+  getProfileTabs() { return this._profileTabs.filter(t => this._isExtActive(t.slug)); },
 
   onProfileTabChange(fn) {
     this._profileTabListeners.push(fn);
@@ -1131,7 +1231,10 @@ window.NexusExtensions = {
     this._accountActionListeners.forEach(fn => fn());
   },
 
-  getAccountActions() { return this._accountActions; },
+  getAccountActions() {
+    var self = this;
+    return this._accountActions.filter(function(a) { return self._isExtActive(a.slug); });
+  },
 
   onAccountActionChange(fn) {
     this._accountActionListeners.push(fn);
@@ -1193,7 +1296,27 @@ window.NexusExtensions = {
     this._notifTypeListeners.forEach(fn => fn());
   },
 
-  getNotifType(type) { return this._notifTypes[type] || null; },
+  getNotifType(type) {
+    var entry = this._notifTypes[type];
+    if (!entry) return null;
+    // If we can find the owning extension via declared manifests, gate on
+    // its active state. If we can't resolve ownership, allow through —
+    // some legacy registrations don't have manifest backing.
+    var manifests = window._nexusExtensionManifests || {};
+    var ownerSlug = null;
+    var slugs = Object.keys(manifests);
+    for (var i = 0; i < slugs.length; i++) {
+      var m = manifests[slugs[i]];
+      if (m && Array.isArray(m.notification_types)) {
+        if (m.notification_types.some(function(t) { return t.key === type; })) {
+          ownerSlug = slugs[i];
+          break;
+        }
+      }
+    }
+    if (ownerSlug && !this._isExtActive(ownerSlug)) return null;
+    return entry;
+  },
 
   onNotifTypeChange(fn) {
     this._notifTypeListeners.push(fn);
@@ -2574,6 +2697,13 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           var exploreItems = savedExplore && savedExplore.length
             ? savedExplore.map(function(s){return EXPLORE_ITEMS.find(function(d){return d.id===s.id;})||s;})
             : EXPLORE_ITEMS.slice();
+          // Drop any saved entries whose extension is disabled or uninstalled.
+          // savedExplore can contain extension entries persisted from a
+          // prior layout save — those need filtering by active state too,
+          // not just the live-registered list below.
+          exploreItems = exploreItems.filter(function(item) {
+            return !item.slug || window.NexusExtensions.isExtensionActive(item.slug);
+          });
           EXPLORE_ITEMS.forEach(function(d){if(!exploreItems.find(function(s){return s.id===d.id;}))exploreItems.push(d);});
           // Append extension-registered explore items (not yet in the saved list)
           window.NexusExtensions.getExploreItems().forEach(function(d){

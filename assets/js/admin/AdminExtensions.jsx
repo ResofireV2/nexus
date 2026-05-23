@@ -593,6 +593,12 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
     if(d.extension) {
       setExt(d.extension);
       onToggle(d.extension);
+      // Update client-side active set so surfaces this extension registered
+      // (explore items, toolbar buttons, right widgets, etc.) appear or
+      // disappear immediately without requiring a page reload.
+      if (window.NexusExtensions && window.NexusExtensions.setExtensionActive) {
+        window.NexusExtensions.setExtensionActive(d.extension.slug, !!d.extension.enabled);
+      }
       // Refresh the parent admin shell's extensions list so the sidebar's
       // enabled-state indicator updates immediately after live toggle.
       if (window._nexusAdminReloadExtensions) window._nexusAdminReloadExtensions();
@@ -607,6 +613,12 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
       // raised, Oban cleanup failed, etc.) so the admin sees them.
       if (d.warnings && d.warnings.length > 0) {
         d.warnings.forEach(w => toast(`Uninstall warning: ${w}`, "warn"));
+      }
+      // Permanently strip all registrations this extension contributed
+      // to in-memory client state. Without this, the sidebar entry and
+      // any other surfaces would linger until the user reloads the page.
+      if (window.NexusExtensions && window.NexusExtensions.removeExtension) {
+        window.NexusExtensions.removeExtension(ext.slug);
       }
       onUninstall(ext.slug);
     }
@@ -804,6 +816,9 @@ function ExtensionAdminPage({slug}) {
     const d = await api.post(`/admin/extensions/${slug}/toggle`);
     if (d.extension) {
       setExt(d.extension);
+      if (window.NexusExtensions && window.NexusExtensions.setExtensionActive) {
+        window.NexusExtensions.setExtensionActive(d.extension.slug, !!d.extension.enabled);
+      }
       if (window._nexusAdminReloadExtensions) window._nexusAdminReloadExtensions();
     }
   };
@@ -815,6 +830,11 @@ function ExtensionAdminPage({slug}) {
       // Piece 5: surface any warnings from the uninstall.
       if (d.warnings && d.warnings.length > 0) {
         d.warnings.forEach(w => toast(`Uninstall warning: ${w}`, "warn"));
+      }
+      // Strip in-memory registrations so sidebar entries and other
+      // contributed surfaces disappear immediately.
+      if (window.NexusExtensions && window.NexusExtensions.removeExtension) {
+        window.NexusExtensions.removeExtension(slug);
       }
       if (window._nexusAdminNav) window._nexusAdminNav("extensions");
     } else {
