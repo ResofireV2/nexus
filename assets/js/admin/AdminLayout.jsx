@@ -20,6 +20,7 @@ const EXPLORE_ITEMS = [
 // Used by AdminLayout to know what widgets exist and their default page scope.
 // IMPORTANT: whenever a widget is added to RIGHT_WIDGETS in nexus.jsx, it must
 // also be added here, or it will not appear in the Layout admin panel.
+// Page widgets (page_widget:*) are injected dynamically via getPageWidgetEntries().
 const RIGHT_WIDGETS = [
   {id:"post_author",       label:"Post Author",      pages:["post"]},
   {id:"post_participants", label:"Participants",      pages:["post"]},
@@ -33,6 +34,11 @@ const RIGHT_WIDGETS = [
   {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"]},
   {id:"stats",             label:"Stats",             pages:"global"},
 ];
+function getPageWidgetEntries() {
+  return (window._pageWidgets || []).map(function(pw) {
+    return {id: "page_widget:" + pw.id, label: pw.name, pages: "global"};
+  });
+}
 
 // Core Nexus pages that appear as sections in the right sidebar layout.
 const CORE_PAGES = [
@@ -342,6 +348,13 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
       }
     });
 
+    // Add dynamic page widgets
+    getPageWidgetEntries().forEach(function(w) {
+      if (widgetMatchesPage(w, pageId)) {
+        allWidgets.push(Object.assign({}, w));
+      }
+    });
+
     // Add extension widgets that belong on this page
     extWidgets.forEach(function(w) {
       if (widgetMatchesPage(w, pageId)) {
@@ -521,50 +534,6 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
         })
       )
     ),
-    React.createElement('div', {style:{marginTop:28}},
-      React.createElement('div', {className:"fgt"}, "Legal & Info widget"),
-      React.createElement('div', {style:{fontSize:13,color:"var(--t4)",marginBottom:16}},
-        "Configure the links shown in the Legal & Info right sidebar widget. Leave a field blank to hide that link."
-      ),
-      React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:12}},
-        React.createElement('div', null,
-          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Widget title"),
-          React.createElement('input', {
-            className:"fi", style:{width:"100%"},
-            placeholder:"Legal",
-            value:(layoutCfg.legal_widget||{}).title||"",
-            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {title:e.target.value})); }
-          })
-        ),
-        React.createElement('div', null,
-          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Privacy Policy URL"),
-          React.createElement('input', {
-            className:"fi", style:{width:"100%"},
-            placeholder:"/p/privacy",
-            value:(layoutCfg.legal_widget||{}).privacy_url||"",
-            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {privacy_url:e.target.value})); }
-          })
-        ),
-        React.createElement('div', null,
-          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Community Guidelines URL"),
-          React.createElement('input', {
-            className:"fi", style:{width:"100%"},
-            placeholder:"/p/guidelines",
-            value:(layoutCfg.legal_widget||{}).guidelines_url||"",
-            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {guidelines_url:e.target.value})); }
-          })
-        ),
-        React.createElement('div', null,
-          React.createElement('div', {style:{fontSize:12,color:"var(--t4)",marginBottom:4}}, "Terms of Service URL"),
-          React.createElement('input', {
-            className:"fi", style:{width:"100%"},
-            placeholder:"/p/terms",
-            value:(layoutCfg.legal_widget||{}).terms_url||"",
-            onChange:function(e){ update("legal_widget", Object.assign({}, layoutCfg.legal_widget||{}, {terms_url:e.target.value})); }
-          })
-        )
-      )
-    )
   );
 }
 

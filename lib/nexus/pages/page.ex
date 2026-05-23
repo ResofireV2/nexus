@@ -8,12 +8,14 @@ defmodule Nexus.Pages.Page do
     field :body,      :string
     field :published, :boolean, default: false
 
+    belongs_to :widget, Nexus.Pages.PageWidget
+
     timestamps(type: :utc_datetime)
   end
 
   def changeset(page, attrs) do
     page
-    |> cast(attrs, [:slug, :title, :body, :published])
+    |> cast(attrs, [:slug, :title, :body, :published, :widget_id])
     |> validate_required([:slug, :title])
     |> validate_length(:slug, min: 1, max: 100)
     |> validate_format(:slug, ~r/^[a-z0-9\-]+$/, message: "only lowercase letters, numbers, and hyphens")

@@ -2561,8 +2561,16 @@ const RIGHT_WIDGETS = [
   {id:"spaces_by_pulse",   label:"Spaces by Pulse",   pages:["feed"],        component: null},
   {id:"tags_by_pulse",     label:"Tags by Pulse",     pages:["feed"],        component: null},
   {id:"stats",             label:"Stats",             pages:"global",        component: null},
-  {id:"legal_info",        label:"Legal & Info",       pages:"global",        component: null},
 ];
+// Page widgets are dynamic — injected at runtime from window._pageWidgets once
+// the /pages/widgets/public API response arrives. Each entry gets id "page_widget:{id}",
+// label from the widget name, pages:"global", and component:null (rendered inline
+// in renderBuiltin via the page_widget: prefix check).
+function getDynamicPageWidgets() {
+  return (window._pageWidgets || []).map(function(pw) {
+    return {id: "page_widget:" + pw.id, label: pw.name, pages: "global", component: null};
+  });
+}
 const SIDEBAR_SECTIONS = [
   {id:"explore", label:"Explore"},
   {id:"spaces",  label:"Spaces"},
@@ -3476,36 +3484,27 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
       );
     }
     if(w.id === "legal_info") {
-      var cfg = window._legalWidgetCfg || {};
-      var title   = cfg.title || "Legal";
-      var privacy = cfg.privacy_url;
-      var guidelines = cfg.guidelines_url;
-      var terms   = cfg.terms_url;
-      var links = [
-        privacy    && {label:"Privacy Policy",        url:privacy},
-        guidelines && {label:"Community Guidelines",  url:guidelines},
-        terms      && {label:"Terms of Service",      url:terms},
-      ].filter(Boolean);
-      if (links.length === 0 && !cfg.show_security) return undefined;
+      // legacy_info is now retired — page widgets render via the "page_widget:*" id
+      // prefix below. Return undefined so the slot is skipped gracefully.
+      return undefined;
+    }
+    if(w.id && w.id.startsWith("page_widget:")) {
+      var widgetData = (window._pageWidgets || []).find(function(pw){ return "page_widget:" + pw.id === w.id; });
+      if(!widgetData || !widgetData.pages || widgetData.pages.length === 0) return undefined;
       return (
-        <div className="rw" key="legal_info">
-          <div className="rw-label">{title}</div>
+        <div className="rw" key={w.id}>
+          <div className="rw-label">{widgetData.name}</div>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {links.map(l=>(
-              <a key={l.label} href={l.url}
-                style={{fontSize:13,color:"var(--t3)",textDecoration:"none",display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"0.5px solid var(--b1)"}}
-                onClick={e=>{if(l.url.startsWith("/")){e.preventDefault();navigate&&navigate("page",{slug:l.url.replace(/^\/p\//,"")});}}}>
-                <i className="fa-solid fa-file-lines" style={{fontSize:12,color:"var(--t5)",width:14,textAlign:"center"}}/>
-                {l.label}
-              </a>
-            ))}
-            {cfg.show_security!==false&&currentUser&&(
-              <div style={{fontSize:13,color:"var(--t3)",display:"flex",alignItems:"center",gap:8,padding:"6px 0",cursor:"pointer"}}
-                onClick={()=>navigate&&navigate("settings",{tab:"security"})}>
-                <i className="fa-solid fa-shield" style={{fontSize:12,color:"var(--t5)",width:14,textAlign:"center"}}/>
-                Security settings
-              </div>
-            )}
+            {widgetData.pages.map(function(p){
+              return (
+                <div key={p.slug}
+                  style={{fontSize:13,color:"var(--t3)",display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"0.5px solid var(--b1)",cursor:"pointer"}}
+                  onClick={function(){ navigate&&navigate("page",{slug:p.slug}); }}>
+                  <i className="fa-solid fa-file-lines" style={{fontSize:12,color:"var(--t5)",width:14,textAlign:"center"}}/>
+                  {p.title}
+                </div>
+              );
+            })}
           </div>
         </div>
       );
@@ -3540,6 +3539,11 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
     var allExt = window.NexusExtensions.getRightWidgets();
     var candidates = [];
     RIGHT_WIDGETS.forEach(function(w) {
+      if(widgetMatchesPage(w, pageId, currentSlug, currentPattern)) {
+        candidates.push(Object.assign({}, w));
+      }
+    });
+    getDynamicPageWidgets().forEach(function(w) {
       if(widgetMatchesPage(w, pageId, currentSlug, currentPattern)) {
         candidates.push(Object.assign({}, w));
       }
@@ -4510,7 +4514,10 @@ function App() {
       // Keep legacy lc.toolbar in sync for any code that still reads it
       lc.toolbar = postTB;
       setLayoutCfg(lc);
-      window._legalWidgetCfg = lc.legal_widget || {};
+      // Load page widgets for sidebar rendering
+      api.get("/pages/widgets/public").then(function(d){
+        window._pageWidgets = d.widgets || [];
+      }).catch(function(){ window._pageWidgets = []; });
     }).catch(()=>{});
   },[]);
 

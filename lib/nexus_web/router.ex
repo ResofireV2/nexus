@@ -123,6 +123,7 @@ defmodule NexusWeb.Router do
     get "/users/:username/mentions",   UserContentController, :mentions
     get "/branding",               AdminController,  :get_branding
     get "/link_previews",          LinkPreviewController, :show
+    get "/pages/widgets/public",   PageController,       :widgets_public
     get "/pages/:slug",            PageController,       :show
     get "/badges/recent",           BadgeController,  :recent_earners
     get "/badges",                 BadgeController,  :index
@@ -362,6 +363,13 @@ defmodule NexusWeb.Router do
     post   "/pages",              PageController, :create
     patch  "/pages/:id",          PageController, :update
     delete "/pages/:id",          PageController, :delete
+
+    # Page Widgets
+    get    "/page-widgets",            PageController, :widget_index
+    post   "/page-widgets",            PageController, :widget_create
+    patch  "/page-widgets/:id",        PageController, :widget_update
+    delete "/page-widgets/:id",        PageController, :widget_delete
+    get    "/page-widgets/:id/pages",  PageController, :widget_pages
 
     # Updates — check-only. Updates are applied via the host-side
     # `nexus-update` script, not through the web UI.

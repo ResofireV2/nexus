@@ -41,9 +41,23 @@ end
 
 alias Nexus.Pages
 alias Nexus.Pages.Page
+alias Nexus.Pages.PageWidget
 
 unless Repo.aggregate(Page, :count) > 0 do
   IO.puts("Seeding default pages...")
+
+  # Create the default "Legal & Info" widget. on_conflict: :nothing means if it
+  # already exists the insert is silently skipped and the returned struct has id: nil.
+  # In that case we fetch the existing row by name.
+  {:ok, inserted_widget} =
+    %PageWidget{}
+    |> PageWidget.changeset(%{name: "Legal & Info", position: 0})
+    |> Repo.insert(on_conflict: :nothing)
+
+  legal_widget =
+    if inserted_widget.id,
+      do:   inserted_widget,
+      else: Repo.get_by!(PageWidget, name: "Legal & Info")
 
   privacy_body = ~S"""
 # Privacy Policy
@@ -526,19 +540,22 @@ We're building something here. We're glad you want to be a part of it.
       slug:      "privacy",
       title:     "Privacy Policy",
       body:      privacy_body,
-      published: false
+      published: false,
+      widget_id: legal_widget.id
     },
     %{
       slug:      "terms",
       title:     "Terms of Service",
       body:      tos_body,
-      published: false
+      published: false,
+      widget_id: legal_widget.id
     },
     %{
       slug:      "guidelines",
       title:     "Community Guidelines",
       body:      guidelines_body,
-      published: false
+      published: false,
+      widget_id: legal_widget.id
     }
   ]
 
