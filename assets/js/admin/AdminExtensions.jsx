@@ -619,32 +619,37 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 // extensions" entry — each installed extension gets one of these regardless
 // of whether it registered a custom admin panel via registerAdminPanel.
 //
-// Structure:
+// Layout priorities, top to bottom:
 //
-//   1. System header (Nexus owns)
-//      - name, version, author, repo link
-//      - enable/disable toggle  (honestly labeled — see below)
-//      - load status banner if not "loaded"
-//      - description
-//      - runtime registrations (collapsible)
-//      - settings form (from manifest's settings_schema, auto-rendered)
-//      - manifest sync button (if manifest_url present)
-//      - danger zone (uninstall)
+//   1. Identity strip (one row, ~40px tall)
+//        Logo · name · version · status pill · spacer · enable toggle · ⋯ menu
 //
-//   2. Extension-owned section (optional)
-//      - the component the extension registered via registerAdminPanel,
-//        rendered below a thin divider. If the extension didn't register
-//        anything, this section is silently omitted (no apology, no
-//        placeholder).
+//   2. Load status banner if not "loaded" (only shows for problem states)
 //
-// The system header replaces the inline detail expansion that used to live
-// in the Admin → Extensions gallery cards. Cards in that gallery now serve
-// as a navigation index and install/uninstall surface; the per-extension
-// settings/runtime/manifest/uninstall affordances live HERE.
+//   3. Settings form, expanded — generated from manifest's settings_schema.
+//      This is the highest-value content on this page for routine admin work;
+//      it sits at the top of the body, no heading needed, the form's fields
+//      speak for themselves.
+//
+//   4. "Advanced" — collapsible row, defaults closed. Contains the runtime
+//      registrations side-by-side comparison panel. Diagnostic content only;
+//      no need to consume vertical space on every visit.
+//
+//   5. Thin divider line — visual separator between Nexus-owned and
+//      extension-owned content.
+//
+//   6. The extension's registered admin panel component (registerAdminPanel),
+//      if one exists. Full width, no surrounding padding (the component owns
+//      its own layout).
+//
+// The ⋯ overflow menu houses Sync manifest, Uninstall extension, and (when
+// present) the Repo link — all infrequent actions that don't deserve
+// permanent visual weight.
 //
 // Enable/disable note: today's toggle_extension flips the DB boolean but
-// doesn't actually unload from the VM until next restart. We label the
-// toggle accordingly until a proper live-disable lifecycle is implemented.
+// doesn't actually unload from the VM until next restart. We surface this
+// via a small tooltip on the toggle until a proper live-disable lifecycle
+// is implemented.
 
 function ExtensionAdminPage({slug}) {
   const [ext, setExt] = useState(null);
@@ -652,15 +657,14 @@ function ExtensionAdminPage({slug}) {
   const [error, setError] = useState(null);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const loadExt = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // /admin/extensions returns the full list; filter for this slug.
-      // Could be tightened to a per-slug endpoint later if needed; for now
-      // the list endpoint is the only one that returns settings_schema and
-      // the other system-header fields.
       const d = await api.get("/admin/extensions");
       const found = (d.extensions || []).find(e => e.slug === slug);
       if (!found) setError("Extension not found.");
@@ -674,6 +678,16 @@ function ExtensionAdminPage({slug}) {
 
   useEffect(() => { loadExt(); }, [loadExt]);
 
+  // Close the overflow menu on outside click.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
+
   const toggle = async () => {
     const d = await api.post(`/admin/extensions/${slug}/toggle`);
     if (d.extension) setExt(d.extension);
@@ -683,8 +697,6 @@ function ExtensionAdminPage({slug}) {
     const d = await api.delete(`/admin/extensions/${slug}`);
     if (d.ok) {
       toast(`${ext.name} uninstalled`);
-      // After uninstall, navigate back to the extensions gallery — the
-      // sidebar entry will disappear on next render.
       if (window._nexusAdminNav) window._nexusAdminNav("extensions");
     } else {
       toast(d.error || "Uninstall failed", "err");
@@ -693,6 +705,7 @@ function ExtensionAdminPage({slug}) {
 
   const syncManifest = async () => {
     setSyncing(true);
+    setMenuOpen(false);
     try {
       const d = await api.post(`/admin/extensions/${slug}/sync`);
       if (d.extension) { setExt(d.extension); toast("Manifest synced"); }
@@ -722,110 +735,136 @@ function ExtensionAdminPage({slug}) {
   const registeredPanel = window.NexusExtensions
     && window.NexusExtensions.getAdminPanels().find(p => p.slug === slug);
 
+  // Load status pill — small inline indicator next to the name. Skips
+  // entirely when the extension is loaded cleanly (the banner below covers
+  // the problem cases).
+  const statusPill =
+    ext.load_status === "loaded"
+      ? <span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+          background:"rgba(52,211,153,0.1)",border:"0.5px solid rgba(52,211,153,0.3)",
+          color:"#34d399"}}>Loaded</span>
+      : null;
+
   return (
     <div>
-      {/* ─── System header (Nexus owns) ─────────────────────────────────── */}
-
-      {/* Title row */}
-      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:17,fontWeight:600,color:"var(--t1)"}}>{ext.name}</div>
-          <div style={{fontSize:12,color:"var(--t5)"}}>v{ext.version}{ext.author ? ` by ${ext.author}` : ""}</div>
+      {/* ─── Identity strip ─────────────────────────────────────────────── */}
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+        <div style={{flex:1,minWidth:0,display:"flex",alignItems:"baseline",gap:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:16,fontWeight:600,color:"var(--t1)"}}>{ext.name}</span>
+          <span style={{fontSize:12,color:"var(--t5)"}}>v{ext.version}</span>
+          {statusPill}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-          {ext.homepage && (
-            <a href={ext.homepage} target="_blank" rel="noopener"
-              style={{fontSize:12,color:"var(--t4)",textDecoration:"none",display:"flex",
-                alignItems:"center",gap:5,padding:"5px 10px",border:"0.5px solid var(--b1)",
-                borderRadius:8}}>
-              <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:10}}/>
-              Repo
-            </a>
+
+        {/* Enable toggle — naked toggle, no surrounding box or text label.
+            Hovering reveals the disclaimer about next-restart behavior. */}
+        <div title="Disabling currently takes effect on next server restart"
+             style={{display:"flex",alignItems:"center",flexShrink:0}}>
+          <Toggle value={ext.enabled} onChange={toggle}/>
+        </div>
+
+        {/* Overflow menu — rare actions (Repo, Sync, Uninstall) live here */}
+        <div ref={menuRef} style={{position:"relative",flexShrink:0}}>
+          <button onClick={() => setMenuOpen(o => !o)}
+            style={{background:"none",border:"0.5px solid var(--b1)",borderRadius:8,
+              padding:"6px 10px",cursor:"pointer",color:"var(--t3)",
+              fontSize:14,fontFamily:"inherit",display:"flex",alignItems:"center"}}>
+            <i className="fa-solid fa-ellipsis"/>
+          </button>
+          {menuOpen && (
+            <div style={{position:"absolute",right:0,top:"100%",marginTop:6,
+              background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,
+              padding:"4px",minWidth:200,zIndex:50,
+              boxShadow:"0 8px 24px rgba(0,0,0,0.4)",
+              display:"flex",flexDirection:"column",gap:0}}>
+              {ext.homepage && (
+                <a href={ext.homepage} target="_blank" rel="noopener"
+                  onClick={() => setMenuOpen(false)}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+                    fontSize:13,color:"var(--t2)",textDecoration:"none",borderRadius:6,
+                    cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="var(--s3)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:11,width:14}}/>
+                  Open repo
+                </a>
+              )}
+              {ext.manifest_url && (
+                <button onClick={syncManifest} disabled={syncing}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+                    fontSize:13,color:"var(--t2)",border:"none",background:"transparent",
+                    borderRadius:6,cursor:syncing?"default":"pointer",fontFamily:"inherit",
+                    opacity:syncing?0.6:1,textAlign:"left"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="var(--s3)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <i className="fa-solid fa-rotate" style={{fontSize:11,width:14}}/>
+                  {syncing?"Syncing manifest…":"Sync manifest"}
+                </button>
+              )}
+              <div style={{height:1,background:"var(--b1)",margin:"4px 0"}}/>
+              <button onClick={() => {setMenuOpen(false); setConfirmUninstall(true);}}
+                style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+                  fontSize:13,color:"var(--red)",border:"none",background:"transparent",
+                  borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.08)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <i className="fa-solid fa-trash" style={{fontSize:11,width:14}}/>
+                Uninstall extension
+              </button>
+            </div>
           )}
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",
-            background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:8}}>
-            <span style={{fontSize:12,color:"var(--t4)"}}>
-              {ext.enabled ? "Enabled" : "Disabled"}
-            </span>
-            <Toggle value={ext.enabled} onChange={toggle}/>
-          </div>
         </div>
       </div>
 
-      {/* Honest note about what the toggle actually does today. Removed once
-          live-disable lifecycle is implemented (deferred — see project notes). */}
-      <div style={{fontSize:11,color:"var(--t5)",marginBottom:20,paddingLeft:2,fontStyle:"italic"}}>
-        Note: disabling currently takes effect on next server restart.
-        Live runtime disable is planned for a future release.
-      </div>
-
-      {/* Load status banner — visible only when not "loaded" */}
+      {/* ─── Load-status banner (only when not loaded) ───────────────────── */}
       <ExtensionStatusBanner ext={ext}/>
 
-      {/* Description */}
-      {ext.description && (
-        <div style={{fontSize:13,color:"var(--t3)",marginBottom:20,lineHeight:1.6}}>
-          {ext.description}
-        </div>
-      )}
-
-      {/* Runtime registrations — collapsible, lazy-loads on expand */}
-      <ExtensionRuntimePanel slug={ext.slug}/>
-
-      {/* Settings form — auto-generated from manifest's settings_schema */}
-      <div className="fgt" style={{marginTop:24,marginBottom:16}}>Settings</div>
+      {/* ─── Settings form (expanded by default, no section heading) ─────── */}
       <ExtensionSettingsForm ext={ext} onSaved={updated => setExt(updated)}/>
 
-      {/* Manifest sync — re-pulls manifest from source URL */}
-      {ext.manifest_url && (
-        <div style={{marginTop:24,paddingTop:20,borderTop:"0.5px solid var(--b1)"}}>
-          <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:6}}>Manifest</div>
-          <div style={{fontSize:12,color:"var(--t4)",marginBottom:12}}>
-            Re-fetch the manifest from the source URL to pick up updated metadata, logo, banner, and bundle URL without reinstalling.
+      {/* ─── Advanced section — collapsed by default ─────────────────────── */}
+      <div style={{marginTop:24}}>
+        <button onClick={() => setAdvancedOpen(o => !o)}
+          style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
+            background:"none",border:"none",cursor:"pointer",color:"var(--t4)",
+            fontSize:12,fontFamily:"inherit",fontWeight:500}}>
+          <i className={`fa-solid fa-chevron-${advancedOpen?"down":"right"}`}
+            style={{fontSize:9,color:"var(--t5)"}}/>
+          Advanced
+        </button>
+        {advancedOpen && (
+          <div style={{marginTop:8,paddingLeft:18}}>
+            <ExtensionRuntimePanel slug={ext.slug}/>
           </div>
-          <button onClick={syncManifest} disabled={syncing}
-            style={{fontSize:12,padding:"6px 16px",borderRadius:8,
-              background:"rgba(96,165,250,0.08)",border:"0.5px solid rgba(96,165,250,0.3)",
-              color:"#60a5fa",cursor:syncing?"default":"pointer",fontFamily:"inherit",
-              opacity:syncing?0.6:1}}>
-            <i className="fa-solid fa-rotate" style={{marginRight:6,fontSize:11}}/>{syncing?"Syncing…":"Sync manifest"}
+        )}
+      </div>
+
+      {/* ─── Uninstall confirmation (inline, appears when invoked from menu) */}
+      {confirmUninstall && (
+        <div style={{marginTop:18,padding:"12px 14px",
+          background:"rgba(248,113,113,0.06)",border:"0.5px solid rgba(248,113,113,0.25)",
+          borderRadius:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <i className="fa-solid fa-triangle-exclamation" style={{color:"var(--red)",fontSize:14}}/>
+          <span style={{fontSize:13,color:"var(--t2)",flex:1}}>
+            Remove {ext.name} and all its settings?
+          </span>
+          <button onClick={uninstall}
+            style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+              background:"var(--red)",border:"none",color:"#fff",
+              cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+            Confirm uninstall
+          </button>
+          <button onClick={() => setConfirmUninstall(false)}
+            style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+              background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
+              cursor:"pointer",fontFamily:"inherit"}}>
+            Cancel
           </button>
         </div>
       )}
 
-      {/* Danger zone */}
-      <div style={{marginTop:32,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
-        <div style={{fontSize:13,fontWeight:500,color:"var(--red)",marginBottom:12}}>Danger zone</div>
-        {!confirmUninstall
-          ? <button onClick={() => setConfirmUninstall(true)}
-              style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(239,68,68,0.08)",
-                border:"0.5px solid rgba(239,68,68,0.3)",color:"var(--red)",cursor:"pointer",
-                fontFamily:"inherit"}}>
-              Uninstall extension
-            </button>
-          : <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <span style={{fontSize:13,color:"var(--t3)"}}>
-                Remove {ext.name} and all its settings?
-              </span>
-              <button onClick={uninstall}
-                style={{fontSize:12,padding:"6px 14px",borderRadius:8,
-                  background:"var(--red)",border:"none",color:"#fff",
-                  cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
-                Confirm uninstall
-              </button>
-              <button onClick={() => setConfirmUninstall(false)}
-                style={{fontSize:12,padding:"6px 14px",borderRadius:8,
-                  background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
-                  cursor:"pointer",fontFamily:"inherit"}}>
-                Cancel
-              </button>
-            </div>}
-      </div>
-
-      {/* ─── Extension-owned section (optional) ─────────────────────────── */}
-
+      {/* ─── Extension-owned section ─────────────────────────────────────── */}
       {registeredPanel && (
-        <div style={{marginTop:40,paddingTop:32,borderTop:"0.5px solid var(--b1)"}}>
+        <div style={{marginTop:28,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
           {window.React.createElement(registeredPanel.component, null)}
         </div>
       )}
