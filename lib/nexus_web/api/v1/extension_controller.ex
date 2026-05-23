@@ -170,6 +170,18 @@ defmodule NexusWeb.API.V1.ExtensionController do
     json(conn, %{contracts: Nexus.Extensions.SlotContracts.all()})
   end
 
+  # GET /api/v1/admin/extensions/hook-contracts
+  #
+  # Returns the declared hook contracts — what events Nexus fires, when
+  # each fires, and what payload each event carries. Sourced from
+  # Nexus.Extensions.HookContracts. Surfaced in the admin runtime panel
+  # so extension authors can see the contract for every hook their
+  # extension subscribes to, including the exact payload shape they'll
+  # receive in handle_event/3.
+  def hook_contracts(conn, _params) do
+    json(conn, %{contracts: Nexus.Extensions.HookContracts.all()})
+  end
+
   # POST /api/v1/admin/extensions/check-updates
   def check_updates(conn, _params) do
     token = Nexus.Extensions.GitHub.get_token()

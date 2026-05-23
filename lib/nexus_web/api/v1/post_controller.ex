@@ -67,7 +67,12 @@ defmodule NexusWeb.API.V1.PostController do
         else
           Nexus.Activity.increment_stat(user.id, :posts_count)
           NexusWeb.FeedChannel.broadcast_new_post(post)
-          Task.start(fn -> Nexus.Extensions.fire("post_created", %{post_id: post.id}) end)
+          Task.start(fn ->
+            {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+              "post_created", %{user_id: user.id, post_id: post.id}
+            )
+            Nexus.Extensions.fire("post_created", payload)
+          end)
           # Auto-follow if user preference is set (default: true)
           if Map.get(user.preferences || %{}, "auto_follow_own_posts", true) != false do
             Forum.follow_post(user.id, post.id)
@@ -98,7 +103,12 @@ defmodule NexusWeb.API.V1.PostController do
           Forum.record_post_edit(post, user.id)
           case Forum.update_post(post, params, tag_ids) do
             {:ok, updated} ->
-              Task.start(fn -> Nexus.Extensions.fire("post_updated", %{post_id: updated.id}) end)
+              Task.start(fn ->
+                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                  "post_updated", %{user_id: user.id, post_id: updated.id}
+                )
+                Nexus.Extensions.fire("post_updated", payload)
+              end)
               Nexus.LinkPreviews.extract_urls(updated.body)
               |> Enum.each(fn url ->
                 %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
@@ -148,7 +158,12 @@ defmodule NexusWeb.API.V1.PostController do
       post ->
         if can_edit?(user, post) do
           {:ok, _} = Forum.delete_post(post)
-          Task.start(fn -> Nexus.Extensions.fire("post_deleted", %{post_id: post.id}) end)
+          Task.start(fn ->
+            {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+              "post_deleted", %{user_id: user.id, post_id: post.id}
+            )
+            Nexus.Extensions.fire("post_deleted", payload)
+          end)
           json(conn, %{ok: true})
         else
           conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})

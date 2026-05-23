@@ -9,7 +9,15 @@ defmodule NexusWeb.API.V1.ReportController do
 
     case Moderation.create_report(attrs) do
       {:ok, report} ->
-        Task.start(fn -> Nexus.Extensions.fire("report_created", %{report_id: report.id}) end)
+        Task.start(fn ->
+          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+            "report_created", %{
+              user_id:   conn.assigns.current_user.id,
+              report_id: report.id
+            }
+          )
+          Nexus.Extensions.fire("report_created", payload)
+        end)
         conn |> put_status(:created) |> json(%{ok: true})
 
       {:error, changeset} ->
@@ -34,7 +42,25 @@ defmodule NexusWeb.API.V1.ReportController do
 
       report ->
         case Moderation.review_report(report, moderator, params["status"]) do
-          {:ok, updated} -> json(conn, %{report: report_json(updated)})
+          {:ok, updated} ->
+            # report_resolved fires when a moderator transitions a report out
+            # of pending. No-op transitions (pending → pending) don't fire,
+            # nor do re-resolutions (reviewed → dismissed, etc.) — only the
+            # first move out of pending.
+            if report.status == "pending" and updated.status != "pending" do
+              Task.start(fn ->
+                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                  "report_resolved", %{
+                    user_id:   moderator.id,
+                    report_id: updated.id,
+                    status:    updated.status
+                  }
+                )
+                Nexus.Extensions.fire("report_resolved", payload)
+              end)
+            end
+
+            json(conn, %{report: report_json(updated)})
           {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
         end
     end

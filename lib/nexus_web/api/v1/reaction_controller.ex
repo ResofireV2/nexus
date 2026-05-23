@@ -55,12 +55,15 @@ defmodule NexusWeb.API.V1.ReactionController do
           if target, do: Nexus.Notifications.notify_reaction(target, user, params["emoji"])
         end)
         Task.start(fn ->
-          Nexus.Extensions.fire("reaction_added", %{
-            emoji:    params["emoji"],
-            user_id:  user.id,
-            post_id:  reaction.post_id,
-            reply_id: reaction.reply_id
-          })
+          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+            "reaction_added", %{
+              user_id:  user.id,
+              emoji:    params["emoji"],
+              post_id:  reaction.post_id,
+              reply_id: reaction.reply_id
+            }
+          )
+          Nexus.Extensions.fire("reaction_added", payload)
         end)
 
         # Return updated counts and user's current reaction
@@ -108,6 +111,18 @@ defmodule NexusWeb.API.V1.ReactionController do
 
     case Forum.remove_reaction(user_id, attrs) do
       {:ok, :removed} ->
+        Task.start(fn ->
+          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+            "reaction_removed", %{
+              user_id:  user_id,
+              emoji:    params["emoji"],
+              post_id:  params["post_id"],
+              reply_id: params["reply_id"]
+            }
+          )
+          Nexus.Extensions.fire("reaction_removed", payload)
+        end)
+
         reactions = if params["post_id"] do
           Forum.list_reactions(post_id: params["post_id"])
         else

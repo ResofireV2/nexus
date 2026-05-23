@@ -94,6 +94,7 @@ function ExtensionRuntimePanel({slug}) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const [hookContracts, setHookContracts] = useState(null);
 
   const toggle = async () => {
     const next = !open;
@@ -104,9 +105,25 @@ function ExtensionRuntimePanel({slug}) {
       setLoading(true);
       setError(null);
       try {
-        const d = await api.get(`/admin/extensions/${slug}/runtime`);
+        // Fetch runtime data and hook contracts in parallel. The contracts
+        // are global (same for every extension) but we still re-fetch on
+        // every expand — keeps the code path simple and the contract list
+        // is tiny (< 1KB).
+        const [d, hc] = await Promise.all([
+          api.get(`/admin/extensions/${slug}/runtime`),
+          api.get(`/admin/extensions/hook-contracts`).catch(() => null),
+        ]);
         if (d.runtime) setData(d.runtime);
         else           setError(d.error || "Failed to fetch runtime info");
+        // Build a {event_name → contract} lookup for fast access in the row.
+        // If the contracts endpoint is unavailable for some reason (older
+        // Nexus instance, transient error), we degrade gracefully — the
+        // hooks row still renders without payload schemas.
+        if (hc?.contracts) {
+          const lookup = {};
+          for (const c of hc.contracts) lookup[c.event] = c;
+          setHookContracts(lookup);
+        }
       } catch (e) {
         setError(String(e));
       } finally {
@@ -155,7 +172,7 @@ function ExtensionRuntimePanel({slug}) {
               {/* Declared: what the manifest promises this extension contributes.
                   Empty sub-sections are hidden to keep the panel scannable —
                   most extensions only declare a subset of the possible kinds. */}
-              <DeclaredVsRegisteredPanel slug={slug} data={data}/>
+              <DeclaredVsRegisteredPanel slug={slug} data={data} hookContracts={hookContracts}/>
 
               {/* JS-side mismatches captured at register-time. Surfaces the case
                   where the bundle registers something the manifest didn't
@@ -208,7 +225,7 @@ function RuntimeList({label, items, render, empty}) {
 // from the registry, client-side from window.NexusExtensions). Each row shows
 // declared/registered side-by-side. Items appearing on only one side are
 // flagged so the admin can see the mismatch at a glance.
-function DeclaredVsRegisteredPanel({slug, data}) {
+function DeclaredVsRegisteredPanel({slug, data, hookContracts}) {
   const declared = data.declared || {};
 
   // Live JS-side registrations for this slug. Pulled directly from the
@@ -248,7 +265,8 @@ function DeclaredVsRegisteredPanel({slug, data}) {
   // anything to show — empty rows are noise.
   const rows = [
     {kind: "hooks",           declared: declared.hooks || [],
-                              registered: serverHooks,           side: "server"},
+                              registered: serverHooks,           side: "server",
+                              contracts: hookContracts},
     {kind: "slots",           declared: declared.slots || [],
                               registered: liveSlots,             side: "client"},
     {kind: "routes",          declared: (declared.routes || []).map(r => r.path),
@@ -312,13 +330,13 @@ function ComparisonRow({row}) {
         {row.kind}
         {hasMismatch && <i className="fa-solid fa-triangle-exclamation" style={{marginLeft:6, fontSize:10}}/>}
       </div>
-      <ListColumn items={row.declared} highlight={onlyDeclared} side="declared"/>
-      <ListColumn items={row.registered} highlight={onlyRegistered} side="registered"/>
+      <ListColumn items={row.declared} highlight={onlyDeclared} side="declared" details={row.contracts}/>
+      <ListColumn items={row.registered} highlight={onlyRegistered} side="registered" details={row.contracts}/>
     </div>
   );
 }
 
-function ListColumn({items, highlight, side}) {
+function ListColumn({items, highlight, side, details}) {
   if (!items || items.length === 0) {
     return <div style={{flex:1, minWidth:0, color:"var(--t5)", fontStyle:"italic"}}>—</div>;
   }
@@ -328,6 +346,10 @@ function ListColumn({items, highlight, side}) {
                 display:"flex", flexDirection:"column", gap:3}}>
       {items.map((it, i) => {
         const isHi = hiSet.has(it);
+        // Look up contract detail for this item if a details map is provided.
+        // Currently only the hooks row populates `details` (with payload
+        // schemas); other rows pass nothing and detail is undefined.
+        const detail = details && details[it];
         return (
           <li key={i} style={{color: isHi ? "#fbbf24" : "var(--t2)",
             fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace",
@@ -336,8 +358,15 @@ function ListColumn({items, highlight, side}) {
               ? (side === "declared"
                   ? "Declared in manifest but not registered at runtime"
                   : "Registered at runtime but not declared in manifest")
-              : null}>
+              : (detail?.description || null)}>
             {it}
+            {detail && detail.payload && (
+              <div style={{fontSize:10, color:"var(--t5)", fontWeight:400,
+                           paddingLeft:8, marginTop:1,
+                           fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace"}}>
+                payload: {`{${Object.keys(detail.payload).join(", ")}}`}
+              </div>
+            )}
           </li>
         );
       })}

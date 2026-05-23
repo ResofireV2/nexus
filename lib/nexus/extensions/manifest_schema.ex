@@ -62,10 +62,12 @@ defmodule Nexus.Extensions.ManifestSchema do
     post_updated
     post_deleted
     reply_created
+    reaction_added
+    reaction_removed
+    report_created
+    report_resolved
     user_registered
     user_login
-    reaction_added
-    report_created
   )
 
   # Mirror of Nexus.Extensions.@ui_slots. Must stay in sync with that list

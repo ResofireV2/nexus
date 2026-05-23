@@ -22,15 +22,24 @@ defmodule Nexus.Extensions do
   # Well-known hook events
   # ---------------------------------------------------------------------------
 
+  # Canonical list of all hook events Nexus fires. MUST stay in sync with:
+  #   - @known_hook_events in Nexus.Extensions.ManifestSchema
+  #   - @contracts in Nexus.Extensions.HookContracts
+  #
+  # When adding an event, update all three locations AND wire up the fire
+  # site. Nexus.Extensions.fire/2 raises on unknown events, so a fire
+  # site for an event not in this list will fail loudly at runtime.
   @hook_events ~w(
     post_created
     post_updated
     post_deleted
     reply_created
+    reaction_added
+    reaction_removed
+    report_created
+    report_resolved
     user_registered
     user_login
-    reaction_added
-    report_created
   )
 
   def hook_events, do: @hook_events
@@ -721,9 +730,64 @@ defmodule Nexus.Extensions do
   # a direct invocation of the extension's handle_event/3 callback, run in a
   # supervised Task so a crashing extension can't affect the caller or other
   # extensions. No HTTP, no serialization.
+  #
+  # ## Strict contract enforcement (piece 2)
+  #
+  # Before dispatch, the payload is validated against the event's contract
+  # in `Nexus.Extensions.HookContracts`. Two failure modes are possible:
+  #
+  #   1. Unknown event — raises ArgumentError. This catches typos at fire
+  #      sites (e.g. "post_creates" instead of "post_created") which the
+  #      old catch-all silently swallowed. Fire-site bugs surface at the
+  #      first invocation, not when an admin wonders why their extension
+  #      never fires.
+  #
+  #   2. Invalid payload — logs a warning and skips dispatch. Includes
+  #      missing/extra keys and non-JSON-serializable values (DateTime,
+  #      structs, PIDs, etc.). We log+skip rather than raise here because
+  #      a contract violation at runtime is recoverable — extensions just
+  #      don't get the event — whereas the alternative (raising in a
+  #      Task) would dump a stacktrace and might crash supervised callers.
+  #
+  # ## How to call fire/2 safely
+  #
+  # Use `HookContracts.build_payload(event, ctx)` to construct the payload
+  # from a context map. This guarantees the payload matches the contract.
+  # Fire sites that construct payloads inline (legacy pattern) still work,
+  # but the validation will catch them if they get it wrong.
   # ---------------------------------------------------------------------------
 
-  def fire(event, payload \\ %{}) when event in @hook_events do
+  def fire(event, payload \\ %{})
+
+  def fire(event, payload) when is_binary(event) and is_map(payload) do
+    unless event in @hook_events do
+      raise ArgumentError,
+            "Unknown hook event: #{inspect(event)}. " <>
+            "Declared events: #{inspect(@hook_events)}. " <>
+            "If you're adding a new event, update @hook_events in " <>
+            "Nexus.Extensions, @known_hook_events in " <>
+            "Nexus.Extensions.ManifestSchema, and add a contract entry " <>
+            "in Nexus.Extensions.HookContracts."
+    end
+
+    case Nexus.Extensions.HookContracts.validate_payload(event, payload) do
+      :ok ->
+        dispatch_to_handlers(event, payload)
+
+      {:error, reason} ->
+        require Logger
+        Logger.warning("Skipping hook #{event} — payload contract violation: #{reason}")
+        :ok
+    end
+  end
+
+  def fire(event, payload) do
+    raise ArgumentError,
+          "Nexus.Extensions.fire/2 requires a binary event name and a map " <>
+          "payload. Got event=#{inspect(event)}, payload=#{inspect(payload)}."
+  end
+
+  defp dispatch_to_handlers(event, payload) do
     for {slug, module} <- Nexus.Extensions.Registry.hooks_for(event) do
       ext = get_extension_by_slug(slug)
       settings = if ext, do: ext.settings || %{}, else: %{}
@@ -741,8 +805,6 @@ defmodule Nexus.Extensions do
 
     :ok
   end
-
-  def fire(_event, _payload), do: :ok
 
   # ---------------------------------------------------------------------------
   # Private — manifest helpers

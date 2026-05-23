@@ -80,7 +80,16 @@ defmodule NexusWeb.API.V1.ReplyController do
                   end
                 end)
               end)
-              Task.start(fn -> Nexus.Extensions.fire("reply_created", %{reply_id: reply.id, post_id: post.id}) end)
+              Task.start(fn ->
+                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                  "reply_created", %{
+                    user_id:  user.id,
+                    reply_id: reply.id,
+                    post_id:  post.id
+                  }
+                )
+                Nexus.Extensions.fire("reply_created", payload)
+              end)
               %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
               %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
               Task.start(fn ->
