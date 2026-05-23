@@ -172,7 +172,7 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelectRef}) {
   return null;
 }
 
-export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null, attachments=null, setAttachments=null, context=null}) {
+export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, attachments=null, setAttachments=null, context=null}) {
   // Resolve toolbar:
   //   1. Explicit `toolbarItems` prop wins (used by AdminLayout for the
   //      drag-to-reorder preview).
@@ -189,17 +189,11 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     else if(context === "reply") toolbarItems = _activeReplyToolbar || getAllToolbarButtons();
     else toolbarItems = TB_BTNS;
   }
-  const toolbarLinkedGames     = linkedGames || [];
-  const toolbarSetLinkedGames  = setLinkedGames || (() => {});
 
   // Piece 4: generic compose attachments. Extensions call `attach({kind, data})`
   // from their toolbar button onClick to attach structured data to the
   // composition. The page consuming this component reads `attachments` state
   // and includes it in the submit request body.
-  //
-  // Coexists with the older linkedGames-specific plumbing above —
-  // extensions choose which to use. The attachment-based flow is generic
-  // and replaces the need for extension-specific composer state.
   const composerAttachments = attachments || [];
   const setComposerAttachments = setAttachments || (() => {});
   const attach = (a) => {
@@ -494,18 +488,18 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
             ? <button key={b.type} className="comp-tb-btn" title={b.tip}
                 onMouseDown={e=>{
                   e.preventDefault();
-                  // Toolbar button onClick signature:
-                  //   - First two positional args (legacy): linkedGames state and setter.
-                  //     Used by Gamepedia's game-linking flow. Predates piece 4.
-                  //   - Third arg (piece 4): context object with the generic `attach`
-                  //     function and other shared values. New extensions should
-                  //     read `{ attach }` from this rather than the positional args.
-                  b.onClick && b.onClick(
-                    toolbarLinkedGames,
-                    toolbarSetLinkedGames,
-                    { attach, currentUser, context }
-                  );
+                  // Toolbar button onClick is called with a single context
+                  // object: { attach, currentUser, context }. Extensions
+                  // destructure what they need.
+                  //   - attach({kind, data}) — attach side-data to the
+                  //     in-flight composition. The kind must match an
+                  //     entry in the extension's manifest side_data.
+                  //   - currentUser — the logged-in user, or null
+                  //   - context — "post" | "reply" | null
+                  b.onClick && b.onClick({ attach, currentUser, context });
                 }}>
+                <i className={b.label} style={{fontSize:16}}/>
+              </button>
                 <i className={b.label} style={{fontSize:16}}/>
               </button>
             : b.type==="emoji"

@@ -36,7 +36,6 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const [showTypeDd,setShowTypeDd]=useState(false);
   const [showSpaceDd,setShowSpaceDd]=useState(false);
   const [loading,setLoading]=useState(false);
-  const [linkedGames,setLinkedGames]=useState([]);
   const [attachments,setAttachments]=useState([]);  // piece 4: generic compose attachments
   const typeDdRef=useRef(); const spaceDdRef=useRef();
   const submittingRef=useRef(false); // true while submit is in flight — suppresses autosave
@@ -91,10 +90,6 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
       if(d.post&&d.pending){await clearDraft();toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
         await clearDraft();
-        // Link any games selected via extension toolbar
-        if(linkedGames.length>0){
-          try{ await fetch(`/ext/gamepedia/api/posts/${d.post.id}/games`,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${localStorage.getItem("nexus_token")||""}`},body:JSON.stringify({game_ids:linkedGames.map(g=>g.id)})}); }catch(e){ console.warn("Failed to link games",e); }
-        }
         if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(body));
         toast("Post published!");navigate("post",{id:d.post.id});
       }
@@ -205,22 +200,8 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
           </div>
         )}
         <div className="comp-body-area">
-          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames} attachments={attachments} setAttachments={setAttachments} context="post"/>
+          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} attachments={attachments} setAttachments={setAttachments} context="post"/>
         </div>
-        {/* Linked game chips */}
-        {linkedGames.length > 0 && (
-          <div className="comp-game-chips">
-            {linkedGames.map(g => (
-              <div key={g.id} className="comp-game-chip">
-                {g.cover_image_url
-                  ? <img src={g.cover_image_url} alt={g.name} />
-                  : <i className="fa-solid fa-gamepad" />}
-                <span>{g.name}</span>
-                <button onClick={() => setLinkedGames(p => p.filter(x => x.id !== g.id))} title="Remove">✕</button>
-              </div>
-            ))}
-          </div>
-        )}
         <div className="comp-footer">
           <span className="comp-char">{body.length} characters</span>
           {lastSaved && (
