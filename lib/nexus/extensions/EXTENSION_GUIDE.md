@@ -1464,7 +1464,7 @@ A few conventions worth following:
 
 - **Wrap your code in an IIFE.** Your bundle shares a global execution context with Nexus and every other extension's bundle. An IIFE keeps your variables and helpers out of the global scope.
 - **Define `SLUG` once.** Every `register*` call needs your slug. Define it as a const and reference it everywhere; that way a slug rename means one edit, not many.
-- **Use `React.createElement`, not JSX.** Your bundle has no build step. JSX won't work unless you add one. `React.createElement(Component, props, ...children)` is the unbuilt equivalent — Nexus's React is available as `window.React`.
+- **Use `React.createElement`, not JSX.** Your bundle has no build step. JSX won't work unless you add one. `React.createElement(Component, props, ...children)` is the unbuilt equivalent — Nexus exposes React as `window.React` along with hooks like `useState`, `useEffect`, and so on. See §9.14.1 for the full set of host-provided primitives.
 
 The complete smoke test bundle structure looks like this:
 
@@ -2278,6 +2278,228 @@ const url = window.NexusExtensions.routeUrl(
 ```
 
 Also advanced. To navigate, build the URL as a literal string and pass it to `navigate(url)` — that's almost always clearer than building it from a pattern. `routeUrl` exists for the rare case where you have a pattern in hand and need to fill it in programmatically.
+
+### 9.14 Host-provided primitives
+
+Beyond the `register*` APIs, Nexus puts several things on the page your bundle can use directly — React itself, a small curated set of UI components, a complete CSS variable system, reusable CSS classes, and two passive media surfaces (lightbox and lite YouTube embed). This section is the full inventory.
+
+Everything here is available to no-build bundles. Nothing requires importing anything — these are either `window.*` globals or styling Nexus has already applied to the page.
+
+#### 9.14.1 React
+
+`window.React` and `window.ReactDOM` are Nexus's React instance. Use them for hooks, fragments, and `createElement`:
+
+```javascript
+const { useState, useEffect, useCallback, useMemo, useRef, Fragment } = window.React;
+```
+
+There's only one React on the page — Nexus's. Don't ship your own copy; you'd create two reconcilers competing for the same DOM. The single instance is why your components can receive React elements as props from the host (slots, route components, admin panels) and have them render correctly.
+
+#### 9.14.2 UI components: `window.NexusComponents`
+
+A curated set of five React components ready to use without building anything. Mirrors the `window.NexusExtensionTemplates` pattern used for admin panel templates.
+
+```javascript
+const { Toggle, Select, Av, Md, toast } = window.NexusComponents;
+```
+
+These five cover most extension UI needs. The list is deliberately small — each is a stable contract that won't break under you, and the surface grows by deliberate choice rather than by accumulation.
+
+##### `Toggle`
+
+A boolean toggle switch. Theme-matched.
+
+```javascript
+React.createElement(Toggle, {
+  value:    enabled,
+  onChange: (v) => setEnabled(v),
+  label:    "Enable feature",
+  hint:     "Turn this on to do the thing.",
+})
+```
+
+| Prop       | Type                 | Purpose                                              |
+|------------|----------------------|------------------------------------------------------|
+| `value`    | boolean              | Current value.                                       |
+| `onChange` | `(newValue) => void` | Called with the new boolean on toggle.               |
+| `label`    | string (optional)    | Label shown next to the toggle.                      |
+| `hint`     | string (optional)    | Helper text below the label.                          |
+
+##### `Select`
+
+A styled dropdown. Accepts either a list of options or raw `<option>` children.
+
+```javascript
+React.createElement(Select, {
+  value:    sort,
+  onChange: (v) => setSort(v),
+  options:  [
+    { value: "newest", label: "Newest first" },
+    { value: "top",    label: "Top rated" },
+    { value: "alpha",  label: "A → Z" },
+  ],
+})
+```
+
+| Prop        | Type                                                          | Purpose                                                                  |
+|-------------|---------------------------------------------------------------|--------------------------------------------------------------------------|
+| `value`     | string                                                         | Currently-selected value.                                                 |
+| `onChange`  | `(newValue) => void`                                           | Called with the new value on change.                                      |
+| `options`   | `Array<{value, label}>` or `Array<string>`                     | Items to render. Strings get used for both value and label.               |
+| `children`  | ReactNode                                                      | Alternative to `options` — raw `<option>` elements you build yourself.   |
+| `disabled`  | boolean (optional)                                              | Disables interaction.                                                    |
+| `id`        | string (optional)                                              | DOM id for form association.                                              |
+| `className` | string (optional)                                              | Extra class names appended to the styling.                                |
+| `style`     | object (optional)                                              | Inline style override.                                                    |
+
+##### `Av`
+
+A circular avatar. Renders the user's profile picture or a colored initial fallback. Theme-matched, respects the admin's `--av-radius` setting.
+
+```javascript
+React.createElement(Av, { user: { username: "alice", avatar_url: "/..." }, size: 32 })
+```
+
+| Prop    | Type                                | Purpose                                                  |
+|---------|-------------------------------------|----------------------------------------------------------|
+| `user`  | `{ username, avatar_url? }`         | The user to render. `avatar_url` falls back to initials.  |
+| `size`  | number (optional, default 28)       | Diameter in pixels.                                       |
+
+##### `Md`
+
+Renders Nexus's markdown flavor — same parser, same sanitizer, same embeds as user-authored posts. Markdown text in, themed HTML out. Code highlighting, mention links (`@username`), and embed handling (YouTube, Vimeo, X, Spotify) all included.
+
+```javascript
+React.createElement(Md, { text: "Visit @alice's profile or watch https://youtu.be/dQw4w9WgXcQ" })
+```
+
+| Prop   | Type   | Purpose                  |
+|--------|--------|--------------------------|
+| `text` | string | Markdown source to render.|
+
+The rendered output is wrapped in a `.md-body` div, so the lightbox auto-binds to any images and the YouTube lite embed wires up automatically. See §9.14.5.
+
+##### `toast`
+
+A fire-and-forget toast notification. Not a component — a plain function. A single host-level `<Toasts/>` is already mounted at the app root; calling `toast()` queues a message there.
+
+```javascript
+toast("Settings saved");                    // green success (default)
+toast("Couldn't save — please retry", "err"); // red error
+toast("Heads up", "warn");                  // amber warning
+```
+
+The toast auto-dismisses after 3 seconds. No mount, no state, no cleanup.
+
+#### 9.14.3 CSS variables
+
+Nexus sets a complete CSS variable system on `:root` and updates it when the admin changes branding settings or switches between light and dark mode. **Using these variables in your styles is the easiest way to get a theme-matched, theme-reactive UI for free.**
+
+Two groups: theme-customizable (admins can change in branding settings) and fixed (set once at load).
+
+**Theme-customizable** — admin can change these in **Admin → branding**:
+
+| Variable      | Purpose                                                                            |
+|---------------|------------------------------------------------------------------------------------|
+| `--ac`        | Accent color (the primary brand color).                                            |
+| `--ac-on`     | Foreground color to use on top of `--ac` (for text on accent-colored buttons).      |
+| `--ac-bg`     | Accent tinted at low alpha — for subtle backgrounds, hover states.                  |
+| `--ac-border` | Accent tinted for borders.                                                          |
+| `--ac-text`   | Accent in a more legible tint — for accent-colored text on neutral backgrounds.    |
+| `--bg`        | Page background.                                                                    |
+| `--s1`        | Slightly raised surface (cards, panels).                                            |
+| `--s2`        | More raised surface (popovers, dialogs).                                            |
+| `--s3`        | Most raised surface (active overlays).                                              |
+| `--av-radius` | Avatar border-radius (admin chooses square, circle, or anything between).           |
+| `--fs-ui`, `--fs-body`, `--fs-title`, `--fs-content`, `--fs-feed-title`, `--fs-code` | Font sizes for the corresponding text types. |
+
+**Fixed** — set on `:root`, the same value across all installs:
+
+| Variable        | Purpose                                                                          |
+|-----------------|----------------------------------------------------------------------------------|
+| `--t1`–`--t5`   | Text colors, from highest contrast (`--t1`) to lowest (`--t5`).                  |
+| `--b1`, `--b2`, `--b3` | Border colors, increasing in opacity.                                     |
+| `--green`, `--red`, `--blue`, `--amber`, `--pink` | Semantic colors for success/error/info/warning/accents. |
+
+A widget styled with `border: 0.5px solid var(--b1)`, `background: var(--s2)`, `color: var(--t1)` will look right on every install, in both light and dark modes, regardless of the admin's branding choices.
+
+#### 9.14.4 Reusable CSS classes
+
+A few CSS classes Nexus defines that work standalone — give your element the class and you get the styling.
+
+| Class           | What it does                                                                          |
+|-----------------|---------------------------------------------------------------------------------------|
+| `.btn-primary`  | Accent-colored button. Use for primary actions.                                       |
+| `.btn-ghost`    | Subtle outlined button. Use for secondary actions.                                    |
+| `.md-body`      | Container that styles its children like markdown — code blocks, headings, blockquotes, etc. **Also auto-wires the lightbox** for any `<img>` it contains. |
+| `.av-circle`    | Standalone avatar styling. The `Av` component (§9.14.2) uses this internally.         |
+
+For toasts, prefer `window.NexusComponents.toast()` (§9.14.2) — it handles mounting and queueing. The underlying `.toast.ok` / `.toast.err` / `.toast.warn` styles exist if you need to render your own toast-styled element for some reason.
+
+#### 9.14.5 Media: lightbox and lite YouTube embed
+
+Two passive surfaces. Emit the right markup and Nexus's globally-installed handlers do the work.
+
+##### Lightbox
+
+Click any image inside an `.md-body` element to open it in a full-screen lightbox with gallery navigation, zoom, fullscreen, and thumbnail strip. Fancybox 5 is the underlying engine, lazy-loaded the first time a user clicks.
+
+The simplest path — render your text via the `Md` component (§9.14.2) or wrap your content in `.md-body`:
+
+```javascript
+React.createElement("div", { className: "md-body" },
+  React.createElement("img", { src: "/uploads/extensions/my-ext/screenshot.png" })
+)
+```
+
+To opt an image into a higher-resolution lightbox source while keeping a lower-resolution thumbnail, set `data-original`:
+
+```javascript
+React.createElement("img", {
+  src: "/thumb-low.png",
+  "data-original": "/full-res.png",
+})
+```
+
+For programmatic opening — outside the `.md-body` auto-wire path — call `window._openFancybox(items, startIndex)`:
+
+```javascript
+window._openFancybox(
+  [
+    { src: "/thumb1.png", originalSrc: "/full1.png" },
+    { src: "/thumb2.png", originalSrc: "/full2.png" },
+  ],
+  0
+);
+```
+
+Items are objects with `src` (the thumbnail-ish source) and optional `originalSrc` (the lightbox-resolution source). `startIndex` is the gallery starting position.
+
+##### Lite YouTube embed
+
+A click-to-play YouTube embed that loads the iframe only when the user clicks the thumbnail. Saves ~500 KB of network on every page where a YouTube link is rendered. Emit a `div` with class `yt-lite` and a `data-id` attribute:
+
+```javascript
+React.createElement("div", {
+  className: "yt-lite",
+  "data-id": "dQw4w9WgXcQ",
+},
+  React.createElement("img", {
+    className: "yt-thumb",
+    src: "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+    alt: "YouTube video",
+    loading: "lazy",
+  })
+)
+```
+
+When the user clicks anywhere inside that div, Nexus's global click handler swaps in the YouTube iframe with autoplay enabled. The `Md` component does this for you when it sees a YouTube URL in the rendered markdown; the explicit form above is for when you want a video embed without going through markdown.
+
+#### 9.14.6 What's not exposed
+
+The `window.NexusComponents` set is curated, not exhaustive. Nexus's internal code uses additional components — link preview cards, reaction buttons, rich text editors, the user-card popover, the toolbar registry — that aren't part of the extension API. Treat them as internals: they may change without notice, and importing them isn't possible from a no-build bundle anyway.
+
+If you need a primitive that isn't in §9.14.2, build it yourself using the CSS variables (§9.14.3) and classes (§9.14.4) — that's how `NexusComponents` themselves are built, and the result will look native to Nexus. If a primitive seems generally useful and you'd like to see it added to the curated set, opening a discussion is the right path; the bar is "stable contract, broadly useful across extensions."
 
 
 ---
