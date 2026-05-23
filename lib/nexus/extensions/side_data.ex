@@ -113,6 +113,10 @@ defmodule Nexus.Extensions.SideData do
                        "#{entity}/#{attachment["kind"]} but its module is not " <>
                        "loaded — attachment dropped")
 
+      not Registry.enabled?(slug) ->
+        Logger.info("SideData: extension #{slug} is disabled — " <>
+                    "#{entity}/#{attachment["kind"]} attachment dropped")
+
       not function_exported?(module, :persist_attachment, 3) ->
         Logger.warning("SideData: extension #{slug} declared side_data for " <>
                        "#{entity}/#{attachment["kind"]} but does not export " <>

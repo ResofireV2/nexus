@@ -26,6 +26,15 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_asset(conn, slug, path_parts) do
+    # Piece 5: live disable applies to asset serving too. A disabled
+    # extension's JS bundle and static files should 404 so clients can't
+    # load them after a refresh while disabled.
+    if not Registry.enabled?(slug) do
+      conn
+      |> put_status(404)
+      |> put_resp_header("content-type", "application/json")
+      |> send_resp(404, Jason.encode!(%{error: "Extension \"#{slug}\" is disabled"}))
+    else
     filename  = Path.join(path_parts)
     asset_dir = Path.join([
       Application.get_env(:nexus, :uploads_dir, "/app/uploads"),
@@ -72,6 +81,7 @@ defmodule NexusWeb.ExtensionRouter do
       |> send_resp(404, Jason.encode!(%{error: "Asset not found: #{filename}"}))
     end
     end # path traversal guard
+    end # enabled guard (piece 5)
   end
 
   # ---------------------------------------------------------------------------
@@ -81,22 +91,32 @@ defmodule NexusWeb.ExtensionRouter do
   defp serve_api(conn, slug, path_parts) do
     module = Registry.get_module(slug)
 
-    if is_nil(module) do
-      conn
-      |> put_status(404)
-      |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
-    else
-      routes = Registry.routes_for(slug)
-
-      if routes == [] do
+    cond do
+      is_nil(module) ->
         conn
         |> put_status(404)
-        |> json(%{error: "Extension \"#{slug}\" has no API routes"})
-      else
-        path = "/" <> Enum.join(path_parts, "/")
-        conn = %{conn | path_info: path_parts, request_path: path}
-        dispatch_to_routes(conn, routes, slug)
-      end
+        |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
+
+      not Registry.enabled?(slug) ->
+        # Piece 5: live disable. Extension is loaded but currently disabled —
+        # 404 the same as if it weren't installed. Admin can re-enable it
+        # from the runtime panel.
+        conn
+        |> put_status(404)
+        |> json(%{error: "Extension \"#{slug}\" is disabled"})
+
+      true ->
+        routes = Registry.routes_for(slug)
+
+        if routes == [] do
+          conn
+          |> put_status(404)
+          |> json(%{error: "Extension \"#{slug}\" has no API routes"})
+        else
+          path = "/" <> Enum.join(path_parts, "/")
+          conn = %{conn | path_info: path_parts, request_path: path}
+          dispatch_to_routes(conn, routes, slug)
+        end
     end
   end
 

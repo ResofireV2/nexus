@@ -366,6 +366,7 @@ defmodule Nexus.Digest do
     Nexus.Extensions.Registry.all_digest_sections()
     |> Enum.reduce(%{}, fn %{key: key, extension_slug: slug}, acc ->
       with :enabled <- check_enabled(cfg, key),
+           true     <- Nexus.Extensions.Registry.enabled?(slug),
            module   <- Nexus.Extensions.Registry.get_module(slug),
            true     <- not is_nil(module) and (function_exported?(module, :handle_digest_section, 4) or function_exported?(module, :handle_digest_section, 3)) do
 

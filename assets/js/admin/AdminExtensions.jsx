@@ -23,6 +23,11 @@ const LOAD_STATUS_INFO = {
   compile_failed:   {label:"Compile failed",   tone:"err",    icon:"fa-circle-xmark"},
   manifest_invalid: {label:"Invalid manifest", tone:"err",    icon:"fa-file-circle-xmark"},
   migration_failed: {label:"Migration failed", tone:"err",    icon:"fa-circle-xmark"},
+  // Piece 5: lifecycle hook failure states. Extension is loaded but its
+  // on_install/on_update raised — admin should see the error and decide
+  // whether to uninstall, retry, or fix the underlying issue.
+  install_failed:   {label:"Install hook failed", tone:"warn", icon:"fa-triangle-exclamation"},
+  update_failed:    {label:"Update hook failed",  tone:"warn", icon:"fa-triangle-exclamation"},
 };
 
 // Map a tone to CSS colour tokens. Inline-style rather than classes because
@@ -577,7 +582,15 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 
   const uninstall = async () => {
     const d = await api.delete(`/admin/extensions/${ext.slug}`);
-    if(d.ok) { toast(`${ext.name} uninstalled`); onUninstall(ext.slug); }
+    if(d.ok) {
+      toast(`${ext.name} uninstalled`);
+      // Piece 5: surface any warnings from the uninstall (on_uninstall
+      // raised, Oban cleanup failed, etc.) so the admin sees them.
+      if (d.warnings && d.warnings.length > 0) {
+        d.warnings.forEach(w => toast(`Uninstall warning: ${w}`, "warn"));
+      }
+      onUninstall(ext.slug);
+    }
     else toast(d.error||"Failed","err");
   };
 
@@ -725,10 +738,11 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 // present) the Repo link — all infrequent actions that don't deserve
 // permanent visual weight.
 //
-// Enable/disable note: today's toggle_extension flips the DB boolean but
-// doesn't actually unload from the VM until next restart. We surface this
-// via a small tooltip on the toggle until a proper live-disable lifecycle
-// is implemented.
+// Enable/disable: piece 5 implemented live disable. Toggling off stops the
+// extension's supervised processes, filters it out of every dispatch site
+// (hooks, routes, side-data, digest) immediately. Modules stay loaded so
+// re-enable is instant. The client-side rendering of slots/widgets the
+// bundle pushed before disable persists until the user reloads.
 
 function ExtensionAdminPage({slug}) {
   const [ext, setExt] = useState(null);
@@ -776,6 +790,10 @@ function ExtensionAdminPage({slug}) {
     const d = await api.delete(`/admin/extensions/${slug}`);
     if (d.ok) {
       toast(`${ext.name} uninstalled`);
+      // Piece 5: surface any warnings from the uninstall.
+      if (d.warnings && d.warnings.length > 0) {
+        d.warnings.forEach(w => toast(`Uninstall warning: ${w}`, "warn"));
+      }
       if (window._nexusAdminNav) window._nexusAdminNav("extensions");
     } else {
       toast(d.error || "Uninstall failed", "err");

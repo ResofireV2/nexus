@@ -179,18 +179,42 @@ defmodule Nexus.Extensions do
   end
 
   def uninstall_extension(%Extension{} = ext) do
+    require Logger
     module = Nexus.Extensions.Registry.get_module(ext.slug)
+    warnings = []
 
-    # Call on_uninstall before removing anything
-    if module && function_exported?(module, :on_uninstall, 0) do
-      try do
-        module.on_uninstall()
-      rescue
-        e ->
-          require Logger
-          Logger.error("on_uninstall/0 raised for #{ext.slug}: #{inspect(e)}")
+    # Call on_uninstall before removing anything. Piece 5: capture errors
+    # as warnings to surface to the admin in the uninstall response.
+    warnings =
+      if module && function_exported?(module, :on_uninstall, 0) do
+        try do
+          module.on_uninstall()
+          warnings
+        rescue
+          e ->
+            msg = "on_uninstall/0 raised: #{Exception.message(e)}"
+            Logger.error("Extensions: #{ext.slug} #{msg}")
+            [msg | warnings]
+        end
+      else
+        warnings
       end
-    end
+
+    # Piece 5: cancel any pending Oban jobs owned by this extension's
+    # module namespace. Workers nested under the extension's root module
+    # (e.g. Gamepedia.Workers.* for a Gamepedia extension) get cancelled.
+    # Jobs already running are NOT killed — they run to completion. Jobs
+    # waiting or retrying are dropped from the queue.
+    warnings =
+      case cancel_extension_oban_jobs(ext, module) do
+        {:ok, 0}       -> warnings
+        {:ok, n}       ->
+          Logger.info("Extensions: cancelled #{n} Oban job(s) for #{ext.slug}")
+          warnings
+        {:error, msg}  ->
+          Logger.warning("Extensions: failed to cancel Oban jobs for #{ext.slug}: #{msg}")
+          ["Could not cancel pending Oban jobs: #{msg}" | warnings]
+      end
 
     # Roll back database migrations
     if module do
@@ -213,7 +237,41 @@ defmodule Nexus.Extensions do
     # matching this slug are removed from the saved layout settings.
     purge_from_layout(ext.slug)
 
-    result
+    case result do
+      {:ok, _} -> {:ok, %{warnings: Enum.reverse(warnings)}}
+      err      -> err
+    end
+  end
+
+  # Piece 5: cancel pending Oban jobs whose worker module is nested under
+  # the extension's root module. Returns {:ok, count_cancelled} or
+  # {:error, message}.
+  #
+  # The convention this enforces: extensions should put their Oban workers
+  # under their main module's namespace, e.g. Gamepedia.Workers.FetchGame
+  # for a Gamepedia extension. Workers outside this namespace are NOT
+  # cleaned up — they'd survive the uninstall and crash trying to call
+  # nonexistent modules on next execution.
+  defp cancel_extension_oban_jobs(_ext, nil), do: {:ok, 0}
+  defp cancel_extension_oban_jobs(_ext, module) do
+    module_prefix = inspect(module)
+
+    try do
+      # Match any job whose worker starts with the extension's module prefix
+      # (e.g. "Gamepedia" matches "Gamepedia.Workers.FetchGame"). We delete
+      # available, scheduled, and retryable jobs; jobs already executing
+      # are left alone (they'll run to completion against the not-yet-
+      # unloaded module).
+      import Ecto.Query
+      query = from j in Oban.Job,
+              where: like(j.worker, ^"#{module_prefix}%") and
+                     j.state in ["available", "scheduled", "retryable"]
+
+      {count, _} = Repo.delete_all(query)
+      {:ok, count}
+    rescue
+      e -> {:error, Exception.message(e)}
+    end
   end
 
   # Removes all layout entries that belong to the uninstalled extension.
@@ -297,14 +355,77 @@ defmodule Nexus.Extensions do
     end
   end
 
+  @doc """
+  Toggles an extension's enabled state with live disable/enable semantics.
+
+  Disable: stops the extension's supervised children, sets the ETS enabled
+  flag to false so every dispatch site filters the extension out, but
+  leaves modules loaded so re-enable is instant.
+
+  Enable: if modules are still loaded (the common case — extension was
+  disabled in this same VM lifetime), restarts the children and clears
+  the filter. If modules are not loaded (extension was disabled across
+  a restart, so boot skipped loading it), triggers a fresh load.
+
+  Returns {:ok, updated_extension}. Failures during the live state
+  transition log but don't block — the DB row update is the
+  source-of-truth flip, and the runtime state catches up as best it can.
+  """
   def toggle_extension(%Extension{} = ext) do
-    # Flip the enabled boolean. Loader state is not actually changed here —
-    # disabling does not unload from the VM, and enabling does not reload —
-    # so the new load_status is informational only: it tells the admin what
-    # *will* happen on the next boot.
+    require Logger
+
     with {:ok, updated} <- ext |> Extension.toggle_changeset() |> Repo.update() do
-      status = if updated.enabled, do: "not_loaded", else: "disabled"
-      set_load_status(updated.slug, status)
+      slug = updated.slug
+
+      if updated.enabled do
+        # Enabling — figure out whether modules are loaded.
+        case Nexus.Extensions.Registry.get_module(slug) do
+          nil ->
+            # Modules not loaded (post-restart of a disabled extension).
+            # Trigger a fresh load. If load fails, status reflects it.
+            Logger.info("Extensions: enabling #{slug} via fresh load")
+            case build_tarball_url(updated) do
+              {:ok, url} ->
+                token = Nexus.Extensions.GitHub.get_token()
+                case Nexus.Extensions.Loader.load_from_url(url, slug, token) do
+                  {:ok, _module, _manifest} ->
+                    Nexus.Extensions.Registry.set_enabled(slug, true)
+                    set_load_status(slug, "loaded")
+                  {:error, _} = err ->
+                    {status, message} = load_error_to_status(err)
+                    Logger.error("Extensions: enable-load failed for #{slug}: #{message}")
+                    set_load_status(slug, status, message)
+                end
+
+              {:error, reason} ->
+                Logger.error("Extensions: cannot enable #{slug}: #{inspect(reason)}")
+                set_load_status(slug, "no_release", inspect(reason))
+            end
+
+          module ->
+            # Modules already loaded — just resume processing.
+            Logger.info("Extensions: live-enabling #{slug}")
+            try do
+              Nexus.Extensions.ExtensionSupervisor.start_extension(slug, module)
+            rescue
+              e -> Logger.warning("Extensions: failed to restart supervisor for #{slug}: #{inspect(e)}")
+            end
+            Nexus.Extensions.Registry.set_enabled(slug, true)
+            set_load_status(slug, "loaded")
+        end
+      else
+        # Disabling — stop the supervised children and flip the dispatch
+        # filter. Modules stay loaded.
+        Logger.info("Extensions: live-disabling #{slug}")
+        Nexus.Extensions.Registry.set_enabled(slug, false)
+        try do
+          Nexus.Extensions.ExtensionSupervisor.stop_extension(slug)
+        rescue
+          e -> Logger.warning("Extensions: failed to stop supervisor for #{slug}: #{inspect(e)}")
+        end
+        set_load_status(slug, "disabled")
+      end
+
       {:ok, updated}
     end
   end
@@ -453,8 +574,19 @@ defmodule Nexus.Extensions do
                 Logger.info("install_from_url: #{slug} bundle_url update result = #{inspect(result)}")
               end
 
-              on_install_safe(module, ext.settings || %{})
-              set_load_status(slug, "loaded")
+              case on_install_safe(module, ext.settings || %{}) do
+                :ok ->
+                  set_load_status(slug, "loaded")
+
+                {:error, reason} ->
+                  # Piece 5: on_install raised. Module is loaded, registry is
+                  # populated, migrations have run — the extension is "installed"
+                  # but its initialization hook failed. Surface this to the
+                  # admin instead of pretending everything is fine.
+                  require Logger
+                  Logger.warning("install_from_url: #{slug} loaded but on_install/1 failed: #{reason}")
+                  set_load_status(slug, "install_failed", reason)
+              end
 
             {:error, _} = err ->
               {status, message} = load_error_to_status(err)
@@ -496,12 +628,20 @@ defmodule Nexus.Extensions do
   defp on_install_safe(module, settings) do
     if function_exported?(module, :on_install, 1) do
       try do
-        module.on_install(settings)
+        case module.on_install(settings) do
+          :ok            -> :ok
+          {:ok, _}       -> :ok
+          {:error, msg}  -> {:error, "on_install/1 returned error: #{inspect(msg)}"}
+          other          -> {:error, "on_install/1 returned unexpected: #{inspect(other)}"}
+        end
       rescue
         e ->
           require Logger
           Logger.error("on_install/1 raised for #{module}: #{inspect(e)}")
+          {:error, "on_install/1 raised: #{Exception.message(e)}"}
       end
+    else
+      :ok
     end
   end
 
@@ -636,15 +776,30 @@ defmodule Nexus.Extensions do
               |> Repo.update()
             end
 
-            # Call on_update lifecycle callback
+            # Call on_update lifecycle callback. Piece 5: synchronous about
+            # error reporting — failures become "update_failed" load_status
+            # instead of being silently logged. Still runs in a Task so the
+            # caller's response isn't blocked by slow extensions.
             if function_exported?(new_module, :on_update, 2) do
+              slug = ext.slug
+              from_version = ext.installed_version || "0.0.0"
               Task.start(fn ->
                 try do
-                  new_module.on_update(ext.installed_version || "0.0.0", clean_tag)
+                  case new_module.on_update(from_version, clean_tag) do
+                    :ok      -> :ok
+                    {:ok, _} -> :ok
+                    other    ->
+                      require Logger
+                      msg = "on_update/2 returned non-ok: #{inspect(other)}"
+                      Logger.warning("Extensions: #{slug} #{msg}")
+                      set_load_status(slug, "update_failed", msg)
+                  end
                 rescue
                   e ->
                     require Logger
-                    Logger.error("on_update/2 raised for #{ext.slug}: #{inspect(e)}")
+                    msg = "on_update/2 raised: #{Exception.message(e)}"
+                    Logger.error("Extensions: #{slug} #{msg}")
+                    set_load_status(slug, "update_failed", msg)
                 end
               end)
             end
@@ -821,7 +976,14 @@ defmodule Nexus.Extensions do
   # (HTTP calls, large DB queries) should enqueue an Oban job from their
   # handle_event/3 and return quickly. The handler itself should be fast.
   defp dispatch_to_handlers(event, payload) do
-    handlers = Nexus.Extensions.Registry.hooks_for(event)
+    handlers =
+      Nexus.Extensions.Registry.hooks_for(event)
+      |> Enum.filter(fn {slug, _module} ->
+        # Piece 5: skip disabled extensions. Hot enable/disable means the
+        # registry may have entries for slugs whose modules are still
+        # loaded but whose admin disabled them. Filter them out here.
+        Nexus.Extensions.Registry.enabled?(slug)
+      end)
 
     Task.start(fn ->
       for {slug, module} <- handlers do

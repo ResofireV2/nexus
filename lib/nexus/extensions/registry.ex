@@ -39,6 +39,10 @@ defmodule Nexus.Extensions.Registry do
     # Maps {entity, kind} → slug for side-data attachment dispatch.
     # Populated from each extension's normalized manifest side_data field.
     :nexus_ext_side_data_owners,
+    # Tracks enabled state per slug. Used at every dispatch site (hooks,
+    # routes, side-data, digest) to filter out disabled extensions in O(1).
+    # Populated by Registry.register and updated by set_enabled/2.
+    :nexus_ext_enabled,
   ]
 
   # ---------------------------------------------------------------------------
@@ -122,6 +126,31 @@ defmodule Nexus.Extensions.Registry do
       [{{^entity, ^kind}, slug}] -> slug
       []                         -> nil
     end
+  end
+
+  @doc """
+  Returns true if the extension is currently enabled, false otherwise.
+
+  Defaults to true if no entry exists for the slug. This matters during
+  install: the registry is populated before the enabled state is
+  explicitly tracked, so callers should treat "unknown" as "enabled."
+  set_enabled/2 makes the state explicit once it's known.
+  """
+  def enabled?(slug) when is_binary(slug) do
+    case :ets.lookup(:nexus_ext_enabled, slug) do
+      [{^slug, enabled}] -> enabled
+      []                 -> true
+    end
+  end
+
+  @doc """
+  Updates the enabled state for a slug. Called by the toggle flow at
+  runtime so dispatch sites can filter the extension in/out without
+  consulting the database.
+  """
+  def set_enabled(slug, enabled) when is_binary(slug) and is_boolean(enabled) do
+    :ets.insert(:nexus_ext_enabled, {slug, enabled})
+    :ok
   end
 
   @doc "Returns API routes for an extension slug."

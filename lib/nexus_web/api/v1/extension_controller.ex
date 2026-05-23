@@ -143,8 +143,19 @@ defmodule NexusWeb.API.V1.ExtensionController do
     case Extensions.get_extension_by_slug(slug) do
       nil -> conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
       ext ->
-        {:ok, _} = Extensions.uninstall_extension(ext)
-        json(conn, %{ok: true})
+        case Extensions.uninstall_extension(ext) do
+          {:ok, %{warnings: warnings}} ->
+            # Piece 5: surface any warnings from the uninstall process.
+            # The extension is gone either way — these are informational
+            # so the admin knows if cleanup wasn't perfectly clean.
+            json(conn, %{ok: true, warnings: warnings})
+
+          {:ok, _} ->
+            json(conn, %{ok: true, warnings: []})
+
+          {:error, reason} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: inspect(reason)})
+        end
     end
   end
 
