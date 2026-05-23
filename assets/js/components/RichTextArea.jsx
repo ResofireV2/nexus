@@ -173,11 +173,21 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelectRef}) {
 }
 
 export function RichTextArea({value, onChange, placeholder, minHeight=200, autoFocus=false, currentUser=null, toolbarItems=null, linkedGames=null, setLinkedGames=null, attachments=null, setAttachments=null, context=null}) {
-  // Resolve toolbar: explicit prop > context-specific active toolbar > getAllToolbarButtons()
+  // Resolve toolbar:
+  //   1. Explicit `toolbarItems` prop wins (used by AdminLayout for the
+  //      drag-to-reorder preview).
+  //   2. context === "post"  → the admin's saved post toolbar config,
+  //      including extension buttons declared with scope "posts" or "both".
+  //   3. context === "reply" → same for reply, scope "replies" or "both".
+  //   4. context === "page" or any other value → built-in buttons ONLY.
+  //      Extension toolbar buttons declare scope as posts/replies/both via
+  //      registerToolbarButton — none of those include the pages editor or
+  //      any future non-composer surface. Extensions never opted in, so
+  //      they don't appear here.
   if(!toolbarItems) {
     if(context === "post")  toolbarItems = _activePostToolbar  || getAllToolbarButtons();
     else if(context === "reply") toolbarItems = _activeReplyToolbar || getAllToolbarButtons();
-    else toolbarItems = _activePostToolbar || getAllToolbarButtons();
+    else toolbarItems = TB_BTNS;
   }
   const toolbarLinkedGames     = linkedGames || [];
   const toolbarSetLinkedGames  = setLinkedGames || (() => {});
