@@ -4624,5 +4624,69 @@ function App() {
   );
 }
 
+// ── Extension UI primitives ───────────────────────────────────────────────────
+//
+// Exposed on `window.NexusComponents` so no-build extension bundles can use
+// Nexus's native UI primitives without importing React modules or shipping
+// their own copies. Mirrors the `window.NexusExtensionTemplates` pattern
+// used for admin panel templates.
+//
+// Curated, not exhaustive. These five primitives cover the 90% of extension
+// UI needs. Adding more in the future is a deliberate decision — each
+// addition becomes part of the extension API contract.
+//
+// Props for each are listed below. Documented prop shapes are stable;
+// changes follow the same deprecation path as any other extension API
+// breakage.
+//
+//   NexusComponents.Toggle
+//     { value: boolean, onChange: (newValue) => void,
+//       label?: string, hint?: string }
+//
+//   NexusComponents.Select
+//     { value, onChange: (newValue) => void,
+//       options?: Array<{value, label}> | Array<string>,
+//       children?: ReactNode (alternative to options for raw <option> elements),
+//       disabled?: boolean, id?: string, className?: string, style?: object }
+//
+//   NexusComponents.Av
+//     { user: { username, avatar_url? }, size?: number (default 28) }
+//
+//   NexusComponents.Md
+//     { text: string }  — renders Nexus's markdown flavor including
+//     mention links, post embeds, and other Nexus-specific syntax.
+//
+//   NexusComponents.toast
+//     toast(message: string, type?: "ok" | "err" | "warn") — fire-and-forget,
+//     a single <Toasts/> mount at the app root displays them. Already mounted;
+//     extensions don't need to render anything.
+//
+// Example (no-build extension):
+//
+//   const { Toggle, toast } = window.NexusComponents;
+//
+//   NE.registerAdminPanel({
+//     slug: "my-ext",
+//     label: "My Extension",
+//     icon: "fa-puzzle-piece",
+//     component: function MyPanel() {
+//       const [enabled, setEnabled] = React.useState(false);
+//       return React.createElement("div", null,
+//         React.createElement(Toggle, {
+//           value: enabled,
+//           onChange: (v) => { setEnabled(v); toast("Updated"); },
+//           label: "Enable feature X",
+//         })
+//       );
+//     },
+//   });
+window.NexusComponents = {
+  Toggle,
+  Select,
+  Av,
+  Md,
+  toast,
+};
+
 const root = document.getElementById("root");
 if (root) ReactDOM.createRoot(root).render(<App/>);
