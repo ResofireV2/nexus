@@ -862,8 +862,8 @@ function ExtensionAdminPage({slug}) {
         </div>
 
         {/* Enable toggle — naked toggle, no surrounding box or text label.
-            Hovering reveals the disclaimer about next-restart behavior. */}
-        <div title="Disabling currently takes effect on next server restart"
+            Piece 5: live disable. Toggling off takes effect immediately. */}
+        <div title={ext.enabled ? "Disable this extension" : "Enable this extension"}
              style={{display:"flex",alignItems:"center",flexShrink:0}}>
           <Toggle value={ext.enabled} onChange={toggle}/>
         </div>
