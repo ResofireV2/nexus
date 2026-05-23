@@ -127,6 +127,7 @@ defmodule Nexus.Extensions.ManifestSchema do
     |> check_digest_sections(manifest)
     |> check_right_widgets(manifest)
     |> check_toolbar_buttons(manifest)
+    |> check_profile_tabs(manifest)
     |> finalize()
   end
 
@@ -699,6 +700,84 @@ defmodule Nexus.Extensions.ManifestSchema do
 
   defp validate_toolbar_button_entry(other, idx),
     do: {:error, ["toolbar_buttons[#{idx}] must be an object, got: #{inspect(other)}"]}
+
+  # ---------------------------------------------------------------------------
+  # profile_tabs validation
+  #
+  # Profile tabs are a first-class surface: each extension-contributed tab on
+  # /profile/:username pages has its own manifest entry with declared id,
+  # label, optional icon, visibility, and priority. This replaces the older
+  # pattern where tabs were registered as slot components with static
+  # properties for metadata (Component.tabId, Component.tabLabel).
+  #
+  # Visibility values:
+  #   - "always" (default)  — visible to all viewers of the profile
+  #   - "own_only"          — visible only when the viewer is the profile owner
+  #
+  # Visibility is a UX hint only — it gates the tab BUTTON, not whether the
+  # tab's component is fetched if directly addressed. Extensions whose tabs
+  # need real access control must enforce it server-side.
+  # ---------------------------------------------------------------------------
+
+  defp check_profile_tabs(acc, m) do
+    case m["profile_tabs"] do
+      nil ->
+        put_norm(acc, "profile_tabs", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_profile_tab_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
+
+        acc = put_norm(acc, "profile_tabs", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "profile_tabs must be a list, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_profile_tab_entry(entry, idx) when is_map(entry) do
+    id         = entry["id"]
+    label      = entry["label"]
+    icon       = entry["icon"]
+    visibility = entry["visibility"]
+    priority   = entry["priority"]
+
+    visibility_ok = visibility in [nil, "always", "own_only"]
+
+    errors =
+      [
+        if(is_binary(id)    and id    != "",  do: nil, else: "profile_tabs[#{idx}].id is required (string)"),
+        if(is_binary(label) and label != "",  do: nil, else: "profile_tabs[#{idx}].label is required (string)"),
+        if(is_nil(icon) or (is_binary(icon) and icon != ""), do: nil, else: "profile_tabs[#{idx}].icon must be a non-empty string if present"),
+        if(visibility_ok, do: nil, else: "profile_tabs[#{idx}].visibility must be \"always\" or \"own_only\", got: #{inspect(visibility)}"),
+        if(is_nil(priority) or is_number(priority), do: nil, else: "profile_tabs[#{idx}].priority must be a number if present")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      {:ok,
+       %{
+         "id"         => id,
+         "label"      => label,
+         "icon"       => icon,
+         "visibility" => visibility || "always",
+         "priority"   => priority   || 50
+       }}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_profile_tab_entry(other, idx),
+    do: {:error, ["profile_tabs[#{idx}] must be an object, got: #{inspect(other)}"]}
 
   # ---------------------------------------------------------------------------
   # Field validation primitives

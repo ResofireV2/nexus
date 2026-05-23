@@ -485,7 +485,7 @@ function _validateAgainstManifest(slug, kind, value) {
     return;
   }
 
-  if (kind === "right_widgets" || kind === "toolbar_buttons" || kind === "digest_sections") {
+  if (kind === "right_widgets" || kind === "toolbar_buttons" || kind === "digest_sections" || kind === "profile_tabs") {
     var idField = (kind === "digest_sections") ? "key" : "id";
     var declaredIds = (manifest[kind] || []).map(function(e){ return e[idField]; });
     if (declaredIds.indexOf(value) === -1) {
@@ -526,6 +526,8 @@ window.NexusExtensions = {
   _exploreListeners: [],
   _rightWidgets: [],
   _rightWidgetListeners: [],
+  _profileTabs: [],
+  _profileTabListeners: [],
   _userActions: [],
   _userActionListeners: [],
   _accountActions: [],
@@ -627,6 +629,25 @@ window.NexusExtensions = {
           "— check Nexus.Extensions.SlotContracts for the current slot list");
         return {};
     }
+  },
+
+  // Resolve the prop bag for a profile tab's content component. Same
+  // contract philosophy as propsForSlot: only declared props reach the
+  // extension's component, nothing else from the render-site context.
+  //
+  // Declared props for the profile_tab surface:
+  //   username      — display username of the profile being viewed (string)
+  //   current_user  — viewer user object or null when logged-out
+  //
+  // To navigate, use window.NexusExtensions.navigate(url). The viewer's id
+  // and the profile owner's id are intentionally NOT passed — fetch by
+  // username from your API if needed; the username is the canonical
+  // identifier visible in the URL.
+  propsForProfileTab(ctx = {}) {
+    return {
+      username:     ctx.username,
+      current_user: ctx.current_user ?? null,
+    };
   },
 
   onChange(fn) {
@@ -985,6 +1006,64 @@ window.NexusExtensions = {
   onRightWidgetChange(fn) {
     this._rightWidgetListeners.push(fn);
     return () => { this._rightWidgetListeners = this._rightWidgetListeners.filter(f => f !== fn); };
+  },
+
+  // Register a tab on /profile/:username pages.
+  //
+  // Profile tabs are a first-class surface: extensions declare them in the
+  // manifest's `profile_tabs` array AND register a component for each one
+  // here. The id passed here must match an entry in the manifest, or the
+  // registration is silently dropped (with a console warning via
+  // _validateAgainstManifest).
+  //
+  //   window.NexusExtensions.registerProfileTab({
+  //     slug:      "gamepedia",
+  //     id:        "gamepedia-gamelog",  // matches manifest profile_tabs[].id
+  //     component: GamelogTab,
+  //   });
+  //
+  // The component receives only the props declared in the slot contract for
+  // profile tabs: { username, current_user }. To navigate, use
+  // window.NexusExtensions.navigate(url). Other render-site values (the
+  // viewer's id, the profile owner's id, etc.) are not passed — fetch them
+  // from your API by username if needed.
+  //
+  // Manifest-declared metadata (label, icon, visibility, priority) are read
+  // from the manifest, not passed here. This separates the contract (in the
+  // manifest, validated at install) from the implementation (here, the
+  // actual React component).
+  registerProfileTab({ slug, id, component }) {
+    if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug)) {
+      console.error("[NexusExtensions] registerProfileTab: slug must be lowercase alphanumeric+hyphens, got:", slug);
+      return;
+    }
+    if (typeof id !== "string" || !id) {
+      console.error("[NexusExtensions] registerProfileTab: id is required");
+      return;
+    }
+    if (typeof component !== "function") {
+      console.error("[NexusExtensions] registerProfileTab: component must be a React component, got:", component);
+      return;
+    }
+    _validateAgainstManifest(slug, "profile_tabs", id);
+
+    // Dedupe by {slug, id} — re-registering with the same id replaces the
+    // previous entry. Same pattern as right_widgets and toolbar_buttons.
+    this._profileTabs = this._profileTabs.filter(t => !(t.slug === slug && t.id === id));
+    this._profileTabs.push({ slug, id, component, _ext: true });
+    this._profileTabListeners.forEach(fn => fn());
+  },
+
+  // Returns all registered profile tabs. Consumers (ProfilePage) merge these
+  // with the manifest's declared metadata to build the actual tab list,
+  // applying visibility filters and priority sort there. This function does
+  // not filter by visibility — that's per-render-context, not registration-
+  // context.
+  getProfileTabs() { return this._profileTabs; },
+
+  onProfileTabChange(fn) {
+    this._profileTabListeners.push(fn);
+    return () => { this._profileTabListeners = this._profileTabListeners.filter(f => f !== fn); };
   },
 
   // Register an action button in the user card popover and mobile user menu.

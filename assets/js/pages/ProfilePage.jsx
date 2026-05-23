@@ -20,8 +20,14 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
   const [coverExpanded,   setCoverExpanded]   = useState(false);
   const [, forceUpdate] = React.useReducer(x => x+1, 0);
   useEffect(() => {
-    const unsub = window.NexusExtensions.onChange(() => forceUpdate());
-    return unsub;
+    // onChange fires for slot registrations (legacy profile_tab → slot path
+    // is gone after piece 1.5, but other slot registrations could still
+    // matter to this page). onProfileTabChange fires when extension bundles
+    // register their tab components. Subscribe to both so the tab bar
+    // updates regardless of which path the extension uses.
+    const unsubSlot = window.NexusExtensions.onChange(() => forceUpdate());
+    const unsubTabs = window.NexusExtensions.onProfileTabChange(() => forceUpdate());
+    return () => { unsubSlot(); unsubTabs(); };
   }, []);
 
   // Per-tab data — fetched lazily on first activation
@@ -149,17 +155,40 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
   // Tabs — media only shown to owner or admin (or if media_public is on,
   // but we don't have that setting client-side, so we show it and let the
   // API return 403 if needed; we hide the tab for non-owners unless admin)
-  // Extension tabs registered via registerSlot("profile_tab").
-  // Components should define a static tabId and tabLabel:
-  //   MyTab.tabId    = "my-ext-tab"   — stable id for initialTab navigation
-  //   MyTab.tabLabel = "My Tab"       — display label in the tab bar
-  // If tabId is omitted, a positional fallback is used (not navigable by name).
-  const extTabs = window.NexusExtensions.getSlot("profile_tab").map(({component}, i) => ({
-    id:        component.tabId || `ext_tab_${i}`,
-    label:     component.tabLabel || "More",
-    component: component,
-    isExt:     true,
-  }));
+  //
+  // Extension tabs are first-class: declared in each extension's manifest
+  // under profile_tabs[] with id, label, icon, visibility, priority, and
+  // registered via NE.registerProfileTab({slug, id, component}). We merge
+  // the manifest-declared metadata with the registered component, filter
+  // by visibility, and sort by priority.
+  const extTabs = window.NexusExtensions.getProfileTabs()
+    .map(({slug, id, component}) => {
+      // Look up the matching manifest entry. The manifest map is injected
+      // into the page by the extension bundle plug; if it's missing for
+      // some reason, we skip the tab (better than rendering with stale
+      // metadata).
+      const manifest = window._nexusExtensionManifests?.[slug];
+      const decl = (manifest?.profile_tabs || []).find(t => t.id === id);
+      if (!decl) return null;
+
+      return {
+        slug,
+        id:         decl.id,
+        label:      decl.label,
+        icon:       decl.icon,
+        visibility: decl.visibility || "always",
+        priority:   decl.priority   || 50,
+        component,
+        isExt:      true,
+      };
+    })
+    .filter(Boolean)
+    // Visibility filter: "own_only" tabs only appear when the viewer is
+    // the profile owner. "always" is unconditional. This is a UX hint —
+    // extensions whose tabs need real access control must enforce it on
+    // their own API endpoints; the button visibility doesn't gate data.
+    .filter(t => t.visibility === "always" || (t.visibility === "own_only" && isOwn))
+    .sort((a, b) => a.priority - b.priority);
 
   const tabs = [
     {id:"posts",     label:"Posts"},
@@ -379,9 +408,17 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
               ))
           )}
 
-          {/* Extension profile tabs */}
+          {/* Extension profile tabs — render the active one's component.
+              The component receives ONLY the props declared in the
+              profile_tab surface contract (username, current_user). To
+              navigate, extensions use NE.navigate. To get the user's id,
+              extensions fetch by username from their API. */}
           {extTabs.map(t => tab===t.id
-            ? <t.component key={t.id} username={username} currentUser={currentUser} navigate={navigate} userId={user?.id} user_id={user?.id}/>
+            ? <t.component key={t.id}
+                {...window.NexusExtensions.propsForProfileTab({
+                  username,
+                  current_user: currentUser,
+                })}/>
             : null
           )}
 

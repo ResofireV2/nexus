@@ -232,6 +232,9 @@ function DeclaredVsRegisteredPanel({slug, data}) {
         .filter(b => b.config?.slug === slug)
         .map(b => b.config.id)
     : [];
+  const liveProfileTabs = (window.NexusExtensions && window.NexusExtensions._profileTabs)
+    ? window.NexusExtensions._profileTabs.filter(t => t.slug === slug).map(t => t.id)
+    : [];
   const liveAdminPanel = !!(window.NexusExtensions && window.NexusExtensions._adminPanels
     && window.NexusExtensions._adminPanels.find(p => p.slug === slug));
   const liveExploreItem = !!(window.NexusExtensions && window.NexusExtensions._exploreItems
@@ -254,6 +257,8 @@ function DeclaredVsRegisteredPanel({slug, data}) {
                               registered: liveRightWidgets,      side: "client"},
     {kind: "toolbar_buttons", declared: (declared.toolbar_buttons || []).map(b => b.id),
                               registered: liveToolbarButtons,    side: "client"},
+    {kind: "profile_tabs",    declared: (declared.profile_tabs || []).map(t => t.id),
+                              registered: liveProfileTabs,       side: "client"},
     {kind: "digest_sections", declared: (declared.digest_sections || []).map(s => s.key),
                               registered: serverDigest,          side: "server"},
     // Presence-check rows: admin_panel and explore are declared as singular

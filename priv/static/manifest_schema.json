@@ -233,6 +233,26 @@
           "priority": { "type": "number" }
         }
       }
+    },
+
+    "profile_tabs": {
+      "description": "Tabs this extension's JS bundle registers on /profile/:username pages. Each tab has a stable id (used for deep-linking and the initialTab navigation prop), a label shown in the tab bar, and optional icon/visibility/priority. The extension's component is registered separately via the JS bundle's NE.registerProfileTab call.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {
+          "id":    { "type": "string", "description": "Stable identifier for this tab. Used as the URL fragment for deep-linking and must match the id passed to registerProfileTab." },
+          "label": { "type": "string", "description": "Display label in the tab bar." },
+          "icon":  { "type": "string", "description": "Optional Font Awesome solid icon class (e.g. \"fa-trophy\"). When omitted, only the label shows." },
+          "visibility": {
+            "type": "string",
+            "enum": ["always", "own_only"],
+            "description": "When the tab button appears. \"always\" (default) shows the tab to anyone viewing the profile; \"own_only\" shows the tab only when the viewer is the profile owner. This is a UX hint only — it gates the button, not access to underlying data. Enforce access control server-side if needed."
+          },
+          "priority": { "type": "number", "description": "Lower values render earlier in the tab bar. Defaults to 50." }
+        }
+      }
     }
   }
 }
