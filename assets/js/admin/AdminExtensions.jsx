@@ -577,7 +577,13 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 
   const toggle = async () => {
     const d = await api.post(`/admin/extensions/${ext.slug}/toggle`);
-    if(d.extension) { setExt(d.extension); onToggle(d.extension); }
+    if(d.extension) {
+      setExt(d.extension);
+      onToggle(d.extension);
+      // Refresh the parent admin shell's extensions list so the sidebar's
+      // enabled-state indicator updates immediately after live toggle.
+      if (window._nexusAdminReloadExtensions) window._nexusAdminReloadExtensions();
+    }
   };
 
   const uninstall = async () => {
@@ -783,7 +789,10 @@ function ExtensionAdminPage({slug}) {
 
   const toggle = async () => {
     const d = await api.post(`/admin/extensions/${slug}/toggle`);
-    if (d.extension) setExt(d.extension);
+    if (d.extension) {
+      setExt(d.extension);
+      if (window._nexusAdminReloadExtensions) window._nexusAdminReloadExtensions();
+    }
   };
 
   const uninstall = async () => {

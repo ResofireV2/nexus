@@ -415,21 +415,36 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   // a callback through several layers.
   React.useEffect(()=>{
     window._nexusAdminNav = (k) => setSec(k);
-    return () => { window._nexusAdminNav = null; };
+    // Piece 5 follow-up: a refresh helper so toggle handlers can ask the
+    // parent to re-fetch the extensions list. Keeps the sidebar's
+    // enabled-state visual in sync with the runtime state after a live
+    // disable/enable, instead of waiting for a panel change or reload.
+    window._nexusAdminReloadExtensions = () => {
+      api.get("/admin/extensions").then(d => setInstalledExtensions(d.extensions || []));
+    };
+    return () => {
+      window._nexusAdminNav = null;
+      window._nexusAdminReloadExtensions = null;
+    };
   },[]);
 
   // Build per-extension sidebar entries. Prefer the registered admin panel's
   // label/icon when present (extensions intentionally customize these),
   // fall back to the extension's display name and a generic icon when not.
+  //
+  // Piece 5 follow-up: include disabled extensions too, marked visually
+  // as off. Without this, the admin loses the sidebar shortcut to the
+  // re-enable toggle the moment they disable an extension — they'd have
+  // to navigate Extensions → Installed → Manage just to flip it back.
   const extPanels = window.NexusExtensions.getAdminPanels();
   const extensionSidebarItems = installedExtensions
-    .filter(e => e.enabled)
     .map(e => {
       const reg = extPanels.find(p => p.slug === e.slug);
       return {
-        k:     `ext-panel-${e.slug}`,
-        icon:  reg?.icon  || "fa-puzzle-piece",
-        label: reg?.label || e.name,
+        k:        `ext-panel-${e.slug}`,
+        icon:     reg?.icon  || "fa-puzzle-piece",
+        label:    reg?.label || e.name,
+        disabled: !e.enabled,
       };
     });
 
@@ -499,9 +514,17 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             <div key={ns.label}>
               <div className="admin-sn-label">{ns.label}</div>
               {ns.items.map(item=>(
-                <div key={item.k} className={`admin-sn-item ${sec===item.k?"active":""}`} onClick={()=>{setSec(item.k);setMobAdminNavOpen(false);}}>
+                <div key={item.k} className={`admin-sn-item ${sec===item.k?"active":""}`}
+                     onClick={()=>{setSec(item.k);setMobAdminNavOpen(false);}}
+                     style={item.disabled?{opacity:0.5}:undefined}
+                     title={item.disabled?`${item.label} (disabled — click to manage)`:undefined}>
                   <i className={`fa-solid ${item.icon}`}></i>
                   <span className="admin-sn-item-name">{item.label}</span>
+                  {item.disabled && (
+                    <i className="fa-solid fa-circle-pause"
+                       style={{fontSize:10,color:"var(--t5)",marginRight:4}}
+                       title="Disabled"/>
+                  )}
                   {item.badge>0&&<span className="admin-sn-badge">{item.badge}</span>}
                 </div>
               ))}
