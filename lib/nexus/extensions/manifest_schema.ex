@@ -62,6 +62,7 @@ defmodule Nexus.Extensions.ManifestSchema do
     post_updated
     post_deleted
     reply_created
+    reply_deleted
     reaction_added
     reaction_removed
     report_created
@@ -85,14 +86,21 @@ defmodule Nexus.Extensions.ManifestSchema do
     notifications messages saved drafts
   )
 
+  # Entity types extensions can attach side-data to. When adding a new
+  # entity type, also ensure a `<entity>_deleted` hook event exists so
+  # extensions can subscribe to clean up their linked rows when the
+  # entity is removed.
+  @known_side_data_entities ~w(post reply user)
+
   @supported_manifest_versions [2]
 
   @slug_regex ~r/^[a-z0-9-]+$/
   @semver_regex ~r/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z\-.]+)?$/
 
-  def known_hook_events, do: @known_hook_events
-  def known_slots,       do: @known_slots
-  def known_core_pages,  do: @known_core_pages
+  def known_hook_events,         do: @known_hook_events
+  def known_slots,               do: @known_slots
+  def known_core_pages,          do: @known_core_pages
+  def known_side_data_entities,  do: @known_side_data_entities
   def supported_manifest_versions, do: @supported_manifest_versions
 
   # ---------------------------------------------------------------------------
@@ -249,24 +257,71 @@ defmodule Nexus.Extensions.ManifestSchema do
     end
   end
 
+  # side_data declares which entities this extension attaches data to and
+  # under what "kind" names. Each entry is an object:
+  #
+  #   {"entity": "post",  "kind": "game_link"}
+  #   {"entity": "reply", "kind": "music_clip"}
+  #
+  # Entity must be one of the known side-data entities (post, reply, user).
+  # Kind is a free-form string — extensions should namespace their own kinds
+  # to avoid collisions, but the host doesn't enforce naming conventions.
+  #
+  # Why structured: piece 4's compose attachment flow needs to know
+  # {entity, kind} → owning extension to dispatch attachments correctly.
+  # The bare-string form used pre-piece-4 carried no ownership info and
+  # couldn't support the dispatch lookup.
   defp check_side_data(acc, m) do
     case m["side_data"] do
       nil ->
         put_norm(acc, "side_data", [])
 
       list when is_list(list) ->
-        case Enum.find(list, &(not is_binary(&1))) do
-          nil ->
-            put_norm(acc, "side_data", list)
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_side_data_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
 
-          bad ->
-            err(acc, "side_data entries must be strings, got: #{inspect(bad)}")
-        end
+        acc = put_norm(acc, "side_data", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
 
       other ->
-        err(acc, "side_data must be a list of strings, got: #{inspect(other)}")
+        err(acc, "side_data must be a list, got: #{inspect(other)}")
     end
   end
+
+  defp validate_side_data_entry(entry, idx) when is_map(entry) do
+    entity = entry["entity"]
+    kind   = entry["kind"]
+
+    errors =
+      [
+        if(is_binary(entity) and entity in @known_side_data_entities,
+          do: nil,
+          else: "side_data[#{idx}].entity is required and must be one of: " <>
+                Enum.join(@known_side_data_entities, ", ") <>
+                ". Got: #{inspect(entity)}"),
+        if(is_binary(kind) and kind != "",
+          do: nil,
+          else: "side_data[#{idx}].kind is required (non-empty string)")
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if errors == [] do
+      {:ok, %{"entity" => entity, "kind" => kind}}
+    else
+      {:error, errors}
+    end
+  end
+
+  defp validate_side_data_entry(other, idx),
+    do: {:error, ["side_data[#{idx}] must be an object with entity and kind " <>
+                  "fields, got: #{inspect(other)}"]}
 
   # hooks declarations may take either form:
   #

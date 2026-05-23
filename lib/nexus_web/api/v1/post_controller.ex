@@ -62,6 +62,14 @@ defmodule NexusWeb.API.V1.PostController do
           :pass -> :ok
         end
 
+        # Piece 4: dispatch any compose attachments to their declaring
+        # extensions. Fires regardless of pending state — attachments
+        # persist into the extension's tables; whether the parent post
+        # is visible to others is a separate concern.
+        Nexus.Extensions.SideData.persist_attachments(
+          "post", post.id, params["attachments"] || []
+        )
+
         if pending do
           conn |> put_status(:created) |> json(%{post: post_json(post), pending: true, message: "Your post is pending approval"})
         else

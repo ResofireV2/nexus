@@ -194,6 +194,53 @@ defmodule Nexus.Extensions.Behaviour do
     settings :: map()
   ) :: map()
 
+  @doc """
+  Persists an attachment submitted with a post or reply through the composer
+  side-data attachment flow (piece 4).
+
+  Called when a user submits a post or reply with attachments matching a
+  {entity, kind} this extension declared in its manifest's side_data field.
+  Runs inside a supervised Task — return value is ignored, crashes are
+  caught and logged.
+
+  The extension is responsible for persisting the attachment into its own
+  tables (typically with a foreign key column referencing the entity_id),
+  and for cleaning up linked rows when the entity is deleted (subscribe
+  to the corresponding *_deleted hook event for cleanup).
+
+      def persist_attachment("post", post_id, %{"kind" => "game_link", "data" => data}) do
+        %MyExt.PostGame{}
+        |> MyExt.PostGame.changeset(%{post_id: post_id, game_id: data["game_id"]})
+        |> Repo.insert()
+        :ok
+      end
+  """
+  @callback persist_attachment(
+    entity :: String.t(),
+    entity_id :: term(),
+    attachment :: map()
+  ) :: any()
+
+  @doc """
+  Returns side-data this extension has attached to a given entity (piece 4).
+
+  Used by the host's aggregator endpoint (GET /api/v1/posts/:id/side-data,
+  for example) to list all attached data across all extensions. Optional —
+  extensions are not required to expose their side-data this way; many
+  will prefer to expose their own endpoints under /ext/<slug>/ for richer
+  responses.
+
+  Return value is a list of maps; the host serializes them as JSON. Each
+  entry should include "kind" and "data" fields so clients can identify
+  what kind of attachment they're looking at.
+
+      def list_side_data("post", post_id) do
+        Repo.all(from g in MyExt.PostGame, where: g.post_id == ^post_id)
+        |> Enum.map(&%{"kind" => "game_link", "data" => %{"game_id" => &1.game_id}})
+      end
+  """
+  @callback list_side_data(entity :: String.t(), entity_id :: term()) :: [map()]
+
   # ---------------------------------------------------------------------------
   # Default implementations — extensions only override what they need
   # ---------------------------------------------------------------------------
@@ -212,12 +259,15 @@ defmodule Nexus.Extensions.Behaviour do
       def settings_schema, do: %{}
       def settings_tabs,   do: []
       def handle_digest_section(_key, _period, _settings), do: %{items: []}
+      def persist_attachment(_entity, _entity_id, _attachment), do: :ok
+      def list_side_data(_entity, _entity_id), do: []
 
       defoverridable [
         migrations: 0, child_specs: 0, routes: 0,
         handle_event: 3, on_install: 1, on_update: 2, on_uninstall: 0,
         settings_schema: 0, settings_tabs: 0,
         handle_digest_section: 3,
+        persist_attachment: 3, list_side_data: 2,
       ]
     end
   end
@@ -227,5 +277,6 @@ defmodule Nexus.Extensions.Behaviour do
     handle_event: 3, on_install: 1, on_update: 2, on_uninstall: 0,
     settings_schema: 0, settings_tabs: 0,
     handle_digest_section: 3,
+    persist_attachment: 3, list_side_data: 2,
   ]
 end

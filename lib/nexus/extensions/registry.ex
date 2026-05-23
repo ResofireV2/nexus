@@ -36,6 +36,9 @@ defmodule Nexus.Extensions.Registry do
     :nexus_ext_routes,
     :nexus_ext_digest,
     :nexus_ext_declared,
+    # Maps {entity, kind} → slug for side-data attachment dispatch.
+    # Populated from each extension's normalized manifest side_data field.
+    :nexus_ext_side_data_owners,
   ]
 
   # ---------------------------------------------------------------------------
@@ -100,6 +103,25 @@ defmodule Nexus.Extensions.Registry do
     :ets.match_object(:nexus_ext_hooks, {{event, :_}, :_})
     |> Enum.sort_by(fn {{_event, _slug}, {_module, priority}} -> priority end)
     |> Enum.map(fn {{_event, slug}, {module, _priority}} -> {slug, module} end)
+  end
+
+  @doc """
+  Returns the slug of the extension that declared the given side-data
+  {entity, kind} pair, or nil if no extension declares it.
+
+  Used by the compose attachment dispatch path to find the right extension
+  for each incoming attachment.
+
+  Only one extension can own a given {entity, kind} pair. If two extensions
+  declare the same pair, the most-recently-registered one wins (ETS insert
+  overwrites). This is a contract violation that should be surfaced in the
+  admin runtime panel — TODO for a future polish step.
+  """
+  def side_data_owner_for(entity, kind) when is_binary(entity) and is_binary(kind) do
+    case :ets.lookup(:nexus_ext_side_data_owners, {entity, kind}) do
+      [{{^entity, ^kind}, slug}] -> slug
+      []                         -> nil
+    end
   end
 
   @doc "Returns API routes for an extension slug."
@@ -239,6 +261,16 @@ defmodule Nexus.Extensions.Registry do
       :ets.insert(:nexus_ext_digest, {{key, slug}, {label, icon, enabled_by_default}})
     end
 
+    # Register side_data ownership. Each {entity, kind} pair this extension
+    # declares becomes a row in :nexus_ext_side_data_owners. The compose
+    # attachment dispatcher uses this lookup to route incoming attachments
+    # to the correct extension's persist_attachment/3 callback.
+    for entry <- Map.get(manifest, "side_data", []) do
+      entity = entry["entity"]
+      kind   = entry["kind"]
+      :ets.insert(:nexus_ext_side_data_owners, {{entity, kind}, slug})
+    end
+
     Logger.info("Registry: registered #{slug} (#{inspect(module)})")
     {:reply, :ok, state}
   end
@@ -248,8 +280,9 @@ defmodule Nexus.Extensions.Registry do
     :ets.delete(:nexus_ext_modules,  slug)
     :ets.delete(:nexus_ext_declared, slug)
 
-    :ets.match_delete(:nexus_ext_hooks,   {{:_, slug}, :_})
-    :ets.match_delete(:nexus_ext_digest,  {{:_, slug}, :_})
+    :ets.match_delete(:nexus_ext_hooks,              {{:_, slug}, :_})
+    :ets.match_delete(:nexus_ext_digest,             {{:_, slug}, :_})
+    :ets.match_delete(:nexus_ext_side_data_owners,   {{:_, :_}, slug})
     :ets.delete(:nexus_ext_routes, slug)
 
     Logger.info("Registry: unregistered #{slug}")

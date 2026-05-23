@@ -297,6 +297,9 @@ function DeclaredVsRegisteredPanel({slug, data, hookContracts}) {
                               registered: liveToolbarButtons,    side: "client"},
     {kind: "profile_tabs",    declared: (declared.profile_tabs || []).map(t => t.id),
                               registered: liveProfileTabs,       side: "client"},
+    {kind: "side_data",       declared: (declared.side_data || []).map(s => `${s.entity}:${s.kind}`),
+                              registered: (declared.side_data || []).map(s => `${s.entity}:${s.kind}`),
+                              side: "server"},
     {kind: "digest_sections", declared: (declared.digest_sections || []).map(s => s.key),
                               registered: serverDigest,          side: "server"},
     // Presence-check rows: admin_panel and explore are declared as singular

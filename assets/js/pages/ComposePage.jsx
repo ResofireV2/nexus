@@ -37,6 +37,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const [showSpaceDd,setShowSpaceDd]=useState(false);
   const [loading,setLoading]=useState(false);
   const [linkedGames,setLinkedGames]=useState([]);
+  const [attachments,setAttachments]=useState([]);  // piece 4: generic compose attachments
   const typeDdRef=useRef(); const spaceDdRef=useRef();
   const submittingRef=useRef(false); // true while submit is in flight — suppresses autosave
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
@@ -86,7 +87,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
     submittingRef.current = true;
     setLoading(true);
     const compositionSignals = window._composeTracker ? window._composeTracker.snapshot() : null;
-    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags,compositionSignals});
+    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags,compositionSignals,attachments});
       if(d.post&&d.pending){await clearDraft();toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
         await clearDraft();
@@ -204,7 +205,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
           </div>
         )}
         <div className="comp-body-area">
-          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames} context="post"/>
+          <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} linkedGames={linkedGames} setLinkedGames={setLinkedGames} attachments={attachments} setAttachments={setAttachments} context="post"/>
         </div>
         {/* Linked game chips */}
         {linkedGames.length > 0 && (

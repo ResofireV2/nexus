@@ -664,7 +664,17 @@ window.NexusExtensions = {
   //               "fa-regular fa-star"    ✓ correct
   //               "fa-gamepad"            ✗ no style prefix, renders as text
   //   tip:      tooltip shown on hover — required (display only, not used for identity)
-  //   onClick:  called with a context object when the button is clicked
+  //   onClick:  called when the button is clicked.
+  //             Signature: (legacyLinkedGames, legacySetLinkedGames, ctx)
+  //               - legacy*: deprecated, used only by Gamepedia's game-link flow
+  //               - ctx: { attach, currentUser, context }
+  //                 - attach({kind, data}) — attaches data to the in-flight
+  //                   composition. The kind must match an entry in this
+  //                   extension's manifest side_data field. On submit, the
+  //                   attached data is dispatched to the extension's
+  //                   persist_attachment/3 callback.
+  //                 - currentUser — the logged-in user, or null
+  //                 - context — "post" | "reply" | null
   //   scope:    "both" (default) | "posts" (post toolbar only) | "replies" (reply toolbar only)
   //   priority: lower numbers render before higher numbers among extension
   //             buttons (built-in buttons always come first). Default: 50.
@@ -680,14 +690,15 @@ window.NexusExtensions = {
   // Admins can reorder and hide your button independently per toolbar in
   // Admin → Layout → Post toolbar / Reply toolbar.
   //
-  // Example:
+  // Example (piece 4 attachment flow):
   //   NE.registerToolbarButton({
-  //     slug: "gamepedia",
-  //     id:   "link-game",
-  //     icon: "fa-solid fa-gamepad",
-  //     tip:  "Link a game",
-  //     onClick(ctx) {
-  //       openGamePicker();
+  //     slug: "my-ext",
+  //     id:   "attach-note",
+  //     icon: "fa-solid fa-note-sticky",
+  //     tip:  "Attach a note",
+  //     onClick(_, __, {attach, context}) {
+  //       const note = prompt("Note text?");
+  //       if (note) attach({ kind: "my_note", data: { text: note } });
   //     },
   //   });
   registerToolbarButton(config) {

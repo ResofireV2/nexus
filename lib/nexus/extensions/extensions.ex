@@ -34,6 +34,7 @@ defmodule Nexus.Extensions do
     post_updated
     post_deleted
     reply_created
+    reply_deleted
     reaction_added
     reaction_removed
     report_created

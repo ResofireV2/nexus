@@ -375,6 +375,10 @@ function EditHistoryPairs({edits, postId, replyId}) {
 function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply, resumeDraft=null}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState(resumeDraft?.body||"");
+  // Piece 4: generic compose attachments. Toolbar buttons in the reply
+  // composer call attach({kind, data}); these get serialized into the
+  // POST /replies request body and dispatched to declaring extensions.
+  const [replyAttachments,setReplyAttachments]=useState([]);
   const [submitting,setSubmitting]=useState(false);
   const [replyCursor,setReplyCursor]=useState(null);
   const [replyHasMore,setReplyHasMore]=useState(false);
@@ -577,12 +581,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
     if(!replyBody.trim())return; setSubmitting(true);
     sendEvent?.(`post:${postId}`,"typing_stop",{});
     const compositionSignals = window._replyTracker ? window._replyTracker.snapshot() : null;
-    try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody,compositionSignals});
-      if(d.reply&&d.pending){setReplyBody("");await clearDraft();toast("Your reply is pending moderator approval");}
+    try { const d=await api.post(`/posts/${postId}/replies`,{body:replyBody,compositionSignals,attachments:replyAttachments});
+      if(d.reply&&d.pending){setReplyBody("");setReplyAttachments([]);await clearDraft();toast("Your reply is pending moderator approval");}
       else if(d.reply){
         if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(d.reply.body));
         setReplies(p=>p.some(r=>r.id===d.reply.id)?p:[...p,d.reply]);
         setReplyBody("");
+        setReplyAttachments([]);
         await clearDraft();
         setPost(p=>({...p,reply_count:(p.reply_count||0)+1}));
       }
@@ -1169,7 +1174,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
           </div>}
           <div className="desk-composer" style={{marginTop:20,paddingBottom:32}} ref={composerRef}>
             <div className="reply-box">
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});if(v.trim())saveDraft({body:v});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} context="reply"/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});if(v.trim())saveDraft({body:v});}} placeholder="Write a reply…" minHeight={120} currentUser={currentUser} attachments={replyAttachments} setAttachments={setReplyAttachments} context="reply"/>
               <div className="reply-box-foot">
                 {draftLastSaved && (
                   <span style={{fontSize:11, color:"var(--t5)", display:"flex", alignItems:"center", gap:4}}>
@@ -1197,7 +1202,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
               <button className="btn-primary" style={{fontSize:12,padding:"7px 16px",flexShrink:0}} onClick={()=>setMobReplyOpen(true)}>Reply</button>
             </div>
           : <div>
-              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={180} currentUser={currentUser} autoFocus={true} context="reply"/>
+              <RichTextArea value={replyBody} onChange={v=>{const wasT=replyBodyRef.current.length>0;const isT=v.length>0;setReplyBody(v);if(isT&&!wasT)sendEvent?.(`post:${postId}`,"typing_start",{});else if(!isT&&wasT)sendEvent?.(`post:${postId}`,"typing_stop",{});}} placeholder="Write a reply…" minHeight={180} currentUser={currentUser} autoFocus={true} attachments={replyAttachments} setAttachments={setReplyAttachments} context="reply"/>
               <div style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"6px 12px",borderTop:"0.5px solid var(--b1)"}}>
                 <button className="btn-ghost" style={{fontSize:12}} onClick={()=>{setMobReplyOpen(false);setReplyBody("");}}>Cancel</button>
                 <button className="btn-primary" style={{fontSize:12,padding:"6px 16px"}} disabled={submitting||!replyBody.trim()} onClick={async()=>{await submitReply();setMobReplyOpen(false);}}>Reply</button>

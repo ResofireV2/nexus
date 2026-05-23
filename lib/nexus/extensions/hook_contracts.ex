@@ -125,6 +125,22 @@ defmodule Nexus.Extensions.HookContracts do
       }
     },
 
+    "reply_deleted" => %{
+      event:       "reply_deleted",
+      description: "Fires when a reply is deleted. The `user_id` is the " <>
+                   "DELETER, which may differ from the reply's original author " <>
+                   "(moderators can delete other users' replies). The reply no " <>
+                   "longer exists in the database when this fires — handlers " <>
+                   "must rely on the id and any data they previously cached. " <>
+                   "Side-data extensions that attached records to this reply " <>
+                   "should subscribe to this event to clean up linked rows.",
+      payload: %{
+        user_id:  "ID of the user who deleted the reply (string UUID).",
+        reply_id: "ID of the deleted reply (string UUID).",
+        post_id:  "ID of the parent post the deleted reply belonged to (string UUID)."
+      }
+    },
+
     "reaction_added" => %{
       event:       "reaction_added",
       description: "Fires when a user adds a reaction to a post or reply. " <>

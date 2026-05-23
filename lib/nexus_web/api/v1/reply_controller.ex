@@ -62,6 +62,12 @@ defmodule NexusWeb.API.V1.ReplyController do
               :pass -> :ok
             end
 
+            # Piece 4: dispatch any compose attachments to their declaring
+            # extensions. Fires regardless of pending state.
+            Nexus.Extensions.SideData.persist_attachments(
+              "reply", reply.id, params["attachments"] || []
+            )
+
             if pending do
               conn |> put_status(:created) |> json(%{reply: reply_json(reply), pending: true, message: "Your reply is pending approval"})
             else
@@ -148,7 +154,22 @@ defmodule NexusWeb.API.V1.ReplyController do
       nil   -> conn |> put_status(:not_found) |> json(%{error: "Reply not found"})
       reply ->
         if can_edit?(user, reply) do
+          # Capture post_id BEFORE delete — the reply struct will still have
+          # it in scope, but we want this to be unambiguous to the reader.
+          parent_post_id = reply.post_id
           {:ok, _} = Forum.delete_reply(reply)
+
+          Task.start(fn ->
+            {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+              "reply_deleted", %{
+                user_id:  user.id,
+                reply_id: reply.id,
+                post_id:  parent_post_id
+              }
+            )
+            Nexus.Extensions.fire("reply_deleted", payload)
+          end)
+
           json(conn, %{ok: true})
         else
           conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})

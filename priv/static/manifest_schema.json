@@ -70,9 +70,24 @@
       "items": { "type": "string" }
     },
     "side_data": {
-      "description": "Entity types this extension wants to attach side-data to (e.g. [\"post\", \"user\"]). Declared now; enforced once the side-data feature ships.",
+      "description": "Entity attachments this extension contributes. Each entry declares: I attach data of `kind` to entities of `entity`. The compose flow dispatches matching attachments to this extension's persist_attachment/3 callback at create time. Extensions are responsible for cleaning up linked rows when entities are deleted, typically by subscribing to the corresponding *_deleted hook event.",
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "object",
+        "required": ["entity", "kind"],
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": ["post", "reply", "user"],
+            "description": "The core entity type this side-data attaches to."
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A string identifier for this kind of attachment. Extensions should namespace their kinds (e.g. \"gamepedia_game_link\") to avoid collisions with other extensions."
+          }
+        }
+      }
     },
 
     "hooks": {
@@ -84,7 +99,7 @@
             "type": "string",
             "enum": [
               "post_created", "post_updated", "post_deleted",
-              "reply_created",
+              "reply_created", "reply_deleted",
               "reaction_added", "reaction_removed",
               "report_created", "report_resolved",
               "user_registered", "user_login"
@@ -98,7 +113,7 @@
                 "type": "string",
                 "enum": [
                   "post_created", "post_updated", "post_deleted",
-                  "reply_created",
+                  "reply_created", "reply_deleted",
                   "reaction_added", "reaction_removed",
                   "report_created", "report_resolved",
                   "user_registered", "user_login"
