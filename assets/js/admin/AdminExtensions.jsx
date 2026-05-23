@@ -376,25 +376,43 @@ function ExtensionSettingsForm({ext, onSaved}) {
   const schema = ext.settings_schema || {};
   const tabs   = ext.settings_tabs   || [];
   const [vals, setVals] = useState({...ext.settings});
-  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(tabs[0]?.key || null);
 
   const hasSchema = Object.keys(schema).length > 0;
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const d = await api.patch(`/admin/extensions/${ext.slug}/settings`, {settings: vals});
-      if(d.extension) { onSaved(d.extension); toast("Settings saved"); }
-      else toast(d.error || "Failed to save", "err");
-    } finally { setSaving(false); }
+  // Persist the latest `vals` in a ref so the save function (registered
+  // with the admin topbar on mount) can read the current values without
+  // depending on `vals` via closure. This avoids stale-closure bugs where
+  // the topbar Save button would save whatever `vals` was at the time the
+  // save fn was registered.
+  const valsRef = useRef(vals);
+  useEffect(() => { valsRef.current = vals; }, [vals]);
+
+  // Wire into the admin topbar's save mechanism. When the user clicks the
+  // top-right "Save changes" button on an ext-panel-* route, the topbar
+  // dispatches to window._nexusAdminSaveFn. Any field change signals
+  // dirty via window._nexusAdminSetDirty so the topbar lights up.
+  useEffect(() => {
+    if (!hasSchema) return;
+    window._nexusAdminSaveFn = async () => {
+      const d = await api.patch(`/admin/extensions/${ext.slug}/settings`,
+        {settings: valsRef.current});
+      if (d.extension) { onSaved(d.extension); toast("Settings saved"); }
+      else { toast(d.error || "Failed to save", "err"); throw new Error(d.error || "save failed"); }
+    };
+    return () => { window._nexusAdminSaveFn = null; };
+  }, [ext.slug, hasSchema, onSaved]);
+
+  const setField = (key, v) => {
+    setVals(p => ({...p, [key]: v}));
+    if (window._nexusAdminSetDirty) window._nexusAdminSetDirty();
   };
 
   const renderField = (key) => {
     const field = schema[key];
     if(!field) return null;
     const val = vals[key] ?? field.default ?? "";
-    const set = v => setVals(p => ({...p, [key]: v}));
+    const set = v => setField(key, v);
 
     return (
       <F key={key} label={field.label || key} hint={field.hint}>
@@ -439,14 +457,12 @@ function ExtensionSettingsForm({ext, onSaved}) {
     );
   };
 
-  if(!hasSchema) return (
-    <div style={{padding:"32px 0",textAlign:"center",color:"var(--t5)"}}>
-      <i className="fa-solid fa-sliders" style={{fontSize:24,opacity:.3,marginBottom:10,display:"block"}}/>
-      This extension has no configurable settings.
-    </div>
-  );
+  // No settings_schema declared in the manifest → render nothing. Callers
+  // can rely on this and place the form unconditionally without leaving
+  // visual artifacts when an extension has no settings.
+  if (!hasSchema) return null;
 
-  if(tabs.length > 0) return (
+  if (tabs.length > 0) return (
     <div>
       <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:"0.5px solid var(--b1)",paddingBottom:0}}>
         {tabs.map(t=>(
@@ -467,20 +483,12 @@ function ExtensionSettingsForm({ext, onSaved}) {
           {(t.fields||[]).map(key=>renderField(key))}
         </div>
       ))}
-      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
-          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
-      </div>
     </div>
   );
 
   return (
     <div>
       {Object.keys(schema).map(key=>renderField(key))}
-      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-        <button className="btn-primary" style={{fontSize:13,padding:"7px 20px"}}
-          onClick={save} disabled={saving}>{saving?"Saving…":"Save settings"}</button>
-      </div>
     </div>
   );
 }
@@ -619,28 +627,28 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
 // extensions" entry — each installed extension gets one of these regardless
 // of whether it registered a custom admin panel via registerAdminPanel.
 //
-// Layout priorities, top to bottom:
+// Layout, top to bottom:
 //
 //   1. Identity strip (one row, ~40px tall)
-//        Logo · name · version · status pill · spacer · enable toggle · ⋯ menu
+//        name · version · status pill · spacer · enable toggle · ⋯ menu
 //
-//   2. Load status banner if not "loaded" (only shows for problem states)
+//   2. Load status banner if not "loaded" (only shows for problem states).
 //
-//   3. Settings form, expanded — generated from manifest's settings_schema.
-//      This is the highest-value content on this page for routine admin work;
-//      it sits at the top of the body, no heading needed, the form's fields
-//      speak for themselves.
+//   3. The extension's registered admin panel component (registerAdminPanel),
+//      if one exists. This is the page's primary content — admins came here
+//      to interact with the extension's own UI, so it gets the prime visual
+//      real estate immediately below the identity strip.
 //
-//   4. "Advanced" — collapsible row, defaults closed. Contains the runtime
-//      registrations side-by-side comparison panel. Diagnostic content only;
-//      no need to consume vertical space on every visit.
+//   4. Settings form (when settings_schema is non-empty) — auto-generated.
+//      Sits below the extension content with a thin divider above it. Saves
+//      via the admin shell's top-right "Save changes" button (no inline
+//      Save button; the form registers itself with window._nexusAdminSaveFn
+//      and signals dirty via window._nexusAdminSetDirty on field changes).
 //
-//   5. Thin divider line — visual separator between Nexus-owned and
-//      extension-owned content.
+//   5. "Advanced" — collapsible row, defaults closed. Contains the runtime
+//      registrations side-by-side comparison panel. Diagnostic only.
 //
-//   6. The extension's registered admin panel component (registerAdminPanel),
-//      if one exists. Full width, no surrounding padding (the component owns
-//      its own layout).
+//   6. Uninstall confirmation banner (only when invoked from the ⋯ menu).
 //
 // The ⋯ overflow menu houses Sync manifest, Uninstall extension, and (when
 // present) the Repo link — all infrequent actions that don't deserve
@@ -818,10 +826,29 @@ function ExtensionAdminPage({slug}) {
       {/* ─── Load-status banner (only when not loaded) ───────────────────── */}
       <ExtensionStatusBanner ext={ext}/>
 
-      {/* ─── Settings form (expanded by default, no section heading) ─────── */}
-      <ExtensionSettingsForm ext={ext} onSaved={updated => setExt(updated)}/>
+      {/* ─── Extension content (primary real estate) ──────────────────────
+          The registered admin panel renders immediately below the identity
+          strip. Settings and Advanced sit below it so they don't push the
+          extension's content off the first viewport. */}
+      {registeredPanel && (
+        <div>
+          {window.React.createElement(registeredPanel.component, null)}
+        </div>
+      )}
 
-      {/* ─── Advanced section — collapsed by default ─────────────────────── */}
+      {/* ─── Settings — below the extension content ─────────────────────── */}
+      {/* The form returns null when there's no settings_schema. The thin
+          divider only renders alongside a non-empty form to avoid a stray
+          divider line on extensions with no settings. */}
+      {Object.keys(ext.settings_schema || {}).length > 0 && (
+        <div style={{marginTop:registeredPanel?32:0,
+                     paddingTop:registeredPanel?24:0,
+                     borderTop:registeredPanel?"0.5px solid var(--b1)":"none"}}>
+          <ExtensionSettingsForm ext={ext} onSaved={updated => setExt(updated)}/>
+        </div>
+      )}
+
+      {/* ─── Advanced — collapsed by default ─────────────────────────────── */}
       <div style={{marginTop:24}}>
         <button onClick={() => setAdvancedOpen(o => !o)}
           style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
@@ -859,13 +886,6 @@ function ExtensionAdminPage({slug}) {
               cursor:"pointer",fontFamily:"inherit"}}>
             Cancel
           </button>
-        </div>
-      )}
-
-      {/* ─── Extension-owned section ─────────────────────────────────────── */}
-      {registeredPanel && (
-        <div style={{marginTop:28,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
-          {window.React.createElement(registeredPanel.component, null)}
         </div>
       )}
     </div>
