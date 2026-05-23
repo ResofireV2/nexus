@@ -1994,6 +1994,35 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
   .settings-tabs-mob .stm-item.active{color:var(--ac);font-weight:500;}
   .settings-desktop-tabs{display:none;}
 }
+
+/* Admin tab bars — responsive pattern. Used by TabbedPanel (extension
+   admin template) and available for adoption by built-in admin panels.
+
+   Two parallel renders: .admin-tabs (horizontal pills, desktop) and
+   .admin-tabs-mob (details/summary dropdown, mobile). The media query
+   below swaps which one is visible at the canonical Nexus mobile
+   breakpoint (max-width 767.99px). Pick this pattern by rendering both
+   forms and letting CSS hide whichever is wrong for the viewport. */
+.admin-tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:0.5px solid var(--b1);padding-bottom:0;}
+.admin-tab{display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px 8px 0 0;background:transparent;border:0.5px solid transparent;color:var(--t4);cursor:pointer;font-family:inherit;font-size:12px;font-weight:500;margin-bottom:-1px;}
+.admin-tab i{font-size:11px;}
+.admin-tab:hover{color:var(--t2);}
+.admin-tab.active{background:var(--s3);border-color:var(--b1);border-bottom-color:var(--s3);color:var(--t1);}
+.admin-tabs-mob{display:none;}
+@media(max-width:767.99px){
+  .admin-tabs{display:none;}
+  .admin-tabs-mob{display:block;border-bottom:0.5px solid var(--b1);margin-bottom:24px;}
+  .admin-tabs-mob details{position:relative;z-index:50;}
+  .admin-tabs-mob summary{list-style:none;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;color:var(--t1);background:var(--s2);border:0.5px solid var(--b2);margin:10px 0;gap:8px;}
+  .admin-tabs-mob summary::-webkit-details-marker{display:none;}
+  .admin-tabs-mob summary .atm-label{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
+  .admin-tabs-mob summary .atm-label i{flex-shrink:0;}
+  .admin-tabs-mob details[open] summary{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent;}
+  .admin-tabs-mob .atm-menu{position:absolute;top:100%;left:0;right:0;background:var(--s2);border:0.5px solid var(--b2);border-top:none;border-bottom-left-radius:10px;border-bottom-right-radius:10px;overflow:hidden;z-index:50;}
+  .admin-tabs-mob .atm-item{padding:11px 14px;font-size:13px;color:var(--t4);cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .admin-tabs-mob .atm-item:hover{background:var(--s3);color:var(--t1);}
+  .admin-tabs-mob .atm-item.active{color:var(--ac);font-weight:500;}
+}
 .p-reply-card{padding:14px 0;border-bottom:0.5px solid rgba(255,255,255,0.04);}
 .p-reply-body{font-size:13px;color:var(--t3);line-height:1.6;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .p-reply-meta{font-size:11px;color:var(--t5);display:flex;align-items:center;gap:6px;}

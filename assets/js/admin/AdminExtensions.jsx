@@ -1803,20 +1803,37 @@ function TabbedPanel({ tabs=[] }) {
   const currentTab = tabs.find(t=>t.key===activeTab)||tabs[0];
   return (
     <div>
-      <div style={{display:"flex",gap:4,marginBottom:24,borderBottom:"0.5px solid var(--b1)",paddingBottom:0}}>
+      {/* Desktop: horizontal pill bar */}
+      <div className="admin-tabs">
         {tabs.map(t=>(
           <button key={t.key} onClick={()=>setActiveTab(t.key)}
-            style={{display:"flex",alignItems:"center",gap:7,padding:"8px 14px",
-              borderRadius:"8px 8px 0 0",
-              background:activeTab===t.key?"var(--s3)":"transparent",
-              border:activeTab===t.key?"0.5px solid var(--b1)":"0.5px solid transparent",
-              borderBottom:activeTab===t.key?"0.5px solid var(--s3)":"none",
-              color:activeTab===t.key?"var(--t1)":"var(--t4)",
-              cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500,marginBottom:-1}}>
-            {t.icon&&<i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>}
+            className={`admin-tab${activeTab===t.key?" active":""}`}>
+            {t.icon&&<i className={`fa-solid ${t.icon}`}/>}
             {t.label}
           </button>
         ))}
+      </div>
+      {/* Mobile: dropdown (matches profile/settings convention) */}
+      <div className="admin-tabs-mob">
+        <details>
+          <summary>
+            <span className="atm-label">
+              {currentTab.icon&&<i className={`fa-solid ${currentTab.icon}`} style={{fontSize:12,color:"var(--t4)"}}/>}
+              <span>{currentTab.label}</span>
+            </span>
+            <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+          </summary>
+          <div className="atm-menu">
+            {tabs.map(t=>(
+              <div key={t.key}
+                className={`atm-item${activeTab===t.key?" active":""}`}
+                onClick={e=>{setActiveTab(t.key); e.currentTarget.closest("details").removeAttribute("open");}}>
+                {t.icon&&<i className={`fa-solid ${t.icon}`} style={{fontSize:12,color:"var(--t5)",width:14}}/>}
+                {t.label}
+              </div>
+            ))}
+          </div>
+        </details>
       </div>
       {currentTab.render ? currentTab.render() : null}
     </div>
