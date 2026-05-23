@@ -241,6 +241,16 @@ Optional, but recommended. The JSON Schema URL for editor validation. Nexus serv
 
 Settings are configuration values an admin sets per-installation. They're stored in the `extensions.settings` JSON column, passed to every callback that needs them (`handle_event/3`, `handle_digest_section/3`, lifecycle hooks), and rendered as form fields in the admin panel under **Admin → Extensions → \<your extension> → Settings**.
 
+#### Settings UI: pick one
+
+Before going further: Nexus offers two ways to render settings in the admin, and you should generally pick exactly one.
+
+- **Default — declare `settings_schema` only.** The host generates the form automatically from your schema. Don't register an admin panel for settings alone. This is the right answer for most extensions.
+- **Custom UI — register an admin panel (§7.3) and omit `settings_schema`.** Your panel owns the entire settings UI and saves to `PATCH /admin/extensions/<slug>/settings` itself. The host renders no fallback form.
+- **Advanced — declare both.** Use this only when your registered panel shows something *other than* a settings form (status displays, documentation, custom controls) and you want the host's auto-rendered form for the actual settings fields. The host renders the fallback whenever `settings_schema` has any keys, regardless of whether you registered a panel. **Watch out:** if both your panel and the fallback render the same fields, the form appears twice. See §11.2.
+
+The smoke test takes the advanced path — its registered admin panel renders explanatory text about what the field does, and the host's auto-rendered fallback below it renders the actual toggle for `enable_debug_log`.
+
 The smoke test declares one setting that toggles verbose logging in its hook handler:
 
 ```json
@@ -582,6 +592,8 @@ The manifest declares the path; the JS bundle's `registerRoute` call binds the p
 
 An admin panel is a custom page added to the admin sidebar under "Installed extensions". Clicking it renders your component in the admin content area.
 
+**Before declaring this:** if your only reason for an admin panel is settings, declare `settings_schema` instead and let the host auto-render the form (§5). Use an admin panel for content the host can't render — status displays, custom controls, action buttons, embedded views.
+
 The smoke test declares one:
 
 ```json
@@ -598,7 +610,7 @@ The smoke test declares one:
 
 The manifest declares the surface exists. The component is registered separately in your JS bundle (§9.4).
 
-![The smoke test's admin panel, reached from the "Installed extensions" section of the admin sidebar. The label and icon declared in the manifest become the sidebar entry; the registered component renders below the identity strip. This panel uses SimpleSettingsPanel to render the manifest's enable_debug_log boolean — Nexus generates the toggle from the schema.](images/admin-panel.png)
+![The smoke test's admin panel, reached from the "Installed extensions" section of the admin sidebar. The label and icon declared in the manifest become the sidebar entry; the registered component renders below the identity strip. The smoke test's panel renders explanatory text about what enable_debug_log does — the toggle itself is rendered below the divider by the host's auto-generated fallback form, from the manifest's settings_schema (§5).](images/admin-panel.png)
 
 #### Use a template, not a custom component
 
@@ -1003,8 +1015,8 @@ Returns a list of Ecto migration modules to run at install time (and roll back a
 @impl true
 def migrations do
   [
-    FoundationSmokeTest.Migrations.V001CreateSmokeNotes,
-    FoundationSmokeTest.Migrations.V002AddIndexes,
+    FoundationSmokeTest.Migrations.V20260601000001CreateSmokeNotes,
+    FoundationSmokeTest.Migrations.V20260601000002AddIndexes,
   ]
 end
 ```
@@ -1012,7 +1024,7 @@ end
 Define each migration in your `lib/` tree like normal Ecto migrations:
 
 ```elixir
-defmodule FoundationSmokeTest.Migrations.V001CreateSmokeNotes do
+defmodule FoundationSmokeTest.Migrations.V20260601000001CreateSmokeNotes do
   use Ecto.Migration
 
   def change do
@@ -1029,8 +1041,23 @@ end
 
 #### Naming conventions
 
-- **Module names** must end with `V<digits>...` at the last segment — `V001CreateNotes`, `V20260510000001CreateNotes`. The loader derives the migration version from this pattern. Modules that don't match are assigned a hashed integer version, which works but isn't ordered against other migrations — don't rely on the fallback.
+- **Module names** must end with `V<digits>...` at the last segment. The loader extracts the digits as the migration's version integer. Modules that don't match the pattern get a hashed integer version, which works but isn't ordered against other migrations — don't rely on the fallback.
 - **Table names** should be prefixed with your slug (with hyphens converted to underscores) to avoid collisions with other extensions and Nexus core. `foundation_smoke_test_notes`, not `notes`.
+
+#### Picking version integers
+
+The version integer extracted from your module name is written to Postgres's `schema_migrations` table — the **same** table Nexus core and every other installed extension write to. There is no per-extension namespace. This has one critical consequence:
+
+**If your version integer matches one already in `schema_migrations`, Ecto silently skips your migration.** The install reports success, but your tables are never created. A later migration that depends on those tables will then fail with `undefined_table` — confusingly distant from the actual cause.
+
+To stay safe:
+
+- **Use the YYYYMMDDhhmmss format** (`V20260601000001`, `V20260601000002`, etc.) — the same convention Phoenix's `mix ecto.gen.migration` uses and that Nexus core uses internally. The example above does this.
+- **Pick a date that postdates every Nexus core migration.** At the time of writing, Nexus core's most recent migration is `20260521000002`. Your version integers should be larger. If you're starting fresh today, today's date or later is a safe pick.
+- **Don't reuse YYYYMMDD values Nexus core has used.** Skim `priv/repo/migrations/` in your local Nexus checkout to see the dates already taken. The risk window is narrow but the failure mode is hard to diagnose.
+- **Avoid short forms like `V001`, `V002`.** They're valid per the regex but vulnerable to colliding with literally any other extension that uses the same convention, since version `1` is a popular pick.
+
+Nexus does not currently namespace `schema_migrations` per extension. This is a known limitation of the shared-database design — keep your version integers in their own date range and you'll be fine.
 
 #### Rollback
 
@@ -1590,16 +1617,18 @@ The component **receives no props.** Nexus renders it with `React.createElement(
 
 #### Use a template
 
-§7.3 introduced the two templates. Here are the full implementation examples — `SimpleSettingsPanel` for extensions whose admin panel is just settings, `TabbedPanel` for extensions that mix settings with custom views.
+§7.3 introduced the two templates. Here are the full implementation examples — `SimpleSettingsPanel` for cases where you need a custom settings UI but want help rendering the fields, `TabbedPanel` for extensions that mix settings with custom views.
 
-**`SimpleSettingsPanel` — settings-only**
+A reminder from §5: **don't reach for these templates just to render `settings_schema`.** The host already does that automatically via its fallback form. The templates are for the cases where you specifically chose to render settings yourself — for example, when your panel needs cross-field validation, conditional fields, or custom layouts the host's fallback can't express.
 
-The smoke test's admin panel renders its `enable_debug_log` setting:
+**`SimpleSettingsPanel` — settings rendered by your own panel**
+
+A custom panel that renders one boolean field using the template:
 
 ```javascript
 NE.registerAdminPanel(SLUG, {
-  label: "Foundation Smoke Test",
-  icon:  "fa-flask",
+  label: "My Extension",
+  icon:  "fa-cog",
   component: function() {
     const { SimpleSettingsPanel } = window.NexusExtensionTemplates;
     return React.createElement(SimpleSettingsPanel, {
@@ -1616,6 +1645,8 @@ NE.registerAdminPanel(SLUG, {
   },
 });
 ```
+
+If you use this template, **omit the matching keys from `settings_schema`** — otherwise the host's fallback form will render the same fields below your panel and the form appears twice.
 
 `SimpleSettingsPanel` automatically:
 
@@ -2354,7 +2385,7 @@ The full set of load_status values, what they mean, and how to recover:
 | `disabled`           | Admin has disabled the extension. Modules stay loaded; dispatch is filtered out.       | Toggle enable to re-activate.                                                  |
 | `manifest_invalid`   | `manifest.json` failed schema validation or its `module` declaration doesn't match the compiled output. | Fix the manifest, push a new release, toggle enable to reload.   |
 | `compile_failed`     | One of the `.ex` files in your release didn't compile. Or static assets failed to copy, or `child_specs/0` raised, or the registry insert failed. | Fix the underlying error, push a new release, toggle enable to retry. |
-| `migration_failed`   | A migration raised during install or update.                                            | Fix the migration. Note: if migrations partially applied, you may need to manually clean up. |
+| `migration_failed`   | A migration raised during install or update. Often caused by a previous migration being silently skipped due to a version-integer collision (see §8.5). | Fix the migration. Check for `undefined_table` errors — those indicate a silent skip earlier in the list. May require manual cleanup of partially-applied changes. |
 | `download_failed`    | The release tarball couldn't be downloaded. Network error, 404, or timeout.            | Check the release exists, retry. Transient — usually resolves on retry.       |
 | `install_failed`     | `on_install/1` returned `{:error, reason}` or raised. The extension is otherwise loaded. | Fix the init code, push a new release, retry. Or — if `on_install` was the only issue — uninstall and reinstall. |
 | `update_failed`      | `on_update/2` returned non-ok or raised. The new version is loaded but its init didn't complete cleanly. | Fix `on_update/2`, push a new release, click Update again.                |
@@ -2387,17 +2418,17 @@ The list is the home page for extension management. Admins typically arrive here
 
 ### 11.2 The per-extension page
 
-Clicking **Manage** on a card (or the sidebar entry that the admin_panel surface creates — see §7.3) opens the per-extension page. It has four sections, top to bottom:
+Clicking **Manage** on a card (or the sidebar entry that the `admin_panel` surface creates — see §7.3) opens the per-extension page. Its sections, top to bottom:
 
-1. **Identity strip** — the extension's name, version pill, status pill, and the enable/disable toggle. Toggling enable triggers the runtime transition described in §10.4.
-2. **Status banner** — visible only when the extension is in a non-`loaded` state. Shows the load_status label, the recovery hint, and the `load_error` message describing the specific cause.
-3. **Your registered admin panel** — the component you bound via `registerAdminPanel` (§7.3, §9.4). If you didn't register one, this section is omitted entirely. The topbar Save Changes button (top right of the admin page) wires automatically to whichever `SimpleSettingsPanel` is currently mounted inside your component.
-4. **Settings, Advanced, and Runtime registrations** — collapsed sections below your registered panel:
-   - **Settings** is a fallback form rendered from your `settings_schema` if you didn't register an admin panel (or if your panel doesn't expose its settings UI). Reading the same DB fields, saving to the same `PATCH /admin/extensions/<slug>/settings` endpoint.
-   - **Advanced** holds the Uninstall button. Confirming triggers the uninstall flow described in §10.3 and surfaces any warnings (from `on_uninstall/0`, Oban cancellation, etc.) in the response.
-   - **Runtime registrations** is the diagnostic panel — covered next.
+1. **Identity strip** — name, version, status pill, enable/disable toggle, and the `…` overflow menu. The overflow menu holds the rare actions: View repo, View homepage, Sync from GitHub, and **Uninstall**. Toggling enable triggers the runtime transition described in §10.4.
+2. **Status banner** — visible only when the extension is in a non-`loaded` state. Shows the load_status label, the recovery hint, and the `load_error` message.
+3. **Your registered admin panel** — the component you bound via `registerAdminPanel` (§7.3, §9.4), if you registered one. Omitted entirely otherwise.
+4. **Settings (fallback form)** — rendered inline below your panel **whenever your `settings_schema` has any keys**, regardless of whether you registered an admin panel. This is the auto-generated form from §5. Saves to `PATCH /admin/extensions/<slug>/settings`.
+5. **Advanced** — a collapsed section. Expanding it reveals only the **Runtime registrations** panel (§11.3). No other controls live here.
 
-The topbar Save Changes button is shared between every admin page. When you're on an extension's per-extension page, it shows the dirty/clean state of the form (`SimpleSettingsPanel` or your custom panel wired to `window._nexusAdminSaveFn`). On other admin pages it shows that page's dirty state. There's only one Save button, and it always commits whatever's mounted.
+**Concretely on the fallback form:** if your registered admin panel already renders forms for keys that exist in `settings_schema`, those forms appear twice — once in your panel, once in the auto-rendered fallback below. To opt out, either drop the duplicated keys from `settings_schema` (the host has no form to render then), or render only non-settings content in your panel (status displays, documentation, custom controls). See §5's "Settings UI: pick one" callout for the architectural choice.
+
+The topbar Save Changes button is shared between every admin page. When you're on an extension's per-extension page, it shows the dirty/clean state of whichever form is mounted — the fallback form, or your panel if it's wired to `window._nexusAdminSaveFn`. There's only one Save button, and it always commits whatever's mounted.
 
 ![The full admin page context with the smoke test entry visible in the left sidebar under "Installed extensions" — a direct shortcut to the per-extension page. Built-in admin sections (overview, layout, email, etc.) sit above; extensions are listed at the bottom.](images/admin-page-sidebar.png)
 
@@ -2554,6 +2585,14 @@ Your manifest declares hooks but your module doesn't export `handle_event/3` (or
 **`load_status: "compile_failed"` with "undefined function ..."**
 
 Your code references a function or module that doesn't exist in the Nexus VM. Check spelling. If you're using a package, verify it's in the available packages list (§8.12) — extensions can't pull in their own dependencies.
+
+**`load_status: "migration_failed"` with `undefined_table` on a table you just declared**
+
+A previous migration in your `migrations/0` list was silently skipped because its version integer already existed in Postgres's `schema_migrations` table. The skip happens with no error, but a later migration that references the skipped migration's tables blows up with `undefined_table`. The fix: your migration module names must produce version integers that don't collide with Nexus core or other installed extensions. Use the `V<YYYYMMDDhhmmss>` form with a date that postdates Nexus core's most recent migration. See §8.5 for the safety rules and how to pick safe version integers.
+
+**My settings form appears twice on the admin page**
+
+Your registered admin panel renders fields that also exist in `settings_schema`. The host's fallback form renders all schema keys regardless of what your panel does, so the same fields appear in your panel and again below it. Either drop the duplicated keys from `settings_schema`, or remove the field-rendering code from your panel. See §5's "Settings UI: pick one" callout and §11.2.
 
 **Bundle code runs but settings come back as `nil`**
 
