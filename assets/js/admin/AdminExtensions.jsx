@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { ago } from "../lib/utils";
 import { toast } from "../components/Toasts";
@@ -614,9 +614,224 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
   );
 }
 
-// ── Admin Extensions Panel ────────────────────────────────────────────────────
-// Unified extensions page — store, installed state, and install-from-URL
-// all live on one screen. No separate "browse store" view.
+// ── Extension Admin Page ──────────────────────────────────────────────────────
+// Full per-extension admin page. Reached from the admin sidebar's "installed
+// extensions" entry — each installed extension gets one of these regardless
+// of whether it registered a custom admin panel via registerAdminPanel.
+//
+// Structure:
+//
+//   1. System header (Nexus owns)
+//      - name, version, author, repo link
+//      - enable/disable toggle  (honestly labeled — see below)
+//      - load status banner if not "loaded"
+//      - description
+//      - runtime registrations (collapsible)
+//      - settings form (from manifest's settings_schema, auto-rendered)
+//      - manifest sync button (if manifest_url present)
+//      - danger zone (uninstall)
+//
+//   2. Extension-owned section (optional)
+//      - the component the extension registered via registerAdminPanel,
+//        rendered below a thin divider. If the extension didn't register
+//        anything, this section is silently omitted (no apology, no
+//        placeholder).
+//
+// The system header replaces the inline detail expansion that used to live
+// in the Admin → Extensions gallery cards. Cards in that gallery now serve
+// as a navigation index and install/uninstall surface; the per-extension
+// settings/runtime/manifest/uninstall affordances live HERE.
+//
+// Enable/disable note: today's toggle_extension flips the DB boolean but
+// doesn't actually unload from the VM until next restart. We label the
+// toggle accordingly until a proper live-disable lifecycle is implemented.
+
+function ExtensionAdminPage({slug}) {
+  const [ext, setExt] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [confirmUninstall, setConfirmUninstall] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadExt = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // /admin/extensions returns the full list; filter for this slug.
+      // Could be tightened to a per-slug endpoint later if needed; for now
+      // the list endpoint is the only one that returns settings_schema and
+      // the other system-header fields.
+      const d = await api.get("/admin/extensions");
+      const found = (d.extensions || []).find(e => e.slug === slug);
+      if (!found) setError("Extension not found.");
+      else setExt(found);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => { loadExt(); }, [loadExt]);
+
+  const toggle = async () => {
+    const d = await api.post(`/admin/extensions/${slug}/toggle`);
+    if (d.extension) setExt(d.extension);
+  };
+
+  const uninstall = async () => {
+    const d = await api.delete(`/admin/extensions/${slug}`);
+    if (d.ok) {
+      toast(`${ext.name} uninstalled`);
+      // After uninstall, navigate back to the extensions gallery — the
+      // sidebar entry will disappear on next render.
+      if (window._nexusAdminNav) window._nexusAdminNav("extensions");
+    } else {
+      toast(d.error || "Uninstall failed", "err");
+    }
+  };
+
+  const syncManifest = async () => {
+    setSyncing(true);
+    try {
+      const d = await api.post(`/admin/extensions/${slug}/sync`);
+      if (d.extension) { setExt(d.extension); toast("Manifest synced"); }
+      else toast(d.error || "Sync failed", "err");
+    } finally { setSyncing(false); }
+  };
+
+  if (loading) {
+    return (
+      <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
+        <i className="fa-solid fa-spinner fa-spin" style={{marginRight:8}}/>
+        Loading…
+      </div>
+    );
+  }
+
+  if (error || !ext) {
+    return (
+      <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
+        {error || "Extension not found."}
+      </div>
+    );
+  }
+
+  // Find the registered admin panel component for this slug (if the extension
+  // registered one). The bundle's registerAdminPanel call populates this.
+  const registeredPanel = window.NexusExtensions
+    && window.NexusExtensions.getAdminPanels().find(p => p.slug === slug);
+
+  return (
+    <div>
+      {/* ─── System header (Nexus owns) ─────────────────────────────────── */}
+
+      {/* Title row */}
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:17,fontWeight:600,color:"var(--t1)"}}>{ext.name}</div>
+          <div style={{fontSize:12,color:"var(--t5)"}}>v{ext.version}{ext.author ? ` by ${ext.author}` : ""}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          {ext.homepage && (
+            <a href={ext.homepage} target="_blank" rel="noopener"
+              style={{fontSize:12,color:"var(--t4)",textDecoration:"none",display:"flex",
+                alignItems:"center",gap:5,padding:"5px 10px",border:"0.5px solid var(--b1)",
+                borderRadius:8}}>
+              <i className="fa-solid fa-arrow-up-right-from-square" style={{fontSize:10}}/>
+              Repo
+            </a>
+          )}
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",
+            background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:8}}>
+            <span style={{fontSize:12,color:"var(--t4)"}}>
+              {ext.enabled ? "Enabled" : "Disabled"}
+            </span>
+            <Toggle value={ext.enabled} onChange={toggle}/>
+          </div>
+        </div>
+      </div>
+
+      {/* Honest note about what the toggle actually does today. Removed once
+          live-disable lifecycle is implemented (deferred — see project notes). */}
+      <div style={{fontSize:11,color:"var(--t5)",marginBottom:20,paddingLeft:2,fontStyle:"italic"}}>
+        Note: disabling currently takes effect on next server restart.
+        Live runtime disable is planned for a future release.
+      </div>
+
+      {/* Load status banner — visible only when not "loaded" */}
+      <ExtensionStatusBanner ext={ext}/>
+
+      {/* Description */}
+      {ext.description && (
+        <div style={{fontSize:13,color:"var(--t3)",marginBottom:20,lineHeight:1.6}}>
+          {ext.description}
+        </div>
+      )}
+
+      {/* Runtime registrations — collapsible, lazy-loads on expand */}
+      <ExtensionRuntimePanel slug={ext.slug}/>
+
+      {/* Settings form — auto-generated from manifest's settings_schema */}
+      <div className="fgt" style={{marginTop:24,marginBottom:16}}>Settings</div>
+      <ExtensionSettingsForm ext={ext} onSaved={updated => setExt(updated)}/>
+
+      {/* Manifest sync — re-pulls manifest from source URL */}
+      {ext.manifest_url && (
+        <div style={{marginTop:24,paddingTop:20,borderTop:"0.5px solid var(--b1)"}}>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:6}}>Manifest</div>
+          <div style={{fontSize:12,color:"var(--t4)",marginBottom:12}}>
+            Re-fetch the manifest from the source URL to pick up updated metadata, logo, banner, and bundle URL without reinstalling.
+          </div>
+          <button onClick={syncManifest} disabled={syncing}
+            style={{fontSize:12,padding:"6px 16px",borderRadius:8,
+              background:"rgba(96,165,250,0.08)",border:"0.5px solid rgba(96,165,250,0.3)",
+              color:"#60a5fa",cursor:syncing?"default":"pointer",fontFamily:"inherit",
+              opacity:syncing?0.6:1}}>
+            <i className="fa-solid fa-rotate" style={{marginRight:6,fontSize:11}}/>{syncing?"Syncing…":"Sync manifest"}
+          </button>
+        </div>
+      )}
+
+      {/* Danger zone */}
+      <div style={{marginTop:32,paddingTop:24,borderTop:"0.5px solid var(--b1)"}}>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--red)",marginBottom:12}}>Danger zone</div>
+        {!confirmUninstall
+          ? <button onClick={() => setConfirmUninstall(true)}
+              style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(239,68,68,0.08)",
+                border:"0.5px solid rgba(239,68,68,0.3)",color:"var(--red)",cursor:"pointer",
+                fontFamily:"inherit"}}>
+              Uninstall extension
+            </button>
+          : <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <span style={{fontSize:13,color:"var(--t3)"}}>
+                Remove {ext.name} and all its settings?
+              </span>
+              <button onClick={uninstall}
+                style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                  background:"var(--red)",border:"none",color:"#fff",
+                  cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                Confirm uninstall
+              </button>
+              <button onClick={() => setConfirmUninstall(false)}
+                style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                  background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
+                  cursor:"pointer",fontFamily:"inherit"}}>
+                Cancel
+              </button>
+            </div>}
+      </div>
+
+      {/* ─── Extension-owned section (optional) ─────────────────────────── */}
+
+      {registeredPanel && (
+        <div style={{marginTop:40,paddingTop:32,borderTop:"0.5px solid var(--b1)"}}>
+          {window.React.createElement(registeredPanel.component, null)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AdminExtensionsPanel() {
   const [tab, setTab]                   = useState("all");       // "all" | "installed" | "url"
@@ -910,11 +1125,21 @@ function AdminExtensionsPanel() {
               const isBusy      = installing===item.slug;
               const accentColor = slugColor(item.slug);
 
+              // Installed cards become navigation tiles — click anywhere
+              // outside an interactive child (button, link) and you go to
+              // the extension's admin page. Action buttons inside the card
+              // call e.stopPropagation() to avoid bubbling.
+              const cardOnClick = isInstalled
+                ? () => { if (window._nexusAdminNav) window._nexusAdminNav(`ext-panel-${item.slug}`); }
+                : undefined;
+
               return (
                 <div key={item.slug} style={{
                   background:"var(--s3)",border:"0.5px solid var(--b1)",borderRadius:14,
                   overflow:"hidden",display:"flex",flexDirection:"column",
-                  transition:"border-color .15s",cursor:"default"}}
+                  transition:"border-color .15s",
+                  cursor: isInstalled ? "pointer" : "default"}}
+                  onClick={cardOnClick}
                   onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(255,255,255,0.15)"}
                   onMouseLeave={e=>e.currentTarget.style.borderColor="var(--b1)"}>
 
@@ -1024,12 +1249,6 @@ function AdminExtensionsPanel() {
                       <ExtensionStatusBanner ext={item}/>
                     )}
 
-                    {/* Runtime registrations — only meaningful for currently
-                        loaded extensions. Collapsed by default; lazy-fetches
-                        on expand. */}
-                    {isInstalled && item.load_status === "loaded" && (
-                      <ExtensionRuntimePanel slug={item.slug}/>
-                    )}
                     {/* Category tags */}
                     {item.categories?.length>0&&(
                       <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:2}}>
@@ -1074,14 +1293,8 @@ function AdminExtensionsPanel() {
                       <div style={{flex:1}}/>
                       {isInstalled?(
                         <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
-                          {window.NexusExtensions.getAdminPanels().some(p=>p.slug===item.slug)&&(
-                            <span style={{fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:5}}>
-                              <i className="fa-solid fa-sidebar" style={{fontSize:11}}/>
-                              Settings in sidebar
-                            </span>
-                          )}
                           {item.update_available&&(
-                            <button onClick={()=>updateExtension(item.slug)}
+                            <button onClick={e=>{e.stopPropagation(); updateExtension(item.slug);}}
                               disabled={updatingSlug===item.slug}
                               style={{fontSize:12,padding:"6px 14px",borderRadius:8,
                                 background:"rgba(251,146,60,0.1)",border:"0.5px solid rgba(251,146,60,0.4)",
@@ -1092,31 +1305,21 @@ function AdminExtensionsPanel() {
                               {updatingSlug===item.slug?"Updating…":`Update to v${(item.latest_version||"").replace(/^v/,"")}`}
                             </button>
                           )}
-                          {item.manifest_url&&(
-                            <button onClick={async()=>{
-                              const d = await api.post(`/admin/extensions/${item.slug}/sync`);
-                              if(d.extension){ toast("Manifest synced"); loadExtensions(); loadStore(); }
-                              else toast(d.error||"Sync failed","err");
-                            }} style={{fontSize:12,padding:"6px 14px",borderRadius:8,
-                              background:"rgba(96,165,250,0.08)",border:"0.5px solid rgba(96,165,250,0.3)",
-                              color:"#60a5fa",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
-                              <i className="fa-solid fa-rotate" style={{marginRight:5,fontSize:11}}/>Sync
-                            </button>
-                          )}
-                          <button onClick={async()=>{
-                            if(!window.confirm(`Uninstall ${item.name}?`)) return;
-                            const d = await api.delete(`/admin/extensions/${item.slug}`);
-                            if(d.ok){ toast(`${item.name} uninstalled`); loadExtensions(); loadStore(); }
-                            else toast(d.error||"Uninstall failed","err");
+                          {/* "Manage" button — explicit navigation hint. The whole card is
+                              clickable, but having a labeled button makes the affordance
+                              clearer when the rest of the row has other buttons. */}
+                          <button onClick={e=>{e.stopPropagation();
+                            if(window._nexusAdminNav) window._nexusAdminNav(`ext-panel-${item.slug}`);
                           }} style={{fontSize:12,padding:"6px 14px",borderRadius:8,
-                            background:"rgba(248,113,113,0.1)",border:"0.5px solid rgba(248,113,113,0.3)",
-                            color:"var(--red)",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
-                            Uninstall
+                            background:"rgba(167,139,250,0.1)",border:"0.5px solid rgba(167,139,250,0.3)",
+                            color:"#a78bfa",cursor:"pointer",fontFamily:"inherit",fontWeight:500,
+                            display:"flex",alignItems:"center",gap:5}}>
+                            <i className="fa-solid fa-gear" style={{fontSize:11}}/>Manage
                           </button>
                         </div>
                       ):(
                         <button
-                          onClick={()=>installFromStore(item)}
+                          onClick={e=>{e.stopPropagation(); installFromStore(item);}}
                           disabled={isBusy||!item.manifest_url}
                           style={{fontSize:12,padding:"6px 16px",borderRadius:8,
                             background:"var(--ac)",border:"none",color:"#fff",
@@ -1442,6 +1645,7 @@ window._nexusAdminSaveFn   = null;
 window._nexusAdminSetDirty = null;
 
 // ── Exports ──────────────────────────────────────────────────────────────────
-export { ExtensionSettingsForm, ExtensionDetail, AdminExtensionsPanel,
+export { ExtensionSettingsForm, ExtensionDetail, ExtensionAdminPage,
+         AdminExtensionsPanel,
          ExtensionFieldRenderer,
          useExtensionSettings, SimpleSettingsPanel, TabbedPanel };

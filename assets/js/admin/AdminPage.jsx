@@ -11,7 +11,7 @@ import { ReportCard, ModerationPage, AdminModerationPanel } from "./AdminModerat
 import { AdminIntegrationsPanel, AdminAntiSpamPanel, AdminLogsPanel,
          AdminDigestPanel, AdminLeaderboardPanel } from "./AdminPanels";
 import { BadgesPage, AdminBadgesPanel } from "./AdminBadges";
-import { AdminExtensionsPanel } from "./AdminExtensions";
+import { AdminExtensionsPanel, ExtensionAdminPage } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { AdminPagesPanel } from "./AdminPages";
@@ -392,7 +392,46 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     return unsub;
   },[]);
 
+  // Sidebar entries for installed extensions. Every installed extension gets
+  // an entry — those that registered a custom admin panel via the JS bundle
+  // contribute their custom label/icon; those that didn't register one still
+  // get an entry with a derived label/icon, so server-only extensions
+  // (digest sections, hooks, no UI) remain manageable through their own
+  // page rather than only via the extensions gallery card.
+  const [installedExtensions, setInstalledExtensions] = useState([]);
+  React.useEffect(()=>{
+    const load = () => {
+      api.get("/admin/extensions").then(d => setInstalledExtensions(d.extensions || []));
+    };
+    load();
+    // Also reload when admin panels change — this typically coincides with
+    // an extension being newly installed (bundle just loaded into the page).
+    const unsub = window.NexusExtensions.onAdminPanelChange(load);
+    return unsub;
+  },[]);
+
+  // Expose a navigator helper so child components (notably ExtensionAdminPage
+  // after uninstall) can navigate the admin sidebar without having to lift
+  // a callback through several layers.
+  React.useEffect(()=>{
+    window._nexusAdminNav = (k) => setSec(k);
+    return () => { window._nexusAdminNav = null; };
+  },[]);
+
+  // Build per-extension sidebar entries. Prefer the registered admin panel's
+  // label/icon when present (extensions intentionally customize these),
+  // fall back to the extension's display name and a generic icon when not.
   const extPanels = window.NexusExtensions.getAdminPanels();
+  const extensionSidebarItems = installedExtensions
+    .filter(e => e.enabled)
+    .map(e => {
+      const reg = extPanels.find(p => p.slug === e.slug);
+      return {
+        k:     `ext-panel-${e.slug}`,
+        icon:  reg?.icon  || "fa-puzzle-piece",
+        label: reg?.label || e.name,
+      };
+    });
 
   const NAV_SECTIONS = [
     {label:"forum settings", items:[
@@ -423,15 +462,13 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"logs",       icon:"fa-file-lines",           label:"logs"},
       {k:"updates",    icon:"fa-rotate",               label:"updates"},
     ]},
-    // Populated at runtime by extension bundles via:
-    // window.NexusExtensions.registerAdminPanel(slug, { label, icon, component })
-    ...(extPanels.length > 0 ? [{
+    // One sidebar entry per installed extension. Server-only extensions
+    // (no JS bundle, no registerAdminPanel) still appear here — they show
+    // the system header (settings form, runtime panel, etc.) and no
+    // custom content below it.
+    ...(extensionSidebarItems.length > 0 ? [{
       label: "installed extensions",
-      items: extPanels.map(p => ({
-        k:     `ext-panel-${p.slug}`,
-        icon:  p.icon,
-        label: p.label,
-      })),
+      items: extensionSidebarItems,
     }] : []),
   ];
 
@@ -1276,16 +1313,13 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           {(sec==="logs")&&<AdminLogsPanel/>}
           {(sec==="extensions")&&<AdminExtensionsPanel/>}
 
-          {/* Extension-registered admin panels — rendered when sec matches ext-panel-{slug} */}
+          {/* Extension admin pages — rendered when sec matches ext-panel-{slug}.
+              ExtensionAdminPage handles the system header (status, settings,
+              runtime registrations, sync, uninstall) and renders the extension's
+              registered component below it when one exists. */}
           {sec.startsWith("ext-panel-")&&(()=>{
             const slug = sec.slice("ext-panel-".length);
-            const panel = window.NexusExtensions.getAdminPanels().find(p=>p.slug===slug);
-            if(!panel) return (
-              <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)",fontSize:13}}>
-                Extension panel not found. The bundle may still be loading.
-              </div>
-            );
-            return React.createElement(panel.component, null);
+            return <ExtensionAdminPage slug={slug}/>;
           })()}
 
           {(sec==="updates")&&<UpdatesPanel/>}
