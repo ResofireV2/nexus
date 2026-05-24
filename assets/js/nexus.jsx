@@ -3909,8 +3909,11 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
       ws.onclose = () => {
         clearInterval(heartbeatRef.current);
         joinedTopics.current.clear();
-        // Reconnect with exponential backoff: 3s → 6s → 12s → 24s → 60s max
-        if (mountedRef.current && token && userId) {
+        // Only schedule a reconnect if the tab is visible. If it's hidden,
+        // the heartbeat will be throttled and the server will immediately
+        // close the new connection too — causing a flood of failed attempts.
+        // The visibilitychange handler below reconnects when the tab returns.
+        if (mountedRef.current && token && userId && !document.hidden) {
           reconnectRef.current = setTimeout(connect, reconnectDelay.current);
           reconnectDelay.current = Math.min(reconnectDelay.current * 2, 60000);
         }
@@ -3918,10 +3921,27 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     };
 
     connectRef.current = connect;
+
+    // When the tab becomes visible again, reconnect immediately if the socket
+    // is not already open. This covers the case where the tab was hidden while
+    // the server closed the connection due to a missed heartbeat.
+    const onVisible = () => {
+      if (!mountedRef.current || !token || !userId) return;
+      if (document.hidden) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        clearTimeout(reconnectRef.current);
+        reconnectDelay.current = 3000; // reset backoff — this is a user-initiated restore
+        connect();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     connect();
 
     return () => {
       mountedRef.current = false;
+      document.removeEventListener("visibilitychange", onVisible);
       clearTimeout(reconnectRef.current);
       clearInterval(heartbeatRef.current);
       if (wsRef.current) wsRef.current.close();
