@@ -169,6 +169,63 @@ function WidgetDragList({items, onChange}) {
   );
 }
 
+// Explore items that cannot be hidden — always visible to users.
+const LOCKED_EXPLORE_ITEMS = new Set(["everything", "members", "notifications", "messages", "search"]);
+
+// ── ExploreDragList — drag-reorder + toggle for explore sidebar items ──────────
+function ExploreDragList({items, onChange}) {
+  var [dragging, setDragging] = React.useState(null);
+  var [dragOver, setDragOver] = React.useState(null);
+
+  function move(from, to) {
+    if(from === to) return;
+    var next = items.slice();
+    var item = next.splice(from, 1)[0];
+    next.splice(to, 0, item);
+    onChange(next);
+  }
+
+  function toggle(idx) {
+    var next = items.map(function(x){return Object.assign({},x);});
+    next[idx].hidden = !next[idx].hidden;
+    onChange(next);
+  }
+
+  return React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:4}},
+    items.map(function(item, idx) {
+      var isOver = dragOver === idx;
+      var isDragging = dragging === idx;
+      var locked = LOCKED_EXPLORE_ITEMS.has(item.id);
+      return React.createElement('div', {
+        key: item.id || idx,
+        draggable: true,
+        onDragStart: function(e){e.dataTransfer.effectAllowed="move"; setDragging(idx);},
+        onDragOver:  function(e){e.preventDefault(); setDragOver(idx);},
+        onDragLeave: function(){setDragOver(null);},
+        onDrop:      function(e){e.preventDefault(); if(dragging!==null) move(dragging,idx); setDragging(null); setDragOver(null);},
+        onDragEnd:   function(){setDragging(null); setDragOver(null);},
+        style:{
+          display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
+          borderRadius:10, cursor:"grab",
+          border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
+          background: isDragging?"rgba(255,255,255,0.01)": isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
+          opacity: isDragging ? 0.5 : 1,
+          transition:"border-color .1s, background .1s"
+        }
+      },
+        React.createElement('i',{className:"fa-solid fa-grip-vertical",style:{fontSize:11,color:"var(--t5)",flexShrink:0}}),
+        item.icon && React.createElement('i',{className:"fa-solid "+item.icon,style:{fontSize:13,color:"var(--t4)",width:16,textAlign:"center",flexShrink:0}}),
+        React.createElement('span',{style:{flex:1,fontSize:13,color:item.hidden?"var(--t5)":"var(--t2)",fontWeight:500}}, item.label),
+        item.authOnly && React.createElement('span',{style:{fontSize:10,color:"var(--t5)",background:"rgba(255,255,255,0.05)",padding:"1px 7px",borderRadius:20,border:"0.5px solid var(--b1)"}}, "logged in only"),
+        item._ext && React.createElement('span',{style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
+        locked
+          ? React.createElement('span',{style:{fontSize:10,color:"var(--t5)",padding:"1px 7px",borderRadius:20,background:"rgba(255,255,255,0.03)",border:"0.5px solid var(--b1)"},title:"This item cannot be hidden"}, "required")
+          : React.createElement(Toggle, {value: !item.hidden, onChange: function(){ toggle(idx); }})
+      );
+    })
+  );
+}
+
 // ── LayoutAdmin ───────────────────────────────────────────────────────────────
 function LayoutAdmin({layoutCfg, setLayoutCfg}) {
   var [tab, setTab] = React.useState("post_toolbar");
@@ -273,7 +330,9 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
     var saved = layoutCfg[key];
     if(!saved || !saved.length) return defaults.slice();
     var result = saved.map(function(s) {
-      return defaults.find(function(d){return d.id===s.id;}) || s;
+      var def = defaults.find(function(d){return d.id===s.id;});
+      if(def) return Object.assign({}, def, {hidden: s.hidden || false});
+      return s;
     });
     defaults.forEach(function(d) {
       if(!result.find(function(r){return r.id===d.id;})) result.push(d);
@@ -465,27 +524,10 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
         }
       }),
       React.createElement('div', {className:"fgt", style:{marginTop:28}}, "Explore items"),
-      React.createElement('div', {className:"page-sub"}, "Drag to reorder the items within the Explore section."),
-      React.createElement(DragList, {
+      React.createElement('div', {className:"page-sub"}, "Drag to reorder. Toggle to show or hide. Required items cannot be hidden."),
+      React.createElement(ExploreDragList, {
         items: orderedList("explore_items", [...EXPLORE_ITEMS, ...window.NexusExtensions.getExploreItems()]),
-        onChange: function(items){update("explore_items", items);},
-        renderItem: function(item, idx, allItems, onChange) {
-          return React.createElement('div', {style:{display:"flex",alignItems:"center",gap:10,flex:1}},
-            React.createElement('i', {className:"fa-solid "+item.icon, style:{fontSize:13,color:"var(--t4)",width:16,textAlign:"center"}}),
-            React.createElement('span', {style:{fontSize:13,color:"var(--t2)",fontWeight:500}}, item.label),
-            item.authOnly && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(255,255,255,0.05)",padding:"1px 7px",borderRadius:20,border:"0.5px solid var(--b1)"}}, "logged in only"),
-            item._ext && React.createElement('span', {style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
-            item._ext && React.createElement('button', {
-              onClick: function(e){
-                e.stopPropagation();
-                var current = orderedList("explore_items", [...EXPLORE_ITEMS, ...window.NexusExtensions.getExploreItems()]);
-                update("explore_items", current.filter(function(i){return i.id !== item.id;}));
-              },
-              style:{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:"2px 6px",fontSize:12,lineHeight:1},
-              title:"Remove"
-            }, React.createElement('i', {className:"fa-solid fa-xmark"}))
-          );
-        }
+        onChange: function(items){update("explore_items", items);}
       })
     ),
 

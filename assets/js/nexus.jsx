@@ -2745,7 +2745,11 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
 
           var savedExplore = layoutCfg.explore_items;
           var exploreItems = savedExplore && savedExplore.length
-            ? savedExplore.map(function(s){return EXPLORE_ITEMS.find(function(d){return d.id===s.id;})||s;})
+            ? savedExplore.map(function(s){
+                var def = EXPLORE_ITEMS.find(function(d){return d.id===s.id;});
+                if(def) return Object.assign({}, def, {hidden: s.hidden || false});
+                return s;
+              })
             : EXPLORE_ITEMS.slice();
           // Drop any saved entries whose extension is disabled or uninstalled.
           // savedExplore can contain extension entries persisted from a
@@ -2759,6 +2763,8 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
           window.NexusExtensions.getExploreItems().forEach(function(d){
             if(!exploreItems.find(function(s){return s.id===d.id;}))exploreItems.push(d);
           });
+          // Filter out hidden items before rendering
+          exploreItems = exploreItems.filter(function(item){ return !item.hidden; });
 
           // Ordered spaces from layout config
           var savedSpaceOrder = layoutCfg.spaces_order;
