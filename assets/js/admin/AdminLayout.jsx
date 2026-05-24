@@ -222,7 +222,9 @@ function ExploreDragList({items, onChange}) {
           ? React.createElement('div',{style:{width:46,height:26,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
               React.createElement('span',{style:{fontSize:10,color:"var(--t5)",padding:"1px 7px",borderRadius:20,background:"rgba(255,255,255,0.03)",border:"0.5px solid var(--b1)"},title:"This item cannot be hidden"}, "required")
             )
-          : React.createElement(Toggle, {value: !item.hidden, onChange: function(){ toggle(idx); }})
+          : React.createElement('div', {style:{flexShrink:0, margin:"-12px 0"}},
+              React.createElement(Toggle, {value: !item.hidden, onChange: function(){ toggle(idx); }})
+            )
       );
     })
   );
