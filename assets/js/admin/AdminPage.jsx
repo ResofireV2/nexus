@@ -321,6 +321,8 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [newUser,setNewUser]=useState({username:"",email:"",password:"",role:"member",skip_verification:false});
   const [general,setGeneral]=useState({}); const [branding,setBranding]=useState({});
   const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false); const [isDirty,setIsDirty]=useState(false);
+  // Extension permission settings: { [slug]: { [permKey]: level } }
+  const [extPermCfg,setExtPermCfg]=useState({});
   // Dirty-aware setters — wraps a state setter so any change marks the page dirty.
   const dirty = fn => v => { fn(v); setIsDirty(true); };
   // loadGen increments each time a settings fetch begins. The dirty watcher
@@ -418,6 +420,21 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     const unsub = window.NexusExtensions.onAdminPanelChange(load);
     return unsub;
   },[]);
+
+  // Load initial permission values from each extension's settings
+  React.useEffect(()=>{
+    if(!installedExtensions.length) return;
+    const extsWithPerms = installedExtensions.filter(e => e.permissions && e.permissions.length > 0);
+    if(!extsWithPerms.length) return;
+    const initial = {};
+    extsWithPerms.forEach(e => {
+      initial[e.slug] = {};
+      e.permissions.forEach(p => {
+        initial[e.slug][p.key] = (e.settings && e.settings[p.key]) || p.default || "member";
+      });
+    });
+    setExtPermCfg(initial);
+  },[installedExtensions]);
 
   // Expose a navigator helper so child components (notably ExtensionAdminPage
   // after uninstall) can navigate the admin sidebar without having to lift
@@ -561,7 +578,14 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             else if(sec==="layout") saveSection("layout",layoutCfg);
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="storage") saveSection("uploads",uploadCfg);
-            else if(sec==="permissions") Promise.all([saveSection("registration",regCfg),saveSection("posting",postCfg)]);
+            else if(sec==="permissions") {
+              const saves = [saveSection("registration",regCfg), saveSection("posting",postCfg)];
+              // Save each extension's permission settings
+              Object.entries(extPermCfg).forEach(([slug, vals]) => {
+                saves.push(api.patch(`/admin/extensions/${slug}/settings`, {settings: vals}).catch(()=>{}));
+              });
+              Promise.all(saves);
+            }
             else if(sec==="leaderboard") saveSection("leaderboard",lbCfg);
             else if(sec==="digest") saveSection("digest",digestCfg);
             else if(sec==="moderation") saveSection("moderation",general);
@@ -1139,6 +1163,50 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <option value="delete">Delete all content permanently</option>
               </Select>
             </F>
+
+            {/* Extension permissions — one block per extension that declares permissions */}
+            {installedExtensions.filter(e=>e.enabled&&e.permissions&&e.permissions.length>0).length>0&&<>
+              <div className="fgt" style={{marginTop:20}}>Extension permissions</div>
+              <div style={{fontSize:13,color:"var(--t4)",marginBottom:16}}>
+                Permissions declared by installed extensions. Saved with the main Save button.
+              </div>
+              {installedExtensions.filter(e=>e.enabled&&e.permissions&&e.permissions.length>0).map(ext=>(
+                <div key={ext.slug} style={{marginBottom:20}}>
+                  {/* Extension header */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:"var(--s2)",border:"0.5px solid var(--b1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      {ext.logo_url
+                        ? <img src={ext.logo_url} style={{width:18,height:18,borderRadius:4,objectFit:"cover"}} alt=""/>
+                        : <i className="fa-solid fa-puzzle-piece" style={{fontSize:12,color:"var(--t4)"}}/>}
+                    </div>
+                    <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{ext.name}</span>
+                    <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:"rgba(167,139,250,0.08)",color:"var(--ac)",border:"0.5px solid rgba(167,139,250,0.2)"}}>extension</span>
+                  </div>
+                  {/* Permission rows */}
+                  <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                    {ext.permissions.map((perm,i)=>(
+                      <div key={perm.key} style={{display:"flex",alignItems:"center",gap:16,padding:"12px 16px",borderBottom:i<ext.permissions.length-1?"0.5px solid var(--b1)":"none"}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:2}}>{perm.label}</div>
+                          {perm.hint&&<div style={{fontSize:12,color:"var(--t4)"}}>{perm.hint}</div>}
+                        </div>
+                        <Select
+                          value={(extPermCfg[ext.slug]&&extPermCfg[ext.slug][perm.key])||perm.default||"member"}
+                          onChange={v=>{
+                            setExtPermCfg(p=>({...p,[ext.slug]:{...(p[ext.slug]||{}),[perm.key]:v}}));
+                            setIsDirty(true);
+                          }}>
+                          <option value="everyone">Everyone</option>
+                          <option value="member">Members</option>
+                          <option value="moderator">Moderators</option>
+                          <option value="admin">Admins only</option>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>}
           </>}
 
           {sec==="moderation"&&<>

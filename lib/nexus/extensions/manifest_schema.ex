@@ -139,6 +139,7 @@ defmodule Nexus.Extensions.ManifestSchema do
     |> check_toolbar_buttons(manifest)
     |> check_profile_tabs(manifest)
     |> check_notification_types(manifest)
+    |> check_permissions(manifest)
     |> finalize()
   end
 
@@ -1111,6 +1112,75 @@ defmodule Nexus.Extensions.ManifestSchema do
 
   defp err(acc, msg) do
     %{acc | errors: [msg | acc.errors]}
+  end
+
+  # permissions declares permission gates the extension enforces, surfaced on
+  # the Permissions admin page. Each entry is an object:
+  #
+  #   { "key": "can_view_gallery", "label": "Can view the gallery", "default": "everyone" }
+  #
+  # key must be a slug-format string. label must be a non-empty string.
+  # default must be one of the four permission levels.
+  @valid_permission_levels ~w(everyone member moderator admin)
+
+  defp check_permissions(acc, m) do
+    case m["permissions"] do
+      nil ->
+        put_norm(acc, "permissions", [])
+
+      list when is_list(list) ->
+        {good, errors} =
+          list
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {entry, idx}, {ag, ae} ->
+            case validate_permission_entry(entry, idx) do
+              {:ok, normalized}  -> {[normalized | ag], ae}
+              {:error, messages} -> {ag, messages ++ ae}
+            end
+          end)
+
+        acc = put_norm(acc, "permissions", Enum.reverse(good))
+        Enum.reduce(errors, acc, &err(&2, &1))
+
+      other ->
+        err(acc, "permissions must be a list, got: #{inspect(other)}")
+    end
+  end
+
+  defp validate_permission_entry(entry, idx) when is_map(entry) do
+    key     = entry["key"]
+    label   = entry["label"]
+    default = entry["default"]
+
+    key_ok =
+      is_binary(key) and key != "" and
+        Regex.match?(~r/^[a-z0-9_]+$/, key) and
+        String.length(key) <= 64
+
+    label_ok   = is_binary(label) and label != "" and String.length(label) <= 120
+    default_ok = is_nil(default) or default in @valid_permission_levels
+
+    cond do
+      not key_ok ->
+        {:error, ["permissions[#{idx}]: key must be a lowercase alphanumeric/underscore string (max 64 chars), got: #{inspect(key)}"]}
+
+      not label_ok ->
+        {:error, ["permissions[#{idx}]: label must be a non-empty string (max 120 chars), got: #{inspect(label)}"]}
+
+      not default_ok ->
+        {:error, ["permissions[#{idx}]: default must be one of #{inspect(@valid_permission_levels)}, got: #{inspect(default)}"]}
+
+      true ->
+        {:ok, %{
+          "key"     => key,
+          "label"   => label,
+          "default" => default || "member"
+        }}
+    end
+  end
+
+  defp validate_permission_entry(other, idx) do
+    {:error, ["permissions[#{idx}]: each entry must be an object, got: #{inspect(other)}"]}
   end
 
   defp finalize(%{errors: [], normalized: norm, warnings: warnings}) do

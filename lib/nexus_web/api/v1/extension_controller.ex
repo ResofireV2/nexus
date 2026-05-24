@@ -260,6 +260,8 @@ defmodule NexusWeb.API.V1.ExtensionController do
       # Expose schema so admin UI can render settings forms automatically
       settings_schema: manifest["settings_schema"] || %{},
       settings_tabs:   manifest["settings_tabs"]   || [],
+      # Expose permissions so the Permissions admin page can render them
+      permissions:     manifest["permissions"]      || [],
     }
   end
 
