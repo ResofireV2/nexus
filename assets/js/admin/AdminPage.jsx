@@ -323,8 +323,12 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [emailCfg,setEmailCfg]=useState({}); const [saving,setSaving]=useState(false); const [isDirty,setIsDirty]=useState(false);
   // Dirty-aware setters — wraps a state setter so any change marks the page dirty.
   const dirty = fn => v => { fn(v); setIsDirty(true); };
-  // Track whether settings have been initially loaded so we don't mark dirty on hydration.
-  const adminSettingsLoaded = React.useRef(false);
+  // loadGen increments each time a settings fetch begins. The dirty watcher
+  // captures the gen when it runs; it only marks dirty if the gen it captured
+  // matches the settled gen, meaning the load is complete and this is a real
+  // user-initiated change rather than hydration from the fetch.
+  const loadGen = React.useRef(0);
+  const settledGen = React.useRef(0);
   const [uploadCfg,setUploadCfg]=useState({});
   const [regCfg,setRegCfg]=useState({});
   const [postCfg,setPostCfg]=useState({});
@@ -333,9 +337,12 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [pwaCfg,setPwaCfg]=useState({});
   const [spamCfg,setSpamCfg]=useState({});
   const [integrationsCfg,setIntegrationsCfg]=useState({});
-  // Watch all cfg values and mark dirty when any change after initial load.
+  // Watch all cfg values and mark dirty — but only after the fetch has fully
+  // settled. Captures the current gen at effect-run time; if the settled gen
+  // hasn't caught up yet, this is still a hydration flush, not a user change.
   useEffect(()=>{
-    if(!adminSettingsLoaded.current) return;
+    const gen = loadGen.current;
+    if(settledGen.current < gen) return;
     setIsDirty(true);
   },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg,integrationsCfg]);
   const [pendingItems,setPendingItems]=useState([]);
@@ -365,8 +372,9 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    adminSettingsLoaded.current=false;
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});}).then(()=>{ adminSettingsLoaded.current=true; });
+    loadGen.current += 1;
+    const myGen = loadGen.current;
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});}).then(()=>{ settledGen.current = myGen; });
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
