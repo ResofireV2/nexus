@@ -1610,23 +1610,35 @@ function AdminExtensionsPanel() {
 //
 // Two templates are provided:
 //
-//   SimpleSettingsPanel — flat settings form with one Save button (top bar).
-//                         Use when your extension has a small, ungrouped set
-//                         of settings.
+//   SimpleSettingsPanel — single-page template. Use for simpler extensions
+//                         that don't need tabbed navigation. Render whatever
+//                         JSX you want as children, or use the built-in
+//                         fields shortcut for basic key/value settings.
 //
-//   TabbedPanel         — uniform tabbed navigation chrome. Each tab renders
-//                         whatever JSX the extension chooses. Drop a
-//                         SimpleSettingsPanel inside a tab for a settings
-//                         form, or render arbitrary custom content (status
-//                         displays, action buttons, log viewers, etc.).
-//                         Tabs are pure chrome — TabbedPanel has no opinion
-//                         on what lives inside them.
+//   TabbedPanel         — tabbed template. Use for more complex extensions
+//                         with many options or distinct sections. Each tab
+//                         renders whatever JSX the extension chooses —
+//                         custom UI, status displays, action buttons, log
+//                         viewers, a SimpleSettingsPanel, anything.
+//                         TabbedPanel is pure chrome with no opinion on
+//                         what lives inside any tab.
+//
+// Both templates are navigation containers, not limiters. Extensions render
+// whatever they need inside them.
 //
 // Usage from an extension bundle:
 //
 //   const { SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
 //
-//   // Simple flat settings — no tabs
+//   // Single page — custom content
+//   window.NexusExtensions.registerAdminPanel("my-ext", {
+//     label: "My Extension", icon: "fa-star",
+//     component: () => React.createElement(SimpleSettingsPanel, { slug: "my-ext" },
+//       React.createElement(MyCustomUI, { slug: "my-ext" })
+//     ),
+//   });
+//
+//   // Single page — declarative fields shortcut (simple key/value settings)
 //   window.NexusExtensions.registerAdminPanel("my-ext", {
 //     label: "My Extension", icon: "fa-star",
 //     component: () => React.createElement(SimpleSettingsPanel, {
@@ -1640,29 +1652,33 @@ function AdminExtensionsPanel() {
 //     }),
 //   });
 //
-//   // Tabbed panel — each tab renders whatever you want
+//   // Tabbed — each tab renders whatever you want
 //   window.NexusExtensions.registerAdminPanel("my-ext", {
 //     label: "My Extension", icon: "fa-star",
 //     component: () => React.createElement(TabbedPanel, {
 //       tabs: [
-//         // Tab whose content is a settings form
+//         // Tab with custom content
 //         { key: "general", label: "General", icon: "fa-gear",
+//           render: () => React.createElement(MyGeneralUI, { slug: "my-ext" }) },
+//
+//         // Tab using the fields shortcut
+//         { key: "settings", label: "Settings", icon: "fa-sliders",
 //           render: () => React.createElement(SimpleSettingsPanel, {
 //             slug: "my-ext",
 //             fields: [{ key: "api_key", label: "API Key", type: "string", secret: true }],
 //           }) },
 //
-//         // Tab whose content is arbitrary custom JSX
+//         // Tab with arbitrary custom JSX
 //         { key: "status", label: "Status", icon: "fa-chart-line",
 //           render: () => React.createElement(MyStatusView, { slug: "my-ext" }) },
 //       ],
 //     }),
 //   });
 //
-// The top-bar Save button automatically wires up to whichever SimpleSettingsPanel
-// is currently mounted. Tabs with no SimpleSettingsPanel inside (pure custom
-// content) leave the Save button disabled, which is the correct UX — nothing
-// is dirty, nothing to save.
+// The top-bar Save button wires up automatically when a SimpleSettingsPanel
+// using the fields shortcut is mounted. For custom content, call
+// window._nexusAdminSetDirty() to activate Save and register your save
+// function on window._nexusAdminSaveFn.
 
 // Field renderer used by SimpleSettingsPanel.
 // Reads/writes from a values object via getValue / setValue callbacks.
@@ -1759,12 +1775,47 @@ function useExtensionSettings(slug, fields) {
   return { vals, setVals: setValsDirty, loaded, saving, save };
 }
 
-// SimpleSettingsPanel — flat list of fields with a single Save button.
-// Props: slug (string), fields (array of field descriptors)
-// Field descriptor: { key, label, type, hint, placeholder, secret, required, options }
-// Supported types: "string" (default), "boolean", "select", "text", "number", "color"
-function SimpleSettingsPanel({ slug, fields=[] }) {
-  const { vals, setVals, loaded, saving, save } = useExtensionSettings(slug, fields);
+// SimpleSettingsPanel — single-page admin template.
+//
+// Two usage modes:
+//
+//   1. Custom content (recommended for most extensions):
+//      Pass children — render whatever JSX you want. The panel is a blank
+//      canvas; the top-bar Save button wires up only if you call
+//      window._nexusAdminSetDirty() and register window._nexusAdminSaveFn
+//      yourself. No settings fetch is performed.
+//
+//      React.createElement(SimpleSettingsPanel, { slug: "my-ext" },
+//        React.createElement(MyCustomUI, { ... })
+//      )
+//
+//   2. Declarative fields (convenience shortcut for simple key/value settings):
+//      Pass a fields array instead of children. The panel fetches the
+//      extension's saved settings, renders a form, and wires Save automatically.
+//
+//      React.createElement(SimpleSettingsPanel, {
+//        slug: "my-ext",
+//        fields: [
+//          { key: "api_key", label: "API Key", type: "string", secret: true },
+//          { key: "enabled", label: "Enabled", type: "boolean" },
+//        ],
+//      })
+//
+//   Field types: "string" (default), "boolean", "select", "text", "number", "color"
+//
+function SimpleSettingsPanel({ slug, fields=[], children }) {
+  // Pure custom content — render children directly, no settings fetch needed.
+  if(children) {
+    return React.createElement('div', null, children);
+  }
+
+  // Declarative fields mode — use the settings hook.
+  return React.createElement(SimpleSettingsPanelFields, { slug, fields });
+}
+
+// Inner component for declarative fields mode — keeps hook usage unconditional.
+function SimpleSettingsPanelFields({ slug, fields }) {
+  const { vals, setVals, loaded } = useExtensionSettings(slug, fields);
 
   if(!loaded) return (
     <div style={{padding:"48px 0",textAlign:"center",color:"var(--t5)"}}>
