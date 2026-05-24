@@ -4292,6 +4292,7 @@ function App() {
   const initial = urlToPage(window.location.pathname);
   const [page,setPage]=useState(initial.page);
   const [pageProps,setPageProps]=useState(initial.props);
+  window.__nexusPage = initial.page;
   const [notifCount,setNotifCount]=useState(0);
   const [msgCount,setMsgCount]=useState(0);
   const pollMsgRef = useRef(null);
@@ -4342,6 +4343,7 @@ function App() {
     }
     if(p==="messages") setMsgPageKey(k=>k+1);
     setPage(p);setPageProps(props);window.scrollTo(0,0);
+    window.__nexusPage = p;
     window._nexusNavigate = navigate;
   },[]);
   useEffect(()=>{ window._nexusNavigate = navigate; },[navigate]);
@@ -4456,9 +4458,15 @@ function App() {
           if (d.user) updateCurrentUser(d.user);
         }).catch(()=>{});
       } else if (!api.token) {
-        // Refresh failed and we have no token — session truly expired
+        // Refresh failed and we have no token — session truly expired.
+        // Clear the user but only navigate to feed if on an auth-required page.
+        // Pages like feed, post, members, etc. are publicly visible and the user
+        // should stay where they are; requireAuth will show GuestPrompt naturally.
+        const AUTH_ONLY_PAGES = new Set(["following","saved","drafts","settings","compose","notifications","messages","dm","dm-new"]);
         updateCurrentUser(null);
-        window.dispatchEvent(new Event("nexus:logout"));
+        if (AUTH_ONLY_PAGES.has(window.__nexusPage)) {
+          window.dispatchEvent(new Event("nexus:logout"));
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisible);

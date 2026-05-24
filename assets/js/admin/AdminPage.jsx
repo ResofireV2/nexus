@@ -365,6 +365,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
+    adminSettingsLoaded.current=false;
     api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});}).then(()=>{ adminSettingsLoaded.current=true; });
 
     return ()=>clearInterval(liveInterval);
