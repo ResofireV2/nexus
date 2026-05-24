@@ -219,7 +219,9 @@ function ExploreDragList({items, onChange}) {
         item.authOnly && React.createElement('span',{style:{fontSize:10,color:"var(--t5)",background:"rgba(255,255,255,0.05)",padding:"1px 7px",borderRadius:20,border:"0.5px solid var(--b1)"}}, "logged in only"),
         item._ext && React.createElement('span',{style:{fontSize:10,color:"var(--t5)",background:"rgba(167,139,250,0.06)",padding:"1px 7px",borderRadius:20,border:"0.5px solid rgba(167,139,250,0.2)"}}, "extension"),
         locked
-          ? React.createElement('span',{style:{fontSize:10,color:"var(--t5)",padding:"1px 7px",borderRadius:20,background:"rgba(255,255,255,0.03)",border:"0.5px solid var(--b1)"},title:"This item cannot be hidden"}, "required")
+          ? React.createElement('div',{style:{width:46,height:26,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},
+              React.createElement('span',{style:{fontSize:10,color:"var(--t5)",padding:"1px 7px",borderRadius:20,background:"rgba(255,255,255,0.03)",border:"0.5px solid var(--b1)"},title:"This item cannot be hidden"}, "required")
+            )
           : React.createElement(Toggle, {value: !item.hidden, onChange: function(){ toggle(idx); }})
       );
     })
