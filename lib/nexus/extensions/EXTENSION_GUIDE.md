@@ -135,7 +135,7 @@ Sections 4 through 7 cover every field your `manifest.json` can contain. The man
 |---------|---------------------|---------------------------------------------------------------------------------|
 | §4      | Identity & metadata | `manifest_version`, `name`, `slug`, `version`, `module`, plus descriptive fields |
 | §5      | Settings            | `settings_schema`, `settings_tabs`                                              |
-| §6      | Backend surfaces    | `hooks`, `digest_sections`, `side_data`, `notification_types`, `capabilities`   |
+| §6      | Backend surfaces    | `hooks`, `digest_sections`, `side_data`, `notification_types`, `capabilities`, `permissions` |
 | §7      | Frontend surfaces   | `slots`, `routes`, `admin_panel`, `explore`, `right_widgets`, `toolbar_buttons`, `profile_tabs` |
 
 Every field is optional except `manifest_version`, `name`, `slug`, `version`, and `module`. A minimal valid manifest declares these five fields and nothing else; the extension installs as a no-op shell, ready to grow.
@@ -326,6 +326,8 @@ Common attributes:
 
 When the admin saves the form, the resulting settings map is merged into `ext.settings`. Existing keys not in the form are preserved.
 
+**One namespace caveat:** the keys you declare in `settings_schema` share storage with keys declared in `permissions` (§6.6) — both write to the same `ext.settings` JSON column. Don't reuse a key across the two. If you declare a `settings_schema` field `dark_mode` and a permission `dark_mode`, the admin's Permissions page and the extension's settings form will overwrite each other. The convention `can_<verb>_<noun>` for permissions (`can_view_gallery`, `can_upload_image`) is a reliable way to keep the two namespaces distinct.
+
 ### 5.2 `settings_tabs`
 
 For extensions with many settings, you can group fields into tabs:
@@ -370,7 +372,7 @@ Fields listed in a tab but not present in `settings_schema` are silently dropped
 
 ## 6. The manifest — backend surfaces
 
-These fields declare what your extension contributes server-side: which events it subscribes to, which digest sections it produces, which composer attachments it owns, which notifications it sends, and which capabilities it claims. Each has a matching Elixir callback you implement in §8.
+These fields declare what your extension contributes server-side: which events it subscribes to, which digest sections it produces, which composer attachments it owns, which notifications it sends, which capabilities it claims, and which permission gates it enforces. Each has a matching Elixir callback or helper you use in §8.
 
 ### 6.1 `hooks`
 
@@ -526,6 +528,55 @@ Capabilities are forward-compatible declarations of privileged operations your e
 ```
 
 The smoke test declares an empty list. There's no current registry of capability strings; the field exists so extensions and Nexus can evolve toward explicit capability gating without a breaking manifest change.
+
+### 6.6 `permissions`
+
+Permissions declare access tiers your extension enforces — "who can view this page", "who can create a record", "who can manage settings". Each declared permission appears on the admin's Permissions page as a row with a dropdown letting the admin pick one of four tiers. Your Elixir code then checks the admin's choice at runtime using `Nexus.Extensions.Permissions.check/3` (see §8.13).
+
+A hypothetical gallery extension might declare:
+
+```json
+"permissions": [
+  {"key": "can_view_gallery",   "label": "Can view the gallery",   "default": "everyone"},
+  {"key": "can_upload_image",   "label": "Can upload an image",    "default": "member"},
+  {"key": "can_manage_gallery", "label": "Can manage the gallery", "default": "moderator"}
+]
+```
+
+Each entry is an object:
+
+| Field     | Required | Purpose                                                                              |
+|-----------|----------|--------------------------------------------------------------------------------------|
+| `key`     | yes      | Slug-format string (`^[a-z0-9_]+$`, max 64 chars). Used as the lookup key in `Permissions.check/3` and as the storage key in the extension's settings map. |
+| `label`   | yes      | Human-readable label shown to the admin on the Permissions page. Max 120 chars.      |
+| `default` | no       | One of `"everyone"`, `"member"`, `"moderator"`, `"admin"`. Defaults to `"member"` if omitted. |
+
+#### The four tiers
+
+| Tier        | Who passes the check                                                                          |
+|-------------|-----------------------------------------------------------------------------------------------|
+| `everyone`  | Guests and logged-in users alike — **but only if the admin's site-wide guest browsing is enabled**. With guest browsing off, even `everyone` requires a logged-in user. |
+| `member`    | Any logged-in user, regardless of role.                                                       |
+| `moderator` | Moderators and admins.                                                                         |
+| `admin`     | Admins only.                                                                                   |
+
+Tiers are strictly nested — `admin` is more restrictive than `moderator`, `moderator` more restrictive than `member`, `member` more restrictive than `everyone`.
+
+#### Where the value is stored
+
+When an admin picks a tier on the Permissions page, the value is saved to the extension's settings JSON column under the same `key`. So if you declare `can_view_gallery`, the saved value lives at `ext.settings["can_view_gallery"]`. This has one implication worth flagging:
+
+**Permission keys share the namespace with `settings_schema` keys.** Don't declare a `settings_schema` field with the same `key` as a permission — the admin's Permissions page and the extension's settings form would both target the same storage slot and overwrite each other. Pick distinct names. The convention `can_<verb>_<noun>` (`can_view_gallery`, `can_upload_image`) is good — it's unlikely to collide with a settings key, and it reads naturally in code.
+
+#### What the admin sees
+
+Declared permissions appear in **Admin → Permissions** under an "Extension permissions" section, grouped by extension. Each permission renders as a row with the label, a dropdown showing the four tiers, and the admin's currently-saved value (or your `default` if nothing's saved yet). The page's Save Changes button commits all extension permission changes alongside the core permission settings.
+
+If you change permission defaults in a later release of your extension, the admin's existing saved value is preserved — the default is only used on first install or for permissions where no value has been saved yet.
+
+#### Disabled extensions
+
+Permission rows for disabled extensions don't render in the admin UI. Calls to `Permissions.check/3` against a disabled extension fall back to the saved value (if any) or the manifest default — but since dispatch is already filtered for disabled extensions, those checks are typically unreachable in practice.
 
 
 ---
@@ -1127,6 +1178,8 @@ defmodule FoundationSmokeTest.ApiRouter do
 end
 ```
 
+For gating beyond "logged in or not" — checking moderator, admin, or admin-configured tiers — declare `permissions` in your manifest (§6.6) and use `Nexus.Extensions.Permissions.check/3` (§8.13). The check function returns `:ok` or `:error` and resolves the tier against whatever the admin saved on the Permissions page.
+
 #### Reply contract
 
 Return a `Plug.Conn` from each handler. If your plug raises, ExtensionRouter catches the exception, logs it, and returns HTTP 500 with `{"error":"Internal extension error"}` (or a detailed stack trace in dev — see §11).
@@ -1453,6 +1506,131 @@ Your extension runs in the Nexus VM and shares Nexus's dependency tree. You can 
 | All of Elixir's standard library | Everything in `String`, `Enum`, `Map`, `Process`, etc.                  |
 
 If you need a package Nexus doesn't already include, the install pipeline cannot install it — Nexus does not run `mix deps.get` for extension tarballs. You'll either need to vendor the dependency's code into your `lib/` tree (if the license permits) or open a discussion about adding it to Nexus's deps.
+
+### 8.13 Checking permissions
+
+The `permissions` field you declared in your manifest (§6.6) surfaces tier dropdowns in the admin's Permissions page. To actually enforce those tiers in your code, call `Nexus.Extensions.Permissions.check/3`:
+
+```elixir
+alias Nexus.Extensions.Permissions
+
+def show(conn, %{"id" => id}) do
+  user = conn.assigns[:current_user]  # nil for guests
+
+  case Permissions.check("foundation-smoke-test", "can_view_gallery", user) do
+    :ok ->
+      # User passes the configured tier — proceed
+      gallery = MyExtension.Gallery.get!(id)
+      json(conn, %{gallery: gallery})
+
+    :error ->
+      conn
+      |> put_status(:forbidden)
+      |> json(%{error: "Access denied"})
+  end
+end
+```
+
+#### Signature
+
+```elixir
+@spec check(slug :: String.t(), key :: String.t(), user :: map() | nil) :: :ok | :error
+```
+
+| Argument | Type                | Purpose                                                                       |
+|----------|---------------------|-------------------------------------------------------------------------------|
+| `slug`   | `String.t()`        | Your extension's slug. The function reads the slug's row from `extensions`.    |
+| `key`    | `String.t()`        | The permission key declared in your manifest's `permissions`.                  |
+| `user`   | `map()` or `nil`    | The user struct (typically `conn.assigns[:current_user]`), or `nil` for guests.|
+
+Returns `:ok` if the user meets the configured tier, `:error` otherwise.
+
+#### Resolution order
+
+When checking, `Permissions.check/3` looks up the configured tier in this order:
+
+1. The value the admin saved on the Permissions page (`ext.settings[key]`).
+2. The `default` you declared in the manifest entry.
+3. `"member"` if no default was declared.
+
+That is — the manifest default is a fallback, not a hard floor. If the admin sets a permission to `everyone` and your manifest declared `member` as the default, the saved `everyone` wins. The default is what the admin sees pre-filled in the dropdown on first install; after that, the admin's choice is authoritative.
+
+#### Common usage patterns
+
+**In a plug router** — the typical case. Check at the top of each handler:
+
+```elixir
+defmodule FoundationSmokeTest.ApiRouter do
+  use Plug.Router
+  alias Nexus.Extensions.Permissions
+
+  plug :match
+  plug :dispatch
+
+  get "/items" do
+    case Permissions.check("foundation-smoke-test", "can_view_items", conn.assigns[:current_user]) do
+      :ok    -> send_resp(conn, 200, Jason.encode!(%{items: list_items()}))
+      :error -> send_resp(conn, 403, Jason.encode!(%{error: "Access denied"}))
+    end
+  end
+
+  post "/items" do
+    case Permissions.check("foundation-smoke-test", "can_create_item", conn.assigns[:current_user]) do
+      :ok    -> # ... create the item
+      :error -> send_resp(conn, 403, Jason.encode!(%{error: "Access denied"}))
+    end
+  end
+end
+```
+
+**In a hook handler** — gating expensive work behind a tier:
+
+```elixir
+def handle_event("post_created", %{"user_id" => user_id, "post_id" => post_id}, _settings) do
+  user = Nexus.Accounts.get_user(user_id)
+
+  case Permissions.check("foundation-smoke-test", "can_trigger_analysis", user) do
+    :ok    -> enqueue_analysis(post_id)
+    :error -> :ok  # silently skip — user isn't entitled
+  end
+end
+```
+
+**For UI-side gating** — your bundle can read the current tier asynchronously and decide what to render:
+
+There's no direct `Permissions.check` from JavaScript. The bundle's recommended pattern is to expose a `/permissions` endpoint in your own API that returns the resolved tiers for the current user, and check those server-side before each privileged action regardless. UI-side checks are presentation; the server-side `Permissions.check/3` is the gate that matters.
+
+#### The guest case
+
+`user` can be `nil` — for example, an unauthenticated request hitting a route that's reachable to guests. In that case:
+
+- If the configured tier is `everyone` AND the admin's site-wide `guest_browsing` setting is on, the check passes.
+- If the configured tier is `everyone` BUT guest browsing is off site-wide, the check fails — guests get nothing.
+- For any other tier (`member`, `moderator`, `admin`), guests always fail.
+
+This means `everyone` doesn't mean "literally anyone unconditionally" — it's "anyone the site has decided to let in at all." When a site administrator turns off guest browsing, every `everyone`-tier surface becomes member-only, including yours. This is by design — extension permissions inherit the site's posture rather than overriding it.
+
+#### Returning a Plug.Conn directly
+
+For routes inside a Plug router, returning the conn from the matched clause is the standard pattern. If you find yourself repeating the `case … :ok -> … :error -> ... 403 ...` shape, consider a small private helper:
+
+```elixir
+defp require_permission(conn, key, then_fn) do
+  case Permissions.check("foundation-smoke-test", key, conn.assigns[:current_user]) do
+    :ok    -> then_fn.(conn)
+    :error -> conn |> send_resp(403, ~s({"error":"Access denied"})) |> halt()
+  end
+end
+
+# Use:
+get "/items" do
+  require_permission(conn, "can_view_items", fn conn ->
+    send_resp(conn, 200, Jason.encode!(%{items: list_items()}))
+  end)
+end
+```
+
+There's no built-in Plug-level macro for this — Nexus's own permission system uses per-handler checks too. Keep your helper local to your router.
 
 
 ---
