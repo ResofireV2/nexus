@@ -323,6 +323,23 @@
           }
         }
       }
+    },
+    "permissions": {
+      "description": "Permission gates this extension enforces, surfaced on the admin Permissions page under a per-extension header. Each entry declares a gate by key and label; the admin sets the minimum role required. Check gates server-side with Nexus.Extensions.Permissions.check/3. Values are stored in the extension's settings map, so permission keys must not collide with settings_schema keys.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label"],
+        "properties": {
+          "key":     { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 64, "description": "Stable identifier used in Permissions.check/3 calls. Lowercase alphanumeric and underscores only. Must not collide with any settings_schema key." },
+          "label":   { "type": "string", "maxLength": 120, "description": "Human-readable description of what this gate controls, shown as the row label on the Permissions page (e.g. \"Can view the gallery\")." },
+          "default": {
+            "type": "string",
+            "enum": ["everyone", "member", "moderator", "admin"],
+            "description": "The permission level applied before an admin has explicitly saved a value. 'everyone' includes guests (subject to the site-wide guest_browsing setting). Defaults to 'member' if omitted."
+          }
+        }
+      }
     }
   }
 }
