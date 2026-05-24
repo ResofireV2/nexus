@@ -79,6 +79,58 @@ defmodule NexusWeb.API.V1.UploadController do
     end
   end
 
+  # POST /api/v1/ext/:slug/upload
+  # Extension upload endpoint — handles both extension_image and extension_file types.
+  # `slug` in the path identifies which extension owns the upload.
+  # Params: file (multipart), type ("extension_image" | "extension_file"),
+  #         record_id (optional string — extension's own record association),
+  #         allowed_mime (optional comma-separated list — for extension_file only)
+  def extension_create(conn, %{"slug" => slug} = params) do
+    user       = conn.assigns.current_user
+    type       = params["type"] || "extension_image"
+    record_id  = params["record_id"]
+    plug_upload = params["file"]
+
+    if type not in ["extension_image", "extension_file"] do
+      conn |> put_status(:bad_request) |> json(%{error: "type must be extension_image or extension_file"})
+    else
+      if is_nil(plug_upload) or not match?(%Plug.Upload{}, plug_upload) do
+        conn |> put_status(:bad_request) |> json(%{error: "No file provided"})
+      else
+        opts = [user_id: user.id, record_id: record_id] |> Enum.reject(fn {_, v} -> is_nil(v) end)
+
+        opts =
+          if type == "extension_file" && params["allowed_mime"] do
+            allowed = params["allowed_mime"] |> String.split(",") |> Enum.map(&String.trim/1)
+            Keyword.put(opts, :allowed_mime, allowed)
+          else
+            opts
+          end
+
+        result =
+          case type do
+            "extension_image" -> Uploads.store_extension_image(plug_upload, slug, opts)
+            "extension_file"  -> Uploads.store_extension_file(plug_upload, slug, opts)
+          end
+
+        case result do
+          {:ok, upload} ->
+            json(conn, %{
+              upload:       upload_json(upload),
+              url:          served_url(upload.webp_path || upload.original_path),
+              original_url: served_url(upload.original_path)
+            })
+
+          {:error, reason} when is_binary(reason) ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+
+          {:error, %Ecto.Changeset{} = cs} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
+        end
+      end
+    end
+  end
+
   # GET /api/v1/admin/uploads
   def index(conn, params) do
     opts = [
@@ -135,18 +187,20 @@ defmodule NexusWeb.API.V1.UploadController do
 
   defp upload_json(%Upload{} = u) do
     %{
-      id:            u.id,
-      upload_type:   u.upload_type,
-      original_name: u.original_name,
-      mime_type:     u.mime_type,
-      size_bytes:    u.size_bytes,
-      width:         u.width,
-      height:        u.height,
-      url:           served_url(u.webp_path || u.original_path),
-      original_url:  served_url(u.original_path),
-      post_id:       u.post_id,
-      user:          u.user && %{id: u.user.id, username: u.user.username},
-      inserted_at:   u.inserted_at
+      id:                  u.id,
+      upload_type:         u.upload_type,
+      original_name:       u.original_name,
+      mime_type:           u.mime_type,
+      size_bytes:          u.size_bytes,
+      width:               u.width,
+      height:              u.height,
+      url:                 served_url(u.webp_path || u.original_path),
+      original_url:        served_url(u.original_path),
+      post_id:             u.post_id,
+      extension_slug:      u.extension_slug,
+      extension_record_id: u.extension_record_id,
+      user:                u.user && %{id: u.user.id, username: u.user.username},
+      inserted_at:         u.inserted_at
     }
   end
 

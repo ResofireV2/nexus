@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import DOMPurify from "dompurify";
 import { api }                                              from "./lib/api";
+window._nexusApi = api;
 import { ago, fmtDate, fmtMsgTime, fmtDaySep, fmtBytes,
          SPACE_COLORS, userColor, spaceColor, formatApiErrors }             from "./lib/utils";
 import { RsAv, Av, openUserCard, useUserCard,
@@ -1321,6 +1322,49 @@ window.NexusExtensions = {
   onNotifTypeChange(fn) {
     this._notifTypeListeners.push(fn);
     return () => { this._notifTypeListeners = this._notifTypeListeners.filter(f => f !== fn); };
+  },
+
+  // Upload a file through Nexus's upload pipeline.
+  //
+  // `file`  — a browser File object (from an <input type="file"> or drag-drop)
+  // `opts`  — options:
+  //   slug:         string  — your extension slug (required)
+  //   type:         string  — "extension_image" | "extension_file" (default: "extension_image")
+  //   recordId:     string  — opaque ID to associate this file with a record
+  //                           in your own database (optional)
+  //   allowedMime:  array   — for extension_file only: restrict accepted MIME
+  //                           types to a subset of the permitted list (optional)
+  //
+  // Returns a promise resolving to:
+  //   { upload, url, original_url } on success
+  //   { error } or {} on failure
+  //
+  // Example — image upload:
+  //   const { url } = await NexusExtensions.uploadFile(file, {
+  //     slug: "gallery",
+  //     type: "extension_image",
+  //     recordId: String(galleryEntryId),
+  //   });
+  //
+  // Example — video upload:
+  //   const { url } = await NexusExtensions.uploadFile(file, {
+  //     slug: "gallery",
+  //     type: "extension_file",
+  //     recordId: String(galleryEntryId),
+  //     allowedMime: ["video/mp4", "video/webm"],
+  //   });
+  uploadFile(file, opts = {}) {
+    const { slug, type = "extension_image", recordId, allowedMime } = opts;
+    if (!slug) {
+      console.error("[NexusExtensions] uploadFile: slug is required");
+      return Promise.resolve({ error: "slug is required" });
+    }
+    const params = { type };
+    if (recordId)    params.record_id    = recordId;
+    if (allowedMime) params.allowed_mime = allowedMime.join(",");
+    return window._nexusApi
+      ? window._nexusApi.upload(`/uploads/ext/${slug}`, file, params)
+      : Promise.resolve({ error: "API not available" });
   },
 };
 

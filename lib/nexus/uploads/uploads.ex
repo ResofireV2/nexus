@@ -103,6 +103,134 @@ defmodule Nexus.Uploads do
   def get_upload(id), do: Repo.get(Upload, id)
 
   # ---------------------------------------------------------------------------
+  # Extension uploads
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Process and store an extension image upload through the standard image
+  pipeline (validation, WebP conversion, resize, DB tracking).
+
+  `plug_upload` is a %Plug.Upload{} struct.
+  `slug` is the extension's slug — used for storage path and DB tracking.
+  `opts` may include:
+    - user_id: uuid
+    - record_id: string — opaque ID the extension uses to associate the
+                          file with a record in its own database
+    - max_width: integer — override default max width (default: 1200)
+  """
+  def store_extension_image(plug_upload, slug, opts \\ []) do
+    settings  = Admin.get_setting("uploads")
+    record_id = Keyword.get(opts, :record_id)
+    user_id   = Keyword.get(opts, :user_id)
+
+    with :ok <- validate_size(plug_upload, settings),
+         :ok <- validate_mime(plug_upload, "extension_image", settings),
+         {:ok, original_path} <- save_extension_original(plug_upload, slug),
+         {:ok, webp_path, dims} <- maybe_convert(original_path, "extension_image", Map.merge(settings, %{"max_width" => Keyword.get(opts, :max_width, settings["max_width"] || 1200)})) do
+
+      attrs = %{
+        user_id:             user_id,
+        upload_type:         "extension_image",
+        extension_slug:      slug,
+        extension_record_id: record_id,
+        original_path:       original_path,
+        webp_path:           webp_path,
+        original_name:       plug_upload.filename,
+        mime_type:           plug_upload.content_type,
+        size_bytes:          File.stat!(full_path(original_path)).size,
+        width:               dims[:width],
+        height:              dims[:height]
+      }
+
+      %Upload{}
+      |> Upload.changeset(attrs)
+      |> Repo.insert()
+      |> case do
+        {:ok, upload} -> {:ok, upload}
+        err -> err
+      end
+    end
+  end
+
+  @doc """
+  Store a raw extension file upload — no image processing, any permitted
+  MIME type (see Upload.extension_file_mime_types/0).
+
+  `plug_upload` is a %Plug.Upload{} struct.
+  `slug` is the extension's slug.
+  `opts` may include:
+    - user_id: uuid
+    - record_id: string — opaque ID the extension uses to associate the
+                          file with a record in its own database
+    - allowed_mime: [String.t()] — subset of permitted MIME types to accept.
+                                   Defaults to all permitted raw MIME types.
+  """
+  def store_extension_file(plug_upload, slug, opts \\ []) do
+    settings     = Admin.get_setting("uploads")
+    record_id    = Keyword.get(opts, :record_id)
+    user_id      = Keyword.get(opts, :user_id)
+    allowed_mime = Keyword.get(opts, :allowed_mime, Upload.extension_file_mime_types())
+
+    # Validate that any caller-supplied MIME restriction is itself a subset
+    # of the permitted list — extensions can't grant themselves types we
+    # haven't whitelisted.
+    permitted = Upload.extension_file_mime_types()
+    invalid   = Enum.reject(allowed_mime, &(&1 in permitted))
+    if invalid != [] do
+      {:error, "MIME types not permitted: #{Enum.join(invalid, ", ")}"}
+    else
+      with :ok <- validate_size(plug_upload, settings),
+           :ok <- validate_extension_file_mime(plug_upload, allowed_mime),
+           {:ok, original_path} <- save_extension_original(plug_upload, slug) do
+
+        attrs = %{
+          user_id:             user_id,
+          upload_type:         "extension_file",
+          extension_slug:      slug,
+          extension_record_id: record_id,
+          original_path:       original_path,
+          webp_path:           nil,
+          original_name:       plug_upload.filename,
+          mime_type:           plug_upload.content_type,
+          size_bytes:          File.stat!(full_path(original_path)).size,
+          width:               nil,
+          height:              nil
+        }
+
+        %Upload{}
+        |> Upload.changeset(attrs)
+        |> Repo.insert()
+      end
+    end
+  end
+
+  @doc """
+  Deletes all upload records and files for a given extension slug.
+  Called automatically during extension uninstall.
+  """
+  def delete_extension_uploads(slug) do
+    uploads = Repo.all(from u in Upload, where: u.extension_slug == ^slug)
+    Enum.each(uploads, &delete/1)
+    :ok
+  end
+
+  @doc """
+  Lists all uploads for a given extension slug, optionally filtered by record_id.
+  """
+  def list_extension_uploads(slug, opts \\ []) do
+    query = from u in Upload,
+      where: u.extension_slug == ^slug,
+      order_by: [desc: u.inserted_at]
+
+    query =
+      if rid = opts[:record_id],
+        do:   where(query, [u], u.extension_record_id == ^rid),
+        else: query
+
+    Repo.all(query)
+  end
+
+  # ---------------------------------------------------------------------------
   # Validation
   # ---------------------------------------------------------------------------
 
@@ -238,6 +366,28 @@ defmodule Nexus.Uploads do
   # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
+
+  defp save_extension_original(%Plug.Upload{path: tmp, filename: filename, content_type: ct}, slug) do
+    ext      = ext_for(ct, filename)
+    name     = "#{slug}_#{uuid()}#{ext}"
+    rel_path = "extensions/#{slug}/#{name}"
+    abs_path = full_path(rel_path)
+
+    File.mkdir_p!(Path.dirname(abs_path))
+
+    case File.cp(tmp, abs_path) do
+      :ok  -> {:ok, rel_path}
+      err  -> err
+    end
+  end
+
+  defp validate_extension_file_mime(%Plug.Upload{content_type: ct}, allowed) do
+    if ct in allowed do
+      :ok
+    else
+      {:error, "File type #{ct} is not permitted"}
+    end
+  end
 
   defp upload_dir("post_image"),   do: "posts"
   defp upload_dir("avatar"),       do: "avatars"

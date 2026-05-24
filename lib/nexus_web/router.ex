@@ -185,7 +185,8 @@ defmodule NexusWeb.Router do
     pipe_through [:api, :verified]
 
     # File uploads
-    post "/uploads", UploadController, :create
+    post "/uploads",                    UploadController, :create
+    post "/uploads/ext/:slug",          UploadController, :extension_create
 
     # Space and tag subscriptions
     post   "/spaces/:slug/subscribe", SpaceController, :subscribe

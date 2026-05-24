@@ -113,4 +113,39 @@ export const api = {
   post:   (p, b) => api.request("POST",   p, b),
   patch:  (p, b) => api.request("PATCH",  p, b),
   delete: (p, b) => api.request("DELETE", p, b),
+
+  // Multipart file upload. `file` is a File object, `params` is an object
+  // of additional form fields (type, record_id, allowed_mime, etc.).
+  // Returns the parsed JSON response.
+  async upload(path, file, params = {}) {
+    const fd = new FormData();
+    fd.append("file", file);
+    Object.entries(params).forEach(([k, v]) => { if (v != null) fd.append(k, v); });
+
+    const h = {};
+    if (this.token) h["Authorization"] = `Bearer ${this.token}`;
+
+    try {
+      const res = await fetch(`/api/v1${path}`, {
+        method: "POST",
+        headers: h,
+        body: fd,
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        const refreshed = await this.tryRefresh();
+        if (refreshed) return this.upload(path, file, params);
+        this.setToken(null);
+        window.dispatchEvent(new Event("nexus:logout"));
+        return {};
+      }
+
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) return {};
+      return res.json();
+    } catch {
+      return {};
+    }
+  },
 };

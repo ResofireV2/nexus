@@ -226,8 +226,9 @@ defmodule Nexus.Extensions do
       Nexus.Extensions.Loader.unload(ext.slug, module)
     end
 
-    # Delete extension files
+    # Delete extension files and any upload DB records
     Nexus.Extensions.Storage.delete_all(ext.slug)
+    Nexus.Uploads.delete_extension_uploads(ext.slug)
 
     # Remove DB record
     result = Repo.delete(ext)
