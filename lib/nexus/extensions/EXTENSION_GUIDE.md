@@ -1429,6 +1429,10 @@ Your extension has **two** types of static assets, served through different path
 
 Bundled assets are copied into place at install time and don't change between installs. Runtime files are created on demand by your extension and persist across restarts. Both are publicly served — neither path performs authentication, so don't put private files in either location.
 
+#### Uploads from the browser
+
+For files originating in the user's browser — screenshot uploads, attachments, anything driven by your UI rather than by your Elixir code — use Nexus's upload endpoint (§9.15) rather than building your own multipart handler. Uploads land in the same `/uploads/extensions/<slug>/` directory that `Storage.list_files/1` reads from, so the two paths share storage. The upload endpoint also gives you MIME validation, size limits, image processing, and automatic admin-side visibility for free.
+
 ### 8.12 Available packages
 
 Your extension runs in the Nexus VM and shares Nexus's dependency tree. You can use any of Nexus's existing dependencies without declaring them in your `mix.exs`:
@@ -2512,6 +2516,188 @@ When the user clicks anywhere inside that div, Nexus's global click handler swap
 The `window.NexusComponents` set is curated, not exhaustive. Nexus's internal code uses additional components — link preview cards, reaction buttons, rich text editors, the user-card popover, the toolbar registry — that aren't part of the extension API. Treat them as internals: they may change without notice, and importing them isn't possible from a no-build bundle anyway.
 
 If you need a primitive that isn't in §9.14.2, build it yourself using the CSS variables (§9.14.3) and classes (§9.14.4) — that's how `NexusComponents` themselves are built, and the result will look native to Nexus. If a primitive seems generally useful and you'd like to see it added to the curated set, opening a discussion is the right path; the bar is "stable contract, broadly useful across extensions."
+
+### 9.15 Uploading files from the browser
+
+Nexus exposes an upload endpoint at `POST /api/v1/uploads/ext/:slug` that handles browser-driven file uploads for your extension. Use it when your UI needs to accept files from users — screenshots, attachments, exports, anything originating in the browser rather than something your Elixir code generates. Files uploaded this way land in the same directory tree `Nexus.Extensions.Storage` (§8.11) reads from, so the two paths integrate cleanly.
+
+The endpoint exists so each extension doesn't have to reimplement multipart parsing, MIME validation, image processing, and storage management. It also unifies what admins see: extension uploads appear in **Admin → uploads** alongside core uploads, with the same listing, filtering, and delete controls.
+
+#### The endpoint
+
+```
+POST /api/v1/uploads/ext/:slug
+```
+
+`:slug` in the path is your extension's slug. The endpoint requires authentication and a verified email address — Nexus's `:verified` pipeline. Anonymous users and members with unverified emails get a 403.
+
+The request is multipart/form-data with these fields:
+
+| Field          | Required | Purpose                                                                              |
+|----------------|----------|--------------------------------------------------------------------------------------|
+| `file`         | yes      | The file blob (a `File` object from an `<input type="file">` element, typically).    |
+| `type`         | yes      | `"extension_image"` or `"extension_file"`. See the two modes below.                  |
+| `record_id`    | no       | Opaque string identifying which record in your extension's own DB the file belongs to. See "Linking uploads to your records" below. |
+| `allowed_mime` | no       | For `extension_file` only. Comma-separated list of MIME types you accept — a subset of the host's permitted list (see below). Lets your endpoint narrow accepted types beyond the default. |
+
+#### The two modes
+
+**`extension_image`** — for images shown in your UI.
+
+The endpoint validates that the uploaded file is one of: `image/jpeg`, `image/png`, `image/gif`, `image/webp`. SVG is deliberately excluded (XSS risk when served from `/uploads`). The host then auto-resizes the image to a maximum width (default 1200 px) and converts it to webp, returning URLs for both the optimized webp and the original.
+
+**`extension_file`** — for non-image files.
+
+The endpoint accepts any of the host's permitted raw MIME types, which deliberately exclude executables, scripts, and anything a browser could be coerced into executing. The permitted list as of this writing:
+
+- Video: `video/mp4`, `video/webm`, `video/ogg`, `video/quicktime`
+- Audio: `audio/mpeg`, `audio/ogg`, `audio/wav`, `audio/webm`, `audio/flac`
+- Documents: `application/pdf`, `application/zip`, `application/x-zip-compressed`
+- Text: `text/plain`, `text/csv`, `text/markdown`, `application/json`
+- Office: `.docx`, `.xlsx`, `.pptx` (the Office Open XML MIME types)
+
+No image processing happens for `extension_file` — the file is stored as-is. Pass `allowed_mime` to narrow the accepted set if you want stricter validation than the host default (e.g., your extension only accepts PDFs).
+
+#### Response shape
+
+On success, the endpoint returns 200 with:
+
+```json
+{
+  "upload": {
+    "id":                  "...",
+    "upload_type":         "extension_image",
+    "original_name":       "screenshot.png",
+    "mime_type":           "image/png",
+    "size_bytes":          12345,
+    "width":               1200,
+    "height":              800,
+    "url":                 "/uploads/extensions/your-slug/your-slug_uuid.webp",
+    "original_url":        "/uploads/extensions/your-slug/your-slug_uuid.png",
+    "extension_slug":      "your-slug",
+    "extension_record_id": null,
+    "user":                { "id": "...", "username": "alice" },
+    "inserted_at":         "2026-05-24T15:00:00Z"
+  },
+  "url":          "/uploads/extensions/your-slug/your-slug_uuid.webp",
+  "original_url": "/uploads/extensions/your-slug/your-slug_uuid.png"
+}
+```
+
+The `url` field at the top level is what you'll typically use — the optimized webp for images, the original for non-images. `original_url` is always the unmodified original, useful when you want a lightbox-resolution version of an image while displaying a smaller thumbnail.
+
+Errors return non-2xx with `{ "error": "..." }`:
+
+- 400 — no file provided, or `type` is invalid
+- 403 — not authenticated, email not verified, or trying to upload a core admin-only type
+- 422 — file failed validation (size, MIME, image processing) — the message describes which
+
+#### JS example: image upload
+
+```javascript
+async function uploadScreenshot(file) {
+  const token = localStorage.getItem("nexus_token");
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("type", "extension_image");
+
+  const r = await fetch(`/api/v1/uploads/ext/${SLUG}`, {
+    method:  "POST",
+    headers: { "authorization": `Bearer ${token}` },
+    body,
+  });
+
+  if (!r.ok) {
+    const err = await r.json();
+    throw new Error(err.error || "upload failed");
+  }
+
+  const { url, original_url, upload } = await r.json();
+  return { url, original_url, upload };
+}
+```
+
+**Do not set the `Content-Type` header manually.** When the body is a `FormData`, the browser sets it for you with the correct multipart boundary. Setting it yourself will break the request.
+
+#### JS example: file upload with MIME restriction
+
+```javascript
+async function uploadResume(file) {
+  const token = localStorage.getItem("nexus_token");
+
+  const body = new FormData();
+  body.append("file", file);
+  body.append("type", "extension_file");
+  body.append("allowed_mime", "application/pdf"); // restrict to PDF
+
+  const r = await fetch(`/api/v1/uploads/ext/${SLUG}`, {
+    method:  "POST",
+    headers: { "authorization": `Bearer ${token}` },
+    body,
+  });
+  return await r.json();
+}
+```
+
+`allowed_mime` is validated server-side as a subset of the host's permitted list — you can narrow, but you cannot grant your extension MIME types the host hasn't whitelisted.
+
+#### Linking uploads to your records
+
+The `record_id` field is a free-form string the host stores alongside the upload row. The host doesn't interpret it — it's there for your extension to link uploads back to records in your own database.
+
+The typical pattern is: an extension defines its own schema with a UUID primary key, the user creates a record, then uploads files against that record's id. Later, when rendering the record, you list its uploads by `record_id`:
+
+```javascript
+// Step 1 — create your record server-side (in your extension's plug router)
+const { id: recordId } = await fetch(`/ext/${SLUG}/api/screenshots`, {
+  method:  "POST",
+  headers: { "content-type": "application/json", "authorization": `Bearer ${token}` },
+  body:    JSON.stringify({ title: "My screenshot" }),
+}).then(r => r.json());
+
+// Step 2 — upload the image, linking it to the record
+const body = new FormData();
+body.append("file", file);
+body.append("type", "extension_image");
+body.append("record_id", recordId);
+
+await fetch(`/api/v1/uploads/ext/${SLUG}`, {
+  method:  "POST",
+  headers: { "authorization": `Bearer ${token}` },
+  body,
+});
+```
+
+Server-side, list a record's uploads with `Nexus.Uploads.list_extension_uploads/2`:
+
+```elixir
+uploads = Nexus.Uploads.list_extension_uploads("your-slug", record_id: record_id)
+# Each upload has .url, .original_url, .mime_type, .width, .height, etc.
+```
+
+For records that own a single file, use the `record_id` as a logical "the file for this record." For records that own a gallery, link multiple uploads to the same `record_id` and order them however you like. The host doesn't care — `record_id` is purely your application's contract.
+
+#### Storage path and the Storage helper
+
+Uploaded files are stored at `/app/uploads/extensions/<slug>/<slug>_<uuid>.<ext>` on disk and served at `/uploads/extensions/<slug>/<slug>_<uuid>.<ext>`. This is the **same directory tree** `Nexus.Extensions.Storage` (§8.11) reads from. That means:
+
+- `Storage.list_files("your-slug")` returns the uploaded filenames alongside any files you wrote with `Storage.path/2`.
+- `Storage.url("your-slug", "filename")` produces a URL that resolves to the upload.
+- `Storage.delete_all("your-slug")` deletes files from both sources at once.
+
+The two paths are complementary: the upload endpoint is what your bundle calls from the browser; `Storage` is what your Elixir code uses to write files server-side. They share storage.
+
+#### Lifecycle
+
+- **On uninstall**, the host automatically calls `Nexus.Uploads.delete_extension_uploads/1` for your slug, deleting every upload row and its associated file. You don't need to clean up in `on_uninstall/0`.
+- **On boot**, uploaded files persist — they live in the bind-mounted `/app/uploads` directory, not inside the container or build dir. Restarts don't touch them.
+
+#### Limits
+
+- **Size**: 5 MB per file by default. Admins can raise this in **Admin → Uploads → max_size_mb**.
+- **MIME types**: as listed above. The whitelist is host-controlled; the host's policy is "no SVG, no executables, no scripts, no HTML." If you need a type that isn't on the list, raise it as a discussion — the bar is "safe to serve from a CDN."
+- **Per-request**: one file per upload request. Use multiple requests in parallel if you need to upload several files.
 
 
 ---
