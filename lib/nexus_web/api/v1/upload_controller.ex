@@ -196,6 +196,12 @@ defmodule NexusWeb.API.V1.UploadController do
   end
 
   defp upload_json(%Upload{} = u) do
+    user = case u.user do
+      %Ecto.Association.NotLoaded{} -> nil
+      nil -> nil
+      user -> %{id: user.id, username: user.username}
+    end
+
     %{
       id:                  u.id,
       upload_type:         u.upload_type,
@@ -209,7 +215,7 @@ defmodule NexusWeb.API.V1.UploadController do
       post_id:             u.post_id,
       extension_slug:      u.extension_slug,
       extension_record_id: u.extension_record_id,
-      user:                u.user && %{id: u.user.id, username: u.user.username},
+      user:                user,
       inserted_at:         u.inserted_at
     }
   end
