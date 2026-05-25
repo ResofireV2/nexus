@@ -24,6 +24,22 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const [subscribed,setSubscribed]=useState(false);
   const [subLoading,setSubLoading]=useState(false);
   const [savedPostIds,setSavedPostIds]=useState(new Set());
+
+  // Extension following tabs — only relevant when followingOnly=true.
+  // We listen for tab registrations so late-arriving extension bundles
+  // (registered after the component mounts) are picked up immediately.
+  const [extFollowingTabs, setExtFollowingTabs] = useState(
+    () => window.NexusExtensions ? window.NexusExtensions.getFollowingTabs() : []
+  );
+  const [activeFollowingTab, setActiveFollowingTab] = useState("posts");
+  useEffect(() => {
+    if (!followingOnly || !window.NexusExtensions) return;
+    const unsub = window.NexusExtensions.onFollowingTabsChange(() => {
+      setExtFollowingTabs(window.NexusExtensions.getFollowingTabs());
+    });
+    return unsub;
+  }, [followingOnly]);
+
   useEffect(()=>{
     if(currentUser) api.get("/saved").then(d=>{
       const ids = new Set((d.saved||[]).filter(s=>s.type==="post").map(s=>s.post?.id).filter(Boolean));
@@ -90,6 +106,11 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const [hero, setHero] = useState(_brandingState);
   useEffect(()=>{ return onBrandingChange(b=>setHero({...b})); },[]);
 
+  // Render the active extension tab's component when a non-posts tab is selected.
+  const activeTabDef = followingOnly && extFollowingTabs.length > 0
+    ? extFollowingTabs.find(t => t.key === activeFollowingTab) || null
+    : null;
+
   return (
     <div className="feed-wrap">
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -107,6 +128,26 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               {hero.hero_body&&<div style={{fontSize:14,color:"var(--t3)",lineHeight:1.7,maxWidth:600}}>{hero.hero_body}</div>}
             </div>
           )}
+
+          {/* Extension tab bar — only renders on the Following page when tabs are registered */}
+          {followingOnly && extFollowingTabs.length > 0 && (
+            <div style={{display:"flex",alignItems:"center",gap:4,padding:"8px 18px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
+              <div
+                className={`sort-pill${activeFollowingTab === "posts" ? " active" : ""}`}
+                onClick={() => setActiveFollowingTab("posts")}>
+                Posts
+              </div>
+              {extFollowingTabs.map(tab => (
+                <div
+                  key={tab.key}
+                  className={`sort-pill${activeFollowingTab === tab.key ? " active" : ""}`}
+                  onClick={() => setActiveFollowingTab(tab.key)}>
+                  {tab.label}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="feed-header">
             <div className="feed-title">{feedTitle}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -115,11 +156,21 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                   {subscribed ? "✓ following" : "+ follow"}
                 </button>
               )}
-              <div className="sort-pills">
-                {["latest","rising","top"].map(s=><div key={s} className={`sort-pill ${sort===s?"active":""}`} onClick={()=>setSort(s)}>{s}</div>)}
-              </div>
+              {/* Only show sort pills on the Posts tab */}
+              {(!followingOnly || activeFollowingTab === "posts") && (
+                <div className="sort-pills">
+                  {["latest","rising","top"].map(s=><div key={s} className={`sort-pill ${sort===s?"active":""}`} onClick={()=>setSort(s)}>{s}</div>)}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Extension tab content — replaces the post list when active */}
+          {activeTabDef ? (
+            <div style={{flex:1,overflow:"auto"}}>
+              <activeTabDef.component currentUser={currentUser} navigate={navigate}/>
+            </div>
+          ) : (
           <div className="feed-list">
             {liveCount>0&&!spaceFilter&&(
               <div style={{padding:"10px 18px",background:"var(--ac-bg)",borderBottom:"0.5px solid var(--ac-border)",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>{setLiveCount(0);load(true);}}>
@@ -265,6 +316,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             <div ref={sentinelRef} style={{height:40,visibility:hasMore?"visible":"hidden"}}/>
             {loading&&posts.length>0&&<div style={{textAlign:"center",padding:16,color:"var(--t5)",fontSize:13}}>Loading…</div>}
           </div>
+          )}
       </div>
     </div>
   );

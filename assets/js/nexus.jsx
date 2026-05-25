@@ -1324,6 +1324,46 @@ window.NexusExtensions = {
     return () => { this._notifTypeListeners = this._notifTypeListeners.filter(f => f !== fn); };
   },
 
+  // Following feed tabs — extensions can add tabs to the Following feed page.
+  // Each tab is a self-contained React component that owns its own data
+  // fetching and rendering. The "Posts" tab is always first and cannot be
+  // removed or replaced.
+  //
+  // Registration:
+  //   window.NexusExtensions.registerFollowingTab({
+  //     key:       "gallery",          // unique string, no spaces
+  //     label:     "Gallery",          // display label in the tab bar
+  //     component: GalleryFollowingFeed // React component, receives { currentUser }
+  //   });
+  //
+  // The tab bar only renders when at least one extension tab is registered.
+  // If no extension tabs are present the Following page displays exactly as
+  // it does today with no visible change.
+  _followingTabs: [],
+  _followingTabListeners: [],
+
+  registerFollowingTab({ key, label, component }) {
+    if (!key || !label || !component) {
+      console.warn("[NexusExtensions] registerFollowingTab: key, label, and component are all required");
+      return;
+    }
+    if (this._followingTabs.some(function(t) { return t.key === key; })) {
+      console.warn("[NexusExtensions] registerFollowingTab: tab with key '" + key + "' is already registered");
+      return;
+    }
+    this._followingTabs.push({ key, label, component });
+    this._followingTabListeners.forEach(function(fn) { fn(); });
+  },
+
+  getFollowingTabs() {
+    return this._followingTabs.slice();
+  },
+
+  onFollowingTabsChange(fn) {
+    this._followingTabListeners.push(fn);
+    return () => { this._followingTabListeners = this._followingTabListeners.filter(f => f !== fn); };
+  },
+
   // Upload a file through Nexus's upload pipeline.
   //
   // `file`  — a browser File object (from an <input type="file"> or drag-drop)
