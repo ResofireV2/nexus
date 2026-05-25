@@ -1185,13 +1185,14 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                   {/* Permission rows */}
                   <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
                     {ext.permissions.map((perm,i)=>(
-                      <div key={perm.key} style={{display:"flex",alignItems:"center",gap:16,padding:"12px 16px",borderBottom:i<ext.permissions.length-1?"0.5px solid var(--b1)":"none"}}>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:2}}>{perm.label}</div>
-                          {perm.hint&&<div style={{fontSize:12,color:"var(--t4)"}}>{perm.hint}</div>}
+                      <div key={perm.key} style={{display:"flex",alignItems:"flex-start",gap:16,padding:"12px 16px",borderBottom:i<ext.permissions.length-1?"0.5px solid var(--b1)":"none"}}>
+                        <div style={{flex:1,minWidth:0,paddingTop:5}}>
+                          <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",lineHeight:1.4}}>{perm.label}</div>
+                          {perm.hint&&<div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>{perm.hint}</div>}
                         </div>
                         <Select
                           value={(extPermCfg[ext.slug]&&extPermCfg[ext.slug][perm.key])||perm.default||"member"}
+                          style={{minWidth:148,flexShrink:0}}
                           onChange={v=>{
                             setExtPermCfg(p=>({...p,[ext.slug]:{...(p[ext.slug]||{}),[perm.key]:v}}));
                             setIsDirty(true);
