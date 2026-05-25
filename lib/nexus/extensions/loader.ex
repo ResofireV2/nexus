@@ -27,6 +27,12 @@ defmodule Nexus.Extensions.Loader do
 
   @extensions_build_dir "/tmp/nexus_extensions"
 
+  # Tarball cache lives on the persistent uploads volume so extensions can be
+  # loaded from disk on every container restart without hitting GitHub.
+  # Path layout: <uploads_dir>/extensions/.cache/<slug>/<version>/release.tar.gz
+  # The dot-prefix keeps it separate from extension asset directories.
+  @cache_subpath ["extensions", ".cache"]
+
   # ---------------------------------------------------------------------------
   # Public API
   # ---------------------------------------------------------------------------
@@ -34,24 +40,31 @@ defmodule Nexus.Extensions.Loader do
   @doc """
   Loads an extension from a GitHub release tarball URL.
   Downloads, compiles, migrates, and registers the extension.
-  Returns `{:ok, module, manifest}` (where `manifest` is the validated
-  normalized JSON manifest) or `{:error, {step, reason}}`.
+
+  When `version` is provided, checks the local tarball cache first. If a
+  cached tarball exists for `slug` + `version`, the download is skipped
+  entirely and the cached file is used. This means container restarts do
+  not require a live GitHub connection for already-installed extensions.
+
+  Returns `{:ok, module, manifest}` or `{:error, {step, reason}}`.
   """
-  def load_from_url(tarball_url, slug, token \\ nil) do
-    Logger.info("Loader: loading #{slug} from #{tarball_url}")
+  def load_from_url(tarball_url, slug, token \\ nil, version \\ nil) do
     build_dir = Path.join(@extensions_build_dir, slug)
 
-    # Each step returns either :ok / {:ok, _} or {:error, reason}. We tag
-    # the failure with the step name so the caller can report a specific
-    # load_status ("compile_failed" vs "migration_failed" vs "download_failed")
-    # instead of a generic "failed to load". The reason string is preserved.
-    #
-    # The manifest is read and validated BEFORE compile so subsequent steps
-    # can use its declared `module` field to find the right module among the
-    # compiled outputs. The validated normalized manifest is threaded through
-    # the rest of the pipeline and returned to the caller.
+    # Check tarball cache first when version is known. A cache hit means we
+    # can skip the download entirely — the tarball is already on disk from a
+    # previous install or successful load.
+    download_step =
+      if version && cached_tarball_exists?(slug, version) do
+        Logger.info("Loader: loading #{slug} v#{version} from cache (skipping download)")
+        extract_cached_tarball(slug, version, build_dir)
+      else
+        Logger.info("Loader: loading #{slug} from #{tarball_url}")
+        download_and_extract(tarball_url, build_dir, token, slug, version)
+      end
+
     result =
-      with :ok             <- tag(:download,         download_and_extract(tarball_url, build_dir, token)),
+      with :ok             <- tag(:download,         download_step),
            {:ok, manifest} <- tag(:manifest_invalid, read_and_validate_manifest(build_dir, slug)),
            {:ok, modules}  <- tag(:compile,          compile_extension(build_dir, slug)),
            {:ok, module}   <- tag(:manifest_invalid, find_declared_module(modules, manifest)),
@@ -72,6 +85,34 @@ defmodule Nexus.Extensions.Loader do
         cleanup_build_dir(build_dir)
         {:error, {step, reason}}
     end
+  end
+
+  @doc """
+  Deletes all cached tarballs for a given extension slug.
+  Called during uninstall and force-remove.
+  """
+  def delete_cache(slug) do
+    cache_slug_dir = cache_dir(slug)
+    File.rm_rf(cache_slug_dir)
+    :ok
+  end
+
+  @doc """
+  Deletes cached tarballs for a slug except for the given version.
+  Called after a successful update to clean up stale version entries.
+  """
+  def prune_cache(slug, keep_version) do
+    cache_slug_dir = cache_dir(slug)
+    case File.ls(cache_slug_dir) do
+      {:ok, versions} ->
+        versions
+        |> Enum.reject(&(&1 == keep_version))
+        |> Enum.each(fn version ->
+          File.rm_rf(Path.join(cache_slug_dir, version))
+        end)
+      {:error, _} -> :ok
+    end
+    :ok
   end
 
   # Wraps a step's return value with its step name on failure.
@@ -120,10 +161,10 @@ defmodule Nexus.Extensions.Loader do
   Reloads an extension after an update — stops the old version, purges its
   modules, then loads the new version from the updated tarball.
   """
-  def reload(tarball_url, slug, old_module, token \\ nil) do
+  def reload(tarball_url, slug, old_module, token \\ nil, version \\ nil) do
     Logger.info("Loader: reloading #{slug}")
     unload(slug, old_module)
-    load_from_url(tarball_url, slug, token)
+    load_from_url(tarball_url, slug, token, version)
   end
 
   # ---------------------------------------------------------------------------
@@ -156,7 +197,56 @@ defmodule Nexus.Extensions.Loader do
     end
   end
 
-  defp download_and_extract(url, build_dir, token \\ nil) do
+  # ---------------------------------------------------------------------------
+  # Private — tarball cache
+  # ---------------------------------------------------------------------------
+
+  defp cache_base do
+    uploads_dir = Application.get_env(:nexus, :uploads_dir, "/app/uploads")
+    Path.join([uploads_dir | @cache_subpath])
+  end
+
+  defp cache_dir(slug) do
+    Path.join(cache_base(), slug)
+  end
+
+  defp cache_tarball_path(slug, version) do
+    Path.join([cache_base(), slug, version, "release.tar.gz"])
+  end
+
+  defp cached_tarball_exists?(slug, version) do
+    cache_tarball_path(slug, version) |> File.exists?()
+  end
+
+  # Extracts the cached tarball into build_dir, preparing it for compilation.
+  defp extract_cached_tarball(slug, version, build_dir) do
+    tarball_path = cache_tarball_path(slug, version)
+    File.rm_rf(build_dir)
+    File.mkdir_p!(build_dir)
+    # Copy cached tarball into build dir for extraction
+    stage_path = Path.join(build_dir, "release.tar.gz")
+    case File.cp(tarball_path, stage_path) do
+      :ok    -> extract_tarball(stage_path, build_dir)
+      err    -> err
+    end
+  end
+
+  # Saves tarball bytes to the persistent cache after a successful download.
+  defp save_to_cache(body, slug, version) do
+    tarball_path = cache_tarball_path(slug, version)
+    File.mkdir_p!(Path.dirname(tarball_path))
+    case File.write(tarball_path, body) do
+      :ok ->
+        Logger.info("Loader: cached tarball for #{slug} v#{version} at #{tarball_path}")
+        :ok
+      {:error, reason} ->
+        Logger.warning("Loader: failed to cache tarball for #{slug} v#{version}: #{inspect(reason)}")
+        # Non-fatal — the extension still loaded; next restart will re-download
+        :ok
+    end
+  end
+
+  defp download_and_extract(url, build_dir, token \\ nil, slug \\ nil, version \\ nil) do
     File.rm_rf(build_dir)
     File.mkdir_p!(build_dir)
 
@@ -180,6 +270,10 @@ defmodule Nexus.Extensions.Loader do
     case Req.get(resolved_url, headers: headers, receive_timeout: 60_000,
                  decode_body: false, redirect: true) do
       {:ok, %{status: 200, body: body}} ->
+        # Save to persistent cache before extracting so future container
+        # restarts can load from disk without hitting GitHub.
+        if slug && version, do: save_to_cache(body, slug, version)
+
         case File.write(tarball_path, body) do
           :ok -> extract_tarball(tarball_path, build_dir)
           {:error, reason} -> {:error, "Failed to write tarball: #{inspect(reason)}"}

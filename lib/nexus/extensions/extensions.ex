@@ -98,7 +98,9 @@ defmodule Nexus.Extensions do
     for ext <- enabled do
       case build_tarball_url(ext) do
         {:ok, url} ->
-          case Nexus.Extensions.Loader.load_from_url(url, ext.slug) do
+          # Pass installed_version so the loader can serve from the local
+          # tarball cache on restart rather than re-downloading from GitHub.
+          case Nexus.Extensions.Loader.load_from_url(url, ext.slug, nil, ext.installed_version) do
             {:ok, _module, _manifest} ->
               Logger.info("Extensions: loaded #{ext.slug}")
               set_load_status(ext.slug, "loaded")
@@ -226,9 +228,10 @@ defmodule Nexus.Extensions do
       Nexus.Extensions.Loader.unload(ext.slug, module)
     end
 
-    # Delete extension files and any upload DB records
+    # Delete extension files, upload DB records, and cached tarballs
     Nexus.Extensions.Storage.delete_all(ext.slug)
     Nexus.Uploads.delete_extension_uploads(ext.slug)
+    Nexus.Extensions.Loader.delete_cache(ext.slug)
 
     # Remove DB record
     result = Repo.delete(ext)
@@ -291,6 +294,18 @@ defmodule Nexus.Extensions do
       rescue
         e ->
           msg = "Upload cleanup raised: #{Exception.message(e)}"
+          Logger.warning("Extensions: force-uninstall #{ext.slug} — #{msg}")
+          [msg | warnings]
+      end
+
+    # Delete cached tarballs — best-effort
+    warnings =
+      try do
+        Nexus.Extensions.Loader.delete_cache(ext.slug)
+        warnings
+      rescue
+        e ->
+          msg = "Cache cleanup raised: #{Exception.message(e)}"
           Logger.warning("Extensions: force-uninstall #{ext.slug} — #{msg}")
           [msg | warnings]
       end
@@ -820,8 +835,9 @@ defmodule Nexus.Extensions do
       old_module  = Nexus.Extensions.Registry.get_module(ext.slug)
 
       with {:ok, updated} <- ext |> Extension.changeset(update_attrs) |> Repo.update() do
-        # Reload the extension in the VM — stop old, compile new, restart
-        case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module, token) do
+        # Reload the extension in the VM — stop old, compile new, restart.
+        # Pass clean_tag so the loader caches the new tarball by version.
+        case Nexus.Extensions.Loader.reload(tarball_url, ext.slug, old_module, token, clean_tag) do
           {:ok, new_module, reloaded_manifest} ->
             # Re-derive bundle URL from the freshly loaded manifest — if the
             # release happened to change the js_bundle path, this picks it up.
@@ -865,6 +881,9 @@ defmodule Nexus.Extensions do
               end)
             end
 
+            # Prune stale cache entries for this slug — keep only the new
+            # version. Old version tarballs are no longer needed.
+            Nexus.Extensions.Loader.prune_cache(ext.slug, clean_tag)
             set_load_status(ext.slug, "loaded")
 
           {:error, _} = err ->
