@@ -86,9 +86,9 @@ defmodule NexusWeb.API.V1.UploadController do
   #         record_id (optional string — extension's own record association),
   #         allowed_mime (optional comma-separated list — for extension_file only)
   def extension_create(conn, %{"slug" => slug} = params) do
-    user       = conn.assigns.current_user
-    type       = params["type"] || "extension_image"
-    record_id  = params["record_id"]
+    user        = conn.assigns.current_user
+    type        = params["type"] || "extension_image"
+    record_id   = params["record_id"]
     plug_upload = params["file"]
 
     if type not in ["extension_image", "extension_file"] do
@@ -108,9 +108,13 @@ defmodule NexusWeb.API.V1.UploadController do
           end
 
         result =
-          case type do
-            "extension_image" -> Uploads.store_extension_image(plug_upload, slug, opts)
-            "extension_file"  -> Uploads.store_extension_file(plug_upload, slug, opts)
+          try do
+            case type do
+              "extension_image" -> Uploads.store_extension_image(plug_upload, slug, opts)
+              "extension_file"  -> Uploads.store_extension_file(plug_upload, slug, opts)
+            end
+          rescue
+            e -> {:error, Exception.message(e)}
           end
 
         case result do
@@ -126,6 +130,12 @@ defmodule NexusWeb.API.V1.UploadController do
 
           {:error, %Ecto.Changeset{} = cs} ->
             conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
+
+          {:error, {_step, reason}} when is_binary(reason) ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+
+          {:error, other} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: inspect(other)})
         end
       end
     end
