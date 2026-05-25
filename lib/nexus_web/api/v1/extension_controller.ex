@@ -145,13 +145,29 @@ defmodule NexusWeb.API.V1.ExtensionController do
       ext ->
         case Extensions.uninstall_extension(ext) do
           {:ok, %{warnings: warnings}} ->
-            # Piece 5: surface any warnings from the uninstall process.
-            # The extension is gone either way — these are informational
-            # so the admin knows if cleanup wasn't perfectly clean.
             json(conn, %{ok: true, warnings: warnings})
 
           {:ok, _} ->
             json(conn, %{ok: true, warnings: []})
+
+          {:error, reason} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: inspect(reason)})
+        end
+    end
+  end
+
+  # DELETE /api/v1/admin/extensions/:slug/force
+  # Force-removes a stuck extension. Skips on_uninstall, migration rollback,
+  # and module unload. Best-effort filesystem and upload cleanup. Always
+  # deletes the DB record if it exists. Use when the normal uninstall returns
+  # a 500 or the extension is otherwise stuck.
+  def force_uninstall(conn, %{"slug" => slug}) do
+    case Extensions.get_extension_by_slug(slug) do
+      nil -> conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
+      ext ->
+        case Extensions.force_uninstall_extension(ext) do
+          {:ok, %{warnings: warnings}} ->
+            json(conn, %{ok: true, warnings: warnings})
 
           {:error, reason} ->
             conn |> put_status(:unprocessable_entity) |> json(%{error: inspect(reason)})

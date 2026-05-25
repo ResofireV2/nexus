@@ -244,7 +244,67 @@ defmodule Nexus.Extensions do
     end
   end
 
-  # Piece 5: cancel pending Oban jobs whose worker module is nested under
+  @doc """
+  Force-removes an extension that is stuck in a broken state and cannot be
+  uninstalled through the normal flow.
+
+  Unlike `uninstall_extension/1`, this function:
+  - Does NOT call `on_uninstall/0` on the extension module
+  - Does NOT roll back the extension's database migrations
+  - Does NOT attempt to unload the extension module from the VM
+  - Wraps all cleanup steps in try/rescue so nothing blocks the DB delete
+
+  Use only when the normal uninstall returns a 500 or the extension record
+  is otherwise stuck. The admin is responsible for manually cleaning up any
+  database tables the extension created via migrations.
+  """
+  def force_uninstall_extension(%Extension{} = ext) do
+    require Logger
+    warnings = []
+
+    # Cancel any pending Oban jobs — best-effort, ignore failures
+    module = Nexus.Extensions.Registry.get_module(ext.slug)
+    warnings =
+      case cancel_extension_oban_jobs(ext, module) do
+        {:ok, 0}      -> warnings
+        {:ok, n}      -> Logger.info("Extensions: force-uninstall cancelled #{n} Oban job(s) for #{ext.slug}"); warnings
+        {:error, msg} -> ["Could not cancel pending Oban jobs: #{msg}" | warnings]
+      end
+
+    # Delete extension files — best-effort
+    warnings =
+      try do
+        Nexus.Extensions.Storage.delete_all(ext.slug)
+        warnings
+      rescue
+        e ->
+          msg = "File cleanup raised: #{Exception.message(e)}"
+          Logger.warning("Extensions: force-uninstall #{ext.slug} — #{msg}")
+          [msg | warnings]
+      end
+
+    # Delete upload records — best-effort
+    warnings =
+      try do
+        Nexus.Uploads.delete_extension_uploads(ext.slug)
+        warnings
+      rescue
+        e ->
+          msg = "Upload cleanup raised: #{Exception.message(e)}"
+          Logger.warning("Extensions: force-uninstall #{ext.slug} — #{msg}")
+          [msg | warnings]
+      end
+
+    # Delete DB record — this must succeed
+    case Repo.delete(ext) do
+      {:ok, _} ->
+        purge_from_layout(ext.slug)
+        {:ok, %{warnings: Enum.reverse(warnings)}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
   # the extension's root module. Returns {:ok, count_cancelled} or
   # {:error, message}.
   #

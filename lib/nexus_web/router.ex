@@ -327,6 +327,7 @@ defmodule NexusWeb.Router do
     post   "/extensions/check-updates",      ExtensionController, :check_updates
     patch  "/extensions/:slug/settings",     ExtensionController, :update_settings
     delete "/extensions/:slug",              ExtensionController, :uninstall
+    delete "/extensions/:slug/force",        ExtensionController, :force_uninstall
 
     # Badges (admin)
     get    "/badges",                  BadgeController, :admin_index

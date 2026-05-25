@@ -586,6 +586,7 @@ function ExtensionSettingsForm({ext, onSaved}) {
 function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
   const [ext, setExt] = useState(initialExt);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
+  const [confirmForce, setConfirmForce] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   const toggle = async () => {
@@ -623,6 +624,20 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
       onUninstall(ext.slug);
     }
     else toast(d.error||"Failed","err");
+  };
+
+  const forceUninstall = async () => {
+    const d = await api.delete(`/admin/extensions/${ext.slug}/force`);
+    if(d.ok) {
+      toast(`${ext.name} force-removed`);
+      if(d.warnings && d.warnings.length > 0) {
+        d.warnings.forEach(w => toast(`Cleanup warning: ${w}`, "warn"));
+      }
+      if(window.NexusExtensions && window.NexusExtensions.removeExtension) {
+        window.NexusExtensions.removeExtension(ext.slug);
+      }
+      onUninstall(ext.slug);
+    } else toast(d.error||"Force remove failed","err");
   };
 
   const syncManifest = async () => {
@@ -732,6 +747,41 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
                 Cancel
               </button>
             </div>}
+
+        {/* Force remove — only shown when extension failed to load */}
+        {ext.load_status !== "loaded" && (
+          <div style={{marginTop:16,paddingTop:16,borderTop:"0.5px solid var(--b1)"}}>
+            <div style={{fontSize:12,color:"var(--t4)",marginBottom:10}}>
+              This extension failed to load. If uninstall is not working, use force remove to delete
+              the record immediately. Migration rollback and module cleanup are skipped — you may need
+              to clean up any database tables this extension created manually.
+            </div>
+            {!confirmForce
+              ? <button onClick={()=>setConfirmForce(true)}
+                  style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(239,68,68,0.08)",
+                    border:"0.5px solid rgba(239,68,68,0.3)",color:"var(--red)",cursor:"pointer",
+                    fontFamily:"inherit"}}>
+                  Force remove
+                </button>
+              : <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,color:"var(--t3)"}}>
+                    Force-delete {ext.name} with no cleanup?
+                  </span>
+                  <button onClick={forceUninstall}
+                    style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                      background:"var(--red)",border:"none",color:"#fff",
+                      cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                    Confirm force remove
+                  </button>
+                  <button onClick={()=>setConfirmForce(false)}
+                    style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+                      background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
+                      cursor:"pointer",fontFamily:"inherit"}}>
+                    Cancel
+                  </button>
+                </div>}
+          </div>
+        )}
       </div>
     </div>
   );
