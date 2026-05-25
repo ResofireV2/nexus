@@ -830,6 +830,7 @@ function ExtensionAdminPage({slug}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [confirmUninstall, setConfirmUninstall] = useState(false);
+  const [confirmForce, setConfirmForce] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -889,6 +890,22 @@ function ExtensionAdminPage({slug}) {
       if (window._nexusAdminNav) window._nexusAdminNav("extensions");
     } else {
       toast(d.error || "Uninstall failed", "err");
+    }
+  };
+
+  const forceUninstall = async () => {
+    const d = await api.delete(`/admin/extensions/${slug}/force`);
+    if(d.ok) {
+      toast(`${ext.name} force-removed`);
+      if(d.warnings && d.warnings.length > 0) {
+        d.warnings.forEach(w => toast(`Cleanup warning: ${w}`, "warn"));
+      }
+      if(window.NexusExtensions && window.NexusExtensions.removeExtension) {
+        window.NexusExtensions.removeExtension(slug);
+      }
+      if(window._nexusAdminNav) window._nexusAdminNav("extensions");
+    } else {
+      toast(d.error || "Force remove failed", "err");
     }
   };
 
@@ -999,6 +1016,17 @@ function ExtensionAdminPage({slug}) {
                 <i className="fa-solid fa-trash" style={{fontSize:11,width:14}}/>
                 Uninstall extension
               </button>
+              {ext.load_status !== "loaded" && (
+                <button onClick={() => {setMenuOpen(false); setConfirmForce(true);}}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+                    fontSize:13,color:"var(--red)",border:"none",background:"transparent",
+                    borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.08)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <i className="fa-solid fa-bolt" style={{fontSize:11,width:14}}/>
+                  Force remove
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1062,6 +1090,29 @@ function ExtensionAdminPage({slug}) {
             Confirm uninstall
           </button>
           <button onClick={() => setConfirmUninstall(false)}
+            style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+              background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
+              cursor:"pointer",fontFamily:"inherit"}}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {confirmForce && (
+        <div style={{marginTop:18,padding:"12px 14px",
+          background:"rgba(248,113,113,0.06)",border:"0.5px solid rgba(248,113,113,0.25)",
+          borderRadius:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <i className="fa-solid fa-bolt" style={{color:"var(--red)",fontSize:14}}/>
+          <span style={{fontSize:13,color:"var(--t2)",flex:1}}>
+            Force-delete {ext.name}? Migration rollback and module cleanup are skipped — you may need to manually remove any database tables this extension created.
+          </span>
+          <button onClick={forceUninstall}
+            style={{fontSize:12,padding:"6px 14px",borderRadius:8,
+              background:"var(--red)",border:"none",color:"#fff",
+              cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+            Confirm force remove
+          </button>
+          <button onClick={() => setConfirmForce(false)}
             style={{fontSize:12,padding:"6px 14px",borderRadius:8,
               background:"none",border:"0.5px solid var(--b1)",color:"var(--t4)",
               cursor:"pointer",fontFamily:"inherit"}}>
