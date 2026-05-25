@@ -1788,7 +1788,7 @@ function ExtensionFieldRenderer({ field, value, onChange }) {
   const id = `epf-${key}`;
   return (
     <div style={{marginBottom:18}}>
-      <label htmlFor={id} style={{fontSize:12,color:"var(--t4)",display:"block",marginBottom:6,fontWeight:500}}>
+      <label htmlFor={id} style={{fontSize:14,color:"var(--t2)",display:"block",marginBottom:6,fontWeight:500}}>
         {label||key}
         {required&&<span style={{color:"var(--red)",marginLeft:3}}>*</span>}
       </label>
@@ -1826,7 +1826,7 @@ function ExtensionFieldRenderer({ field, value, onChange }) {
           placeholder={placeholder||""} required={required}
           onChange={e=>onChange(e.target.value)}/>
       )}
-      {hint&&<div style={{fontSize:11,color:"var(--t5)",marginTop:5}}>{hint}</div>}
+      {hint&&<div style={{fontSize:13,color:"var(--t4)",marginTop:5}}>{hint}</div>}
     </div>
   );
 }
