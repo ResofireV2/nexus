@@ -157,10 +157,6 @@ defmodule NexusWeb.API.V1.ExtensionController do
   end
 
   # DELETE /api/v1/admin/extensions/:slug/force
-  # Force-removes a stuck extension. Skips on_uninstall, migration rollback,
-  # and module unload. Best-effort filesystem and upload cleanup. Always
-  # deletes the DB record if it exists. Use when the normal uninstall returns
-  # a 500 or the extension is otherwise stuck.
   # POST /api/v1/admin/extensions/:slug/migrate
   # Runs any pending migrations for the extension. Safe to call at any time —
   # migrations already recorded in schema_migrations are skipped. Returns the
@@ -183,6 +179,9 @@ defmodule NexusWeb.API.V1.ExtensionController do
         end
     end
   end
+
+  # DELETE /api/v1/admin/extensions/:slug/force
+  def force_uninstall(conn, %{"slug" => slug}) do
     case Extensions.get_extension_by_slug(slug) do
       nil -> conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
       ext ->
