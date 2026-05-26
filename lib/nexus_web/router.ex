@@ -326,6 +326,7 @@ defmodule NexusWeb.Router do
     post   "/extensions/:slug/update",       ExtensionController, :update_extension
     post   "/extensions/check-updates",      ExtensionController, :check_updates
     patch  "/extensions/:slug/settings",     ExtensionController, :update_settings
+    post   "/extensions/:slug/migrate",      ExtensionController, :run_migrations
     delete "/extensions/:slug",              ExtensionController, :uninstall
     delete "/extensions/:slug/force",        ExtensionController, :force_uninstall
 

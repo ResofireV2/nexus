@@ -161,7 +161,28 @@ defmodule NexusWeb.API.V1.ExtensionController do
   # and module unload. Best-effort filesystem and upload cleanup. Always
   # deletes the DB record if it exists. Use when the normal uninstall returns
   # a 500 or the extension is otherwise stuck.
-  def force_uninstall(conn, %{"slug" => slug}) do
+  # POST /api/v1/admin/extensions/:slug/migrate
+  # Runs any pending migrations for the extension. Safe to call at any time —
+  # migrations already recorded in schema_migrations are skipped. Returns the
+  # count of migrations that actually ran.
+  def run_migrations(conn, %{"slug" => slug}) do
+    case Extensions.get_extension_by_slug(slug) do
+      nil ->
+        conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
+      ext ->
+        module = Nexus.Extensions.Registry.get_module(ext.slug)
+        if is_nil(module) do
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "Extension is not loaded — install or enable it first"})
+        else
+          case Nexus.Extensions.Loader.run_pending_migrations(module) do
+            {:ok, 0}     -> json(conn, %{ok: true, ran: 0, message: "All migrations already up"})
+            {:ok, count} -> json(conn, %{ok: true, ran: count, message: "Ran #{count} migration(s) successfully"})
+            {:error, reason} ->
+              conn |> put_status(:unprocessable_entity) |> json(%{error: reason})
+          end
+        end
+    end
+  end
     case Extensions.get_extension_by_slug(slug) do
       nil -> conn |> put_status(:not_found) |> json(%{error: "Extension not found"})
       ext ->

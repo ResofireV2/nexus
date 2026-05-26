@@ -1006,6 +1006,15 @@ function ExtensionAdminPage({slug}) {
                   {syncing?"Syncing manifest…":"Sync manifest"}
                 </button>
               )}
+              <button onClick={runMigrations}
+                style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",
+                  fontSize:13,color:"var(--t2)",border:"none",background:"transparent",
+                  borderRadius:6,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                onMouseEnter={e=>e.currentTarget.style.background="var(--s3)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <i className="fa-solid fa-database" style={{fontSize:11,width:14}}/>
+                Run migrations
+              </button>
               <div style={{height:1,background:"var(--b1)",margin:"4px 0"}}/>
               <button onClick={() => {setMenuOpen(false); setConfirmUninstall(true);}}
                 style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",

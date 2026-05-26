@@ -147,10 +147,21 @@ defmodule Nexus.Extensions.Loader do
       migrations
       |> Enum.reverse()
       |> Enum.each(fn migration_module ->
+        version = migration_version(migration_module)
         try do
-          Ecto.Migrator.down(Repo, migration_version(migration_module), migration_module)
+          Ecto.Migrator.down(Repo, version, migration_module)
         rescue
           e -> Logger.warning("Loader: rollback failed for #{migration_module}: #{inspect(e)}")
+        end
+        # Explicitly delete the schema_migrations entry regardless of whether
+        # down/0 had any DDL to execute. Ecto.Migrator.down only removes the
+        # version if there was something to roll back — empty or no-op migrations
+        # leave the version recorded, causing reinstall to skip them. We force
+        # the removal so a fresh install always runs the migration from scratch.
+        try do
+          Repo.query!("DELETE FROM schema_migrations WHERE version = $1", [version])
+        rescue
+          e -> Logger.warning("Loader: failed to delete schema_migrations entry for version #{version}: #{inspect(e)}")
         end
       end)
       :ok
@@ -490,7 +501,36 @@ defmodule Nexus.Extensions.Loader do
   # Private — migrations
   # ---------------------------------------------------------------------------
 
-  defp run_migrations(module) do
+  @doc """
+  Public entry point to run pending migrations for an already-loaded extension
+  module. Used by the admin "Run migrations" action as a recovery tool when
+  schema_migrations has gotten out of sync.
+
+  Returns `{:ok, count}` where count is the number of migrations that ran,
+  or `{:error, reason}` if something failed.
+  """
+  def run_pending_migrations(module) do
+    migrations = safe_migrations(module)
+    if migrations == [] do
+      {:ok, 0}
+    else
+      ran =
+        Enum.reduce(migrations, 0, fn migration_module, count ->
+          version = migration_version(migration_module)
+          # Check if already recorded — only run if missing
+          result = Repo.query!("SELECT 1 FROM schema_migrations WHERE version = $1", [version])
+          if result.num_rows == 0 do
+            Ecto.Migrator.up(Repo, version, migration_module)
+            count + 1
+          else
+            count
+          end
+        end)
+      {:ok, ran}
+    end
+  rescue
+    e -> {:error, "Migration failed: #{inspect(e)}"}
+  end
     migrations = safe_migrations(module)
     if migrations == [] do
       :ok
