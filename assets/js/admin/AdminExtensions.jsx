@@ -909,6 +909,16 @@ function ExtensionAdminPage({slug}) {
     }
   };
 
+  const runMigrations = async () => {
+    setMenuOpen(false);
+    const d = await api.post(`/admin/extensions/${slug}/migrate`);
+    if(d.ok) {
+      toast(d.message || (d.ran === 0 ? "All migrations already up" : `Ran ${d.ran} migration(s) successfully`));
+    } else {
+      toast(d.error || "Migration failed", "err");
+    }
+  };
+
   const syncManifest = async () => {
     setSyncing(true);
     setMenuOpen(false);
