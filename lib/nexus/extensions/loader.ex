@@ -531,6 +531,8 @@ defmodule Nexus.Extensions.Loader do
   rescue
     e -> {:error, "Migration failed: #{inspect(e)}"}
   end
+
+  defp run_migrations(module) do
     migrations = safe_migrations(module)
     if migrations == [] do
       :ok
