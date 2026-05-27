@@ -2377,33 +2377,27 @@ A few rules worth knowing:
 
   Nexus's `LoadUser` plug then sets `conn.assigns.current_user` to the logged-in user. Your endpoint enforces authentication itself, per §8.6.
 
-- **`window.api` is for Nexus core only.** The bundled `window.api` helper exists (it's what Nexus's own UI uses for `/api/v1/...` calls), but it hardcodes the `/api/v1` prefix. It can't call your own `/ext/<slug>/api/...` paths. Use raw `fetch()` for those.
+- **`window._nexusApi` is for Nexus core endpoints only.** Nexus's own API helper is exposed on `window._nexusApi` for extensions to call Nexus core's `/api/v1/*` endpoints (notifications, uploads, etc.) — see §9.12 and §9.15 for the canonical uses. The helper handles JWT pass-through and 401 token refresh automatically. **It does not work for your own `/ext/<slug>/api/...` paths** — it hardcodes the `/api/v1` prefix. Use raw `fetch()` (as shown above) for your own endpoints.
 
 - **CSRF and CORS.** Your extension's API endpoints share the origin and the auth model of Nexus itself. Same-origin requests don't need CORS preflighting, and Nexus doesn't enforce CSRF tokens on the extension API routes — JWT-based auth handles request validation.
 
 ### 9.12 Sending notifications from the bundle
 
-To fire a notification from your JS bundle, POST to `/api/v1/notifications/extension`:
+To fire a notification from your JS bundle, POST to `/api/v1/notifications/extension` via the `_nexusApi` helper:
 
 ```javascript
 async function fireSmokeNotification(targetUserId, postId) {
-  const token = localStorage.getItem("nexus_token");
-  await fetch("/api/v1/notifications/extension", {
-    method:  "POST",
-    headers: {
-      "content-type":  "application/json",
-      "authorization": `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      slug:           SLUG,
-      target_user_id: targetUserId,
-      type:           "smoke_notif",
-      data:           { post_id: postId },
-      post_id:        postId,
-    }),
+  await window._nexusApi.post("/notifications/extension", {
+    slug:           SLUG,
+    target_user_id: targetUserId,
+    type:           "smoke_notif",
+    data:           { post_id: postId },
+    post_id:        postId,
   });
 }
 ```
+
+`_nexusApi.post` handles the JWT header and 401 token refresh automatically (§9.11). The path is relative to `/api/v1`. If you'd rather use raw `fetch()`, the equivalent is a POST to `/api/v1/notifications/extension` with `Authorization: Bearer <jwt>` and `Content-Type: application/json`.
 
 #### Request body
 
@@ -2689,7 +2683,35 @@ React.createElement("div", {
 
 When the user clicks anywhere inside that div, Nexus's global click handler swaps in the YouTube iframe with autoplay enabled. The `Md` component does this for you when it sees a YouTube URL in the rendered markdown; the explicit form above is for when you want a video embed without going through markdown.
 
-#### 9.14.6 What's not exposed
+#### 9.14.6 API helper: `window._nexusApi`
+
+A thin wrapper around `fetch()` that targets Nexus's own `/api/v1/*` endpoints. Auto-adds the JWT, transparently refreshes on 401, and parses the JSON response.
+
+```javascript
+// GET
+const stats = await window._nexusApi.get("/notifications/unread");
+
+// POST with a JSON body
+await window._nexusApi.post("/notifications/extension", {
+  slug:           SLUG,
+  target_user_id: userId,
+  type:           "smoke_notif",
+  data:           {},
+});
+
+// PATCH, DELETE
+await window._nexusApi.patch("/some/path", { ... });
+await window._nexusApi.delete("/some/path");
+
+// Multipart file upload — the upload endpoint helper
+await window._nexusApi.upload("/uploads/ext/your-slug", file, { type: "extension_image" });
+```
+
+All paths are appended to `/api/v1`. **Don't use it for your own `/ext/<slug>/api/...` endpoints** — the prefix is hard-coded. For your own API, raw `fetch()` as shown in §9.11 is the right call.
+
+When you need to call a Nexus core endpoint from your bundle — notifications (§9.12), uploads (§9.15), or anything else under `/api/v1` — `_nexusApi` is the recommended path. It handles the cases (token refresh especially) that raw `fetch()` would force you to implement yourself.
+
+#### 9.14.7 What's not exposed
 
 The `window.NexusComponents` set is curated, not exhaustive. Nexus's internal code uses additional components — link preview cards, reaction buttons, rich text editors, the user-card popover, the toolbar registry — that aren't part of the extension API. Treat them as internals: they may change without notice, and importing them isn't possible from a no-build bundle anyway.
 
@@ -2772,53 +2794,56 @@ Errors return non-2xx with `{ "error": "..." }`:
 
 #### JS example: image upload
 
+The recommended path is `window.NexusExtensions.uploadFile`, which handles auth, JWT refresh, and FormData construction for you:
+
 ```javascript
 async function uploadScreenshot(file) {
-  const token = localStorage.getItem("nexus_token");
+  const { url, original_url, upload, error } =
+    await window.NexusExtensions.uploadFile(file, {
+      slug: SLUG,
+      type: "extension_image",
+    });
 
-  const body = new FormData();
-  body.append("file", file);
-  body.append("type", "extension_image");
-
-  const r = await fetch(`/api/v1/uploads/ext/${SLUG}`, {
-    method:  "POST",
-    headers: { "authorization": `Bearer ${token}` },
-    body,
-  });
-
-  if (!r.ok) {
-    const err = await r.json();
-    throw new Error(err.error || "upload failed");
-  }
-
-  const { url, original_url, upload } = await r.json();
+  if (error) throw new Error(error);
   return { url, original_url, upload };
 }
 ```
 
-**Do not set the `Content-Type` header manually.** When the body is a `FormData`, the browser sets it for you with the correct multipart boundary. Setting it yourself will break the request.
+`uploadFile` returns a promise resolving to `{ upload, url, original_url }` on success or `{ error }` on failure. It auto-refreshes expired JWTs and retries once.
 
 #### JS example: file upload with MIME restriction
 
 ```javascript
 async function uploadResume(file) {
-  const token = localStorage.getItem("nexus_token");
-
-  const body = new FormData();
-  body.append("file", file);
-  body.append("type", "extension_file");
-  body.append("allowed_mime", "application/pdf"); // restrict to PDF
-
-  const r = await fetch(`/api/v1/uploads/ext/${SLUG}`, {
-    method:  "POST",
-    headers: { "authorization": `Bearer ${token}` },
-    body,
+  return await window.NexusExtensions.uploadFile(file, {
+    slug:        SLUG,
+    type:        "extension_file",
+    allowedMime: ["application/pdf"],  // narrow to a single type
   });
-  return await r.json();
 }
 ```
 
-`allowed_mime` is validated server-side as a subset of the host's permitted list — you can narrow, but you cannot grant your extension MIME types the host hasn't whitelisted.
+`allowedMime` is an array on the JS side; the helper joins it into the comma-separated `allowed_mime` form-field the endpoint expects. The narrowing is validated server-side as a subset of the host's permitted list — you can narrow, but you cannot grant your extension MIME types the host hasn't whitelisted.
+
+#### Raw fetch — when you need full control
+
+The `uploadFile` helper covers the typical cases. If you need to inspect the raw response, customize headers, track upload progress, or do anything else the helper doesn't expose, fall back to raw `fetch` with `FormData`:
+
+```javascript
+const token = localStorage.getItem("nexus_token");
+
+const body = new FormData();
+body.append("file", file);
+body.append("type", "extension_image");
+
+const r = await fetch(`/api/v1/uploads/ext/${SLUG}`, {
+  method:  "POST",
+  headers: { "authorization": `Bearer ${token}` },
+  body,
+});
+```
+
+**Do not set the `Content-Type` header manually.** When the body is a `FormData`, the browser sets it for you with the correct multipart boundary. Setting it yourself will break the request.
 
 #### Linking uploads to your records
 
@@ -2827,23 +2852,22 @@ The `record_id` field is a free-form string the host stores alongside the upload
 The typical pattern is: an extension defines its own schema with a UUID primary key, the user creates a record, then uploads files against that record's id. Later, when rendering the record, you list its uploads by `record_id`:
 
 ```javascript
-// Step 1 — create your record server-side (in your extension's plug router)
-const { id: recordId } = await fetch(`/ext/${SLUG}/api/screenshots`, {
+// Step 1 — create your record by calling your own API
+const r = await fetch(`/ext/${SLUG}/api/screenshots`, {
   method:  "POST",
-  headers: { "content-type": "application/json", "authorization": `Bearer ${token}` },
-  body:    JSON.stringify({ title: "My screenshot" }),
-}).then(r => r.json());
+  headers: {
+    "content-type":  "application/json",
+    "authorization": `Bearer ${localStorage.getItem("nexus_token")}`,
+  },
+  body: JSON.stringify({ title: "My screenshot" }),
+});
+const { id: recordId } = await r.json();
 
 // Step 2 — upload the image, linking it to the record
-const body = new FormData();
-body.append("file", file);
-body.append("type", "extension_image");
-body.append("record_id", recordId);
-
-await fetch(`/api/v1/uploads/ext/${SLUG}`, {
-  method:  "POST",
-  headers: { "authorization": `Bearer ${token}` },
-  body,
+await window.NexusExtensions.uploadFile(file, {
+  slug:     SLUG,
+  type:     "extension_image",
+  recordId: recordId,
 });
 ```
 
@@ -2876,6 +2900,135 @@ The two paths are complementary: the upload endpoint is what your bundle calls f
 - **Size**: 5 MB per file by default. Admins can raise this in **Admin → Uploads → max_size_mb**.
 - **MIME types**: as listed above. The whitelist is host-controlled; the host's policy is "no SVG, no executables, no scripts, no HTML." If you need a type that isn't on the list, raise it as a discussion — the bar is "safe to serve from a CDN."
 - **Per-request**: one file per upload request. Use multiple requests in parallel if you need to upload several files.
+
+### 9.16 `registerFollowingTab`
+
+Adds a tab to the **Following** feed page (`/following`). The page's built-in "Posts" tab is always first and can't be replaced; extensions append additional tabs to the right. Use this surface to give users an extension-specific feed of content from accounts they follow — for example, a gallery extension might add a "Photos" tab showing recent images from followed users.
+
+```javascript
+function GalleryFollowingFeed({ currentUser }) {
+  // Your component fetches its own data and renders its own feed.
+  // currentUser is the logged-in viewer; this tab only appears for
+  // authenticated users since the Following page itself requires login.
+  return React.createElement("div", null, /* … */);
+}
+
+NE.registerFollowingTab({
+  key:       "gallery-following",
+  label:     "Photos",
+  component: GalleryFollowingFeed,
+});
+```
+
+#### Signature
+
+```javascript
+NE.registerFollowingTab({ key, label, component })
+```
+
+| Parameter   | Required | Purpose                                                                       |
+|-------------|----------|-------------------------------------------------------------------------------|
+| `key`       | yes      | Unique tab identifier across all extensions. No spaces. Used as the React key.|
+| `label`     | yes      | Shown in the tab bar.                                                          |
+| `component` | yes      | React component rendered as the tab's content. Receives `{ currentUser }`.    |
+
+There's no manifest declaration for this surface — registration is JS-only. Registering twice with the same `key` produces a console warning and the second call is dropped.
+
+#### Props the component receives
+
+```javascript
+function MyFollowingTab({ currentUser }) { /* ... */ }
+```
+
+| Prop           | Contents                                                          |
+|----------------|-------------------------------------------------------------------|
+| `currentUser`  | The viewer's user object. Always present — the Following page requires login. |
+
+The component is fully responsible for fetching its own data (call your `/ext/<slug>/api/...` endpoints), rendering its own feed, and handling its own pagination. The host provides the tab bar and the active-tab routing; everything else is yours.
+
+#### When the tab bar appears
+
+The Following page only renders a tab bar if at least one extension has registered a Following tab. With zero registered tabs, the page renders exactly as it did before — no tab bar, the Posts feed fills the page. This means installing a non-Following extension doesn't change the Following page's appearance at all.
+
+### 9.17 `registerModerationSection`
+
+Adds extension content to **both** the forum-side ModerationPage (`/moderation`, visible to moderators and admins) **and** the admin-side AdminModerationPanel (under **Admin → Moderation**). A single registration call mounts your content in both places; your component receives a `context` prop telling it which one it's currently rendering in.
+
+Use this surface when your extension owns content that needs moderator review — gallery image approvals, custom report queues, or anything else that fits the "queue of items awaiting moderator action" pattern.
+
+```javascript
+function GalleryApprovalsQueue({ currentUser, context }) {
+  // context is "moderator" (forum-side panel) or "admin" (admin panel).
+  // Fetch and render your queue.
+  return React.createElement("div", null, /* … */);
+}
+
+function GalleryReportsQueue({ currentUser, context }) {
+  return React.createElement("div", null, /* … */);
+}
+
+NE.registerModerationSection({
+  slug:     SLUG,
+  label:    "Gallery",
+  logo_url: "/uploads/extensions/gallery/logo.png",
+  approvals: {
+    badge:     () => pendingApprovalCount(),
+    component: GalleryApprovalsQueue,
+  },
+  reports: {
+    badge:     () => pendingReportCount(),
+    component: GalleryReportsQueue,
+  },
+});
+```
+
+#### Signature
+
+```javascript
+NE.registerModerationSection({ slug, label, logo_url, approvals, reports })
+```
+
+| Parameter   | Required        | Purpose                                                                          |
+|-------------|-----------------|----------------------------------------------------------------------------------|
+| `slug`      | yes             | Your extension's slug.                                                            |
+| `label`     | yes             | Section header text shown in both panels (e.g. "Gallery").                        |
+| `logo_url`  | no              | Optional logo URL shown next to the label.                                        |
+| `approvals` | one of these    | `{ badge, component }` for the Approvals tab.                                     |
+| `reports`   | one of these    | `{ badge, component }` for the Reports tab.                                       |
+
+At least one of `approvals` or `reports` must be provided. You can provide both; omitting one means your extension won't appear in that tab.
+
+#### The `approvals` and `reports` objects
+
+```javascript
+{
+  badge:     () => 7,                  // function returning the current count
+  component: ReactComponent,           // React component for the tab content
+}
+```
+
+`badge` is called by the host to display a count beside your extension's section header in the tab — e.g., "Gallery (7)" if there are 7 pending items. The function is called each time the page rerenders; cache the count in module state if computing it is expensive. Return 0 to suppress the badge.
+
+#### Props the component receives
+
+```javascript
+function MyModerationQueue({ currentUser, context }) { /* ... */ }
+```
+
+| Prop           | Contents                                                                                     |
+|----------------|----------------------------------------------------------------------------------------------|
+| `currentUser`  | The viewer's user object. Moderators or admins — the page is gated behind those tiers.       |
+| `context`      | `"moderator"` when mounted in the forum-side ModerationPage; `"admin"` when in AdminModerationPanel. |
+
+Use `context` to show different controls in the two locations — for example, the admin panel might expose bulk actions (clear all, export to CSV) that the forum-side panel doesn't.
+
+#### When the tabs appear
+
+The "Extension Approvals" and "Extension Reports" tabs are hidden in both panels when no extensions have registered for them. With zero registered moderation sections, the moderation page looks exactly as it does today — extension-aware moderation has no visual footprint on installs that don't use it.
+
+#### Where to enforce moderator-only actions
+
+These components are mounted on pages already gated to moderators and admins; you don't need to re-check the viewer's role in your component. However, any HTTP actions your component triggers (approving an item, dismissing a report, etc.) must enforce permissions server-side in your own Plug router using `Permissions.check/3` (§8.13). Client-side mounting is a UI affordance, not access control.
 
 
 ---
@@ -2960,7 +3113,7 @@ The admin uninstalls your extension by clicking **Uninstall** in the admin exten
 2. **Cancels Oban jobs.** Any pending Oban jobs whose worker module starts with your extension's root module name are deleted from the queue. Jobs already executing run to completion (see §8.7). Jobs in `available`, `scheduled`, or `retryable` states are dropped.
 3. **Rolls back migrations.** Each module returned by `migrations/0` is rolled back in reverse order. Rollback failures log but don't block.
 4. **Unloads the module.** The extension's compiled module is purged from the VM and its supervisor is stopped.
-5. **Deletes file storage.** `/app/uploads/extensions/<slug>/` is removed entirely — anything in `Nexus.Extensions.Storage` for your slug is gone.
+5. **Deletes file storage and cached tarballs.** `/app/uploads/extensions/<slug>/` is removed (anything in `Nexus.Extensions.Storage` for your slug, plus any browser-uploaded files). The tarball cache at `/app/uploads/extensions/.cache/<slug>/` is also removed.
 6. **Removes the DB row.** The `extensions` row is deleted.
 7. **Cleans up layout config.** Layout settings that referenced your slug (explore items, right widgets, toolbar entries the admin had reordered) are removed from the saved layout.
 
@@ -2971,6 +3124,16 @@ Once uninstall completes, the only thing that remains is your data in DB tables 
 If your `on_uninstall/0` raises, if migrations refuse to roll back, if the storage directory has a permissions issue — none of these stop the uninstall from completing. The DB row is removed, the module is unloaded, and the extension stops appearing in the admin UI. Cleanup gaps surface as warnings in the response.
 
 This is by design — a partially-broken extension shouldn't trap the admin into a state they can't escape.
+
+#### Force-uninstall — the escape hatch
+
+If a normal uninstall fails outright (the request returns 500, the extension's DB row gets stuck in a non-removable state), the admin can trigger a **force-uninstall** from the overflow menu on the per-extension page. Force-uninstall is more aggressive:
+
+- **Skips `on_uninstall/0`** — the callback doesn't run.
+- **Skips migration rollback** — your tables stay in the database. The admin must drop them manually if they want the schema cleaned up.
+- Still cleans up the supervisor, Oban jobs, storage, uploads, the tarball cache, the DB row, and layout config — best-effort each, with warnings on failure.
+
+Force-uninstall is for the situation where the extension's code is broken enough that running it during uninstall would itself fail. The trade-off is that tables persist on purpose — surviving the uninstall lets the admin manually inspect or recover data before dropping.
 
 ### 10.4 Load status reference
 
@@ -2994,14 +3157,26 @@ In every failure state, the `load_error` column holds a human-readable message d
 
 ### 10.5 Boot and reload
 
-When Nexus restarts — a deployment, a server reboot, a `mix phx.server` cycle in development — every enabled extension is reloaded. This is not the same code path as install, but it shares most of it: the loader pipeline (§10.1) runs in full, from the download step through registry insertion. Authors are sometimes surprised by what this means.
+When Nexus restarts — a deployment, a server reboot, a `mix phx.server` cycle in development — every enabled extension is reloaded. This shares most of its code with the install pipeline (§10.1), but with an important optimization: **a tarball cache means most boots don't hit GitHub at all.**
+
+#### The tarball cache
+
+Every successful download is cached to `<uploads_dir>/extensions/.cache/<slug>/<version>/release.tar.gz`. The cache lives in the bind-mounted uploads directory, so it survives container rebuilds. On boot, when the loader is told to load `<slug>` at `<installed_version>` and finds the cached tarball, it skips the download step entirely and extracts the cached file.
+
+This means the boot path is:
+
+- **Fresh install** → GitHub download → cache → compile → migrate → register.
+- **Subsequent boots** → cache hit → extract → compile → migrate → register. No network.
+- **Update** → GitHub download for the new version → cache → compile → migrate → register. The old version's cache entry is then pruned.
+
+GitHub is involved only at install time and update time. Routine restarts are network-free.
 
 #### What runs on every boot
 
-For every enabled extension, in parallel with each other, Nexus:
+For every enabled extension, Nexus:
 
-1. Fetches the release tarball from GitHub. Same network call as install — yes, every boot re-downloads.
-2. Validates the manifest (now from the tarball, since this is a fresh extraction).
+1. Locates the release tarball — cache hit, or download if missing.
+2. Validates the manifest from the extracted tarball.
 3. Compiles every `.ex` file.
 4. Runs `migrations/0`. **Already-applied versions no-op via `schema_migrations`** — Ecto's idempotency makes this safe. The exception is the silent-skip bug from §8.5: if a previous boot wrote a version row before a later migration failed, the later migration will keep getting skipped on every boot.
 5. Copies bundled assets.
@@ -3010,11 +3185,11 @@ For every enabled extension, in parallel with each other, Nexus:
 
 #### What does *not* run on boot
 
-The two lifecycle callbacks tied to discrete events are **not** invoked on boot:
+The lifecycle callbacks tied to discrete events are **not** invoked on boot:
 
-| Callback        | Runs on  | Does NOT run on            |
-|-----------------|----------|-----------------------------|
-| `on_install/1`  | First install only. | Boot. Update. Re-enabling. |
+| Callback        | Runs on              | Does NOT run on            |
+|-----------------|----------------------|-----------------------------|
+| `on_install/1`  | First install only.  | Boot. Update. Re-enabling. |
 | `on_update/2`   | Updates only.        | Boot. Install. Re-enabling. |
 | `on_uninstall/0`| Uninstall only.      | Boot. Disabling.           |
 
@@ -3022,10 +3197,9 @@ If your extension needs initialization work that runs on every boot (warming a c
 
 #### Practical consequences
 
-A few things worth knowing about the boot path:
-
-- **Boot time scales linearly with installed extension count.** Each extension's pipeline includes a network fetch from GitHub plus a compile pass. Roughly seconds per extension on a fast connection, more on a slow one. Plan accordingly if you're going to run many extensions on the same install.
-- **GitHub availability matters at boot.** If GitHub is rate-limiting you or temporarily unreachable when Nexus restarts, the affected extensions land in `download_failed` and do not load at all — there's no fallback to a previously-cached state. The admin sees `download_failed` on the extensions list until they retry (toggle off and on, or restart again with GitHub reachable).
+- **Most boots are fast and offline.** Compile and migrate are still required on every boot, but the network round-trip is gone for cached versions. Cold restarts are dominated by compile time, which is roughly seconds per extension.
+- **GitHub matters at install and update — not at boot.** If GitHub is unreachable during a routine restart, your already-installed extensions still load from cache. GitHub becomes load-bearing again only when an admin installs something new or runs an update.
+- **The first boot of a never-cached version goes to GitHub.** This applies to fresh installs and to extensions that were installed before the caching system existed (and so don't have a cache entry yet). After the first successful boot, subsequent restarts are offline.
 - **In-memory state in child processes is reset.** Anything your `child_specs/0` children kept in their state (caches, counters, in-flight work) is gone after a restart. Persist anything that needs to survive a boot to the database or the filesystem.
 - **Compiled module state is reset.** Module attributes initialized at compile time get re-initialized. Process dictionaries are gone. This is standard OTP behavior, but worth noting if you were relying on module-level memoization.
 - **Disabled extensions don't load.** `load_all_enabled` filters by the `enabled` flag on the DB row. A disabled extension is skipped entirely on boot — modules don't compile, migrations don't replay (which means no silent-skip risk from disabled extensions), children don't start. Re-enabling triggers a fresh load.
