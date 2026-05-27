@@ -98,6 +98,22 @@ function ModerationPage({currentUser, navigate}) {
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Extension moderation sections — live-updated when extensions register
+  const [extSections, setExtSections] = useState(
+    () => window.NexusExtensions ? window.NexusExtensions.getModerationSections() : []
+  );
+  useEffect(() => {
+    if (!window.NexusExtensions) return;
+    const unsub = window.NexusExtensions.onModerationSectionsChange(() => {
+      setExtSections(window.NexusExtensions.getModerationSections());
+    });
+    return unsub;
+  }, []);
+  const hasExtApprovals = extSections.some(s => s.approvals);
+  const hasExtReports   = extSections.some(s => s.reports);
+  const extApprovalBadge = extSections.reduce((sum, s) => sum + (s.approvals ? (s.approvals.badge() || 0) : 0), 0);
+  const extReportBadge   = extSections.reduce((sum, s) => sum + (s.reports  ? (s.reports.badge()   || 0) : 0), 0);
+
   const isMod = currentUser?.role === "moderator" || currentUser?.role === "admin";
   if (!isMod) return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
 
@@ -151,6 +167,8 @@ function ModerationPage({currentUser, navigate}) {
     {k:"reports",  icon:"fa-flag",               label:"reports",          badge:pendingCount,    badgeColor:"red"},
     {k:"flagged",  icon:"fa-triangle-exclamation", label:"flagged posts",  badge:hidden.length,   badgeColor:"amber"},
     {k:"banned",   icon:"fa-user-slash",          label:"banned members",  badge:null},
+    ...(hasExtApprovals ? [{k:"ext_approvals", icon:"fa-circle-check",   label:"extension approvals", badge:extApprovalBadge||null, badgeColor:"amber"}] : []),
+    ...(hasExtReports   ? [{k:"ext_reports",   icon:"fa-flag-checkered", label:"extension reports",   badge:extReportBadge||null,   badgeColor:"red"}]   : []),
   ];
 
   return (
@@ -307,6 +325,9 @@ function ModerationPage({currentUser, navigate}) {
               ))}
             </div>}
         </>}
+
+        {tab==="ext_approvals"&&<ExtModerationTab type="approvals" context="moderator" currentUser={currentUser}/>}
+        {tab==="ext_reports"&&<ExtModerationTab type="reports" context="moderator" currentUser={currentUser}/>}
       </div>
     </div>
   );
@@ -318,6 +339,22 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
   const [sort, setSort] = useState("newest");
   const [hidden, setHidden] = useState([]);
   const [loadingHidden, setLoadingHidden] = useState(false);
+
+  // Extension moderation sections
+  const [extSections, setExtSections] = useState(
+    () => window.NexusExtensions ? window.NexusExtensions.getModerationSections() : []
+  );
+  useEffect(() => {
+    if (!window.NexusExtensions) return;
+    const unsub = window.NexusExtensions.onModerationSectionsChange(() => {
+      setExtSections(window.NexusExtensions.getModerationSections());
+    });
+    return unsub;
+  }, []);
+  const hasExtApprovals = extSections.some(s => s.approvals);
+  const hasExtReports   = extSections.some(s => s.reports);
+  const extApprovalBadge = extSections.reduce((sum, s) => sum + (s.approvals ? (s.approvals.badge() || 0) : 0), 0);
+  const extReportBadge   = extSections.reduce((sum, s) => sum + (s.reports  ? (s.reports.badge()   || 0) : 0), 0);
 
   useEffect(()=>{
     if(tab==="flagged"&&hidden.length===0){
@@ -351,6 +388,8 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
     {k:"flagged",  icon:"fa-triangle-exclamation",label:"flagged posts",badge:null},
     {k:"banned",   icon:"fa-user-slash",         label:"banned members",badge:bannedUsers.length||null},
     {k:"audit",    icon:"fa-clock-rotate-left",  label:"audit log",   badge:null},
+    ...(hasExtApprovals ? [{k:"ext_approvals", icon:"fa-circle-check",   label:"extension approvals", badge:extApprovalBadge||null}] : []),
+    ...(hasExtReports   ? [{k:"ext_reports",   icon:"fa-flag-checkered", label:"extension reports",   badge:extReportBadge||null}]   : []),
   ];
 
   return (
@@ -449,11 +488,76 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
             ))}
         </div>
       </>}
+
+      {tab==="ext_approvals"&&<ExtModerationTab type="approvals" context="admin" currentUser={currentUser}/>}
+      {tab==="ext_reports"&&<ExtModerationTab type="reports" context="admin" currentUser={currentUser}/>}
     </div>
   );
 }
 
 
+
+// ── ExtModerationTab ─────────────────────────────────────────────────────────
+// Shared renderer for Extension Approvals and Extension Reports tabs.
+// Used by both ModerationPage and AdminModerationPanel.
+//
+// Props:
+//   type     — "approvals" | "reports"
+//   context  — "moderator" | "admin"  (passed through to the extension component)
+//   currentUser — the current user object
+//
+// Reads registered sections from window.NexusExtensions and renders one
+// section block per extension that has contributed content for this tab type.
+function ExtModerationTab({ type, context, currentUser }) {
+  const [sections, setSections] = useState(
+    () => window.NexusExtensions ? window.NexusExtensions.getModerationSections() : []
+  );
+
+  useEffect(() => {
+    if (!window.NexusExtensions) return;
+    const unsub = window.NexusExtensions.onModerationSectionsChange(() => {
+      setSections(window.NexusExtensions.getModerationSections());
+    });
+    return unsub;
+  }, []);
+
+  const relevant = sections.filter(s => s[type] !== null && s[type] !== undefined);
+
+  if (relevant.length === 0) {
+    return (
+      <div style={{textAlign:"center",padding:"48px 0",color:"var(--t5)",fontSize:13}}>
+        <i className="fa-solid fa-puzzle-piece" style={{fontSize:28,display:"block",marginBottom:10,opacity:0.3}}/>
+        No extensions have registered {type === "approvals" ? "approval queues" : "report handlers"} yet.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:24}}>
+      {relevant.map(section => {
+        const Comp = section[type].component;
+        return (
+          <div key={section.slug}>
+            {/* Section header */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+              <div style={{width:28,height:28,borderRadius:7,background:"var(--s2)",border:"0.5px solid var(--b1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {section.logo_url
+                  ? <img src={section.logo_url} style={{width:18,height:18,borderRadius:4,objectFit:"cover"}} alt=""/>
+                  : <i className="fa-solid fa-puzzle-piece" style={{fontSize:12,color:"var(--t4)"}}/>}
+              </div>
+              <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{section.label}</span>
+              <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:"rgba(167,139,250,0.08)",color:"var(--ac)",border:"0.5px solid rgba(167,139,250,0.2)"}}>extension</span>
+            </div>
+            {/* Extension component */}
+            <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+              <Comp currentUser={currentUser} context={context}/>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 export { ReportCard, ModerationPage, AdminModerationPanel };

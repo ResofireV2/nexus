@@ -1406,6 +1406,70 @@ window.NexusExtensions = {
       ? window._nexusApi.upload(`/uploads/ext/${slug}`, file, params)
       : Promise.resolve({ error: "API not available" });
   },
+
+  // Moderation sections — extensions can contribute to the Approvals and
+  // Reports tabs on both the forum-side ModerationPage and the admin-side
+  // AdminModerationPanel.
+  //
+  // Register once per extension with a single call. Nexus renders your
+  // component inside both panels under a section header with your extension
+  // name and logo. Your component receives { currentUser, context } where
+  // context is "moderator" (forum-side panel) or "admin" (admin panel) so
+  // you can conditionally show different controls.
+  //
+  // Registration:
+  //   window.NexusExtensions.registerModerationSection({
+  //     slug:             "gallery",           // your extension slug
+  //     label:            "Gallery",           // section header label
+  //     logo_url:         "...",               // optional logo URL
+  //
+  //     // Approvals — items awaiting moderator/admin approval
+  //     approvals: {
+  //       badge:     () => pendingCount,       // function returning a number
+  //       component: GalleryApprovalsQueue,    // React component
+  //     },
+  //
+  //     // Reports — user-submitted reports on extension content
+  //     reports: {
+  //       badge:     () => pendingReports,
+  //       component: GalleryReportsQueue,
+  //     },
+  //   });
+  //
+  // Either approvals or reports (or both) may be provided. Omitting one
+  // simply means your extension won't appear in that tab.
+  //
+  // The "Extension Approvals" and "Extension Reports" tabs are hidden when
+  // no extensions have registered for them — zero impact on installs without
+  // moderation-aware extensions.
+  _moderationSections: [],
+  _moderationListeners: [],
+
+  registerModerationSection({ slug, label, logo_url, approvals, reports }) {
+    if (!slug || !label) {
+      console.warn("[NexusExtensions] registerModerationSection: slug and label are required");
+      return;
+    }
+    if (!approvals && !reports) {
+      console.warn("[NexusExtensions] registerModerationSection: at least one of approvals or reports must be provided");
+      return;
+    }
+    if (this._moderationSections.some(function(s) { return s.slug === slug; })) {
+      console.warn("[NexusExtensions] registerModerationSection: slug '" + slug + "' is already registered");
+      return;
+    }
+    this._moderationSections.push({ slug, label, logo_url: logo_url || null, approvals: approvals || null, reports: reports || null });
+    this._moderationListeners.forEach(function(fn) { fn(); });
+  },
+
+  getModerationSections() {
+    return this._moderationSections.slice();
+  },
+
+  onModerationSectionsChange(fn) {
+    this._moderationListeners.push(fn);
+    return () => { this._moderationListeners = this._moderationListeners.filter(f => f !== fn); };
+  },
 };
 
 // Load all enabled extension JS bundles declared in slot assignments.
