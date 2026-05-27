@@ -185,19 +185,41 @@ function ModerationPage({currentUser, navigate}) {
             {currentUser?.role}
           </div>
         </div>
-        <div style={{display:"flex",gap:0}}>
+        <div className="admin-tabs-underline">
           {tabs.map(t=>(
-            <div key={t.k} onClick={()=>setTab(t.k)}
-              style={{fontSize:13,color:tab===t.k?"var(--ac)":"var(--t4)",padding:"0 18px 12px",cursor:"pointer",
-                borderBottom:`1.5px solid ${tab===t.k?"var(--ac)":"transparent"}`,marginBottom:-0.5,
-                display:"flex",alignItems:"center",gap:7}}>
-              <i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>
+            <button key={t.k} onClick={()=>setTab(t.k)}
+              className={`admin-tab-underline${tab===t.k?" active":""}`}>
+              <i className={`fa-solid ${t.icon}`}/>
               {t.label}
               {t.badge>0&&<span style={{fontSize:10,fontWeight:500,borderRadius:20,padding:"1px 7px",
                 background:t.badgeColor==="red"?"rgba(248,113,113,0.2)":"rgba(251,191,36,0.15)",
                 color:t.badgeColor==="red"?"#f87171":"#fbbf24"}}>{t.badge}</span>}
-            </div>
+            </button>
           ))}
+        </div>
+        <div className="admin-tabs-mob">
+          <details>
+            <summary>
+              <span className="atm-label">
+                <i className={`fa-solid ${(tabs.find(t=>t.k===tab)||tabs[0]).icon}`} style={{fontSize:11}}/>
+                <span>{(tabs.find(t=>t.k===tab)||tabs[0]).label}</span>
+              </span>
+              <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+            </summary>
+            <div className="atm-menu">
+              {tabs.map(t=>(
+                <div key={t.k}
+                  className={`atm-item${tab===t.k?" active":""}`}
+                  onClick={e=>{setTab(t.k); e.currentTarget.closest("details").removeAttribute("open");}}>
+                  <i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>
+                  {t.label}
+                  {t.badge>0&&<span style={{fontSize:10,fontWeight:500,borderRadius:20,padding:"1px 6px",marginLeft:4,
+                    background:t.badgeColor==="red"?"rgba(248,113,113,0.2)":"rgba(251,191,36,0.15)",
+                    color:t.badgeColor==="red"?"#f87171":"#fbbf24"}}>{t.badge}</span>}
+                </div>
+              ))}
+            </div>
+          </details>
         </div>
       </div>
 
@@ -394,17 +416,39 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
 
   return (
     <div>
-      <div style={{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:20}}>
+      <div className="admin-tabs-underline" style={{marginBottom:20}}>
         {tabs.map(t=>(
-          <div key={t.k} onClick={()=>setTab(t.k)}
-            style={{fontSize:13,color:tab===t.k?"var(--ac)":"var(--t4)",padding:"0 16px 10px",cursor:"pointer",
-              borderBottom:`1.5px solid ${tab===t.k?"var(--ac)":"transparent"}`,marginBottom:-0.5,
-              display:"flex",alignItems:"center",gap:6}}>
-            <i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>
+          <button key={t.k} onClick={()=>setTab(t.k)}
+            className={`admin-tab-underline${tab===t.k?" active":""}`}>
+            <i className={`fa-solid ${t.icon}`}/>
             {t.label}
-            {t.badge>0&&<span style={{fontSize:10,fontWeight:500,borderRadius:20,padding:"1px 6px",background:"rgba(248,113,113,0.2)",color:"#f87171"}}>{t.badge}</span>}
-          </div>
+            {t.badge>0&&<span style={{fontSize:10,fontWeight:500,borderRadius:20,padding:"1px 6px",marginLeft:4,
+              background:"rgba(248,113,113,0.2)",color:"#f87171"}}>{t.badge}</span>}
+          </button>
         ))}
+      </div>
+      <div className="admin-tabs-mob" style={{marginBottom:20}}>
+        <details>
+          <summary>
+            <span className="atm-label">
+              <i className={`fa-solid ${(tabs.find(t=>t.k===tab)||tabs[0]).icon}`} style={{fontSize:11}}/>
+              <span>{(tabs.find(t=>t.k===tab)||tabs[0]).label}</span>
+            </span>
+            <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+          </summary>
+          <div className="atm-menu">
+            {tabs.map(t=>(
+              <div key={t.k}
+                className={`atm-item${tab===t.k?" active":""}`}
+                onClick={e=>{setTab(t.k); e.currentTarget.closest("details").removeAttribute("open");}}>
+                <i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>
+                {t.label}
+                {t.badge>0&&<span style={{fontSize:10,fontWeight:500,borderRadius:20,padding:"1px 6px",marginLeft:4,
+                  background:"rgba(248,113,113,0.2)",color:"#f87171"}}>{t.badge}</span>}
+              </div>
+            ))}
+          </div>
+        </details>
       </div>
 
       {tab==="reports"&&<>

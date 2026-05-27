@@ -351,10 +351,13 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
   const [uploadFilter,setUploadFilter]=useState("");
+  const [uploadPage,setUploadPage]=useState(1);
+  const [uploadPages,setUploadPages]=useState(1);
 
-  const fetchUploadData=()=>{
+  const fetchUploadData=(pg)=>{
+    const p=pg!==undefined?pg:uploadPage;
     api.get("/admin/uploads/stats").then(d=>setUploadStats(d.stats));
-    api.get("/admin/uploads"+(uploadFilter?`?type=${uploadFilter}`:``)).then(d=>setUploads(d.uploads||[]));
+    api.get(`/admin/uploads?page=${p}&limit=50`+(uploadFilter?`&type=${uploadFilter}`:"")).then(d=>{setUploads(d.uploads||[]);setUploadPages(d.pages||1);});
   };
 
   useEffect(()=>{
@@ -1369,7 +1372,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             <div className="fgt" style={{marginTop:8}}>All uploads</div>
             <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
               {["","post_image","avatar","logo","favicon"].map(f=>(
-                <button key={f} className={uploadFilter===f?"btn-primary":"btn-ghost"} style={{fontSize:11,padding:"4px 12px",borderRadius:20}} onClick={()=>setUploadFilter(f)}>
+                <button key={f} className={uploadFilter===f?"btn-primary":"btn-ghost"} style={{fontSize:11,padding:"4px 12px",borderRadius:20}} onClick={()=>{setUploadFilter(f);setUploadPage(1);fetchUploadData(1);}}>
                   {f||"all"}
                 </button>
               ))}
@@ -1379,37 +1382,54 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             </div>
             {uploads.length===0
               ?<div style={{padding:"20px 0",color:"var(--t5)",fontSize:13}}>No uploads yet</div>
-              :<div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
-                <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-                <table className="atbl">
-                  <thead><tr><th style={{width:48}}>File</th><th>Name</th><th>Type</th><th>Size</th><th>Dims</th><th>By</th><th>Date</th><th style={{width:40}}></th></tr></thead>
-                  <tbody>
-                    {uploads.map(u=>(
-                      <tr key={u.id}>
-                        <td>
-                          {u.url&&<img src={u.url} style={{width:36,height:36,objectFit:"cover",borderRadius:4,border:"0.5px solid var(--b1)"}} alt=""/>}
-                        </td>
-                        <td style={{maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--t3)"}}>{u.original_name}</td>
-                        <td><span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{u.upload_type}</span></td>
-                        <td style={{fontSize:11,color:"var(--t5)"}}>{fmtBytes(u.size_bytes)}</td>
-                        <td style={{fontSize:11,color:"var(--t5)"}}>{u.width&&u.height?`${u.width}×${u.height}`:"-"}</td>
-                        <td style={{fontSize:11,color:"var(--t4)"}}>{u.user?.username||"-"}</td>
-                        <td style={{fontSize:11,color:"var(--t5)"}}>{ago(u.inserted_at)}</td>
-                        <td>
-                          <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={async()=>{
-                            if(!confirm("Delete this file?"))return;
-                            await api.delete(`/admin/uploads/${u.id}`);
-                            setUploads(p=>p.filter(x=>x.id!==u.id));
-                            fetchUploadData();
-                            toast("Deleted");
-                          }}>✕</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              :<>
+                <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
+                  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                  <table className="atbl">
+                    <thead><tr><th style={{width:48}}>File</th><th>Name</th><th>Type</th><th>Size</th><th>Dims</th><th>By</th><th>Date</th><th style={{width:40}}></th></tr></thead>
+                    <tbody>
+                      {uploads.map(u=>(
+                        <tr key={u.id}>
+                          <td>
+                            {u.url&&<img src={u.url} style={{width:36,height:36,objectFit:"cover",borderRadius:4,border:"0.5px solid var(--b1)"}} alt=""/>}
+                          </td>
+                          <td style={{maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--t3)"}}>{u.original_name}</td>
+                          <td><span style={{fontSize:10,background:"var(--bg3)",borderRadius:4,padding:"2px 6px",color:"var(--t4)"}}>{u.upload_type}</span></td>
+                          <td style={{fontSize:11,color:"var(--t5)"}}>{fmtBytes(u.size_bytes)}</td>
+                          <td style={{fontSize:11,color:"var(--t5)"}}>{u.width&&u.height?`${u.width}×${u.height}`:"-"}</td>
+                          <td style={{fontSize:11,color:"var(--t4)"}}>{u.user?.username||"-"}</td>
+                          <td style={{fontSize:11,color:"var(--t5)"}}>{ago(u.inserted_at)}</td>
+                          <td>
+                            <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={async()=>{
+                              if(!confirm("Delete this file?"))return;
+                              await api.delete(`/admin/uploads/${u.id}`);
+                              setUploads(p=>p.filter(x=>x.id!==u.id));
+                              fetchUploadData();
+                              toast("Deleted");
+                            }}>✕</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  </div>
                 </div>
-              </div>}
+                {uploadPages>1&&(
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:12,fontSize:13}}>
+                    <button className="btn-ghost" style={{fontSize:12,padding:"5px 14px"}}
+                      disabled={uploadPage<=1}
+                      onClick={()=>{const p=uploadPage-1;setUploadPage(p);fetchUploadData(p);}}>
+                      <i className="fa-solid fa-arrow-left" style={{marginRight:6}}/>Previous
+                    </button>
+                    <span style={{color:"var(--t5)",fontSize:12}}>Page {uploadPage} of {uploadPages}</span>
+                    <button className="btn-ghost" style={{fontSize:12,padding:"5px 14px"}}
+                      disabled={uploadPage>=uploadPages}
+                      onClick={()=>{const p=uploadPage+1;setUploadPage(p);fetchUploadData(p);}}>
+                      Next<i className="fa-solid fa-arrow-right" style={{marginLeft:6}}/>
+                    </button>
+                  </div>
+                )}
+              </>}
           </>}
 
           {sec==="layout"&&<LayoutAdmin layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}

@@ -456,17 +456,32 @@ export function AdminAnalyticsPanel() {
       </div>
 
       {/* Sub-tabs */}
-      <div style={{ display:"flex", borderBottom:"0.5px solid var(--b1)", marginBottom:20, gap:0 }}>
+      <div className="admin-tabs-underline" style={{marginBottom:20}}>
         {TABS.map(t => (
           <button key={t} onClick={() => switchTab(t)}
-            style={{ fontSize:12, padding:"7px 14px", background:"none", border:"none",
-              borderBottom: tab === t ? "2px solid var(--t1)" : "2px solid transparent",
-              marginBottom:-1, cursor:"pointer",
-              color: tab === t ? "var(--t1)" : "var(--t4)",
-              fontWeight: tab === t ? 500 : 400 }}>
+            className={`admin-tab-underline${tab === t ? " active" : ""}`}>
             {TAB_LABEL[t]}
           </button>
         ))}
+      </div>
+      <div className="admin-tabs-mob" style={{marginBottom:20}}>
+        <details>
+          <summary>
+            <span className="atm-label">
+              <span>{TAB_LABEL[tab]}</span>
+            </span>
+            <i className="fa-solid fa-chevron-down" style={{fontSize:11,color:"var(--t5)"}}/>
+          </summary>
+          <div className="atm-menu">
+            {TABS.map(t => (
+              <div key={t}
+                className={`atm-item${tab === t ? " active" : ""}`}
+                onClick={e => { switchTab(t); e.currentTarget.closest("details").removeAttribute("open"); }}>
+                {TAB_LABEL[t]}
+              </div>
+            ))}
+          </div>
+        </details>
       </div>
 
       {/* Content */}
