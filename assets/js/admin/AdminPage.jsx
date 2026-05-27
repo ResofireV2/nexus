@@ -15,6 +15,7 @@ import { AdminExtensionsPanel, ExtensionAdminPage } from "./AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { AdminPagesPanel } from "./AdminPages";
+import { AdminReactionsPanel } from "./AdminReactionsPanel";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
@@ -339,6 +340,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [pwaCfg,setPwaCfg]=useState({});
   const [spamCfg,setSpamCfg]=useState({});
   const [integrationsCfg,setIntegrationsCfg]=useState({});
+  const [reactionsCfg,setReactionsCfg]=useState({});
   // Watch all cfg values and mark dirty — but only after the fetch has fully
   // settled. Captures the current gen at effect-run time; if the settled gen
   // hasn't caught up yet, this is still a hydration flush, not a user change.
@@ -346,7 +348,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     const gen = loadGen.current;
     if(settledGen.current < gen) return;
     setIsDirty(true);
-  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg,integrationsCfg]);
+  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg,integrationsCfg,reactionsCfg]);
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -379,7 +381,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
     loadGen.current += 1;
     const myGen = loadGen.current;
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});}).then(()=>{ settledGen.current = myGen; });
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});}).then(()=>{ settledGen.current = myGen; });
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -500,6 +502,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"tags",       icon:"fa-tag",                  label:"tags"},
       {k:"badges",     icon:"fa-medal",                label:"badges"},
       {k:"pages",      icon:"fa-file-lines",          label:"pages"},
+      {k:"reactions",   icon:"fa-heart",               label:"reactions"},
     ]},
     {label:"system", items:[
       {k:"storage",    icon:"fa-database",             label:"storage"},
@@ -571,7 +574,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
         <div className="admin-topbar">
           <div style={{flex:1}}/>
           <button className="btn-ghost" disabled={!isDirty} onClick={()=>{
-            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});});
+            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});});
             setIsDirty(false);
             toast("Discarded");
           }}>Discard</button>
@@ -581,6 +584,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             else if(sec==="layout") saveSection("layout",layoutCfg);
             else if(sec==="forum-info") saveSection("general",general);
             else if(sec==="storage") saveSection("uploads",uploadCfg);
+            else if(sec==="reactions") saveSection("reactions",reactionsCfg);
             else if(sec==="permissions") {
               const saves = [saveSection("registration",regCfg), saveSection("posting",postCfg)];
               // Save each extension's permission settings
@@ -1306,6 +1310,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
 
           {sec==="badges"&&<AdminBadgesPanel/>}
           {sec==="pages"&&<AdminPagesPanel/>}
+          {sec==="reactions"&&<AdminReactionsPanel reactionsCfg={reactionsCfg} setReactionsCfg={setReactionsCfg} setIsDirty={setIsDirty}/>}
           {sec==="analytics"&&<AdminAnalyticsPanel/>}
 
           {sec==="leaderboard"&&<AdminLeaderboardPanel lbCfg={lbCfg} setLbCfg={setLbCfg} saving={saving} saveSection={saveSection}/>}

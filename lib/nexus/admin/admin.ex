@@ -246,6 +246,19 @@ defmodule Nexus.Admin do
       "who_can_upload"             => "member",
       "media_public"               => false
     },
+    "reactions" => %{
+      "enabled" => true,
+      "list"    => [
+        %{"emoji" => "❤️",  "label" => "Love"},
+        %{"emoji" => "👍",  "label" => "Like"},
+        %{"emoji" => "😂",  "label" => "Haha"},
+        %{"emoji" => "😲",  "label" => "Wow"},
+        %{"emoji" => "😭",  "label" => "Sad"},
+        %{"emoji" => "🔥",  "label" => "Fire"},
+        %{"emoji" => "🎉",  "label" => "Celebrate"},
+        %{"emoji" => "👀",  "label" => "Eyes"}
+      ]
+    },
     "appearance" => %{
       "accent_color"      => "#a78bfa",
       "dark_mode_default" => true,

@@ -4,7 +4,8 @@ import { RsAv } from "./Avatar";
 
 // ── Reactions ─────────────────────────────────────────────────────────────────
 
-export const REACTIONS = [
+// Default reaction set — used as fallback when admin config hasn't loaded yet.
+const DEFAULT_REACTIONS = [
   {emoji:"❤️", label:"Love"},
   {emoji:"👍", label:"Like"},
   {emoji:"😂", label:"Haha"},
@@ -14,6 +15,19 @@ export const REACTIONS = [
   {emoji:"🎉", label:"Celebrate"},
   {emoji:"👀", label:"Eyes"},
 ];
+
+// Returns the current configured reaction list. Reads from window._reactionsCfg
+// which is populated when admin settings load. Falls back to the default set
+// so the component always has something to render.
+export function getReactions() {
+  const cfg = window._reactionsCfg;
+  if (cfg && Array.isArray(cfg.list) && cfg.list.length > 0) return cfg.list;
+  return DEFAULT_REACTIONS;
+}
+
+// Legacy named export kept for any code that imports REACTIONS directly.
+// Evaluated at call time so it always reflects the current config.
+export const REACTIONS = DEFAULT_REACTIONS;
 
 // ── Reactions Modal ───────────────────────────────────────────────────────────
 // Full-screen modal showing who reacted with which emoji.
@@ -153,7 +167,8 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
   const totalCount = reactions.reduce((s,r)=>s+(r.count||0),0);
   const isSelf = currentUser && authorId && currentUser.id === authorId;
   const selfReactionsAllowed = postCfgLoaded ? window._postCfg.allow_self_reactions !== false : false;
-  const canReact = !isSelf || selfReactionsAllowed;
+  const reactionsEnabled = !window._reactionsCfg || window._reactionsCfg.enabled !== false;
+  const canReact = reactionsEnabled && (!isSelf || selfReactionsAllowed);
 
   return (
     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -164,7 +179,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
         {totalCount>0&&<span>{totalCount}</span>}
         {open&&(
           <div className="rx-picker" onClick={e=>e.stopPropagation()}>
-            {REACTIONS.map(({emoji,label})=>(
+            {getReactions().map(({emoji,label})=>(
               <div key={emoji} className={`rx-pick-btn ${userReaction===emoji?"selected":""}`}
                 title={label} onClick={e=>{e.stopPropagation();react(emoji);}}>
                 {emoji}
@@ -175,7 +190,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
       </div>}
       {reactions.filter(r=>r.count>0).map(r=>(
         <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
-          onClick={()=>react(r.emoji)} title={REACTIONS.find(x=>x.emoji===r.emoji)?.label||r.emoji}>
+          onClick={()=>react(r.emoji)} title={getReactions().find(x=>x.emoji===r.emoji)?.label||r.emoji}>
           <span style={{fontSize:14}}>{r.emoji}</span>
           <span>{r.count}</span>
         </div>
