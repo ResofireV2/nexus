@@ -125,12 +125,12 @@ function LeaderboardPage({currentUser, navigate}) {
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {/* Header */}
       <div style={{padding:"22px 28px 0",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:12}}>
           <div>
             <div style={{fontSize:20,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3,marginBottom:3}}>Leaderboard</div>
             <div style={{fontSize:13,color:"var(--t4)"}}>The most active and celebrated voices in the community.</div>
           </div>
-          <div style={{display:"flex",gap:4}}>
+          <div style={{display:"flex",gap:4,flexShrink:0}}>
             {periodLabels.map(p=>(
               <button key={p.id} onClick={()=>setPeriod(p.id)}
                 style={{fontSize:11,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${period===p.id?"rgba(167,139,250,0.3)":"var(--b2)"}`,background:period===p.id?"rgba(167,139,250,0.1)":"transparent",color:period===p.id?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
