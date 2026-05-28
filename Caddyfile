@@ -1,4 +1,4 @@
-billyrayfoss.com {
+your-domain.com {
     # Security headers for all responses
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -51,6 +51,6 @@ billyrayfoss.com {
     }
 }
 
-www.billyrayfoss.com {
-    redir https://billyrayfoss.com{uri} permanent
+www.your-domain.com {
+    redir https://your-domain.com{uri} permanent
 }

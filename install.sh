@@ -57,8 +57,14 @@ read -p "  Domain (e.g. forum.example.com): " DOMAIN
 read -p "  Email for SSL certificate (Let's Encrypt): " LE_EMAIL
 [[ -z "$LE_EMAIL" ]] && die "Email is required for SSL"
 
-read -p "  Include www redirect? (y/n) [y]: " WWW
-WWW=${WWW:-y}
+# Only offer the www redirect for apex domains (no dots in the subdomain position).
+# A subdomain like forum.example.com already has a prefix — www.forum.example.com
+# is not a meaningful redirect target.
+WWW="n"
+if [[ "$DOMAIN" =~ ^[^.]+\.[^.]+$ ]]; then
+  read -p "  Include www redirect? (y/n) [y]: " WWW
+  WWW=${WWW:-y}
+fi
 
 echo ""
 
@@ -178,8 +184,12 @@ chmod 600 "$INSTALL_DIR/.env"
 ok ".env written"
 
 # ── Write Caddyfile ──────────────────────────
+# The Caddyfile is written to /opt/nexus/Caddyfile — this is the
+# canonical copy. The nexus-update script copies it from here to
+# /etc/caddy/Caddyfile on every update, so any manual additions
+# (e.g. a homepage or docs subdomain on the same server) should be
+# made to /opt/nexus/Caddyfile to survive updates.
 banner "Configuring Caddy..."
-mkdir -p /etc/caddy
 
 CADDY_WWW=""
 if [[ "$WWW" =~ ^[Yy] ]]; then
@@ -189,20 +199,13 @@ www.$DOMAIN {
 }"
 fi
 
-cat > /etc/caddy/Caddyfile << EOF
+cat > "$INSTALL_DIR/Caddyfile" << EOF
 {
     email $LE_EMAIL
 }
 
 $DOMAIN {
-    reverse_proxy localhost:4000
-
-    @websockets {
-        header Connection *Upgrade*
-        header Upgrade websocket
-    }
-    reverse_proxy @websockets localhost:4000
-
+    # Security headers for all responses
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
@@ -210,16 +213,53 @@ $DOMAIN {
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 
-    # Exclude SSE endpoints from gzip — gzip buffers responses which breaks
-    # Server-Sent Events streams that must flush data to the client immediately.
+    @static {
+        path /assets/* /images/* /favicon.ico /robots.txt /manifest.json /sw.js
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # User-uploaded avatars and logos use UUID filenames — new uploads always
+    # get a new URL, so long-lived caching is safe.
+    @uploads_immutable {
+        path /uploads/avatars/* /uploads/logos/*
+    }
+    header @uploads_immutable Cache-Control "public, max-age=31536000, immutable"
+
+    # Self-hosted Font Awesome — woff2 files are versioned by filename.
+    @fonts {
+        path /fonts/*
+    }
+    header @fonts Cache-Control "public, max-age=31536000, immutable"
+
+    # Exclude SSE (Server-Sent Events) endpoints from gzip compression.
+    # Gzip buffers the full response before compressing — this breaks SSE
+    # streams which must flush data to the client incrementally.
     @nosse {
-        not path */live
+        not path */live */events */stream
     }
     encode @nosse gzip
+
+    # --- Nexus (catch-all, must be last) ---
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websockets {
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+
+    handle {
+        reverse_proxy localhost:4000 {
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
 }
 $CADDY_WWW
 EOF
 
+cp "$INSTALL_DIR/Caddyfile" /etc/caddy/Caddyfile
 systemctl restart caddy
 ok "Caddy configured for $DOMAIN"
 
@@ -327,6 +367,7 @@ tar --strip-components=1 -xzf "$TMP_ARCHIVE" -C "$TMP_EXTRACT" \
 echo -e "${CYAN}▶ Applying files to $INSTALL_DIR (preserving .env and compose files)...${NC}"
 rsync -a \
   --exclude=".env" \
+  --exclude=".env" \
   --exclude="docker-compose.yml" \
   --exclude="docker-compose.prod.yml" \
   "$TMP_EXTRACT/" "$INSTALL_DIR/"
@@ -378,6 +419,10 @@ echo ""
 echo "  URL:        https://$DOMAIN"
 echo "  App code:   $INSTALL_DIR"
 echo "  Data:       $DATA_DIR  ← database + uploads (never deleted on update)"
+echo ""
+echo "  To add other sites to this server (e.g. a homepage or docs site),"
+echo "  edit /opt/nexus/Caddyfile and run: cp /opt/nexus/Caddyfile /etc/caddy/Caddyfile && systemctl reload caddy"
+echo "  This file is the canonical Caddyfile — it survives nexus-update."
 echo ""
 echo "  To update:  sudo nexus-update    (when a new release is tagged)"
 echo "  To backup:  sudo nexus-backup"
