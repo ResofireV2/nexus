@@ -4145,9 +4145,29 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
   const submit=async e=>{
     e.preventDefault(); setLoading(true); setErr(null);
     try {
-      const body = mode==="login"
-        ? {email: form.login.trim(), password: form.password, remember_me: remember}
-        : {email: form.email.trim(), username: form.username.trim(), password: form.password};
+      let body;
+      if (mode === "login") {
+        body = {email: form.login.trim(), password: form.password, remember_me: remember};
+      } else {
+        // Collect the Turnstile token if the widget was rendered
+        const cfToken = (turnstileSiteKey && turnstileWidgetId.current != null && window.turnstile)
+          ? window.turnstile.getResponse(turnstileWidgetId.current)
+          : null;
+        // If Turnstile is configured but the user hasn't completed the challenge yet,
+        // block submission and prompt them rather than sending an empty token
+        // (which the backend would reject as "Human verification failed").
+        if (turnstileSiteKey && (!cfToken || cfToken === "")) {
+          setErr("Please complete the human verification challenge.");
+          setLoading(false);
+          return;
+        }
+        body = {
+          email:    form.email.trim(),
+          username: form.username.trim(),
+          password: form.password,
+          ...(cfToken ? {cf_turnstile_response: cfToken} : {})
+        };
+      }
       const d=await api.post(mode==="login"?"/auth/login":"/auth/register", body);
       if(d.access_token){api.setToken(d.access_token);onLogin(d.user);}
       else setErr(formatApiErrors(d));
