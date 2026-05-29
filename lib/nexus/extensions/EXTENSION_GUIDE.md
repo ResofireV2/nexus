@@ -3383,7 +3383,7 @@ The manifest's full schema is published at `/manifest_schema.json` on every Nexu
 }
 ```
 
-Replace `your-nexus-host` with the host you're developing against — for billyrayfoss.com, the URL is `https://billyrayfoss.com/manifest_schema.json`. The schema is the host's authoritative declaration of every manifest field; if a field appears here that isn't in this guide, the schema is right and the guide will be updated.
+Replace `your-nexus-host` with the host you're developing against — for example, if your forum is at `forum.example.com`, the URL is `https://forum.example.com/manifest_schema.json`. The schema is the host's authoritative declaration of every manifest field; if a field appears here that isn't in this guide, the schema is right and the guide will be updated.
 
 ### Appendix E — Common errors
 
