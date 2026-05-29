@@ -19,15 +19,21 @@ export function userColor(user) {
   return SPACE_COLORS[id % SPACE_COLORS.length];
 }
 
-// Relative time — "just now", "5m", "3h", "2d", or locale date
+// Relative time — "now", "5m", "3h", "2d", or compact date
 export function ago(d) {
   if (!d) return "";
   const s = Math.floor((Date.now() - new Date(d)) / 1000);
-  if (s < 60)     return "just now";
+  if (s < 60)     return "now";
   if (s < 3600)   return `${Math.floor(s / 60)}m`;
   if (s < 86400)  return `${Math.floor(s / 3600)}h`;
   if (s < 604800) return `${Math.floor(s / 86400)}d`;
-  return new Date(d).toLocaleDateString();
+  const dt = new Date(d);
+  const now = new Date();
+  const m = dt.getMonth() + 1;
+  const day = dt.getDate();
+  const y = dt.getFullYear();
+  if (y === now.getFullYear()) return `${m}-${day}`;
+  return `${m}-${day}-${String(y).slice(2)}`;
 }
 
 // "June 2025"
