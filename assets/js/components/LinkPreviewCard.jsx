@@ -27,6 +27,23 @@ function lpCacheSet(url, data) {
 }
 
 function renderLinkPreviewCard(node, data) {
+  // If the scrape produced no real content — no description, no image, and
+  // the title is just the domain or site name (or absent entirely) — fall
+  // through to the error renderer which shows a clean clickable link pill
+  // instead of an empty-looking card. Covers sites like GitHub that block
+  // scrapers and return no useful OG tags.
+  const hasRealContent =
+    data.description ||
+    data.image_url   ||
+    (data.title &&
+     data.title !== data.domain &&
+     data.title !== data.site_name);
+
+  if (!hasRealContent) {
+    renderLinkPreviewError(node, data.url);
+    return;
+  }
+
   const image    = data.image_url   || null;
   const favicon  = data.favicon_url || null;
   const title    = data.title       || data.domain || "";
