@@ -1493,11 +1493,11 @@ S.textContent = `
   --fs-content:14px;
   --fs-feed-title:14px;
   --fs-code:12px;
-  --bg:#0d0d14;
-  --s1:#13121e;
+  --bg:#111111;
+  --s1:#1a1a1a;
   --av-radius:22%;
-  --s2:#18182a;
-  --s3:#1e1c2e;
+  --s2:#222222;
+  --s3:#2a2a2a;
   --b1:rgba(255,255,255,0.07);
   --b2:rgba(255,255,255,0.10);
   --b3:rgba(255,255,255,0.14);
@@ -1506,11 +1506,11 @@ S.textContent = `
   --t3:rgba(255,255,255,0.55);
   --t4:rgba(255,255,255,0.38);
   --t5:rgba(255,255,255,0.28);
-  --ac:#a78bfa;
-  --ac-on:#0d0d14;
-  --ac-bg:rgba(167,139,250,0.09);
-  --ac-border:rgba(167,139,250,0.25);
-  --ac-text:#c4b5fd;
+  --ac:#4A90E2;
+  --ac-on:#ffffff;
+  --ac-bg:rgba(74,144,226,0.12);
+  --ac-border:rgba(74,144,226,0.30);
+  --ac-text:rgb(97,188,255);
   --green:#34d399;
   --pink:#f472b6;
   --blue:#60a5fa;
@@ -1626,7 +1626,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .sb-item-name{font-size:var(--fs-body);color:var(--t3);flex:1;}
 .sb-item.active .sb-item-name{color:var(--ac-text);font-weight:500;}
 .sb-item-count{font-size:11px;color:var(--t5);}
-.sb-item.active .sb-item-count{color:rgba(167,139,250,0.55);}
+.sb-item.active .sb-item-count{color:rgba(74,144,226,0.65);}
 .sb-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}
 .sb-divider{height:0.5px;background:var(--b1);margin:8px 0;}
 .sb-user{border-top:0.5px solid var(--b1);padding:10px 12px;display:flex;align-items:center;gap:9px;flex-shrink:0;}
@@ -1666,7 +1666,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Avatar menu */
 .av-wrap{position:relative;margin-left:2px;}
 .av-circle{width:38px;height:38px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#fff;cursor:pointer;border:2px solid transparent;transition:border-color .15s;flex-shrink:0;overflow:hidden;}
-.av-circle:hover{border-color:rgba(167,139,250,.5);}
+.av-circle:hover{border-color:rgba(74,144,226,.5);}
 .av-circle.open{border-color:var(--ac);}
 .av-dd{position:absolute;top:calc(100% + 10px);right:0;width:200px;background:var(--s2);border:0.5px solid var(--b3);border-radius:14px;padding:6px;z-index:200;opacity:0;pointer-events:none;transform:translateY(-6px);transition:opacity .18s ease,transform .18s ease;}
 .av-dd.open{opacity:1;pointer-events:all;transform:translateY(0);}
@@ -1906,7 +1906,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .mob-tab.active{color:var(--ac);}
 .mob-tab i{font-size:20px;}
 .mob-tab-label{font-size:9px;letter-spacing:.2px;}
-.mob-tab-compose{width:46px;height:46px;border-radius:14px;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;border:none;cursor:pointer;box-shadow:0 2px 12px rgba(167,139,250,.4);}
+.mob-tab-compose{width:46px;height:46px;border-radius:14px;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;border:none;cursor:pointer;box-shadow:0 2px 12px rgba(74,144,226,.4);}
 .mob-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg);}
 .mob-overlay{position:fixed;inset:0;background:var(--bg);z-index:950;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
 .mob-overlay.right{transform:translateX(100%);}
@@ -1987,7 +1987,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:18px;
 --color-border:var(--b2);--color-border-over:var(--b3);
 --background-rgb:var(--s1);--rgb-background:24,24,42;
---rgb-accent:167,139,250;
+--rgb-accent:74,144,226;
 --shadow:0 8px 32px rgba(0,0,0,.5);
 --duration:120ms;height:380px;max-height:380px;}
 @media(max-width:767.99px){em-emoji-picker{height:320px;max-height:320px;width:100vw!important;border-radius:0;}}
@@ -2073,7 +2073,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 /* Notifications */
 .notif-item{display:flex;align-items:flex-start;gap:12px;padding:14px 20px;border-bottom:0.5px solid var(--b1);cursor:pointer;transition:background .1s;}
 .notif-item:hover{background:rgba(255,255,255,0.02);}
-.notif-item.unread{background:rgba(167,139,250,0.04);}
+.notif-item.unread{background:rgba(74,144,226,0.04);}
 .notif-pip{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px;}
 
 /* DM */
@@ -2209,13 +2209,13 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .md-body code{font-family:'SF Mono','Fira Code',monospace;font-size:var(--fs-code);background:rgba(255,255,255,0.07);color:var(--ac-text);padding:2px 6px;border-radius:5px;}
 .md-body pre{background:rgba(255,255,255,0.05);border:0.5px solid var(--b1);border-radius:10px;padding:14px;overflow-x:auto;margin-bottom:12px;}
 .md-body pre code{background:none;padding:0;color:var(--t2);}
-.md-body blockquote{border-left:3px solid var(--ac);padding:8px 14px;color:var(--t3);margin:10px 0;background:rgba(167,139,250,0.06);border-radius:0 8px 8px 0;}
+.md-body blockquote{border-left:3px solid var(--ac);padding:8px 14px;color:var(--t3);margin:10px 0;background:rgba(74,144,226,0.06);border-radius:0 8px 8px 0;}
 .md-body blockquote p{margin-bottom:0;}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
 .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;}
-@keyframes refHighlight{0%{background:transparent;}25%{background:rgba(167,139,250,0.18);}75%{background:rgba(167,139,250,0.12);}100%{background:transparent;}}
+@keyframes refHighlight{0%{background:transparent;}25%{background:rgba(74,144,226,0.18);}75%{background:rgba(74,144,226,0.12);}100%{background:transparent;}}
 .reply-ref-highlight{animation:refHighlight 1.2s ease forwards;}
 .ref-popup{position:fixed;z-index:9100;width:420px;max-width:calc(100vw - 24px);background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.55);pointer-events:none;}
 .ref-popup-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
@@ -2259,7 +2259,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .ucard-wrap{position:fixed;z-index:8000;pointer-events:none;}
 .ucard-wrap.visible{pointer-events:auto;}
 .ucard{background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;width:320px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5);animation:rxPop .15s ease;}
-.ucard-cover{height:100px;background:linear-gradient(135deg,#1e1c2e,#312e55);position:relative;flex-shrink:0;}
+.ucard-cover{height:100px;background:linear-gradient(135deg,#2a2a2a,#1a1a2e);position:relative;flex-shrink:0;}
 .ucard-body{padding:16px 18px 18px;}
 .ucard-stat{background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 8px;text-align:center;flex:1;}
 .ucard-stat-n{font-size:18px;font-weight:500;color:var(--t1);}
@@ -2427,7 +2427,7 @@ function deriveAccentVars(hex) {
   const rgb = hexToRgb(hex);
   const lum = luminance(rgb);
   // Text on solid accent background: white for dark colors, near-black for light
-  const onAccent = lum > 0.35 ? "#0d0d14" : "#ffffff";
+  const onAccent = lum > 0.35 ? "#111111" : "#ffffff";
   // Tinted bg: accent at low opacity
   const [r,g,b] = rgb;
   const acBg = `rgba(${r},${g},${b},0.12)`;
@@ -2448,7 +2448,7 @@ function deriveTintVars(hex) {
     const br=(base>>16)&255, bg=(base>>8)&255, bb=base&255;
     return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
   };
-  return { bg:mix(0x0d0d14,0.10), s1:mix(0x13121e,0.10), s2:mix(0x18182a,0.10), s3:mix(0x1e1c2e,0.10) };
+  return { bg:mix(0x111111,0.10), s1:mix(0x1a1a1a,0.10), s2:mix(0x222222,0.10), s3:mix(0x2a2a2a,0.10) };
 }
 
 // ── Light-mode derive functions ──────────────────────────────────────────────
@@ -2460,7 +2460,7 @@ function deriveAccentVarsLight(hex) {
   const lum = luminance(rgb);
   const [r,g,b] = rgb;
   // Text on solid accent bg: same logic as dark (luminance-based)
-  const onAccent = lum > 0.35 ? "#0d0d14" : "#ffffff";
+  const onAccent = lum > 0.35 ? "#111111" : "#ffffff";
   // Tinted bg at low opacity looks fine on white too
   const acBg = `rgba(${r},${g},${b},0.09)`;
   const acBorder = `rgba(${r},${g},${b},0.25)`;
@@ -2544,7 +2544,7 @@ function applyTheme(mode, app={}) {
     // Dark mode
     Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
     // Accent
-    const ac = app.accent_color || "#a78bfa";
+    const ac = app.accent_color || "#4A90E2";
     r.style.setProperty("--ac", ac);
     const vars = deriveAccentVars(ac);
     if (vars) {
@@ -2558,7 +2558,7 @@ function applyTheme(mode, app={}) {
       const tint = deriveTintVars(app.tint_color);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
     } else {
-      r.style.setProperty("--bg","#0d0d14"); r.style.setProperty("--s1","#13121e"); r.style.setProperty("--s2","#18182a"); r.style.setProperty("--s3","#1e1c2e");
+      r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
     }
   }
 
@@ -2792,7 +2792,7 @@ function AuthPage({onLogin}) {
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-logo">
-          <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#ec4899)",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
+          <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#4A90E2,#2563eb)",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
           <div className="auth-title">{mode==="login"?"Welcome back":"Create account"}</div>
           <div className="auth-sub">{mode==="login"?"Sign in to continue":"Join the community"}</div>
         </div>
@@ -2919,7 +2919,7 @@ function AndroidInstallSheet({pwaCfg={}, appBranding={}}) {
         {/* App row */}
         <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
           <div style={{width:52,height:52,borderRadius:14,overflow:"hidden",flexShrink:0,
-            background:"linear-gradient(135deg,var(--ac),#7c3aed)",
+            background:"linear-gradient(135deg,var(--ac),#1d6fbd)",
             display:"flex",alignItems:"center",justifyContent:"center"}}>
             {iconUrl
               ? <img src={iconUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
@@ -3793,7 +3793,7 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
           <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>{stats.online}</div><div className="stat-l">online</div></div>
           <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
           <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
-            <div className="stat-n" style={{color:"#a78bfa"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
+            <div className="stat-n" style={{color:"#4A90E2"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
             <div className="stat-l">your rank</div>
           </div>
         </div>
@@ -5011,7 +5011,7 @@ function App() {
                   ? <img src={appBranding.logo_url} style={{maxHeight:48,maxWidth:160,objectFit:"contain"}} alt={appBranding.site_name||"logo"}/>
                   : appBranding?.favicon_url
                     ? <img src={appBranding.favicon_url} style={{width:48,height:48,objectFit:"contain",borderRadius:12}} alt={appBranding.site_name||"logo"}/>
-                    : <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#a78bfa,#ec4899)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>
+                    : <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#4A90E2,#2563eb)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>
                         {(appBranding?.site_name||"N").slice(0,1).toUpperCase()}
                       </div>
                 }

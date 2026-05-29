@@ -260,7 +260,7 @@ defmodule Nexus.Admin do
       ]
     },
     "appearance" => %{
-      "accent_color"      => "#a78bfa",
+      "accent_color"      => "#4A90E2",
       "dark_mode_default" => true,
       "avatar_radius"     => 22
     },
