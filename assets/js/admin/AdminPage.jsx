@@ -362,6 +362,21 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     api.get(`/admin/uploads?page=${p}&limit=50`+(uploadFilter?`&type=${uploadFilter}`:"")).then(d=>{setUploads(d.uploads||[]);setUploadPages(d.pages||1);});
   };
 
+  // Load settings exactly once on mount. This must never re-run on currentUser
+  // changes — doing so would wipe unsaved admin input every time the visibility
+  // handler refreshes the session token and updates currentUser.
+  const settingsLoadedOnce = React.useRef(false);
+  useEffect(()=>{
+    if(currentUser?.role!=="admin") return;
+    if(settingsLoadedOnce.current) return;
+    settingsLoadedOnce.current = true;
+    loadGen.current += 1;
+    const myGen = loadGen.current;
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});}).then(()=>{ settledGen.current = myGen; });
+  },[currentUser]);
+
+  // Live data — re-runs when currentUser changes (e.g. after session refresh).
+  // Does NOT touch settings state so unsaved admin input is never clobbered.
   useEffect(()=>{
     if(currentUser?.role!=="admin")return;
     api.get("/admin/dashboard").then(d=>setStats(d.stats));
@@ -379,9 +394,6 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       setReports(results.flatMap(d=>d.reports||[]));
     });
     api.get("/moderation/log").then(d=>setModLogs(d.logs||[]));
-    loadGen.current += 1;
-    const myGen = loadGen.current;
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});}).then(()=>{ settledGen.current = myGen; });
 
     return ()=>clearInterval(liveInterval);
   },[currentUser]);
@@ -574,9 +586,9 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
         <div className="admin-topbar">
           <div style={{flex:1}}/>
           <button className="btn-ghost" disabled={!isDirty} onClick={()=>{
-            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});});
-            setIsDirty(false);
-            toast("Discarded");
+            loadGen.current += 1;
+            const myGen = loadGen.current;
+            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});}).then(()=>{ settledGen.current = myGen; setIsDirty(false); toast("Discarded"); });
           }}>Discard</button>
           <button className="btn-primary" onClick={()=>{
             if(sec==="appearance") saveSection("appearance",branding);
