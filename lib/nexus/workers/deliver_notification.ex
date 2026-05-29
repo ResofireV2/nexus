@@ -95,16 +95,32 @@ defmodule Nexus.Workers.DeliverNotification do
   # Non-groupable types — strict idempotency: skip if exact duplicate exists
   defp handle_unique(attrs, user_id, actor_id, type, post_id, reply_id) do
     existing =
-      Nexus.Repo.one(
-        from n in Notification,
-          where:
-            n.user_id  == ^user_id and
-            n.actor_id == ^actor_id and
-            n.type     == ^type and
-            fragment("? IS NOT DISTINCT FROM ?", n.post_id,  ^post_id) and
-            fragment("? IS NOT DISTINCT FROM ?", n.reply_id, ^reply_id),
-          limit: 1
-      )
+      if type == "badge" do
+        # Badge notifications must be deduplicated by badge_id, not just by
+        # user_id + actor_id + type. Without this, every auto-awarded badge
+        # (actor_id = nil, post_id = nil, reply_id = nil) matches the same
+        # fingerprint and all but the first are silently dropped.
+        badge_id = get_in(attrs, [:data, :badge_id]) || get_in(attrs, [:data, "badge_id"])
+        Nexus.Repo.one(
+          from n in Notification,
+            where:
+              n.user_id == ^user_id and
+              n.type    == ^type    and
+              fragment("(?->>'badge_id') = ?", n.data, ^to_string(badge_id)),
+            limit: 1
+        )
+      else
+        Nexus.Repo.one(
+          from n in Notification,
+            where:
+              n.user_id  == ^user_id and
+              n.actor_id == ^actor_id and
+              n.type     == ^type and
+              fragment("? IS NOT DISTINCT FROM ?", n.post_id,  ^post_id) and
+              fragment("? IS NOT DISTINCT FROM ?", n.reply_id, ^reply_id),
+            limit: 1
+        )
+      end
 
     if existing do
       :ok

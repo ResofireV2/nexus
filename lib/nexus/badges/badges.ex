@@ -191,6 +191,11 @@ defmodule Nexus.Badges do
         }}
         |> Nexus.Workers.DeliverNotification.new()
         |> Oban.insert()
+        # Recompute leaderboard score — badge_points are not credited until
+        # UpdateScore runs. Without this the score stays stale after badge award.
+        %{"user_id" => user_id}
+        |> Nexus.Workers.UpdateScore.new()
+        |> Oban.insert()
         {:ok, user_badge}
 
       error ->
