@@ -367,7 +367,7 @@ tar --strip-components=1 -xzf "$TMP_ARCHIVE" -C "$TMP_EXTRACT" \
 echo -e "${CYAN}▶ Applying files to $INSTALL_DIR (preserving .env and compose files)...${NC}"
 rsync -a \
   --exclude=".env" \
-  --exclude=".env" \
+  --exclude="Caddyfile" \
   --exclude="docker-compose.yml" \
   --exclude="docker-compose.prod.yml" \
   "$TMP_EXTRACT/" "$INSTALL_DIR/"
