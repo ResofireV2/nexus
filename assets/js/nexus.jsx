@@ -3010,6 +3010,17 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
   const [searching,setSearching]=useState(false);
   const searchRef=useRef();
   const debounceRef=useRef();
+  const [currentTheme, setCurrentTheme]=useState(()=>document.documentElement.getAttribute("data-theme")||"dark");
+
+  // Keep currentTheme in sync when applyTheme mutates the DOM externally
+  useEffect(()=>{
+    const observer=new MutationObserver(()=>{
+      const t=document.documentElement.getAttribute("data-theme")||"dark";
+      setCurrentTheme(t);
+    });
+    observer.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+    return ()=>observer.disconnect();
+  },[]);
 
   const runSearch=useCallback(async(val)=>{
     if(!val.trim()){setDrop(null);return;}
@@ -3095,6 +3106,16 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
           <div className="icon-btn" onClick={()=>navigate("drafts")} title="Drafts">
             <i className="fa-solid fa-file-pen" style={{fontSize:16}}></i>
           </div>
+          {window._darkEnabled!==false&&window._lightEnabled!==false&&(
+            <div className="icon-btn" title={currentTheme==="dark"?"Switch to light mode":"Switch to dark mode"}
+              onClick={()=>{
+                const next=currentTheme==="dark"?"light":"dark";
+                try { localStorage.setItem("nexus_theme_pref", next); } catch {}
+                window._applyTheme&&window._applyTheme(next, window._appBrandingForTheme||{});
+              }}>
+              <i className={`fa-solid ${currentTheme==="dark"?"fa-sun":"fa-moon"}`} style={{fontSize:16}}/>
+            </div>
+          )}
           <button className="write-btn" onClick={()=>navigate("compose")}>+ write</button>
           <AvatarMenu user={currentUser} navigate={navigate} onLogout={onLogout}/>
         </> : <>
