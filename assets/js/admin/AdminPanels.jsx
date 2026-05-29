@@ -14,8 +14,8 @@ function AdminIntegrationsPanel({cfg, setCfg}) {
     <div>
       <div className="fgt">GitHub OAuth — Sign in with GitHub</div>
       <div style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.7}}>
-        Create an OAuth App at <a href="https://github.com/settings/developers" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>github.com/settings/developers</a>.
-        Set the callback URL to <code style={{fontSize:11}}>{window.location.origin}/api/v1/auth/oauth/github/callback</code>
+        See the <a href="https://docs.nexusprism.org/configuration/github-oauth/" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>GitHub OAuth setup guide</a> for full instructions.
+        Your callback URL: <code style={{fontSize:11}}>{window.location.origin}/api/v1/auth/oauth/github/callback</code>
       </div>
       <Toggle label="Enable Sign in with GitHub" value={!!cfg.github_oauth_enabled} onChange={v=>setCfg(p=>({...p,github_oauth_enabled:v}))}/>
       <F label="Client ID">
@@ -29,8 +29,8 @@ function AdminIntegrationsPanel({cfg, setCfg}) {
 
       <div className="fgt" style={{marginTop:24}}>Google OAuth — Sign in with Google</div>
       <div style={{fontSize:13,color:"var(--t3)",marginBottom:12,lineHeight:1.7}}>
-        Create credentials at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>Google Cloud Console</a> (OAuth 2.0 Client ID, type: Web application).
-        Set the authorised redirect URI to <code style={{fontSize:11}}>{window.location.origin}/api/v1/auth/oauth/google/callback</code>
+        See the <a href="https://docs.nexusprism.org/configuration/google-oauth/" target="_blank" rel="noopener" style={{color:"var(--ac)"}}>Google OAuth setup guide</a> for full instructions.
+        Your callback URL: <code style={{fontSize:11}}>{window.location.origin}/api/v1/auth/oauth/google/callback</code>
       </div>
       <Toggle label="Enable Sign in with Google" value={!!cfg.google_oauth_enabled} onChange={v=>setCfg(p=>({...p,google_oauth_enabled:v}))}/>
       <F label="Client ID">
