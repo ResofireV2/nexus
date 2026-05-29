@@ -1585,7 +1585,7 @@ S.textContent = `
 [data-theme="light"] .tgl{box-shadow:inset 0 0 0 1px rgba(26,20,80,0.15);}
 [data-theme="light"]{--tgl-off:rgba(26,20,80,0.12);--tgl-knob-off:#ffffff;}
 [data-theme="light"] .tgl-knob{box-shadow:0 1px 3px rgba(26,20,80,0.18);}
-[data-theme="light"] .rw-label{color:var(--t4);}
+[data-theme="light"] .rw-label{color:var(--t3);}
 [data-theme="light"] .p-bar-wrap{background:rgba(26,20,80,0.12);}
 [data-theme="light"] .av-dd{border-color:rgba(26,20,80,0.18);box-shadow:0 4px 24px rgba(26,20,80,0.10);}
 [data-theme="light"] .av-dd-item{color:var(--t2);}
@@ -1615,7 +1615,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .sidebar{width:320px;min-width:320px;background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
-.sb-label{font-size:var(--fs-ui);font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
+.sb-label{font-size:var(--fs-ui);font-weight:500;color:var(--t3);letter-spacing:.8px;text-transform:uppercase;padding:0 16px;margin-bottom:4px;margin-top:14px;}
 .sb-label:first-child{margin-top:2px;}
 .sb-item{display:flex;align-items:center;gap:12px;padding:10px 18px;cursor:pointer;position:relative;transition:background .1s;}
 .sb-item:hover{background:rgba(255,255,255,0.04);}
@@ -1733,7 +1733,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Right panel */
 .right-panel{width:320px;min-width:320px;border-left:0.5px solid var(--b1);padding:16px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex-shrink:0;}
 .rw{border-radius:12px;border:0.5px solid rgba(255,255,255,0.08);padding:15px 16px;}
-.rw-label{font-size:var(--fs-ui);font-weight:500;color:var(--t5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;}
+.rw-label{font-size:var(--fs-ui);font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;}
 .live-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;}
 .l-av{width:22px;height:22px;border-radius:var(--av-radius);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#fff;flex-shrink:0;margin-top:1px;}
 .l-txt{font-size:var(--fs-body);color:var(--t3);line-height:1.5;flex:1;}
