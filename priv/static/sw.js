@@ -9,6 +9,12 @@
 
 self.addEventListener("fetch", event => {
   if (event.request.mode !== "navigate") return;
+  // Let /api/ navigations (e.g. OAuth redirects) pass straight through the
+  // browser's normal navigation stack. The service worker's fetch() does not
+  // follow cross-origin redirects the same way a browser navigation does —
+  // intercepting /api/v1/auth/oauth/* would cause the redirect to GitHub to
+  // produce an opaque response and fall through to the offline page.
+  if (new URL(event.request.url).pathname.startsWith("/api/")) return;
 
   event.respondWith(
     fetch(event.request)
