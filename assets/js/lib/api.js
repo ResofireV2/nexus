@@ -29,6 +29,19 @@ window.onInstallPromptChange = function (fn) {
   };
 };
 
+// ---------------------------------------------------------------------------
+// PWA visit counter
+// Incremented once per page load at module scope so it runs before React.
+// Used by AndroidInstallSheet to decide whether to show on this visit.
+// ---------------------------------------------------------------------------
+try {
+  const _vc = parseInt(localStorage.getItem("pwa.visit_count") || "0", 10);
+  window._pwaVisitCount = _vc + 1;
+  localStorage.setItem("pwa.visit_count", String(window._pwaVisitCount));
+} catch {
+  window._pwaVisitCount = 1;
+}
+
 export const api = {
   token: localStorage.getItem("nexus_token"),
   refreshing: false,

@@ -2819,6 +2819,147 @@ function AuthPage({onLogin}) {
   );
 }
 
+// ── AndroidInstallSheet ───────────────────────────────────────────────────────
+// Slide-up PWA install sheet for Android/Chrome.
+// Shows on the second visit (window._pwaVisitCount >= 2) when:
+//   - beforeinstallprompt has fired (installPrompt is available)
+//   - Not already running in standalone mode (already installed)
+//   - Not permanently dismissed (pwa.android_prompt.dismissed in localStorage)
+//   - Not snoozed for this visit (pwa.android_prompt.snoozed set this session)
+//
+// Three actions:
+//   "Add to home screen" — triggers native install prompt, clears sheet
+//   "Not now"           — hides for this visit, shows again next visit
+//   "Dismiss"           — sets permanent dismissed flag, never shows again
+//
+// Completely independent of the sidebar install banner — dismissing one
+// does not affect the other.
+function AndroidInstallSheet({pwaCfg={}, appBranding={}}) {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+
+  // All conditions checked before any state — avoids hook order issues
+  const eligible = isAndroid && !isStandalone;
+
+  const [installPrompt, setInstallPrompt] = useState(window._installPrompt || null);
+  const [visible, setVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem("pwa.android_prompt.dismissed") === "1"; } catch { return false; }
+  });
+
+  // Subscribe to installPrompt changes (fires when beforeinstallprompt arrives
+  // after component mounts, or when appinstalled clears it)
+  useEffect(() => {
+    const unsub = window.onInstallPromptChange?.(p => setInstallPrompt(p || null));
+    return () => unsub?.();
+  }, []);
+
+  // Show the sheet once installPrompt is available, conditions are met,
+  // and a short delay has passed so the user sees the page first
+  useEffect(() => {
+    if (!eligible) return;
+    if (dismissed) return;
+    if (!installPrompt) return;
+    // Only show on second visit or later
+    if ((window._pwaVisitCount || 1) < 2) return;
+    // Snoozed for this session via "Not now"
+    try { if (sessionStorage.getItem("pwa.android_prompt.snoozed") === "1") return; } catch {}
+
+    const t = setTimeout(() => setVisible(true), 1500);
+    return () => clearTimeout(t);
+  }, [eligible, dismissed, installPrompt]);
+
+  if (!visible || !installPrompt) return null;
+
+  const appName = pwaCfg.app_name || appBranding.site_name || "Nexus";
+  const domain  = window.location.hostname;
+
+  // Icon: 192px PWA icon → favicon → initial letter
+  const iconUrl = pwaCfg.icon_192_path
+    ? `/uploads/${pwaCfg.icon_192_path}`
+    : appBranding.favicon_url || null;
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    setVisible(false);
+    window._installPrompt = null;
+  };
+
+  const handleNotNow = () => {
+    setVisible(false);
+    try { sessionStorage.setItem("pwa.android_prompt.snoozed", "1"); } catch {}
+  };
+
+  const handleDismiss = () => {
+    setVisible(false);
+    setDismissed(true);
+    try { localStorage.setItem("pwa.android_prompt.dismissed", "1"); } catch {}
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9998}}
+        onClick={handleNotNow}
+      />
+      {/* Sheet */}
+      <div style={{
+        position:"fixed",bottom:0,left:0,right:0,zIndex:9999,
+        background:"var(--s2)",
+        borderRadius:"20px 20px 0 0",
+        border:"0.5px solid var(--b2)",
+        borderBottom:"none",
+        padding:"0 20px 32px",
+      }}>
+        {/* Handle */}
+        <div style={{width:36,height:4,background:"var(--b3)",borderRadius:2,margin:"10px auto 18px"}}/>
+        {/* App row */}
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20}}>
+          <div style={{width:52,height:52,borderRadius:14,overflow:"hidden",flexShrink:0,
+            background:"linear-gradient(135deg,var(--ac),#7c3aed)",
+            display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {iconUrl
+              ? <img src={iconUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
+              : <span style={{fontSize:22,fontWeight:600,color:"#fff"}}>
+                  {appName.slice(0,1).toUpperCase()}
+                </span>}
+          </div>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:500,color:"var(--t1)",marginBottom:2}}>{appName}</div>
+            <div style={{fontSize:11,color:"var(--t5)"}}>{domain}</div>
+          </div>
+        </div>
+        {/* Install button */}
+        <button
+          onClick={handleInstall}
+          style={{width:"100%",background:"var(--ac)",border:"none",borderRadius:12,
+            color:"var(--ac-on)",fontSize:13,fontWeight:500,padding:12,
+            fontFamily:"inherit",cursor:"pointer",marginBottom:8}}>
+          Add to home screen
+        </button>
+        {/* Secondary actions */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"2px 4px"}}>
+          <button
+            onClick={handleNotNow}
+            style={{background:"none",border:"none",fontSize:12,color:"var(--t4)",
+              fontFamily:"inherit",cursor:"pointer",padding:"6px 0"}}>
+            Not now
+          </button>
+          <button
+            onClick={handleDismiss}
+            style={{background:"none",border:"none",fontSize:12,color:"var(--t5)",
+              fontFamily:"inherit",cursor:"pointer",padding:"6px 0"}}>
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
@@ -4891,6 +5032,7 @@ function App() {
           }}
         />
       )}
+      <AndroidInstallSheet pwaCfg={pwaCfgPublic} appBranding={appBranding}/>
       <Toasts/>
     </>
   );
