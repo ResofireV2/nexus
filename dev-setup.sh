@@ -273,7 +273,6 @@ echo -e "${CYAN}▶ Updating Nexus (dev)...${NC}"
 cd /opt/nexus
 git pull origin master
 docker compose -f docker-compose.prod.yml up -d --build
-cp /opt/nexus/Caddyfile /etc/caddy/Caddyfile
 systemctl reload caddy
 echo -e "${GREEN}✓ Nexus updated. Database and uploads at /opt/nexus-data are untouched.${NC}"
 UPDATESCRIPT
