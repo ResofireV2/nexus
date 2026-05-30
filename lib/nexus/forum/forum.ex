@@ -39,6 +39,26 @@ defmodule Nexus.Forum do
     space |> Space.changeset(attrs) |> Repo.update()
   end
 
+  @doc """
+  Updates the position column on each space to match the given ordered list of
+  space IDs. Called when the admin drags to reorder spaces in the admin panel
+  so that list_spaces/0 (used by the composer, feed, and API) returns spaces
+  in the correct order everywhere — not just the sidebar.
+  """
+  def reorder_spaces(ordered_ids) when is_list(ordered_ids) do
+    Repo.transaction(fn ->
+      ordered_ids
+      |> Enum.with_index(1)
+      |> Enum.each(fn {id, position} ->
+        case Repo.get(Space, id) do
+          nil   -> :ok
+          space -> space |> Space.changeset(%{position: position}) |> Repo.update!()
+        end
+      end)
+    end)
+    :ok
+  end
+
   def delete_space(%Space{} = space), do: Repo.delete(space)
 
   # ---------------------------------------------------------------------------

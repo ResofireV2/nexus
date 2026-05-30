@@ -311,6 +311,7 @@ defmodule NexusWeb.Router do
     post   "/spaces",             SpaceController, :create
     patch  "/spaces/:slug",       SpaceController, :update
     delete "/spaces/:slug",       SpaceController, :delete
+    post   "/spaces/reorder",     SpaceController, :reorder
 
     # Extensions
     get    "/extensions",                    ExtensionController, :index

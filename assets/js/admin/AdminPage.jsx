@@ -112,6 +112,9 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
     var next = Object.assign({}, layoutCfg, {spaces_order: ordered.map(function(s){return s.id;})});
     if(setLayoutCfg) setLayoutCfg(next);
     api.patch("/admin/settings/layout", {value: next}).catch(function(){});
+    // Also update the position column on each space so list_spaces() returns
+    // them in the correct order everywhere — composer, All Spaces table, API.
+    api.post("/admin/spaces/reorder", {order: ordered.map(function(s){return s.id;})}).catch(function(){});
   }
 
   const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"}); setEditing("new"); };

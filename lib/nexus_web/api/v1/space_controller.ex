@@ -4,6 +4,15 @@ defmodule NexusWeb.API.V1.SpaceController do
   alias Nexus.Forum
   alias Nexus.Accounts.User
 
+  # POST /api/v1/admin/spaces/reorder  (admin only)
+  # Accepts {order: [id, id, id, ...]} and updates the position column on each
+  # space so that list_spaces/0 returns them in the correct order everywhere —
+  # not just the sidebar which reads from the layout settings.
+  def reorder(conn, %{"order" => ids}) when is_list(ids) do
+    Forum.reorder_spaces(ids)
+    json(conn, %{ok: true})
+  end
+
   # GET /api/v1/spaces
   def index(conn, _params) do
     spaces =
