@@ -143,7 +143,7 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
 
         <div className="fgt" style={{marginTop:16}}>New account restrictions</div>
         <div style={{fontSize:13,color:"var(--t3)",marginBottom:12}}>
-          New accounts under 24 hours old are blocked from sending direct messages. This is always enforced and cannot be disabled.
+          DM lockout duration is configurable under <strong>Permissions → Registration</strong>.
         </div>
       </>}
 
