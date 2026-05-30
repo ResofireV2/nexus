@@ -4843,7 +4843,7 @@ function App() {
         // Clear the user but only navigate to feed if on an auth-required page.
         // Pages like feed, post, members, etc. are publicly visible and the user
         // should stay where they are; requireAuth will show GuestPrompt naturally.
-        const AUTH_ONLY_PAGES = new Set(["following","saved","drafts","settings","compose","notifications","messages","dm","dm-new"]);
+        const AUTH_ONLY_PAGES = new Set(["following","saved","drafts","settings","compose","notifications","messages","dm","dm-new","admin"]);
         updateCurrentUser(null);
         if (AUTH_ONLY_PAGES.has(window.__nexusPage)) {
           window.dispatchEvent(new Event("nexus:logout"));
@@ -4952,7 +4952,16 @@ function App() {
   useLightbox(); // no-op kept for hook rules
   const [userCard, setUserCard] = useUserCard();
 
-  if(!authChecked) return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
+  if(!authChecked) {
+    // While the async token refresh is in progress, render the admin panel
+    // immediately if we have a cached user and the URL is /admin. This prevents
+    // the loading spinner flash when returning to a tab whose access token has
+    // expired but the refresh cookie is still valid (the common case after
+    // 15+ minutes away). The refresh runs in the background; if it fails,
+    // updateCurrentUser(null) will clear the panel naturally.
+    if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
+    return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
+  }
 
   // Admin gets its own full shell
   if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate} onVerified={()=>updateCurrentUser(u=>u?{...u,email_verified:true}:u)}/></div><Toasts/></>;
