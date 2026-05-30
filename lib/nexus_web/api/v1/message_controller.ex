@@ -27,9 +27,14 @@ defmodule NexusWeb.API.V1.MessageController do
     user = conn.assigns.current_user
 
     unless Nexus.AntiSpam.can_send_dm?(user) do
+      remaining = Nexus.AntiSpam.dm_lockout_remaining(user)
       conn
       |> put_status(:forbidden)
-      |> json(%{error: "New accounts must be at least 24 hours old to send direct messages"})
+      |> json(%{
+          error: "New accounts must wait before sending direct messages.",
+          dm_lockout: true,
+          hours_remaining: remaining
+        })
     else
       case Messaging.get_thread_for_user(thread_id, user.id) do
         {:error, :not_found} ->

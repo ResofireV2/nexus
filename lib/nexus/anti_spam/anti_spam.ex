@@ -133,8 +133,36 @@ defmodule Nexus.AntiSpam do
   """
   def can_send_dm?(%Nexus.Accounts.User{role: role}) when role in ["admin", "moderator"], do: true
   def can_send_dm?(%Nexus.Accounts.User{inserted_at: inserted_at}) do
-    age_hours = DateTime.diff(DateTime.utc_now(), inserted_at, :hour)
-    age_hours >= @minimum_account_age_hours
+    lockout_hours = dm_lockout_hours()
+    if lockout_hours == 0 do
+      true
+    else
+      age_hours = DateTime.diff(DateTime.utc_now(), inserted_at, :hour)
+      age_hours >= lockout_hours
+    end
+  end
+
+  @doc """
+  Returns the number of hours remaining before a new user can send DMs.
+  Returns 0 if the user is already allowed.
+  """
+  def dm_lockout_remaining(%Nexus.Accounts.User{role: role}) when role in ["admin", "moderator"], do: 0
+  def dm_lockout_remaining(%Nexus.Accounts.User{inserted_at: inserted_at}) do
+    lockout_hours = dm_lockout_hours()
+    if lockout_hours == 0 do
+      0
+    else
+      age_hours = DateTime.diff(DateTime.utc_now(), inserted_at, :hour)
+      max(0, lockout_hours - age_hours)
+    end
+  end
+
+  defp dm_lockout_hours do
+    cfg = Nexus.Admin.get_setting("registration") || %{}
+    case cfg["dm_lockout_hours"] do
+      nil   -> @minimum_account_age_hours
+      hours -> hours
+    end
   end
 
   # ---------------------------------------------------------------------------

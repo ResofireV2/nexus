@@ -76,7 +76,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
 }
 
 function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinTopic, leaveTopic, sendEvent, onRead}) {
-  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
+  const [messages,setMessages]=useState([]); const [text,setText]=useState(""); const [sending,setSending]=useState(false); const [uploading,setUploading]=useState(false); const [typing,setTyping]=useState(false); const [dmError,setDmError]=useState(null); const endRef=useRef(); const imgRef=useRef(); const typingRef=useRef();
   const [resolvedName,setResolvedName]=useState(threadName||"");
   const [resolvedImage,setResolvedImage]=useState(threadImage||null);
   const [thread,setThread]=useState(null);
@@ -140,7 +140,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
       sendEvent?.(`dm:${threadId}`, "typing_stop", {});
     }
   };
-  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");wasTypingRef.current=false;sendEvent?.(`dm:${threadId}`,"typing_stop",{});try{await api.post(`/threads/${threadId}/messages`,{body});setTimeout(()=>endRef.current?.scrollIntoView(),50);}catch{setText(body);}finally{setSending(false);}};
+  const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");wasTypingRef.current=false;sendEvent?.(`dm:${threadId}`,"typing_stop",{});try{const d=await api.post(`/threads/${threadId}/messages`,{body});if(d?.dm_lockout){setDmError(d);setText(body);}else{setDmError(null);setTimeout(()=>endRef.current?.scrollIntoView(),50);}}catch{setText(body);}finally{setSending(false);}};
   const sendImage=async file=>{
     if(!file)return;
     setUploading(true);
@@ -238,21 +238,32 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
           </div>
         </div>
       </div>}
-      <form onSubmit={send} style={{borderTop:"0.5px solid var(--b1)",padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:8,flexShrink:0}}>
-        <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}} onChange={e=>sendImage(e.target.files[0])}/>
-        <button type="button" title="Attach image" onClick={()=>imgRef.current?.click()}
-          style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"var(--t4)"}}>
-          {uploading
-            ?<i className="fa-solid fa-spinner fa-spin" style={{fontSize:12}}/>
-            :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
-        </button>
-        <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
-          <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${resolvedName||"…"}`} value={text} onChange={onTextChange}/>
-        </div>
-        <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
-          <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
-        </button>
-      </form>
+      {dmError
+        ? <div style={{borderTop:"0.5px solid var(--b1)",padding:"14px 20px",display:"flex",alignItems:"center",gap:12,flexShrink:0,background:"rgba(251,191,36,0.04)"}}>
+            <i className="fa-solid fa-clock" style={{fontSize:14,color:"var(--amber)",flexShrink:0}}/>
+            <div style={{fontSize:13,color:"var(--t3)",lineHeight:1.5}}>
+              <span style={{fontWeight:500,color:"var(--t2)"}}>DMs are temporarily restricted.</span>
+              {dmError.hours_remaining > 0
+                ? <span> You can send messages in {dmError.hours_remaining} hour{dmError.hours_remaining===1?"":"s"}.</span>
+                : <span> You'll be able to send messages shortly.</span>}
+            </div>
+          </div>
+        : <form onSubmit={send} style={{borderTop:"0.5px solid var(--b1)",padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:8,flexShrink:0}}>
+            <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{display:"none"}} onChange={e=>sendImage(e.target.files[0])}/>
+            <button type="button" title="Attach image" onClick={()=>imgRef.current?.click()}
+              style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"var(--t4)"}}>
+              {uploading
+                ?<i className="fa-solid fa-spinner fa-spin" style={{fontSize:12}}/>
+                :<i className="fa-solid fa-image" style={{fontSize:13}}/>}
+            </button>
+            <div style={{flex:1,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b2)",borderRadius:20,padding:"8px 16px"}}>
+              <input style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,color:"var(--t2)",fontFamily:"inherit"}} placeholder={`Message ${resolvedName||"…"}`} value={text} onChange={onTextChange}/>
+            </div>
+            <button type="submit" style={{width:36,height:36,borderRadius:"50%",background:"var(--ac)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}} disabled={!text.trim()||sending}>
+              <i className="fa-solid fa-paper-plane" style={{fontSize:12,color:"var(--ac-on)"}}></i>
+            </button>
+          </form>
+      }
     </div>        {showSettings&&thread&&<GroupSettingsModal
       thread={thread}
       currentUser={currentUser}

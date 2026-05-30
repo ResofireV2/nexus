@@ -1149,6 +1149,12 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <span style={{fontSize:13,color:"var(--t4)"}}>hours</span>
               </div>
             </F>
+            <F label="New user DM lockout" hint="Hours a new account must exist before sending direct messages. 0 = no lockout.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="0" max="8760" style={{width:80}} value={regCfg.dm_lockout_hours??24} onChange={e=>setRegCfg(p=>({...p,dm_lockout_hours:parseInt(e.target.value)||0}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>hours</span>
+              </div>
+            </F>
 
             <div className="fgt" style={{marginTop:20}}>Profiles</div>
             <Toggle label="Enable question posts" hint="Allows users to mark a post as a question. The OP or mods can then mark a reply as the accepted answer." value={!!postCfg.questions_enabled} onChange={v=>setPostCfg(p=>({...p,questions_enabled:v}))}/>

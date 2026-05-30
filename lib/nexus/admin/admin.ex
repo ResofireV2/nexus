@@ -232,7 +232,8 @@ defmodule Nexus.Admin do
       "open"                       => true,
       "require_email_verification" => true,
       "allowed_email_domains"      => [],
-      "min_account_age_hours"      => 0
+      "min_account_age_hours"      => 0,
+      "dm_lockout_hours"           => 24
     },
     "posting" => %{
       "account_deletion_content"   => "anonymise",
