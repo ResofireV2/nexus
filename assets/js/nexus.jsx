@@ -2389,6 +2389,7 @@ function stripNonSerializable(value) {
 }
 
 let _cssEl = null;
+let _themeStyleEl = null; // <link> for active theme stylesheet
 
 // Strip CSS constructs that can be used to exfiltrate data:
 // @import, external url() references, and IE expression().
@@ -2521,29 +2522,41 @@ function applyTheme(mode, app={}) {
   r.setAttribute("data-theme", mode);
 
   if (mode === "light") {
-    // Text + border vars
+    // 1. Base text + border vars
     Object.entries(LIGHT_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
-    // Accent
+    // 2. Active theme variables (applied before admin overrides so admin always wins)
+    const themeVars = app.active_theme_light;
+    if (themeVars) {
+      const vars = {...(themeVars.variables||{}), ...(themeVars.light_variables||{})};
+      Object.entries(vars).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
+    }
+    // 3. Admin accent override
     const ac = app.light_accent_color || "#7351db";
-    r.style.setProperty("--ac", ac);
-    const vars = deriveAccentVarsLight(ac);
+    r.style.setProperty("--ac", ac.startsWith("#") ? ac : `#${ac}`);
+    const vars = deriveAccentVarsLight(ac.startsWith("#") ? ac : `#${ac}`);
     if (vars) {
       r.style.setProperty("--ac-on", vars.onAccent);
       r.style.setProperty("--ac-bg", vars.acBg);
       r.style.setProperty("--ac-border", vars.acBorder);
       r.style.setProperty("--ac-text", vars.acText);
     }
-    // Surfaces
+    // 4. Admin surface override
     if (app.light_tint_color) {
       const tint = deriveTintVarsLight(app.light_tint_color);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-    } else {
+    } else if (!themeVars || (!themeVars.variables?.["--bg"] && !themeVars.light_variables?.["--bg"])) {
       r.style.setProperty("--bg","#f5f4fb"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#edeaf9"); r.style.setProperty("--s3","#e3dff5");
     }
   } else {
-    // Dark mode
+    // 1. Base text + border vars
     Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
-    // Accent
+    // 2. Active theme variables
+    const themeVars = app.active_theme_dark;
+    if (themeVars) {
+      const vars = {...(themeVars.variables||{}), ...(themeVars.dark_variables||{})};
+      Object.entries(vars).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
+    }
+    // 3. Admin accent override
     const ac = app.accent_color || "#4A90E2";
     r.style.setProperty("--ac", ac);
     const vars = deriveAccentVars(ac);
@@ -2553,11 +2566,11 @@ function applyTheme(mode, app={}) {
       r.style.setProperty("--ac-border", vars.acBorder);
       r.style.setProperty("--ac-text", vars.acText);
     }
-    // Surfaces
+    // 4. Admin surface override
     if (app.tint_color) {
       const tint = deriveTintVars(app.tint_color);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-    } else {
+    } else if (!themeVars || (!themeVars.variables?.["--bg"] && !themeVars.dark_variables?.["--bg"])) {
       r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
     }
   }
@@ -2632,6 +2645,24 @@ function applyBranding(app={}, gen={}) {
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
     _cssEl.textContent = sanitizeCSS(app.custom_css);
+  }
+
+  // Inject active theme stylesheet — idempotent, updates href on mode change
+  const activeTheme = theme === "light" ? app.active_theme_light : app.active_theme_dark;
+  const stylesheetUrl = activeTheme?.stylesheet_url || null;
+  if (stylesheetUrl) {
+    if (!_themeStyleEl) {
+      _themeStyleEl = document.createElement("link");
+      _themeStyleEl.rel = "stylesheet";
+      _themeStyleEl.id  = "nexus-theme-stylesheet";
+      document.head.appendChild(_themeStyleEl);
+    }
+    if (_themeStyleEl.href !== stylesheetUrl) {
+      _themeStyleEl.href = stylesheetUrl;
+    }
+  } else if (_themeStyleEl) {
+    // No active theme for this mode — remove the stylesheet
+    _themeStyleEl.href = "";
   }
   // Apply favicon
   if (gen.favicon_url) {

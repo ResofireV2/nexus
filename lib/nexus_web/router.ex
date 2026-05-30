@@ -103,6 +103,7 @@ defmodule NexusWeb.Router do
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through :api
     get "/spaces",                 SpaceController,  :index
+    get "/themes",                 ThemeController,  :index
     get "/spaces/:slug",           SpaceController,  :show
     get "/tags",                   TagController,    :index
     get "/feed",                   FeedController,   :index
@@ -374,6 +375,15 @@ defmodule NexusWeb.Router do
     patch  "/page-widgets/:id",        PageController, :widget_update
     delete "/page-widgets/:id",        PageController, :widget_delete
     get    "/page-widgets/:id/pages",  PageController, :widget_pages
+
+    # Themes
+    get    "/themes",                      ThemeController, :admin_index
+    post   "/themes/install-from-url",     ThemeController, :install_from_url
+    post   "/themes/:slug/update",         ThemeController, :update_theme
+    post   "/themes/:slug/activate",       ThemeController, :activate
+    post   "/themes/:slug/check-update",   ThemeController, :check_update
+    patch  "/themes/:slug/settings",       ThemeController, :update_settings
+    delete "/themes/:slug",                ThemeController, :uninstall
 
     # Updates — check-only. Updates are applied via the host-side
     # `nexus-update` script, not through the web UI.

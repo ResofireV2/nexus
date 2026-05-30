@@ -344,6 +344,9 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [spamCfg,setSpamCfg]=useState({});
   const [integrationsCfg,setIntegrationsCfg]=useState({});
   const [reactionsCfg,setReactionsCfg]=useState({});
+  const [themes,setThemes]=useState([]);
+  const [themeInstallUrl,setThemeInstallUrl]=useState("");
+  const [themeInstalling,setThemeInstalling]=useState(false);
   // Watch all cfg values and mark dirty — but only after the fetch has fully
   // settled. Captures the current gen at effect-run time; if the settled gen
   // hasn't caught up yet, this is still a hydration flush, not a user change.
@@ -405,6 +408,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     if(currentUser?.role!=="admin")return;
     if(sec==="storage") fetchUploadData();
     if(sec==="moderation") api.get("/admin/pending").then(d=>setPendingItems(d.pending||[]));
+    if(sec==="appearance") api.get("/admin/themes").then(d=>setThemes(d.themes||[]));
     setIsDirty(false);
     window._nexusAdminSaveFn = null;
   },[sec, uploadFilter]);
@@ -884,6 +888,124 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
 
           {sec==="appearance"&&<>
             <div className="fgt">Themes</div>
+            {/* Theme install */}
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <input className="fi" style={{flex:1,fontSize:13,padding:"8px 12px"}}
+                placeholder="GitHub repo URL (e.g. https://github.com/owner/my-nexus-theme)"
+                value={themeInstallUrl}
+                onChange={e=>setThemeInstallUrl(e.target.value)}
+              />
+              <button className="btn-primary" style={{flexShrink:0,fontSize:13,padding:"8px 16px"}}
+                disabled={!themeInstallUrl.trim()||themeInstalling}
+                onClick={async()=>{
+                  setThemeInstalling(true);
+                  try {
+                    const d=await api.post("/admin/themes/install-from-url",{url:themeInstallUrl.trim()});
+                    if(d.theme){setThemes(p=>[...p,d.theme]);setThemeInstallUrl("");toast("Theme installed");}
+                    else toast(d.error||"Install failed","err");
+                  } finally { setThemeInstalling(false); }
+                }}>
+                {themeInstalling?"Installing…":"Install"}
+              </button>
+            </div>
+
+            {/* Installed themes list */}
+            {themes.length===0
+              ?<div style={{fontSize:13,color:"var(--t5)",marginBottom:20,padding:"16px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,textAlign:"center"}}>
+                No themes installed. Install a theme from a GitHub URL above.
+              </div>
+              :<div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                {themes.map(t=>{
+                  const darkActive  = t.active_dark;
+                  const lightActive = t.active_light;
+                  const activateFor = async(mode)=>{
+                    const current = mode==="dark" ? themes.find(x=>x.active_dark&&x.slug!==t.slug) : themes.find(x=>x.active_light&&x.slug!==t.slug);
+                    // If already active for this mode, deactivate
+                    const newMode = (mode==="dark"&&darkActive)||(mode==="light"&&lightActive) ? "none" : mode;
+                    const d=await api.post(`/admin/themes/${t.slug}/activate`,{mode:newMode==="none"?( mode==="dark"&&lightActive?"light":mode==="light"&&darkActive?"dark":"none"):newMode});
+                    if(d.ok||d.theme){
+                      setThemes(p=>p.map(x=>{
+                        if(x.slug===t.slug) return d.theme||{...x,[`active_${mode}`]:newMode!=="none"};
+                        if(current&&x.slug===current.slug) return {...x,[`active_${mode}`]:false};
+                        return x;
+                      }));
+                      // Refresh branding so theme variables apply immediately
+                      api.get("/branding").then(bd=>{
+                        const s=bd.settings||{};
+                        window._applyBranding&&window._applyBranding(s.appearance||{},s.general||{});
+                      });
+                      toast(newMode==="none"?`${t.name} deactivated`:`${t.name} set as ${mode} theme`);
+                    } else toast(d.error||"Failed","err");
+                  };
+                  return (
+                    <div key={t.slug} style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,padding:"14px 16px"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                            <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{t.name}</span>
+                            <span style={{fontSize:11,color:"var(--t5)"}}>v{t.installed_version||t.version}</span>
+                            {t.has_update&&<span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:"rgba(251,191,36,0.12)",color:"var(--amber)",border:"0.5px solid rgba(251,191,36,0.25)"}}>update available</span>}
+                          </div>
+                          {t.description&&<div style={{fontSize:12,color:"var(--t4)",marginBottom:6}}>{t.description}</div>}
+                          {t.author&&<div style={{fontSize:11,color:"var(--t5)"}}>by {t.author}</div>}
+                        </div>
+                        <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                          {/* Dark mode pill */}
+                          <button onClick={()=>activateFor("dark")}
+                            style={{fontSize:11,padding:"4px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",
+                              background:darkActive?"var(--ac-bg)":"transparent",
+                              color:darkActive?"var(--ac)":"var(--t4)",
+                              border:`0.5px solid ${darkActive?"var(--ac-border)":"var(--b2)"}`}}>
+                            <i className="fa-solid fa-moon" style={{marginRight:4,fontSize:10}}/>Dark
+                          </button>
+                          {/* Light mode pill */}
+                          <button onClick={()=>activateFor("light")}
+                            style={{fontSize:11,padding:"4px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",
+                              background:lightActive?"var(--ac-bg)":"transparent",
+                              color:lightActive?"var(--ac)":"var(--t4)",
+                              border:`0.5px solid ${lightActive?"var(--ac-border)":"var(--b2)"}`}}>
+                            <i className="fa-solid fa-sun" style={{marginRight:4,fontSize:10}}/>Light
+                          </button>
+                          {/* Update button */}
+                          {t.has_update&&<button
+                            style={{fontSize:11,padding:"4px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",
+                              background:"rgba(251,191,36,0.08)",color:"var(--amber)",border:"0.5px solid rgba(251,191,36,0.25)"}}
+                            onClick={async()=>{
+                              const d=await api.post(`/admin/themes/${t.slug}/update`);
+                              if(d.theme){setThemes(p=>p.map(x=>x.slug===t.slug?d.theme:x));toast("Theme updated");}
+                              else if(d.message){toast(d.message);}
+                              else toast(d.error||"Update failed","err");
+                            }}>
+                            <i className="fa-solid fa-arrow-up" style={{marginRight:4,fontSize:10}}/>Update
+                          </button>}
+                          {/* Uninstall */}
+                          <button
+                            style={{fontSize:11,padding:"4px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",
+                              background:"rgba(248,113,113,0.06)",color:"var(--red)",border:"0.5px solid rgba(248,113,113,0.2)"}}
+                            onClick={async()=>{
+                              if(!confirm(`Uninstall ${t.name}?`))return;
+                              const d=await api.delete(`/admin/themes/${t.slug}`);
+                              if(d.ok){
+                                setThemes(p=>p.filter(x=>x.slug!==t.slug));
+                                toast(`${t.name} uninstalled`);
+                                if(darkActive||lightActive){
+                                  api.get("/branding").then(bd=>{
+                                    const s=bd.settings||{};
+                                    window._applyBranding&&window._applyBranding(s.appearance||{},s.general||{});
+                                  });
+                                }
+                              } else toast(d.error||"Uninstall failed","err");
+                            }}>
+                            Uninstall
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            }
+
             {(()=>{
               const darkOn  = branding.dark_enabled  !== false;
               const lightOn = branding.light_enabled !== false;

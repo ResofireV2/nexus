@@ -200,6 +200,27 @@ defmodule NexusWeb.API.V1.AdminController do
               not is_nil_or_empty(integrations["github_client_id"])
     }
 
+    # Fetch active themes — one DB query returning both modes at once
+    themes = Nexus.Themes.list_themes()
+    active_dark  = Enum.find(themes, & &1.active_dark)
+    active_light = Enum.find(themes, & &1.active_light)
+
+    serialize_active = fn theme ->
+      if theme do
+        %{
+          slug:           theme.slug,
+          variables:      get_in(theme.manifest, ["variables"]) || %{},
+          dark_variables: get_in(theme.manifest, ["modes", "dark", "variables"]) || %{},
+          light_variables: get_in(theme.manifest, ["modes", "light", "variables"]) || %{},
+          stylesheet_url: if(theme.stylesheet_path, do: "/uploads/#{theme.stylesheet_path}", else: nil),
+          settings:       theme.settings || %{},
+          settings_schema: get_in(theme.manifest, ["settings"]) || []
+        }
+      else
+        nil
+      end
+    end
+
     json(conn, %{
       settings: %{
         general:      Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url","og_image_url","hero_enabled","hero_title","hero_body"]),
@@ -215,6 +236,8 @@ defmodule NexusWeb.API.V1.AdminController do
                         "icon_192_path","icon_512_path","badge_url"
                       ]),
         oauth_providers: oauth_providers,
+        active_theme_dark:  serialize_active.(active_dark),
+        active_theme_light: serialize_active.(active_light),
         turnstile_site_key: (fn ->
           spam = Admin.get_setting("anti_spam") || %{}
           if spam["turnstile_enabled"] == true and not is_nil_or_empty(spam["turnstile_site_key"]) do
