@@ -164,6 +164,11 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               )}
             </div>
           </div>
+          {activeSpace?.description && (
+            <div style={{padding:"8px 18px",borderBottom:"0.5px solid var(--b1)",fontSize:12,color:"var(--t4)",lineHeight:1.5}}>
+              {activeSpace.description}
+            </div>
+          )}
 
           {/* Extension tab content — replaces the post list when active */}
           {activeTabDef ? (
