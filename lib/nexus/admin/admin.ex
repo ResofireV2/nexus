@@ -267,11 +267,18 @@ defmodule Nexus.Admin do
       "avatar_radius"      => 22
     },
     "uploads" => %{
-      "max_size_mb"      => 5,
-      "convert_to_webp"  => true,
-      "webp_quality"     => 85,
-      "max_width"        => 1200,
-      "allowed_types"    => ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
+      "max_size_mb"          => 5,
+      "convert_to_webp"      => true,
+      "webp_quality"         => 85,
+      "max_width"            => 1200,
+      "allowed_types"        => ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"],
+      "s3_enabled"           => false,
+      "s3_bucket"            => "",
+      "s3_region"            => "auto",
+      "s3_access_key_id"     => "",
+      "s3_secret_access_key" => "",
+      "s3_endpoint"          => "",
+      "s3_public_url"        => ""
     },
     "email" => %{
       "from_address"     => "",

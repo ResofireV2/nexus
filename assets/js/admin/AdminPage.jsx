@@ -1370,6 +1370,36 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
 
             </div>
 
+            {/* Object storage */}
+            <div className="fgt" style={{marginTop:28}}>Object storage (S3 / Cloudflare R2)</div>
+            <div style={{fontSize:13,color:"var(--t4)",marginBottom:16}}>
+              When enabled, all new uploads go to the configured bucket instead of local disk. Existing local uploads are not migrated automatically.
+            </div>
+            <Toggle label="Enable S3 / R2 storage"
+              hint="Route new uploads to an S3-compatible bucket. Requires bucket, region, access key, secret key, and public URL to be filled in below."
+              value={!!uploadCfg.s3_enabled}
+              onChange={v=>setUploadCfg(p=>({...p,s3_enabled:v}))}/>
+            {uploadCfg.s3_enabled&&<>
+              <F label="Bucket name" hint="The name of the S3 bucket or R2 bucket.">
+                <input className="fi" style={{fontSize:13}} value={uploadCfg.s3_bucket||""} onChange={e=>setUploadCfg(p=>({...p,s3_bucket:e.target.value}))} placeholder="my-nexus-uploads"/>
+              </F>
+              <F label="Region" hint='AWS region (e.g. "us-east-1") or "auto" for Cloudflare R2.'>
+                <input className="fi" style={{fontSize:13}} value={uploadCfg.s3_region||"auto"} onChange={e=>setUploadCfg(p=>({...p,s3_region:e.target.value}))} placeholder="auto"/>
+              </F>
+              <F label="Access key ID" hint="Your S3 or R2 access key ID.">
+                <input className="fi" style={{fontSize:13}} value={uploadCfg.s3_access_key_id||""} onChange={e=>setUploadCfg(p=>({...p,s3_access_key_id:e.target.value}))} placeholder="Access key ID" autoComplete="off"/>
+              </F>
+              <F label="Secret access key" hint="Your S3 or R2 secret access key.">
+                <input className="fi" type="password" style={{fontSize:13}} value={uploadCfg.s3_secret_access_key||""} onChange={e=>setUploadCfg(p=>({...p,s3_secret_access_key:e.target.value}))} placeholder="Secret access key" autoComplete="new-password"/>
+              </F>
+              <F label="Custom endpoint" hint='For Cloudflare R2: your account endpoint, e.g. "abc123.r2.cloudflarestorage.com". Leave blank for standard AWS S3.'>
+                <input className="fi" style={{fontSize:13}} value={uploadCfg.s3_endpoint||""} onChange={e=>setUploadCfg(p=>({...p,s3_endpoint:e.target.value}))} placeholder="abc123.r2.cloudflarestorage.com"/>
+              </F>
+              <F label="Public URL base" hint='The public URL used to serve uploaded files. For R2 with a custom domain: "https://cdn.example.com". For R2 public buckets: "https://pub-abc123.r2.dev". No trailing slash.'>
+                <input className="fi" style={{fontSize:13}} value={uploadCfg.s3_public_url||""} onChange={e=>setUploadCfg(p=>({...p,s3_public_url:e.target.value}))} placeholder="https://cdn.example.com"/>
+              </F>
+            </>}
+
             {/* Storage stats */}
             <div className="fgt" style={{marginTop:28}}>Storage usage</div>
             {uploadStats

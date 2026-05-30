@@ -192,7 +192,7 @@ defmodule NexusWeb.API.V1.UploadController do
 
   defp served_url(nil), do: nil
   defp served_url(rel_path) do
-    "/uploads/" <> rel_path
+    Nexus.Uploads.Storage.public_url(rel_path)
   end
 
   defp upload_json(%Upload{} = u) do

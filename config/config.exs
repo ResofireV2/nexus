@@ -24,6 +24,14 @@ config :logger, :console,
 
 config :phoenix, :json_library, Jason
 
+# ExAws — S3 / R2 object storage
+# Tells ExAws to use Hackney as its HTTP client (already a dependency).
+# Credentials and endpoint are configured at runtime via admin settings or
+# environment variables; only the HTTP client is set here at compile time.
+config :ex_aws,
+  http_client: ExAws.Request.Hackney,
+  json_codec: Jason
+
 # Oban background jobs
 config :nexus, Oban,
   repo: Nexus.Repo,

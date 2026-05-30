@@ -11,7 +11,7 @@ defmodule Nexus.Uploads do
 
   import Ecto.Query
   alias Nexus.Repo
-  alias Nexus.Uploads.Upload
+  alias Nexus.Uploads.{Upload, Storage}
   alias Nexus.Admin
 
   # ---------------------------------------------------------------------------
@@ -30,8 +30,12 @@ defmodule Nexus.Uploads do
 
     with :ok <- validate_size(plug_upload, settings),
          :ok <- validate_mime(plug_upload, upload_type, settings),
-         {:ok, original_path} <- save_original(plug_upload, upload_type),
-         {:ok, webp_path, dims} <- maybe_convert(original_path, upload_type, settings) do
+         {:ok, original_path} <- save_original_local(plug_upload, upload_type),
+         {:ok, webp_path, dims} <- maybe_convert(original_path, upload_type, settings),
+         # Read file size from local disk before potentially moving to S3
+         original_size = File.stat!(Storage.local_path(original_path)).size,
+         {:ok, _} <- Storage.store_file(Storage.local_path(original_path), original_path),
+         {:ok, _} <- store_webp_remote(webp_path) do
 
       attrs = %{
         user_id:       Keyword.get(opts, :user_id),
@@ -41,7 +45,7 @@ defmodule Nexus.Uploads do
         webp_path:     webp_path,
         original_name: plug_upload.filename,
         mime_type:     plug_upload.content_type,
-        size_bytes:    File.stat!(full_path(original_path)).size,
+        size_bytes:    original_size,
         width:         dims[:width],
         height:        dims[:height]
       }
@@ -94,9 +98,8 @@ defmodule Nexus.Uploads do
 
   @doc "Delete an upload record and its files from disk."
   def delete(%Upload{} = upload) do
-    # Remove files from disk
-    try_delete(full_path(upload.original_path))
-    if upload.webp_path, do: try_delete(full_path(upload.webp_path))
+    Storage.delete_file(upload.original_path)
+    if upload.webp_path, do: Storage.delete_file(upload.webp_path)
     Repo.delete(upload)
   end
 
@@ -125,8 +128,11 @@ defmodule Nexus.Uploads do
 
     with :ok <- validate_size(plug_upload, settings),
          :ok <- validate_mime(plug_upload, "extension_image", settings),
-         {:ok, original_path} <- save_extension_original(plug_upload, slug),
-         {:ok, webp_path, dims} <- maybe_convert(original_path, "extension_image", Map.merge(settings, %{"max_width" => Keyword.get(opts, :max_width, settings["max_width"] || 1200)})) do
+         {:ok, original_path} <- save_extension_original_local(plug_upload, slug),
+         {:ok, webp_path, dims} <- maybe_convert(original_path, "extension_image", Map.merge(settings, %{"max_width" => Keyword.get(opts, :max_width, settings["max_width"] || 1200)})),
+         original_size = File.stat!(Storage.local_path(original_path)).size,
+         {:ok, _} <- Storage.store_file(Storage.local_path(original_path), original_path),
+         {:ok, _} <- store_webp_remote(webp_path) do
 
       attrs = %{
         user_id:             user_id,
@@ -137,7 +143,7 @@ defmodule Nexus.Uploads do
         webp_path:           webp_path,
         original_name:       plug_upload.filename,
         mime_type:           plug_upload.content_type,
-        size_bytes:          File.stat!(full_path(original_path)).size,
+        size_bytes:          original_size,
         width:               dims[:width],
         height:              dims[:height]
       }
@@ -181,7 +187,9 @@ defmodule Nexus.Uploads do
     else
       with :ok <- validate_size(plug_upload, settings),
            :ok <- validate_extension_file_mime(plug_upload, allowed_mime),
-           {:ok, original_path} <- save_extension_original(plug_upload, slug) do
+           {:ok, original_path} <- save_extension_original_local(plug_upload, slug),
+           original_size = File.stat!(Storage.local_path(original_path)).size,
+           {:ok, _} <- Storage.store_file(Storage.local_path(original_path), original_path) do
 
         attrs = %{
           user_id:             user_id,
@@ -192,7 +200,7 @@ defmodule Nexus.Uploads do
           webp_path:           nil,
           original_name:       plug_upload.filename,
           mime_type:           plug_upload.content_type,
-          size_bytes:          File.stat!(full_path(original_path)).size,
+          size_bytes:          original_size,
           width:               nil,
           height:              nil
         }
@@ -272,7 +280,7 @@ defmodule Nexus.Uploads do
   # Storage
   # ---------------------------------------------------------------------------
 
-  defp save_original(%Plug.Upload{path: tmp, filename: filename, content_type: ct}, upload_type) do
+  defp save_original_local(%Plug.Upload{path: tmp, filename: filename, content_type: ct}, upload_type) do
     dir      = upload_dir(upload_type)
     ext      = ext_for(ct, filename)
     name     = "#{uuid()}#{ext}"
@@ -285,6 +293,14 @@ defmodule Nexus.Uploads do
       :ok    -> {:ok, rel_path}
       err    -> err
     end
+  end
+
+  # Uploads webp to remote storage if S3 is enabled. The webp was written
+  # to local disk during image processing; this moves it to the bucket.
+  # Returns {:ok, nil} when webp_path is nil (no conversion happened).
+  defp store_webp_remote(nil), do: {:ok, nil}
+  defp store_webp_remote(webp_path) do
+    Storage.store_file(Storage.local_path(webp_path), webp_path)
   end
 
   # ---------------------------------------------------------------------------
@@ -367,7 +383,7 @@ defmodule Nexus.Uploads do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  defp save_extension_original(%Plug.Upload{path: tmp, filename: filename, content_type: ct}, slug) do
+  defp save_extension_original_local(%Plug.Upload{path: tmp, filename: filename, content_type: ct}, slug) do
     ext      = ext_for(ct, filename)
     name     = "#{slug}_#{uuid()}#{ext}"
     rel_path = "extensions/#{slug}/#{name}"
