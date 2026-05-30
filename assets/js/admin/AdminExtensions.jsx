@@ -1153,6 +1153,8 @@ function AdminExtensionsPanel() {
   const [installUrl, setInstallUrl]     = useState("");
   const [installError, setInstallError] = useState(null);
   const [filter, setFilter]             = useState("");          // search/filter string
+  const [category, setCategory]         = useState("");          // active category filter
+  const [sort, setSort]                 = useState("default");   // default|az|za
   const [readme, setReadme]             = useState(null);        // { item, content, loading, error }
   const [updates, setUpdates]           = useState(null);        // null | [] | [{slug,name,current,latest,notes}]
   const [checkingUpdates, setCheckingUpdates] = useState(false);
@@ -1299,9 +1301,12 @@ function AdminExtensionsPanel() {
   })();
 
   const q = filter.trim().toLowerCase();
+  const allCategories = [...new Set(allItems.flatMap(i => i.categories||[]))].sort();
+
   const visibleItems = allItems.filter(item=>{
     if(tab==="installed" && !installedSlugs.has(item.slug)) return false;
     if(tab==="all" && installedSlugs.has(item.slug)) return false;
+    if(category && !(item.categories||[]).includes(category)) return false;
     if(q) return (
       item.name?.toLowerCase().includes(q) ||
       item.description?.toLowerCase().includes(q) ||
@@ -1309,6 +1314,10 @@ function AdminExtensionsPanel() {
       (item.categories||[]).some(c=>c.toLowerCase().includes(q))
     );
     return true;
+  }).sort((a,b)=>{
+    if(sort==="az") return (a.name||"").localeCompare(b.name||"");
+    if(sort==="za") return (b.name||"").localeCompare(a.name||"");
+    return 0;
   });
 
   // Accent colour derived from slug for fallback icon background
@@ -1407,6 +1416,37 @@ function AdminExtensionsPanel() {
             </button>
           </div>
           {installError&&<div style={{fontSize:12,color:"var(--red)",marginTop:10}}>{installError}</div>}
+        </div>
+      )}
+
+      {/* Category pills + sort */}
+      {tab!=="url"&&allCategories.length>0&&(
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:16}}>
+          <span onClick={()=>setCategory("")}
+            style={{fontSize:11,padding:"3px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",userSelect:"none",
+              background:category===""?"var(--ac-bg)":"transparent",
+              color:category===""?"var(--ac)":"var(--t4)",
+              border:`0.5px solid ${category===""?"var(--ac-border)":"var(--b2)"}`}}>
+            All
+          </span>
+          {allCategories.map(c=>(
+            <span key={c} onClick={()=>setCategory(p=>p===c?"":c)}
+              style={{fontSize:11,padding:"3px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",userSelect:"none",textTransform:"lowercase",
+                background:category===c?"var(--ac-bg)":"transparent",
+                color:category===c?"var(--ac)":"var(--t4)",
+                border:`0.5px solid ${category===c?"var(--ac-border)":"var(--b2)"}`}}>
+              {c}
+            </span>
+          ))}
+          <div style={{marginLeft:"auto",flexShrink:0}}>
+            <select value={sort} onChange={e=>setSort(e.target.value)}
+              style={{fontSize:11,padding:"3px 8px",borderRadius:8,background:"var(--s3)",
+                border:"0.5px solid var(--b1)",color:"var(--t3)",fontFamily:"inherit",cursor:"pointer"}}>
+              <option value="default">Default</option>
+              <option value="az">A → Z</option>
+              <option value="za">Z → A</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -1547,13 +1587,9 @@ function AdminExtensionsPanel() {
                       </div>
                     )}
 
-                    {/* Author + installs */}
-                    <div style={{fontSize:12,color:"var(--t5)",display:"flex",alignItems:"center",gap:8}}>
-                      <span>by {item.author||"unknown"}</span>
-                      {item.installs!=null&&<>
-                        <span style={{opacity:.4}}>·</span>
-                        <span><i className="fa-solid fa-download" style={{fontSize:9,marginRight:3}}/>{Number(item.installs).toLocaleString()}</span>
-                      </>}
+                    {/* Author */}
+                    <div style={{fontSize:12,color:"var(--t5)"}}>
+                      by {item.author||"unknown"}
                     </div>
 
                     {/* Description */}

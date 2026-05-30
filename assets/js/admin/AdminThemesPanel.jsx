@@ -12,6 +12,8 @@ export function AdminThemesPanel() {
   const [installUrl, setInstallUrl]     = useState("");
   const [installError, setInstallError] = useState(null);
   const [filter, setFilter]             = useState("");
+  const [category, setCategory]         = useState("");
+  const [sort, setSort]                 = useState("default");
 
   useEffect(() => { loadThemes(); loadStore(); }, []);
 
@@ -119,11 +121,18 @@ export function AdminThemesPanel() {
   })();
 
   const f = filter.toLowerCase();
+  const allCategories = [...new Set(allItems.flatMap(i => i.categories||[]))].sort();
+
   const visibleItems = allItems.filter(item => {
     if (tab === "installed" && !installedSlugs.has(item.slug)) return false;
     if (tab === "all" && installedSlugs.has(item.slug)) return false;
+    if (category && !(item.categories||[]).includes(category)) return false;
     if (f && !item.name?.toLowerCase().includes(f) && !item.description?.toLowerCase().includes(f)) return false;
     return true;
+  }).sort((a, b) => {
+    if (sort === "az") return (a.name||"").localeCompare(b.name||"");
+    if (sort === "za") return (b.name||"").localeCompare(a.name||"");
+    return 0;
   });
 
   const slugColor = slug => {
@@ -207,6 +216,37 @@ export function AdminThemesPanel() {
             </button>
           </div>
           {installError && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 10 }}>{installError}</div>}
+        </div>
+      )}
+
+      {/* Category pills + sort */}
+      {tab !== "url" && allCategories.length > 0 && (
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:16}}>
+          <span onClick={() => setCategory("")}
+            style={{fontSize:11,padding:"3px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",userSelect:"none",
+              background:category===""?"var(--ac-bg)":"transparent",
+              color:category===""?"var(--ac)":"var(--t4)",
+              border:`0.5px solid ${category===""?"var(--ac-border)":"var(--b2)"}`}}>
+            All
+          </span>
+          {allCategories.map(c => (
+            <span key={c} onClick={() => setCategory(p => p===c?"":c)}
+              style={{fontSize:11,padding:"3px 10px",borderRadius:20,cursor:"pointer",fontFamily:"inherit",userSelect:"none",textTransform:"lowercase",
+                background:category===c?"var(--ac-bg)":"transparent",
+                color:category===c?"var(--ac)":"var(--t4)",
+                border:`0.5px solid ${category===c?"var(--ac-border)":"var(--b2)"}`}}>
+              {c}
+            </span>
+          ))}
+          <div style={{marginLeft:"auto",flexShrink:0}}>
+            <select value={sort} onChange={e => setSort(e.target.value)}
+              style={{fontSize:11,padding:"3px 8px",borderRadius:8,background:"var(--s3)",
+                border:"0.5px solid var(--b1)",color:"var(--t3)",fontFamily:"inherit",cursor:"pointer"}}>
+              <option value="default">Default</option>
+              <option value="az">A → Z</option>
+              <option value="za">Z → A</option>
+            </select>
+          </div>
         </div>
       )}
 
