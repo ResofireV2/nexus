@@ -27,7 +27,7 @@ import { useDraftAutosave } from "./DraftsPage";
 function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const resumeDraft = pageProps?.resumeDraft || null;
   const [title,setTitle]=useState(resumeDraft?.title||""); const [body,setBody]=useState(resumeDraft?.body||"");
-  const [spaceId,setSpaceId]=useState(resumeDraft?.space_id||spaces[0]?.id||"");
+  const [spaceId,setSpaceId]=useState(resumeDraft?.space_id||spaces.find(s=>!s.parent_id)?.id||"");
   const [subSpaceId,setSubSpaceId]=useState("");
   const [postType,setPostType]=useState(resumeDraft?.post_type||"discussion");
   const [postBody,setPostBody]=useState("");
