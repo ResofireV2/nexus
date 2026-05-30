@@ -3840,7 +3840,20 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
     return unsub;
   },[]);
 
-  const sorted = [...spaces].sort((a,b)=>(b.post_count||0)-(a.post_count||0));
+  // Roll sub-space post counts up into their parent before sorting.
+  // post_count on a parent only reflects posts directly in that space;
+  // sub-space posts need to be added so the widget reflects total activity.
+  const spacePostCounts = {};
+  spaces.forEach(s => { spacePostCounts[s.id] = s.post_count || 0; });
+  spaces.filter(s => s.parent_id).forEach(s => {
+    if (spacePostCounts[s.parent_id] !== undefined) {
+      spacePostCounts[s.parent_id] += s.post_count || 0;
+    }
+  });
+  const sorted = spaces
+    .filter(s => !s.parent_id)
+    .map(s => ({...s, post_count: spacePostCounts[s.id] || 0}))
+    .sort((a,b) => (b.post_count||0) - (a.post_count||0));
   const max = sorted[0]?.post_count||1;
 
   // Inline renderers for built-in widgets that need RightPanel closure state
