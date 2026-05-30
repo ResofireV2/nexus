@@ -105,7 +105,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
 
   var savedOrder = layoutCfg.spaces_order || [];
   var orderedForEditor = (function(){
-    var ordered = spaces.slice();
+    var ordered = spaces.filter(function(s){ return !s.parent_id; });
     if(savedOrder.length) ordered.sort(function(a,b){var ai=savedOrder.indexOf(a.id);var bi=savedOrder.indexOf(b.id);if(ai===-1)return 1;if(bi===-1)return -1;return ai-bi;});
     return ordered;
   })();
@@ -219,7 +219,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
         <div><label className="f-label">Slug</label><input className="fi" value={form.slug} onChange={e=>setForm(p=>({...p,slug:e.target.value}))} style={{fontFamily:"monospace"}}/></div>
       </div>
       <div style={{marginBottom:12}}><label className="f-label">Description</label><input className="fi" value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Optional description"/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:form.parent_id?"1fr 1fr":"1fr 1fr 1fr",gap:12,marginBottom:12}}>
         <div><label className="f-label">Visibility</label>
           <Select value={form.visibility} onChange={v=>setForm(p=>({...p,visibility:v}))}>
             <option value="public">Public</option>
@@ -234,7 +234,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
             ))}
           </Select>
         </div>
-        <div><label className="f-label">Icon <span style={{fontSize:10,color:"var(--t5)"}}>(Font Awesome class)</span></label>
+        {!form.parent_id&&<div><label className="f-label">Icon <span style={{fontSize:10,color:"var(--t5)"}}>(Font Awesome class)</span></label>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
             <div style={{width:36,height:36,borderRadius:8,background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <i className={`fa-solid ${form.icon||"fa-layer-group"}`} style={{fontSize:15,color:form.color||"#a78bfa"}}></i>
@@ -249,9 +249,9 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
-      <div style={{marginBottom:16}}>
+      {!form.parent_id&&<div style={{marginBottom:16}}>
         <label className="f-label">Color</label>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <input type="color" value={form.color||"#a78bfa"} onChange={e=>setForm(p=>({...p,color:e.target.value}))}
@@ -262,7 +262,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
           <input className="fi" value={form.color||""} onChange={e=>setForm(p=>({...p,color:e.target.value}))}
             style={{fontFamily:"monospace",fontSize:12,width:100}} placeholder="#a78bfa"/>
         </div>
-      </div>
+      </div>}
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <button className="btn-ghost" onClick={close}>Cancel</button>
         <button className="btn-primary" onClick={save} disabled={saving||!form.name.trim()||!form.slug.trim()}>{saving?"Saving…":"Save space"}</button>
