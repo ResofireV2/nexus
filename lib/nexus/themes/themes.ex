@@ -214,8 +214,48 @@ defmodule Nexus.Themes do
   end
 
   # ---------------------------------------------------------------------------
-  # Private
+  # Store — fetch themes from the shared registry
   # ---------------------------------------------------------------------------
+
+  # Themes are listed in the same registry as extensions.
+  # Entries with "type": "theme" are returned; all others are ignored.
+  @registry_url "https://raw.githubusercontent.com/ResofireV2/nexus-extensions/main/registry.json"
+
+  def fetch_store(registry_url \\ @registry_url) do
+    with :ok <- Nexus.URLSafeGuard.validate(registry_url) do
+      case Req.get(registry_url, receive_timeout: 15_000, decode_body: false) do
+        {:ok, %{status: 200, body: body}} ->
+          entries =
+            case Jason.decode(body) do
+              {:ok, %{"extensions" => list}} when is_list(list) -> list
+              {:ok, list} when is_list(list) -> list
+              _ -> :decode_error
+            end
+
+          case entries do
+            :decode_error ->
+              {:error, "The registry returned invalid JSON."}
+
+            entries ->
+              # Filter to theme entries only
+              themes = Enum.filter(entries, fn e -> e["type"] == "theme" end)
+              installed_slugs = Repo.all(from t in Theme, select: t.slug) |> MapSet.new()
+              enriched = Enum.map(themes, fn entry ->
+                Map.put(entry, "installed", MapSet.member?(installed_slugs, entry["slug"]))
+              end)
+              {:ok, enriched}
+          end
+
+        {:ok, %{status: status}} ->
+          {:error, "Registry returned HTTP #{status}"}
+
+        {:error, reason} ->
+          {:error, "Could not reach registry: #{inspect(reason)}"}
+      end
+    else
+      {:error, reason} -> {:error, "Invalid registry URL: #{reason}"}
+    end
+  end
 
   defp clear_active(:dark) do
     Repo.update_all(from(t in Theme, where: t.active_dark == true), set: [active_dark: false])

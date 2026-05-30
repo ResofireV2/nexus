@@ -3,6 +3,22 @@ defmodule NexusWeb.API.V1.ThemeController do
 
   alias Nexus.Themes
 
+  # GET /api/v1/admin/themes/store
+  def store(conn, params) do
+    registry_url = params["registry_url"]
+    result =
+      if registry_url && registry_url != "" do
+        Themes.fetch_store(registry_url)
+      else
+        Themes.fetch_store()
+      end
+
+    case result do
+      {:ok, entries}   -> json(conn, %{themes: entries})
+      {:error, reason} -> conn |> put_status(:bad_gateway) |> json(%{error: reason})
+    end
+  end
+
   # GET /api/v1/themes  (public — for theme showcase extensions)
   def index(conn, _params) do
     themes = Themes.list_themes()

@@ -378,6 +378,7 @@ defmodule NexusWeb.Router do
 
     # Themes
     get    "/themes",                      ThemeController, :admin_index
+    get    "/themes/store",                ThemeController, :store
     post   "/themes/install-from-url",     ThemeController, :install_from_url
     post   "/themes/:slug/update",         ThemeController, :update_theme
     post   "/themes/:slug/activate",       ThemeController, :activate
