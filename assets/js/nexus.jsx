@@ -2483,10 +2483,10 @@ function deriveTintVarsLight(hex) {
     return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
   };
   return {
-    bg: mix(0xf5f4fb, 0.12),
+    bg: mix(0xf4f4f5, 0.12),
     s1: mix(0xffffff, 0.08),
-    s2: mix(0xedeaf9, 0.12),
-    s3: mix(0xe3dff5, 0.12),
+    s2: mix(0xe4e4e7, 0.12),
+    s3: mix(0xd4d4d8, 0.12),
   };
 }
 
@@ -2531,7 +2531,7 @@ function applyTheme(mode, app={}) {
       Object.entries(vars).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
     }
     // 3. Admin accent override
-    const ac = app.light_accent_color || "#7351db";
+    const ac = app.light_accent_color || "#2563eb";
     r.style.setProperty("--ac", ac.startsWith("#") ? ac : `#${ac}`);
     const vars = deriveAccentVarsLight(ac.startsWith("#") ? ac : `#${ac}`);
     if (vars) {
@@ -2545,7 +2545,7 @@ function applyTheme(mode, app={}) {
       const tint = deriveTintVarsLight(app.light_tint_color);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
     } else if (!themeVars || (!themeVars.variables?.["--bg"] && !themeVars.light_variables?.["--bg"])) {
-      r.style.setProperty("--bg","#f5f4fb"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#edeaf9"); r.style.setProperty("--s3","#e3dff5");
+      r.style.setProperty("--bg","#f4f4f5"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#e4e4e7"); r.style.setProperty("--s3","#d4d4d8");
     }
   } else {
     // 1. Base text + border vars

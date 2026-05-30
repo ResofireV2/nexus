@@ -893,7 +893,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               return (<>
                 {/* Enable/disable toggles */}
                 <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-                  {[{key:"dark_enabled",label:"Dark mode",def:true,color:"#a78bfa"},{key:"light_enabled",label:"Light mode",def:true,color:"#7351db"}].map(({key,label,def,color})=>{
+                  {[{key:"dark_enabled",label:"Dark mode",def:true,color:"#4A90E2"},{key:"light_enabled",label:"Light mode",def:true,color:"#2563eb"}].map(({key,label,def,color})=>{
                     const isOn = key==="dark_enabled" ? darkOn : lightOn;
                     const locked = onlyOne && isOn;
                     return (
@@ -966,7 +966,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                   {appTab==="light"&&lightOn&&<>
                     <F label="Accent color" hint="Used for buttons, active states, and highlights on light backgrounds">
                       <ColorPicker
-                        value={branding.light_accent_color||"#7351db"}
+                        value={branding.light_accent_color||"#2563eb"}
                         onChange={v=>{
                           setBranding(p=>({...p,light_accent_color:v}));
                           if(_currentTheme==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVarsLight(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
