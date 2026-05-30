@@ -2905,9 +2905,9 @@ function AndroidInstallSheet({pwaCfg={}, appBranding={}}) {
   const appName = pwaCfg.app_name || appBranding.site_name || "Nexus";
   const domain  = window.location.hostname;
 
-  // Icon: 192px PWA icon → favicon → initial letter
+  // Icon: 192px PWA icon (already a full URL path) → favicon → initial letter
   const iconUrl = pwaCfg.icon_192_path
-    ? `/uploads/${pwaCfg.icon_192_path}`
+    ? pwaCfg.icon_192_path
     : appBranding.favicon_url || null;
 
   const handleInstall = async () => {
