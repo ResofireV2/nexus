@@ -478,7 +478,13 @@ defmodule Nexus.Forum do
 
   defp filter_by_space(query, nil), do: query
   defp filter_by_space(query, slug) do
-    join(query, :inner, [p], s in Space, on: p.space_id == s.id and s.slug == ^slug)
+    # When viewing a parent space, include posts from all its sub-spaces too.
+    # When viewing a sub-space, show only that sub-space's posts.
+    join(query, :inner, [p], s in Space,
+      on: p.space_id == s.id and (s.slug == ^slug or s.parent_id == fragment(
+        "(SELECT id FROM spaces WHERE slug = ?)", ^slug
+      ))
+    )
   end
 
   # Global feed: exclude posts pinned only to a space (they'd appear without context)

@@ -28,6 +28,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const resumeDraft = pageProps?.resumeDraft || null;
   const [title,setTitle]=useState(resumeDraft?.title||""); const [body,setBody]=useState(resumeDraft?.body||"");
   const [spaceId,setSpaceId]=useState(resumeDraft?.space_id||spaces[0]?.id||"");
+  const [subSpaceId,setSubSpaceId]=useState("");
   const [postType,setPostType]=useState(resumeDraft?.post_type||"discussion");
   const [postBody,setPostBody]=useState("");
   const [selTags,setSelTags]=useState(resumeDraft?.tag_ids||[]);
@@ -40,7 +41,15 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const typeDdRef=useRef(); const spaceDdRef=useRef();
   const submittingRef=useRef(false); // true while submit is in flight — suppresses autosave
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
-  const selectedSpace=spaces.find(s=>String(s.id)===String(spaceId));
+
+  // Separate top-level spaces from sub-spaces
+  const topLevelSpaces = spaces.filter(s => !s.parent_id);
+  const selectedParentSpace = spaces.find(s => String(s.id) === String(spaceId));
+  const childSpaces = spaces.filter(s => String(s.parent_id) === String(spaceId));
+  // The effective space to post to: the chosen sub-space if one is selected,
+  // otherwise the parent space itself
+  const effectiveSpaceId = subSpaceId || spaceId;
+  const selectedSpace = spaces.find(s => String(s.id) === String(effectiveSpaceId));
 
   // Attach composition tracker to the textarea once it mounts
   useEffect(()=>{
@@ -63,7 +72,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const triggerSave = () => {
     saveDraft({
       title, body, post_type: postType,
-      space_id: spaceId ? parseInt(spaceId) : null,
+      space_id: effectiveSpaceId ? parseInt(effectiveSpaceId) : null,
       tag_ids: selTags,
     });
   };
@@ -76,17 +85,16 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
     document.addEventListener("mousedown",fn); return ()=>document.removeEventListener("mousedown",fn);
   },[]);
 
-  // Trigger autosave whenever content changes
   // Trigger autosave whenever content changes — but never while submit is in flight
-  useEffect(()=>{ if((title||body) && !submittingRef.current) triggerSave(); },[title,body,postType,spaceId,selTags]);
+  useEffect(()=>{ if((title||body) && !submittingRef.current) triggerSave(); },[title,body,postType,spaceId,subSpaceId,selTags]);
 
   const submit=async()=>{
     if(!title.trim()){toast("Title required","err");return;}
-    if(!spaceId){toast("Select a space","err");return;}
+    if(!effectiveSpaceId){toast("Select a space","err");return;}
     submittingRef.current = true;
     setLoading(true);
     const compositionSignals = window._composeTracker ? window._composeTracker.snapshot() : null;
-    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(spaceId),tag_ids:selTags,compositionSignals,attachments});
+    try { const d=await api.post("/posts",{title,body,type:postType,space_id:parseInt(effectiveSpaceId),tag_ids:selTags,compositionSignals,attachments});
       if(d.post&&d.pending){await clearDraft();toast("Your post is pending moderator approval","ok");navigate("feed");}
       else if(d.post){
         await clearDraft();
@@ -130,20 +138,20 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
           {/* Space dropdown */}
           <div ref={spaceDdRef} style={{position:"relative"}}>
             <div className="comp-type-btn" onClick={()=>setShowSpaceDd(p=>!p)}>
-              {selectedSpace
-                ?<><i className={`fa-solid ${selectedSpace.icon||"fa-layer-group"}`} style={{fontSize:14,color:selectedSpace.color||"var(--ac)"}}/>
-                  {selectedSpace.name}</>
+              {selectedParentSpace
+                ?<><i className={`fa-solid ${selectedParentSpace.icon||"fa-layer-group"}`} style={{fontSize:14,color:selectedParentSpace.color||"var(--ac)"}}/>
+                  {selectedParentSpace.name}</>
                 :<><i className="fa-solid fa-layer-group" style={{fontSize:14,color:"var(--t5)"}}/>Select space…</>
               }
               <i className="fa-solid fa-chevron-down" style={{fontSize:10,color:"var(--t5)",marginLeft:2}}/>
             </div>
             {showSpaceDd&&(
               <div className="comp-dd" style={{maxHeight:280,overflowY:"auto"}}>
-                {spaces.map(s=>{
+                {topLevelSpaces.map(s=>{
                   const sc=s.color||spaceColor(s);
                   return (
                     <div key={s.id} className={`comp-dd-item${String(spaceId)===String(s.id)?" active":""}`}
-                      onClick={()=>{setSpaceId(s.id);setShowSpaceDd(false);}}>
+                      onClick={()=>{setSpaceId(s.id);setSubSpaceId("");setShowSpaceDd(false);}}>
                       <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:14,color:sc,width:18,textAlign:"center"}}/>
                       {s.name}
                     </div>
@@ -152,6 +160,20 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
               </div>
             )}
           </div>
+          {/* Sub-space step — only shown when selected parent has sub-spaces */}
+          {childSpaces.length > 0 && (
+            <select className="comp-type-btn"
+              value={subSpaceId}
+              onChange={e=>setSubSpaceId(e.target.value)}
+              style={{background:"transparent",border:"0.5px solid var(--b2)",outline:"none",
+                color:subSpaceId?"var(--t1)":"var(--t4)",fontFamily:"inherit",
+                fontSize:"inherit",cursor:"pointer",borderRadius:20,padding:"5px 12px"}}>
+              <option value="">Post to {selectedParentSpace?.name}…</option>
+              {childSpaces.map(sub=>(
+                <option key={sub.id} value={String(sub.id)}>{sub.name}</option>
+              ))}
+            </select>
+          )}
           {/* Selected tags */}
           {selTags.map(id=>{const t=tags.find(x=>x.id===id);return t?(
             <span key={id} className="comp-tag-pill" onClick={()=>toggleTag(id)}

@@ -42,7 +42,8 @@ defmodule NexusWeb.API.V1.SpaceController do
 
   # POST /api/v1/spaces  (admin only)
   def create(conn, params) do
-    case Forum.create_space(params, conn.assigns.current_user) do
+    attrs = build_attrs(params)
+    case Forum.create_space(attrs, conn.assigns.current_user) do
       {:ok, space} ->
         conn |> put_status(:created) |> json(%{space: space_json(space)})
 
@@ -58,7 +59,8 @@ defmodule NexusWeb.API.V1.SpaceController do
         conn |> put_status(:not_found) |> json(%{error: "Space not found"})
 
       space ->
-        case Forum.update_space(space, params) do
+        attrs = build_attrs(params)
+        case Forum.update_space(space, attrs) do
           {:ok, updated} -> json(conn, %{space: space_json(updated)})
           {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
         end
@@ -99,16 +101,34 @@ defmodule NexusWeb.API.V1.SpaceController do
 
   defp space_json(space) do
     %{
-      id: space.id,
-      name: space.name,
-      slug: space.slug,
+      id:          space.id,
+      name:        space.name,
+      slug:        space.slug,
       description: space.description,
-      color: space.color,
-      icon: space.icon || "fa-layer-group",
-      visibility: space.visibility,
-      position: space.position,
-      post_count: space.post_count
+      color:       space.color,
+      icon:        space.icon || "fa-layer-group",
+      visibility:  space.visibility,
+      position:    space.position,
+      post_count:  space.post_count,
+      parent_id:   space.parent_id
     }
+  end
+
+  # Normalise params before passing to the changeset. Converts a JSON-decoded
+  # parent_id (may arrive as a string, integer, or nil) to an integer or nil.
+  defp build_attrs(params) do
+    parent_id =
+      case params["parent_id"] do
+        nil  -> nil
+        ""   -> nil
+        v when is_integer(v) -> v
+        v when is_binary(v)  ->
+          case Integer.parse(v) do
+            {n, _} -> n
+            :error -> nil
+          end
+      end
+    Map.put(params, "parent_id", parent_id)
   end
 
   defp format_errors(changeset) do

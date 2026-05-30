@@ -100,7 +100,7 @@ function TagsAdmin({tags, onRefresh}) {
 // ── Admin Spaces CRUD ─────────────────────────────────────────────────────────
 function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
   const [editing,setEditing]=useState(null); // null | "new" | space object
-  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"});
+  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:""});
   const [saving,setSaving]=useState(false);
 
   var savedOrder = layoutCfg.spaces_order || [];
@@ -118,8 +118,8 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
     api.post("/admin/spaces/reorder", {order: ordered.map(function(s){return s.id;})}).catch(function(){});
   }
 
-  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public"}); setEditing("new"); };
-  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",icon:s.icon||"fa-layer-group",visibility:s.visibility}); setEditing(s); };
+  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:""}); setEditing("new"); };
+  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",icon:s.icon||"fa-layer-group",visibility:s.visibility,parent_id:s.parent_id?""+s.parent_id:""}); setEditing(s); };
   const close=()=>setEditing(null);
 
   const autoSlug=name=>name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
@@ -133,7 +133,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
         else toast(formatApiErrors(d, "Failed"),"err");
       } else {
         // Explicitly build payload to avoid any stale closure issues with form state
-        const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility};
+        const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility,parent_id:form.parent_id||null};
         const d=await api.patch(`/admin/spaces/${editing.slug}`,payload);
         if(d.space){toast("Space updated");onRefresh();close();}
         else toast(formatApiErrors(d, "Failed"),"err");
@@ -173,17 +173,43 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
             />
             <div className="fgt" style={{marginTop:20,marginBottom:6}}>All spaces</div>
           </caption>
-          <tbody>{spaces.map(s=>(
-            <tr key={s.id}>
-              <td><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:s.color||spaceColor(s),flexShrink:0}}></span><span style={{fontWeight:500,color:"var(--t1)"}}>{s.name}</span></div></td>
-              <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{s.slug}</td>
-              <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{s.visibility}</span></td>
-              <td>{s.post_count||0}</td>
-              <td style={{textAlign:"right"}}>
-                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
-              </td>
-            </tr>
-          ))}</tbody>
+          <tbody>{(()=>{
+            const topLevel = spaces.filter(s=>!s.parent_id);
+            const subMap   = {};
+            spaces.filter(s=>s.parent_id).forEach(s=>{
+              if(!subMap[s.parent_id]) subMap[s.parent_id]=[];
+              subMap[s.parent_id].push(s);
+            });
+            const rows = [];
+            topLevel.forEach(s=>{
+              const col=s.color||spaceColor(s);
+              rows.push(
+                <tr key={s.id}>
+                  <td><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0}}></span><span style={{fontWeight:500,color:"var(--t1)"}}>{s.name}</span></div></td>
+                  <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{s.slug}</td>
+                  <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{s.visibility}</span></td>
+                  <td>{s.post_count||0}</td>
+                  <td style={{textAlign:"right"}}>
+                    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
+                  </td>
+                </tr>
+              );
+              (subMap[s.id]||[]).forEach(sub=>{
+                rows.push(
+                  <tr key={sub.id} style={{background:"rgba(255,255,255,0.02)"}}>
+                    <td><div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:20}}><span style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0,opacity:0.7}}></span><span style={{color:"var(--t3)"}}>{sub.name}</span></div></td>
+                    <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{sub.slug}</td>
+                    <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{sub.visibility}</span></td>
+                    <td>{sub.post_count||0}</td>
+                    <td style={{textAlign:"right"}}>
+                      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(sub)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(sub)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
+                    </td>
+                  </tr>
+                );
+              });
+            });
+            return rows;
+          })()}</tbody>
         </table></div>}
     </div>
     {editing&&<div style={{background:"rgba(255,255,255,0.02)",border:"0.5px solid var(--b2)",borderRadius:12,padding:20}}>
@@ -193,11 +219,19 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
         <div><label className="f-label">Slug</label><input className="fi" value={form.slug} onChange={e=>setForm(p=>({...p,slug:e.target.value}))} style={{fontFamily:"monospace"}}/></div>
       </div>
       <div style={{marginBottom:12}}><label className="f-label">Description</label><input className="fi" value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="Optional description"/></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
         <div><label className="f-label">Visibility</label>
           <Select value={form.visibility} onChange={v=>setForm(p=>({...p,visibility:v}))}>
             <option value="public">Public</option>
             <option value="private">Private</option>
+          </Select>
+        </div>
+        <div><label className="f-label">Parent space <span style={{fontSize:10,color:"var(--t5)",textTransform:"none",letterSpacing:0}}>optional</span></label>
+          <Select value={form.parent_id||""} onChange={v=>setForm(p=>({...p,parent_id:v||""}))}>
+            <option value="">None — top level</option>
+            {spaces.filter(s=>!s.parent_id&&(editing==="new"||s.id!==editing?.id)).map(s=>(
+              <option key={s.id} value={""+s.id}>{s.name}</option>
+            ))}
           </Select>
         </div>
         <div><label className="f-label">Icon <span style={{fontSize:10,color:"var(--t5)"}}>(Font Awesome class)</span></label>

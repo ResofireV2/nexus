@@ -1627,6 +1627,22 @@ select option{background:#1a1a2e;color:var(--t1);}
 .sb-item.active .sb-item-name{color:var(--ac-text);font-weight:500;}
 .sb-item-count{font-size:11px;color:var(--t5);}
 .sb-item.active .sb-item-count{color:rgba(74,144,226,0.65);}
+.sb-item-inner{display:flex;align-items:center;gap:12px;flex:1;padding:10px 18px;cursor:pointer;}
+.sb-item-inner:hover{background:rgba(255,255,255,0.04);}
+.sb-item-toggle{padding:10px 14px 10px 0;cursor:pointer;color:var(--t5);font-size:10px;flex-shrink:0;transition:color .1s;}
+.sb-item-toggle:hover{color:var(--t3);}
+.sb-item-toggle i{transition:transform .15s;}
+.sb-item-toggle.expanded i{transform:rotate(0deg);}
+.sb-item-toggle.collapsed i{transform:rotate(-90deg);}
+.sb-sub-item{display:flex;align-items:center;gap:10px;padding:6px 18px 6px 42px;cursor:pointer;position:relative;transition:background .1s;}
+.sb-sub-item:hover{background:rgba(255,255,255,0.04);}
+.sb-sub-item.active{background:var(--ac-bg);}
+.sb-sub-item.active::before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
+.sb-sub-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.sb-sub-name{font-size:calc(var(--fs-body) - 1px);color:var(--t4);flex:1;}
+.sb-sub-item.active .sb-sub-name{color:var(--ac-text);font-weight:500;}
+[data-theme="light"] .sb-item-inner:hover{background:rgba(0,0,0,0.04);}
+[data-theme="light"] .sb-sub-item:hover{background:rgba(0,0,0,0.04);}
 .sb-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}
 .sb-divider{height:0.5px;background:var(--b1);margin:8px 0;}
 .sb-user{border-top:0.5px solid var(--b1);padding:10px 12px;display:flex;align-items:center;gap:9px;flex-shrink:0;}
@@ -2991,6 +3007,41 @@ function AndroidInstallSheet({pwaCfg={}, appBranding={}}) {
   );
 }
 
+// ── SpaceWithChildren ─────────────────────────────────────────────────────────
+// Renders a top-level space that has sub-spaces. The name area navigates to the
+// parent space feed; the chevron button exclusively controls expand/collapse.
+function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate}) {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  return (
+    <div>
+      <div className={`sb-item ${parentActive ? "active" : ""}`} style={{padding:0}}>
+        <div className="sb-item-inner" onClick={() => navigate("feed", {space: space.slug})}>
+          <i className={`fa-solid ${space.icon || "fa-layer-group"}`}
+            style={{width:18,textAlign:"center",fontSize:15,flexShrink:0,
+              color: parentActive ? col : "var(--t3)"}}/>
+          <span className="sb-item-name">{space.name}</span>
+          {space.post_count > 0 && <span className="sb-item-count">{space.post_count}</span>}
+        </div>
+        <span className={`sb-item-toggle ${expanded ? "expanded" : "collapsed"}`}
+          onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}
+          title={expanded ? "Collapse" : "Expand"}>
+          <i className="fa-solid fa-chevron-down"/>
+        </span>
+      </div>
+      {expanded && children.map(sub => {
+        const subActive = page === "feed" && pageProps?.space === sub.slug;
+        return (
+          <div key={sub.id} className={`sb-sub-item ${subActive ? "active" : ""}`}
+            onClick={() => navigate("feed", {space: sub.slug})}>
+            <span className="sb-sub-dot" style={{background: col}}/>
+            <span className="sb-sub-name">{sub.name}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
   const [branding, setBranding] = useState({logo_url:null, site_name:null});
@@ -3129,15 +3180,55 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
             </React.Fragment>;
             if(sec.id === "spaces") return <React.Fragment key="spaces">
               {divider}<div className="sb-label">Spaces</div>
-              {orderedSpaces.map(function(s){
-                const col=spaceColor(s);
-                const active=page==="feed"&&pageProps?.space===s.slug;
-                return <div key={s.id} className={`sb-item ${active?"active":""}`} onClick={()=>navigate("feed",{space:s.slug})}>
-                  <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{color:active?col:undefined}}/>
-                  <span className="sb-item-name">{s.name}</span>
-                  {s.post_count>0&&<span className="sb-item-count">{s.post_count}</span>}
-                </div>;
-              })}
+              {(()=>{
+                // Separate top-level and sub-spaces
+                const topLevel = orderedSpaces.filter(s => !s.parent_id);
+                const subMap   = {};
+                orderedSpaces.filter(s => s.parent_id).forEach(s => {
+                  if (!subMap[s.parent_id]) subMap[s.parent_id] = [];
+                  subMap[s.parent_id].push(s);
+                });
+
+                // Determine which parent should be auto-expanded:
+                // the parent of the currently active sub-space, if any.
+                const activeSubSpace = pageProps?.space
+                  ? orderedSpaces.find(s => s.slug === pageProps.space && s.parent_id)
+                  : null;
+                const autoExpandParentId = activeSubSpace ? activeSubSpace.parent_id : null;
+
+                return topLevel.map(s => {
+                  const col      = spaceColor(s);
+                  const children = subMap[s.id] || [];
+                  const hasChildren = children.length > 0;
+                  // Parent is active if viewing its feed directly (not a sub-space)
+                  const parentActive = page === "feed" && pageProps?.space === s.slug;
+                  // Parent is expanded if it was auto-expanded due to active child,
+                  // tracked in local state via data attribute — we use React key trick
+                  const defaultExpanded = s.id === autoExpandParentId;
+
+                  if (!hasChildren) {
+                    return (
+                      <div key={s.id} className={`sb-item ${parentActive ? "active" : ""}`}
+                        onClick={() => navigate("feed", {space: s.slug})}>
+                        <i className={`fa-solid ${s.icon || "fa-layer-group"}`} style={{color: parentActive ? col : undefined}}/>
+                        <span className="sb-item-name">{s.name}</span>
+                        {s.post_count > 0 && <span className="sb-item-count">{s.post_count}</span>}
+                      </div>
+                    );
+                  }
+
+                  // Space has children — split hit areas
+                  return (
+                    <SpaceWithChildren key={s.id}
+                      space={s} col={col} children={children}
+                      parentActive={parentActive}
+                      defaultExpanded={defaultExpanded}
+                      page={page} pageProps={pageProps}
+                      navigate={navigate}
+                    />
+                  );
+                });
+              })()}
             </React.Fragment>;
             if(sec.id === "you" && currentUser) return <React.Fragment key="you">
               {divider}<div className="sb-label">You</div>
