@@ -354,13 +354,30 @@ defmodule Nexus.Admin do
       |> Repo.all()
       |> Map.new(fn s -> {s.key, s.value} end)
 
-    Map.merge(@defaults, existing)
+    # Deep merge: for each key, merge the default sub-map with the saved sub-map
+    # so that new fields added to @defaults appear for existing installs without
+    # requiring a data migration.
+    Map.merge(@defaults, existing, fn _key, default_val, existing_val ->
+      if is_map(default_val) and is_map(existing_val) do
+        Map.merge(default_val, existing_val)
+      else
+        existing_val
+      end
+    end)
   end
 
   def get_setting(key) do
+    default = Map.get(@defaults, key, %{})
     case Repo.get(SiteSetting, key) do
-      nil     -> Map.get(@defaults, key, %{})
-      setting -> setting.value
+      nil     -> default
+      setting ->
+        # Merge defaults under this key so new fields are available even when
+        # the saved row predates them.
+        if is_map(default) and is_map(setting.value) do
+          Map.merge(default, setting.value)
+        else
+          setting.value
+        end
     end
   end
 
