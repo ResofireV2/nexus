@@ -440,8 +440,15 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     const ta  = taRef.current; if (!ta) return;
     const alt = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
     const md  = `\n[![${alt}](${webpUrl})](${originalUrl})\n`;
+    // Read from the DOM node directly, not the React `value` prop. When
+    // uploading multiple images sequentially the prop value is stale (the
+    // closure captured the value from before the first insert), so every
+    // insert would overwrite the same base string and only the last would
+    // survive. The DOM node is always current.
     const pos = ta.selectionStart;
-    const newVal = value.slice(0, pos) + md + value.slice(pos);
+    const cur = ta.value;
+    const newVal = cur.slice(0, pos) + md + cur.slice(pos);
+    ta.value = newVal;
     onChange(newVal);
     setTimeout(() => { ta.focus(); ta.setSelectionRange(pos+md.length, pos+md.length); }, 0);
   };
