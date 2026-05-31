@@ -392,6 +392,15 @@ document.addEventListener("click", e => {
   const allImgs = body ? [...body.querySelectorAll("img:not(.yt-lite img):not(.md-link-preview img)")] : [img];
   const items = allImgs.map(i => ({ src: i.src, originalSrc: i.getAttribute("data-original") || i.src }));
   const startIdx = allImgs.indexOf(img);
+  // Blur the clicked image before handing off to Fancybox. On first-ever open,
+  // Fancybox inserts its DOM and triggers a browser layout pass. If an image
+  // element still has implicit focus at that point the browser will scroll it
+  // into view inside .post-content-wrap, making it appear to jump to whichever
+  // image was clicked. Blurring first removes the scroll target before the
+  // layout recalculation fires. On subsequent opens Fancybox is already
+  // initialised so no layout pass occurs and the scroll never happens — which
+  // is why this only manifests on the first click.
+  img.blur();
   openFancybox(items, startIdx < 0 ? 0 : startIdx);
 }, true);
 
