@@ -139,10 +139,29 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
   },[]);
   const [reactions, setReactions] = useState(initialReactions);
   const [userReaction, setUserReaction] = useState(initialUserReaction);
+  const [pickerStyle, setPickerStyle] = useState({});
   const ref = useRef();
 
   useEffect(()=>{ setReactions(initialReactions); },[JSON.stringify(initialReactions)]);
   useEffect(()=>{ setUserReaction(initialUserReaction); },[initialUserReaction]);
+
+  // Recalculate picker position when opened so it stays within the viewport.
+  // Uses Nexus's defined mobile breakpoint of 767.99px.
+  useEffect(()=>{
+    if (!open || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const isMobile = vw <= 767.99;
+    const margin = 16;
+    const pickerW = Math.min((getReactions().length * 48) + 24, vw - (margin * 2));
+    const pickerH = isMobile && pickerW < getReactions().length * 48 ? 112 : 56;
+    let left = rect.right - pickerW;
+    if (left < margin) left = margin;
+    if (left + pickerW > vw - margin) left = vw - pickerW - margin;
+    let top = rect.top - pickerH - 8;
+    if (top < 8) top = rect.bottom + 8;
+    setPickerStyle({ left, top, width: pickerW });
+  }, [open]);
 
   useEffect(()=>{
     if(!open) return;
@@ -178,7 +197,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
           : <i className="fa-solid fa-heart" style={{fontSize:14,color:"inherit"}}/>}
         {totalCount>0&&<span>{totalCount}</span>}
         {open&&(
-          <div className="rx-picker" onClick={e=>e.stopPropagation()}>
+          <div className="rx-picker" style={pickerStyle} onClick={e=>e.stopPropagation()}>
             {getReactions().map(({emoji,label})=>(
               <div key={emoji} className={`rx-pick-btn ${userReaction===emoji?"selected":""}`}
                 title={label} onClick={e=>{e.stopPropagation();react(emoji);}}>

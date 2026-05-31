@@ -1836,7 +1836,7 @@ select option{background:#1a1a2e;color:var(--t1);}
 .rx-trigger:hover{border-color:var(--b2);color:var(--t2);background:rgba(255,255,255,0.06);}
 .rx-trigger.reacted{background:var(--ac-bg);color:var(--ac-text);border:1.5px solid var(--ac);}
 /* Reaction picker */
-.rx-picker{position:absolute;bottom:calc(100% + 8px);right:0;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;}
+.rx-picker{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;flex-wrap:wrap;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;max-width:calc(100vw - 32px);}
 @keyframes rxPop{from{opacity:0;transform:scale(.92) translateY(4px);}to{opacity:1;transform:scale(1) translateY(0);}}
 .rx-pick-btn{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:all .1s;border:1.5px solid transparent;}
 .rx-pick-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.15);}
