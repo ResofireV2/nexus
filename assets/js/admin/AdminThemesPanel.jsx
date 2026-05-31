@@ -45,8 +45,10 @@ export function AdminThemesPanel() {
   };
 
   const installFromStore = async (item) => {
+    const url = item.github_url || item.homepage || item.github_repo;
+    if (!url) { toast("No GitHub URL found for this theme", "err"); return; }
     setInstalling(item.slug);
-    const d = await api.post("/admin/themes/install-from-url", { url: item.github_url || item.homepage });
+    const d = await api.post("/admin/themes/install-from-url", { url });
     if (d.theme) {
       toast(`${d.theme.name} installed`);
       loadThemes();

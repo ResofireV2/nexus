@@ -53,13 +53,17 @@ defmodule Nexus.Themes do
     else
       token = GitHub.get_token()
       case GitHub.latest_release(github_repo, token) do
+        {:error, :no_release} ->
+          {:error, "No release found for #{github_repo}. Please create a GitHub release first."}
+
         {:error, reason} ->
           {:error, "Could not fetch latest release: #{inspect(reason)}"}
 
         {:ok, release} ->
-          tag          = release.tag
-          clean_tag    = String.trim_leading(tag, "v")
-          tarball_url  = "https://github.com/#{github_repo}/archive/refs/tags/#{tag}.tar.gz"
+          clean_tag    = String.trim_leading(release.tag, "v")
+          # Use GitHub's own tarball_url from the release API response —
+          # it's guaranteed valid regardless of tag format.
+          tarball_url  = release.tarball_url || "https://github.com/#{github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
           slug_hint    = github_repo |> String.split("/") |> List.last() |> String.downcase()
 
           case ThemeLoader.install_from_url(tarball_url, slug_hint, clean_tag) do
@@ -109,7 +113,7 @@ defmodule Nexus.Themes do
         if clean_tag == theme.installed_version do
           {:ok, :already_up_to_date}
         else
-          tarball_url = "https://github.com/#{theme.github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
+          tarball_url = release.tarball_url || "https://github.com/#{theme.github_repo}/archive/refs/tags/#{release.tag}.tar.gz"
           case ThemeLoader.install_from_url(tarball_url, theme.slug, clean_tag) do
             {:error, reason} -> {:error, reason}
 
