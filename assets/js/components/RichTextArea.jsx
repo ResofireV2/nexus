@@ -34,6 +34,9 @@ export const TB_BTNS = [
   {type:"h1",      label:"H1",  tip:"Heading 1",     style:{fontSize:12,fontWeight:700},       wrap:["# ",""]},
   {type:"h2",      label:"H2",  tip:"Heading 2",     style:{fontSize:12,fontWeight:700},       wrap:["## ",""]},
   {sep:true},
+  {type:"ul",      label:"fa-solid fa-list-ul",       tip:"Bullet list",    style:{}, wrap:null, list:"ul"},
+  {type:"ol",      label:"fa-solid fa-list-ol",       tip:"Numbered list",  style:{}, wrap:null, list:"ol"},
+  {sep:true},
   {type:"incode",  label:"</>", tip:"Inline code",   style:{fontFamily:"monospace",fontSize:11},wrap:["`","`"]},
   {type:"code",    label:"≡",   tip:"Code block",    style:{fontFamily:"monospace"},            wrap:["```\n","\n```"]},
   {type:"link",    label:"🔗",  tip:"Link",          style:{},                                 wrap:["[","](url)"]},
@@ -346,6 +349,39 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     }, 0);
   };
 
+  // Prefixes each selected line with a bullet or numbered list marker.
+  // If nothing is selected, inserts a starter item at the cursor position.
+  const applyList = (kind) => {
+    const ta = taRef.current; if (!ta) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const before = ta.value.slice(0, s);
+    const sel    = ta.value.slice(s, e);
+    const after  = ta.value.slice(e);
+    if (sel) {
+      // Prefix every selected line
+      let n = 0;
+      const prefixed = sel.replace(/^(.*)$/gm, (line) => {
+        if (!line.trim()) return line; // leave blank lines alone
+        n++;
+        return (kind === "ol" ? `${n}. ` : "- ") + line;
+      });
+      const newVal = before + prefixed + after;
+      ta.value = newVal;
+      onChange(newVal);
+      setTimeout(() => { ta.focus(); ta.setSelectionRange(s, s + prefixed.length); }, 0);
+    } else {
+      // No selection — insert a single starter item on a new line
+      const prefix = kind === "ol" ? "1. " : "- ";
+      const needsNewline = before.length > 0 && !before.endsWith("\n");
+      const insert = (needsNewline ? "\n" : "") + prefix;
+      const newVal = before + insert + after;
+      ta.value = newVal;
+      onChange(newVal);
+      const pos = s + insert.length;
+      setTimeout(() => { ta.focus(); ta.setSelectionRange(pos, pos); }, 0);
+    }
+  };
+
   // @mention state
   const [mentionDrop, setMentionDrop] = useState(null);
   const [isFocused,   setIsFocused]   = useState(false);
@@ -529,6 +565,11 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
                     ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:16}}/>
                     : <i className="fa-solid fa-image" style={{fontSize:16}}/>}
                 </label>
+            : b.list
+              ? <button key={b.type} className="comp-tb-btn" title={b.tip}
+                  onMouseDown={e=>{e.preventDefault(); applyList(b.list);}}>
+                  <i className={b.label} style={{fontSize:16}}/>
+                </button>
               : <button key={b.type} className="comp-tb-btn" title={b.tip}
                   style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
                   {b.label}
