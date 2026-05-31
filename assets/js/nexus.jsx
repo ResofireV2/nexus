@@ -84,14 +84,24 @@ function openFancybox(items, startIndex) {
       thumb: item.src,
       type:  "image",
     }));
+    // Use nullish coalescing so startIndex=0 is preserved (0 || 0 would also
+    // work but is confusing). The after:init hook re-enforces the index because
+    // Fancybox 5's Thumbs plugin can scroll back to slide 0 on first open
+    // when startIndex > 0.
+    const idx = startIndex ?? 0;
     window.Fancybox.show(gallery, {
-      startIndex: startIndex || 0,
+      startIndex: idx,
       Thumbs: { type: "classic" },
       Toolbar: {
         display: {
           left:   ["infobar"],
           middle: [],
           right:  ["slideshow","fullscreen","thumbs","close"],
+        },
+      },
+      on: {
+        "after:init": (fancybox) => {
+          if (idx > 0) fancybox.jumpTo(idx, { friction: 0 });
         },
       },
     });
