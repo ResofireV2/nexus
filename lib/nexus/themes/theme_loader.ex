@@ -100,12 +100,13 @@ defmodule Nexus.Themes.ThemeLoader do
     File.rm_rf(build_dir)
     File.mkdir_p!(build_dir)
 
-    resolved = rewrite_github_url(url)
-    # GitHub's API tarball_url (api.github.com/repos/.../tarball/...)
-    # does not accept application/octet-stream — use application/x-gzip instead.
-    # The constructed archive URL (github.com/.../archive/...) works with either.
-    accept  = if String.contains?(resolved, "api.github.com"), do: "application/x-gzip", else: "application/octet-stream"
-    headers = [{"Accept", accept}]
+    # Only rewrite github.com archive URLs to codeload — do NOT rewrite
+    # api.github.com tarball URLs since those redirect correctly on their own.
+    resolved = if String.contains?(url, "api.github.com"),
+      do: url,
+      else: rewrite_github_url(url)
+
+    headers = [{"Accept", "application/x-gzip"}]
     token   = Nexus.Extensions.GitHub.get_token()
     headers = if token, do: [{"Authorization", "Bearer #{token}"} | headers], else: headers
 
