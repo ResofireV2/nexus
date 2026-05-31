@@ -100,15 +100,14 @@ defmodule Nexus.Themes.ThemeLoader do
     File.rm_rf(build_dir)
     File.mkdir_p!(build_dir)
 
-    # Only rewrite github.com archive URLs to codeload — do NOT rewrite
-    # api.github.com tarball URLs since those redirect correctly on their own.
-    resolved = if String.contains?(url, "api.github.com"),
-      do: url,
-      else: rewrite_github_url(url)
-
-    headers = [{"Accept", "application/x-gzip"}]
-    token   = Nexus.Extensions.GitHub.get_token()
-    headers = if token, do: [{"Authorization", "Bearer #{token}"} | headers], else: headers
+    # api.github.com tarball URLs redirect to codeload with no Accept header.
+    # Sending any Accept header causes a 415. For constructed archive URLs
+    # (github.com/archive/...) we use application/octet-stream.
+    is_api_url = String.contains?(url, "api.github.com")
+    resolved   = if is_api_url, do: url, else: rewrite_github_url(url)
+    headers    = if is_api_url, do: [], else: [{"Accept", "application/octet-stream"}]
+    token      = Nexus.Extensions.GitHub.get_token()
+    headers    = if token, do: [{"Authorization", "Bearer #{token}"} | headers], else: headers
 
     case Req.get(resolved, headers: headers, receive_timeout: 60_000, decode_body: false, redirect: true) do
       {:ok, %{status: 200, body: body}} ->
