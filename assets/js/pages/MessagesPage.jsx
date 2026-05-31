@@ -383,9 +383,7 @@ function GroupSettingsModal({thread, currentUser, onClose, onUpdate}) {
           <div style={{border:"0.5px solid var(--b1)",borderRadius:10,overflow:"hidden",marginBottom:8}}>
             {members.map((m,i)=>(
               <div key={m.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderBottom:i<members.length-1?"0.5px solid var(--b1)":"none"}}>
-                <div style={{width:28,height:28,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--ac-on)",fontWeight:600,flexShrink:0}}>
-                  {(m.user?.username||"?").slice(0,2).toUpperCase()}
-                </div>
+                <Av user={m.user} size={28}/>
                 <span style={{flex:1,fontSize:13,color:"var(--t2)"}}>{m.user?.username}</span>
                 {m.user_id===thread.creator_id
                   ?<span style={{fontSize:10,color:"var(--ac-text)",background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:20,padding:"2px 8px"}}>owner</span>
@@ -409,9 +407,7 @@ function GroupSettingsModal({thread, currentUser, onClose, onUpdate}) {
                     background:"transparent"}}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"var(--ac-on)",fontWeight:600}}>
-                    {u.username.slice(0,2).toUpperCase()}
-                  </div>
+                  <Av user={u} size={24}/>
                   <span style={{fontSize:12,color:"var(--t1)"}}>{u.username}</span>
                 </div>
               ))}
@@ -546,9 +542,7 @@ function DMNewPage({navigate, currentUser}) {
                   style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",
                     background:isSel?"rgba(167,139,250,0.08)":"transparent",
                     borderBottom:i<results.length-1?"0.5px solid var(--b1)":"none"}}>
-                  <div style={{width:32,height:32,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"var(--ac-on)",fontWeight:600,flexShrink:0}}>
-                    {u.username.slice(0,2).toUpperCase()}
-                  </div>
+                  <Av user={u} size={32}/>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{u.username}</div>
                     {u.role&&u.role!=="member"&&<div style={{fontSize:11,color:"var(--t4)"}}>{u.role}</div>}
