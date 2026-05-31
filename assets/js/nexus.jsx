@@ -4627,6 +4627,7 @@ function MobileTabBar({currentUser, navigate, page, notifCount, msgCount, onComp
         </button>
         <button className="mob-tab" onClick={()=>navigate("messages")}>
           <i className="fa-solid fa-message"/>
+          {msgCount>0&&<div className="mob-badge"/>}
           <span className="mob-tab-label">Messages</span>
         </button>
         <button className="mob-tab-compose" onClick={onCompose} aria-label="Write">+</button>
