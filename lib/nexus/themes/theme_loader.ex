@@ -101,9 +101,13 @@ defmodule Nexus.Themes.ThemeLoader do
     File.mkdir_p!(build_dir)
 
     resolved = rewrite_github_url(url)
-    headers  = [{"Accept", "application/octet-stream"}]
-    token    = Nexus.Extensions.GitHub.get_token()
-    headers  = if token, do: [{"Authorization", "Bearer #{token}"} | headers], else: headers
+    # GitHub's API tarball_url (api.github.com/repos/.../tarball/...)
+    # does not accept application/octet-stream — use application/x-gzip instead.
+    # The constructed archive URL (github.com/.../archive/...) works with either.
+    accept  = if String.contains?(resolved, "api.github.com"), do: "application/x-gzip", else: "application/octet-stream"
+    headers = [{"Accept", accept}]
+    token   = Nexus.Extensions.GitHub.get_token()
+    headers = if token, do: [{"Authorization", "Bearer #{token}"} | headers], else: headers
 
     case Req.get(resolved, headers: headers, receive_timeout: 60_000, decode_body: false, redirect: true) do
       {:ok, %{status: 200, body: body}} ->
