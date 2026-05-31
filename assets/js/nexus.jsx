@@ -361,7 +361,14 @@ document.addEventListener("click", e => {
     }
   }
 });
-// Attach delegated click handler to .md-body images once at module load
+// Attach delegated click handler to .md-body images once at module load.
+// Uses capture phase (third arg `true`) so e.preventDefault() fires before
+// any wrapping <a> tag evaluates its default action (scroll-to-hash / navigate).
+// Without capture, the anchor default is committed as the event passes through
+// the <a> during bubbling — before our document-level listener ever runs.
+// This is the root cause of the first-click-only scroll-to-top bug: on first
+// click Fancybox hasn't loaded yet so nothing suppresses the anchor scroll,
+// whereas on subsequent clicks Fancybox is already open and masks it visually.
 document.addEventListener("click", e => {
   // Handle mention link clicks — SPA navigation
   const mention = e.target.closest(".mention-link");
@@ -386,7 +393,7 @@ document.addEventListener("click", e => {
   const items = allImgs.map(i => ({ src: i.src, originalSrc: i.getAttribute("data-original") || i.src }));
   const startIdx = allImgs.indexOf(img);
   openFancybox(items, startIdx < 0 ? 0 : startIdx);
-});
+}, true);
 
 function useRefPreview() {
   const [popup, setPopup] = useState(null);
