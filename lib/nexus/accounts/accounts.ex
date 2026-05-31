@@ -69,6 +69,7 @@ defmodule Nexus.Accounts do
         role:               u.role,
         bio:                u.bio,
         avatar_url:         u.avatar_url,
+        avatar_color:       u.avatar_color,
         cover_url:          u.cover_url,
         inserted_at:        u.inserted_at,
         status:             u.status,
