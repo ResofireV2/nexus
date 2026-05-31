@@ -445,7 +445,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   },[sec, uploadFilter]);
 
   if(!currentUser||currentUser.role!=="admin") return <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Access denied</div>;
-  const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");setIsDirty(false);if(key==="appearance")window._applyBranding&&window._applyBranding(value,general);}finally{setSaving(false);}};
+  const saveSection=async(key,value)=>{setSaving(true);try{await api.patch(`/admin/settings/${key}`,{value});toast("Saved");setIsDirty(false);if(key==="appearance"){api.get("/branding").then(bd=>{const s=bd.settings||{};const app={...(s.appearance||{}),active_theme_dark:s.active_theme_dark||null,active_theme_light:s.active_theme_light||null};window._applyBranding&&window._applyBranding(app,s.general||{});});}}finally{setSaving(false);}};
   // Wire global dirty/save hooks so extension SimpleSettingsPanel instances
   // (used standalone or inside a TabbedPanel tab) can signal changes and be
   // saved via the top-bar Save Changes button.

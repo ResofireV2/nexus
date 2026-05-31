@@ -69,7 +69,12 @@ export function AdminThemesPanel() {
       if (theme.active_dark || theme.active_light) {
         api.get("/branding").then(bd => {
           const s = bd.settings || {};
-          window._applyBranding && window._applyBranding(s.appearance || {}, s.general || {});
+          const app = {
+            ...(s.appearance || {}),
+            active_theme_dark:  s.active_theme_dark  || null,
+            active_theme_light: s.active_theme_light || null,
+          };
+          window._applyBranding && window._applyBranding(app, s.general || {});
         });
       }
     } else {
@@ -86,7 +91,12 @@ export function AdminThemesPanel() {
       loadThemes();
       api.get("/branding").then(bd => {
         const s = bd.settings || {};
-        window._applyBranding && window._applyBranding(s.appearance || {}, s.general || {});
+        const app = {
+          ...(s.appearance || {}),
+          active_theme_dark:  s.active_theme_dark  || null,
+          active_theme_light: s.active_theme_light || null,
+        };
+        window._applyBranding && window._applyBranding(app, s.general || {});
       });
       toast(currentMode === "none" ? `${theme.name} deactivated` : `${theme.name} set as ${mode} theme`);
     } else {

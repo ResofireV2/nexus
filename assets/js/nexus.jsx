@@ -4937,7 +4937,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};applyBranding(s.appearance||{},s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);window._postCfg=s.posting||{};
+    api.get("/branding").then(d=>{const s=d.settings||{};const app={...(s.appearance||{}),active_theme_dark:s.active_theme_dark||null,active_theme_light:s.active_theme_light||null};applyBranding(app,s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);window._postCfg=s.posting||{};
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
       const digest=s.digest||{};
