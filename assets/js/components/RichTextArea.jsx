@@ -446,29 +446,40 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     setTimeout(() => { ta.focus(); ta.setSelectionRange(pos+md.length, pos+md.length); }, 0);
   };
 
-  const handleImageFile = async (file) => {
-    if (!file) return;
+  const handleImageFiles = async (files) => {
+    if (!files || files.length === 0) return;
     if (!currentUser) { toast("Sign in to upload images", "err"); return; }
     setUploading(true);
+    const token = localStorage.getItem("nexus_token");
+    let succeeded = 0;
+    let failed = 0;
     try {
-      const fd  = new FormData();
-      fd.append("file", file);
-      fd.append("type", "post_image");
-      const token = localStorage.getItem("nexus_token");
-      const r = await fetch("/api/v1/uploads", {
-        method:  "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body:    fd,
-      });
-      const d = await r.json();
-      if (d.upload) {
-        insertImageMarkdown(d.url, d.original_url, file.name);
-        toast("Image uploaded");
-      } else {
-        toast(d.error || "Upload failed", "err");
+      for (const file of files) {
+        try {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("type", "post_image");
+          const r = await fetch("/api/v1/uploads", {
+            method:  "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body:    fd,
+          });
+          const d = await r.json();
+          if (d.upload) {
+            insertImageMarkdown(d.url, d.original_url, file.name);
+            succeeded++;
+          } else {
+            failed++;
+            toast(d.error || `Upload failed: ${file.name}`, "err");
+          }
+        } catch {
+          failed++;
+          toast(`Upload failed: ${file.name}`, "err");
+        }
       }
-    } catch {
-      toast("Upload failed", "err");
+      if (succeeded > 0 && failed === 0) {
+        toast(succeeded === 1 ? "Image uploaded" : `${succeeded} images uploaded`);
+      }
     } finally {
       setUploading(false);
       if (imgInputRef.current) imgInputRef.current.value = "";
@@ -543,12 +554,12 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
         className="comp-ta"
         style={{minHeight, paddingTop:12, paddingBottom:12}}
         onPaste={e=>{
-          const file = Array.from(e.clipboardData?.files||[]).find(f=>f.type.startsWith("image/"));
-          if (file) { e.preventDefault(); handleImageFile(file); }
+          const files = Array.from(e.clipboardData?.files||[]).filter(f=>f.type.startsWith("image/"));
+          if (files.length > 0) { e.preventDefault(); handleImageFiles(files); }
         }}
         onDrop={e=>{
-          const file = Array.from(e.dataTransfer?.files||[]).find(f=>f.type.startsWith("image/"));
-          if (file) { e.preventDefault(); handleImageFile(file); }
+          const files = Array.from(e.dataTransfer?.files||[]).filter(f=>f.type.startsWith("image/"));
+          if (files.length > 0) { e.preventDefault(); handleImageFiles(files); }
         }}
         onDragOver={e=>e.preventDefault()}
       />
@@ -592,9 +603,10 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
         id="comp-img-input"
         ref={imgInputRef}
         type="file"
+        multiple
         accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
         style={{display:"none"}}
-        onChange={e=>handleImageFile(e.target.files[0])}
+        onChange={e=>handleImageFiles(Array.from(e.target.files||[]).filter(f=>f.type.startsWith("image/")))}
       />
     </div>
   );
