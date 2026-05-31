@@ -85,8 +85,11 @@ function openFancybox(items, startIndex) {
       type:  "image",
     }));
     const idx = startIndex ?? 0;
-    const fb = window.Fancybox.show(gallery, {
+    window.Fancybox.show(gallery, {
       startIndex: idx,
+      Carousel: {
+        initialPage: idx,
+      },
       Thumbs: { type: "classic" },
       Toolbar: {
         display: {
@@ -96,18 +99,6 @@ function openFancybox(items, startIndex) {
         },
       },
     });
-    // On first load the Thumbs plugin initialises after the gallery opens and
-    // internally resets the active slide to 0 as a side effect. A short
-    // setTimeout fires after all plugin init is complete and enforces the
-    // correct index. On subsequent opens Fancybox is already initialised so
-    // the jump is a no-op (current slide is already idx).
-    if (idx > 0) {
-      setTimeout(() => {
-        if (fb && typeof fb.jumpTo === "function") {
-          fb.jumpTo(idx, { friction: 0 });
-        }
-      }, 50);
-    }
   });
 }
 
