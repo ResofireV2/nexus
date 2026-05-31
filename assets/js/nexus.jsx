@@ -2537,57 +2537,98 @@ function applyTheme(mode, app={}) {
   _currentTheme = mode;
   r.setAttribute("data-theme", mode);
 
+  // Layer order:
+  // 1. Base vars (text, borders) — always applied
+  // 2. Admin surface fallback — applied only when no theme sets surfaces
+  // 3. Admin surface tint override — applied when admin explicitly set one
+  // 4. Admin accent — applied when admin explicitly set a non-default value
+  // 5. Theme variables — applied last so theme always wins over defaults
+  //    (admin can still override by setting explicit non-default values above)
+
+  const DARK_AC_DEFAULT  = "#4A90E2";
+  const LIGHT_AC_DEFAULT = "#2563eb";
+
   if (mode === "light") {
+    const themeVars = app.active_theme_light;
+    const themeVarMap = themeVars ? {...(themeVars.variables||{}), ...(themeVars.light_variables||{})} : null;
+
     // 1. Base text + border vars
     Object.entries(LIGHT_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
-    // 2. Active theme variables (applied before admin overrides so admin always wins)
-    const themeVars = app.active_theme_light;
-    if (themeVars) {
-      const vars = {...(themeVars.variables||{}), ...(themeVars.light_variables||{})};
-      Object.entries(vars).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
+
+    // 2. Surface fallback (only when theme doesn't set --bg)
+    if (!themeVarMap || !themeVarMap["--bg"]) {
+      r.style.setProperty("--bg","#f4f4f5"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#e4e4e7"); r.style.setProperty("--s3","#d4d4d8");
     }
-    // 3. Admin accent override
-    const ac = app.light_accent_color || "#2563eb";
-    r.style.setProperty("--ac", ac.startsWith("#") ? ac : `#${ac}`);
-    const vars = deriveAccentVarsLight(ac.startsWith("#") ? ac : `#${ac}`);
-    if (vars) {
-      r.style.setProperty("--ac-on", vars.onAccent);
-      r.style.setProperty("--ac-bg", vars.acBg);
-      r.style.setProperty("--ac-border", vars.acBorder);
-      r.style.setProperty("--ac-text", vars.acText);
-    }
-    // 4. Admin surface override
+
+    // 3. Admin surface tint override
     if (app.light_tint_color) {
       const tint = deriveTintVarsLight(app.light_tint_color);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-    } else if (!themeVars || (!themeVars.variables?.["--bg"] && !themeVars.light_variables?.["--bg"])) {
-      r.style.setProperty("--bg","#f4f4f5"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#e4e4e7"); r.style.setProperty("--s3","#d4d4d8");
+    }
+
+    // 4. Admin accent — only when explicitly changed from default
+    const adminAc = app.light_accent_color;
+    if (adminAc && adminAc !== LIGHT_AC_DEFAULT) {
+      const ac = adminAc.startsWith("#") ? adminAc : `#${adminAc}`;
+      r.style.setProperty("--ac", ac);
+      const vars = deriveAccentVarsLight(ac);
+      if (vars) { r.style.setProperty("--ac-on",vars.onAccent); r.style.setProperty("--ac-bg",vars.acBg); r.style.setProperty("--ac-border",vars.acBorder); r.style.setProperty("--ac-text",vars.acText); }
+    } else if (!themeVarMap || !themeVarMap["--ac"]) {
+      // No theme accent and no admin override — apply default
+      const ac = LIGHT_AC_DEFAULT;
+      r.style.setProperty("--ac", ac);
+      const vars = deriveAccentVarsLight(ac);
+      if (vars) { r.style.setProperty("--ac-on",vars.onAccent); r.style.setProperty("--ac-bg",vars.acBg); r.style.setProperty("--ac-border",vars.acBorder); r.style.setProperty("--ac-text",vars.acText); }
+    }
+
+    // 5. Theme variables — applied last, win over all defaults
+    if (themeVarMap) {
+      Object.entries(themeVarMap).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
+      // Rederive accent family from theme's --ac if theme set it
+      if (themeVarMap["--ac"] && (!adminAc || adminAc === LIGHT_AC_DEFAULT)) {
+        const vars = deriveAccentVarsLight(themeVarMap["--ac"]);
+        if (vars) { r.style.setProperty("--ac-on",vars.onAccent); r.style.setProperty("--ac-bg",vars.acBg); r.style.setProperty("--ac-border",vars.acBorder); r.style.setProperty("--ac-text",vars.acText); }
+      }
     }
   } else {
+    const themeVars = app.active_theme_dark;
+    const themeVarMap = themeVars ? {...(themeVars.variables||{}), ...(themeVars.dark_variables||{})} : null;
+
     // 1. Base text + border vars
     Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
-    // 2. Active theme variables
-    const themeVars = app.active_theme_dark;
-    if (themeVars) {
-      const vars = {...(themeVars.variables||{}), ...(themeVars.dark_variables||{})};
-      Object.entries(vars).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
+
+    // 2. Surface fallback (only when theme doesn't set --bg)
+    if (!themeVarMap || !themeVarMap["--bg"]) {
+      r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
     }
-    // 3. Admin accent override
-    const ac = app.accent_color || "#4A90E2";
-    r.style.setProperty("--ac", ac);
-    const vars = deriveAccentVars(ac);
-    if (vars) {
-      r.style.setProperty("--ac-on", vars.onAccent);
-      r.style.setProperty("--ac-bg", vars.acBg);
-      r.style.setProperty("--ac-border", vars.acBorder);
-      r.style.setProperty("--ac-text", vars.acText);
-    }
-    // 4. Admin surface override
+
+    // 3. Admin surface tint override
     if (app.tint_color) {
       const tint = deriveTintVars(app.tint_color);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-    } else if (!themeVars || (!themeVars.variables?.["--bg"] && !themeVars.dark_variables?.["--bg"])) {
-      r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
+    }
+
+    // 4. Admin accent — only when explicitly changed from default
+    const adminAc = app.accent_color;
+    if (adminAc && adminAc !== DARK_AC_DEFAULT) {
+      r.style.setProperty("--ac", adminAc);
+      const vars = deriveAccentVars(adminAc);
+      if (vars) { r.style.setProperty("--ac-on",vars.onAccent); r.style.setProperty("--ac-bg",vars.acBg); r.style.setProperty("--ac-border",vars.acBorder); r.style.setProperty("--ac-text",vars.acText); }
+    } else if (!themeVarMap || !themeVarMap["--ac"]) {
+      // No theme accent and no admin override — apply default
+      r.style.setProperty("--ac", DARK_AC_DEFAULT);
+      const vars = deriveAccentVars(DARK_AC_DEFAULT);
+      if (vars) { r.style.setProperty("--ac-on",vars.onAccent); r.style.setProperty("--ac-bg",vars.acBg); r.style.setProperty("--ac-border",vars.acBorder); r.style.setProperty("--ac-text",vars.acText); }
+    }
+
+    // 5. Theme variables — applied last, win over all defaults
+    if (themeVarMap) {
+      Object.entries(themeVarMap).forEach(([k,v]) => { if(k.startsWith("--")) r.style.setProperty(k,v); });
+      // Rederive accent family from theme's --ac if theme set it
+      if (themeVarMap["--ac"] && (!adminAc || adminAc === DARK_AC_DEFAULT)) {
+        const vars = deriveAccentVars(themeVarMap["--ac"]);
+        if (vars) { r.style.setProperty("--ac-on",vars.onAccent); r.style.setProperty("--ac-bg",vars.acBg); r.style.setProperty("--ac-border",vars.acBorder); r.style.setProperty("--ac-text",vars.acText); }
+      }
     }
   }
 
