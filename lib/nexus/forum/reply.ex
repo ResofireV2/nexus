@@ -9,6 +9,7 @@ defmodule Nexus.Forum.Reply do
     field :hidden,           :boolean, default: false
     field :hidden_at,        :utc_datetime
     field :pending_approval, :boolean, default: false
+    field :edit_count,    :integer, default: 0
     field :search_vector, :string, load_in_query: false  # tsvector — managed by DB trigger
 
     belongs_to :user,      Nexus.Accounts.User
