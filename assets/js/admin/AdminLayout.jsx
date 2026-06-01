@@ -648,7 +648,7 @@ function ToolbarEditor({items, onChange, onReset}) {
                   </div>
                 : <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>
                     <div style={{minWidth:28,height:28,borderRadius:6,border:"0.5px solid var(--b1)",background:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--t4)",fontWeight:500,...(item.style||{})}}>
-                      {(item._ext || item.type === "emoji") ? React.createElement('i', {className:item.label, style:{fontSize:14}}) : item.label}
+                      {(item._ext || item.type === "emoji" || (typeof item.label === 'string' && item.label.startsWith('fa-'))) ? React.createElement('i', {className:item.label, style:{fontSize:14}}) : item.label}
                     </div>
                     <div>
                       <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{item.tip}</div>
@@ -684,7 +684,7 @@ function ToolbarEditor({items, onChange, onReset}) {
             {list.filter(function(b){return !b.hidden;}).map(function(b,i){
               return b.sep
                 ? React.createElement('div',{key:"sep"+i,className:"comp-tb-sep"})
-                : React.createElement('button',{key:b.type+i,className:"comp-tb-btn",style:b.style||{}}, b.type==="emoji" ? React.createElement('i',{className:b.label,style:{fontSize:16}}) : b.label);
+                : React.createElement('button',{key:b.type+i,className:"comp-tb-btn",style:b.style||{}}, (b.type==="emoji" || (typeof b.label === 'string' && b.label.startsWith('fa-'))) ? React.createElement('i',{className:b.label,style:{fontSize:16}}) : b.label);
             })}
             <div style={{flex:1}}/>
             <button className="comp-tb-btn" style={{opacity:0.6}}><i className="fa-regular fa-eye" style={{fontSize:16}}/></button>
