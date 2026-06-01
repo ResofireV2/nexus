@@ -80,8 +80,12 @@ function loadFancybox(callback) {
   script.onload  = () => {
     _fancyboxLoaded = true;
     _fancyboxLoading = false;
-    // Defer one tick so Fancybox finishes its own init before we call show()
-    setTimeout(callback, 0);
+    // Defer until after the browser's next render cycle. Fancybox runs
+    // post-initialization work (RAF callbacks, microtasks) synchronously
+    // after the UMD executes. Calling show() inside onload interrupts that
+    // and causes Fancybox's internal state reset to override our startIndex.
+    // Waiting one rAF ensures Fancybox is fully settled first.
+    requestAnimationFrame(callback);
   };
   script.onerror = () => { _fancyboxLoading = false; };
   document.head.appendChild(script);
