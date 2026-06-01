@@ -54,26 +54,37 @@ window.ReactDOM = ReactDOM;
 // ── Lightbox — powered by Fancybox 5 ─────────────────────────────────────────
 // Fancybox is loaded on demand the first time a user clicks an image.
 // This keeps ~47 KiB of JS+CSS off the initial page load entirely.
-// Fancybox — loaded eagerly at page load for testing.
-// If this resolves the first-click carousel slide-to-0 issue we know
-// the cause is something happening during the async load gap on first click.
-const _fancyboxLink  = document.createElement("link");
-_fancyboxLink.rel    = "stylesheet";
-_fancyboxLink.href   = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
-document.head.appendChild(_fancyboxLink);
-
-const _fancyboxScript = document.createElement("script");
-_fancyboxScript.src  = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
-document.head.appendChild(_fancyboxScript);
-
-let _fancyboxLoaded = false;
+// Fancybox is loaded on demand the first time a user clicks an image.
+// The CSS and JS are both injected lazily to keep them off the initial page load.
+// The callback is deferred by one setTimeout(0) after script.onload — this gives
+// Fancybox time to complete its own internal initialization (event listener
+// registration, auto-bind scan, internal state setup) before we call show().
+// Without this defer, show() is called synchronously inside onload while
+// Fancybox is still mid-initialization, and a subsequent internal state reset
+// overrides our startIndex and slides the carousel back to position 0.
+let _fancyboxLoading = false;
+let _fancyboxLoaded  = false;
 
 function loadFancybox(callback) {
-  if (window.Fancybox) { callback(); return; }
-  // Script is already in the DOM loading — poll until ready
-  const poll = setInterval(() => {
-    if (window.Fancybox) { clearInterval(poll); callback(); }
-  }, 20);
+  if (_fancyboxLoaded) { callback(); return; }
+  if (_fancyboxLoading) { setTimeout(() => loadFancybox(callback), 50); return; }
+  _fancyboxLoading = true;
+
+  const link   = document.createElement("link");
+  link.rel     = "stylesheet";
+  link.href    = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  document.head.appendChild(link);
+
+  const script   = document.createElement("script");
+  script.src     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
+  script.onload  = () => {
+    _fancyboxLoaded = true;
+    _fancyboxLoading = false;
+    // Defer one tick so Fancybox finishes its own init before we call show()
+    setTimeout(callback, 0);
+  };
+  script.onerror = () => { _fancyboxLoading = false; };
+  document.head.appendChild(script);
 }
 
 function openFancybox(items, startIndex) {
