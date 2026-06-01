@@ -476,14 +476,12 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   const insertImageMarkdown = (webpUrl, originalUrl, filename) => {
     const ta  = taRef.current; if (!ta) return;
     const alt = filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
-    const md  = `\n[![${alt}](${webpUrl})](${originalUrl})\n`;
-    // Read from the DOM node directly, not the React `value` prop. When
-    // uploading multiple images sequentially the prop value is stale (the
-    // closure captured the value from before the first insert), so every
-    // insert would overwrite the same base string and only the last would
-    // survive. The DOM node is always current.
     const pos = ta.selectionStart;
     const cur = ta.value;
+    // Only prepend a newline if the cursor isn't already at the start of a
+    // line — prevents a blank line appearing above the first uploaded image.
+    const needsLeadingNewline = pos > 0 && cur[pos - 1] !== "\n";
+    const md  = `${needsLeadingNewline ? "\n" : ""}[![${alt}](${webpUrl})](${originalUrl})\n`;
     const newVal = cur.slice(0, pos) + md + cur.slice(pos);
     ta.value = newVal;
     onChange(newVal);
