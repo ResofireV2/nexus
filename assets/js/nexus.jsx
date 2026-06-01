@@ -54,46 +54,34 @@ window.ReactDOM = ReactDOM;
 // ── Lightbox — powered by Fancybox 5 ─────────────────────────────────────────
 // Fancybox is loaded on demand the first time a user clicks an image.
 // This keeps ~47 KiB of JS+CSS off the initial page load entirely.
-let _fancyboxLoading = false;
-let _fancyboxLoaded  = false;
+// Fancybox — loaded eagerly at page load for testing.
+// If this resolves the first-click carousel slide-to-0 issue we know
+// the cause is something happening during the async load gap on first click.
+const _fancyboxLink  = document.createElement("link");
+_fancyboxLink.rel    = "stylesheet";
+_fancyboxLink.href   = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+document.head.appendChild(_fancyboxLink);
+
+const _fancyboxScript = document.createElement("script");
+_fancyboxScript.src  = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
+document.head.appendChild(_fancyboxScript);
+
+let _fancyboxLoaded = false;
 
 function loadFancybox(callback) {
-  if (_fancyboxLoaded) { callback(); return; }
-  if (_fancyboxLoading) { setTimeout(() => loadFancybox(callback), 50); return; }
-  _fancyboxLoading = true;
-
-  // Both the CSS and JS must be ready before calling Fancybox.show().
-  // If only the JS has loaded, Fancybox's Carousel has no layout information
-  // and reflows once the CSS arrives — snapping back to slide 0 regardless
-  // of the requested startIndex. We track both with a simple counter and
-  // only fire the callback once both have resolved.
-  let ready = 0;
-  function onReady() {
-    ready++;
-    if (ready === 2) { _fancyboxLoaded = true; _fancyboxLoading = false; callback(); }
-  }
-
-  const link    = document.createElement("link");
-  link.rel      = "stylesheet";
-  link.href     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
-  link.onload   = onReady;
-  link.onerror  = onReady; // don't block JS if CSS fails
-  document.head.appendChild(link);
-
-  const script   = document.createElement("script");
-  script.src     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
-  script.onload  = onReady;
-  script.onerror = () => { _fancyboxLoading = false; }; // hard fail if JS fails
-  document.head.appendChild(script);
+  if (window.Fancybox) { callback(); return; }
+  // Script is already in the DOM loading — poll until ready
+  const poll = setInterval(() => {
+    if (window.Fancybox) { clearInterval(poll); callback(); }
+  }, 20);
 }
 
 function openFancybox(items, startIndex) {
   loadFancybox(() => {
     if (!window.Fancybox) return;
     const gallery = items.map(item => ({
-      src:   item.originalSrc || item.src,
-      thumb: item.src,
-      type:  "image",
+      src:  item.originalSrc || item.src,
+      type: "image",
     }));
     const idx = startIndex ?? 0;
     window.Fancybox.show(gallery, {
