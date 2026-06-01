@@ -374,6 +374,11 @@ defmodule Nexus.Admin do
   end
 
   def get_setting(key) do
+    Nexus.SettingsCache.get(key, fn -> fetch_setting(key) end)
+  end
+
+  # Reads directly from DB — called by SettingsCache on a cache miss.
+  defp fetch_setting(key) do
     default = Map.get(@defaults, key, %{})
     case Repo.get(SiteSetting, key) do
       nil     -> default
@@ -407,6 +412,11 @@ defmodule Nexus.Admin do
           |> SiteSetting.changeset(%{value: Map.merge(setting.value, value)})
           |> Repo.update()
       end
+
+    # Invalidate the settings cache for this key on any successful write.
+    if match?({:ok, _}, result) do
+      Nexus.SettingsCache.invalidate(key)
+    end
 
     # Record the change if an admin_id is supplied
     if admin_id && match?({:ok, _}, result) do

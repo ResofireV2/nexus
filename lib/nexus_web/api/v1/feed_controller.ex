@@ -49,21 +49,24 @@ defmodule NexusWeb.API.V1.FeedController do
   end
 
   # GET /api/v1/stats — public community stats for the right panel
+  # Results are cached for 60 seconds by Nexus.StatsCache — three COUNT
+  # queries against potentially large tables are expensive to run on every
+  # sidebar poll from every connected client.
   def stats(conn, _params) do
-    total_members = Repo.aggregate(User, :count, :id)
-    total_posts   = Repo.aggregate(from(p in Post, where: not p.hidden), :count, :id)
+    stats = Nexus.StatsCache.get(fn ->
+      total_members = Repo.aggregate(User, :count, :id)
+      total_posts   = Repo.aggregate(from(p in Post, where: not p.hidden), :count, :id)
 
-    cutoff = DateTime.utc_now() |> DateTime.add(-15 * 60, :second)
-    active_members = Repo.aggregate(
-      from(u in User, where: u.last_seen_at > ^cutoff),
-      :count, :id
-    )
+      cutoff = DateTime.utc_now() |> DateTime.add(-15 * 60, :second)
+      active_members = Repo.aggregate(
+        from(u in User, where: u.last_seen_at > ^cutoff),
+        :count, :id
+      )
 
-    json(conn, %{
-      members: total_members,
-      threads: total_posts,
-      online:  active_members
-    })
+      %{members: total_members, threads: total_posts, online: active_members}
+    end)
+
+    json(conn, stats)
   end
 
 

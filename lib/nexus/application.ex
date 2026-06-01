@@ -33,6 +33,9 @@ defmodule Nexus.Application do
       {Oban, Application.fetch_env!(:nexus, Oban)},
       # Rate limiter — ETS table for auth endpoint throttling
       Nexus.RateLimiter,
+      # Settings and stats caches — ETS-backed, invalidated on write
+      Nexus.SettingsCache,
+      Nexus.StatsCache,
       # Extension infrastructure — must start before the endpoint so that
       # extension routes are available when the first request arrives.
       Nexus.Extensions.Registry,
