@@ -21,7 +21,11 @@ const DEFAULT_REACTIONS = [
 // so the component always has something to render.
 export function getReactions() {
   const cfg = window._reactionsCfg;
-  if (cfg && Array.isArray(cfg.list) && cfg.list.length > 0) return cfg.list;
+  if (cfg && Array.isArray(cfg.list) && cfg.list.length > 0) {
+    // Filter out any entries with a missing or empty emoji — these can appear
+    // when the admin reaction list has a trailing blank row from the settings UI.
+    return cfg.list.filter(r => r && r.emoji && r.emoji.trim() !== "");
+  }
   return DEFAULT_REACTIONS;
 }
 
@@ -198,12 +202,12 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
         {totalCount>0&&<span>{totalCount}</span>}
         {open&&(
           <div className="rx-picker" style={pickerStyle} onClick={e=>e.stopPropagation()}>
-            {getReactions().map(({emoji,label})=>(
+            {getReactions().map(({emoji,label})=> emoji ? (
               <div key={emoji} className={`rx-pick-btn ${userReaction===emoji?"selected":""}`}
                 title={label} onClick={e=>{e.stopPropagation();react(emoji);}}>
                 {emoji}
               </div>
-            ))}
+            ) : null)}
           </div>
         )}
       </div>}
