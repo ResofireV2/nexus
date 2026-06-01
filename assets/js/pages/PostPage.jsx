@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useReducer, useCallback } from "react";
+import { useState, useEffect, useRef, useReducer, useCallback, useMemo } from "react";
 import { api } from "../lib/api";
 import { ago, fmtDate, userColor, spaceColor, formatApiErrors, extractUnfurlableUrls } from "../lib/utils";
 import { toast } from "../components/Toasts";
@@ -216,7 +216,8 @@ function DiffView({before, after, mode}) {
   if(mode==="plain") {
     return <div style={{fontSize:"var(--fs-body)",lineHeight:1.75,color:"var(--t2)",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{before}</div>;
   }
-  const ops = wordDiff(before||"", after||"");
+  // wordDiff is O(m×n) LCS — memoize so it only re-runs when the text changes
+  const ops = useMemo(() => wordDiff(before||"", after||""), [before, after]);
   return (
     <div style={{fontSize:"var(--fs-body)",lineHeight:1.75,color:"var(--t2)",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
       {ops.map((op,i)=>(

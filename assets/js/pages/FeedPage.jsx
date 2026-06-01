@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { api } from "../lib/api";
 import { ago, fmtDate, userColor, spaceColor } from "../lib/utils";
 import { toast } from "../components/Toasts";
@@ -51,7 +51,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     else { await api.post(`/posts/${postId}/save`,{}); setSavedPostIds(p=>new Set([...p,postId])); }
   };
   useEffect(()=>{ if(livePosts.length>0) setLiveCount(livePosts.length); },[livePosts]);
-  const activeSpace = spaces.find(s=>s.slug===spaceFilter);
+  const activeSpace = useMemo(() => spaces.find(s=>s.slug===spaceFilter), [spaces, spaceFilter]);
 
   const load=useCallback(async(reset=true,cur=null)=>{
     setLoading(true); loadingRef.current=true;
