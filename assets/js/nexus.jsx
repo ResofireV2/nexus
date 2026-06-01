@@ -62,13 +62,9 @@ function loadFancybox(callback) {
   if (_fancyboxLoading) { setTimeout(() => loadFancybox(callback), 50); return; }
   _fancyboxLoading = true;
 
-  // Inject CSS
-  const link  = document.createElement("link");
-  link.rel    = "stylesheet";
-  link.href   = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
-  document.head.appendChild(link);
-
-  // Inject JS
+  // Inject JS — CSS is preloaded in root.html.heex and is guaranteed to be
+  // ready before the first click, eliminating the CSS/JS race that caused
+  // Fancybox's Carousel to reflow and snap back to slide 0 on first open.
   const script  = document.createElement("script");
   script.src    = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
   script.onload = () => { _fancyboxLoaded = true; _fancyboxLoading = false; callback(); };
