@@ -62,17 +62,28 @@ function loadFancybox(callback) {
   if (_fancyboxLoading) { setTimeout(() => loadFancybox(callback), 50); return; }
   _fancyboxLoading = true;
 
-  // Inject CSS
-  const link  = document.createElement("link");
-  link.rel    = "stylesheet";
-  link.href   = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  // Both the CSS and JS must be ready before calling Fancybox.show().
+  // If only the JS has loaded, Fancybox's Carousel has no layout information
+  // and reflows once the CSS arrives — snapping back to slide 0 regardless
+  // of the requested startIndex. We track both with a simple counter and
+  // only fire the callback once both have resolved.
+  let ready = 0;
+  function onReady() {
+    ready++;
+    if (ready === 2) { _fancyboxLoaded = true; _fancyboxLoading = false; callback(); }
+  }
+
+  const link    = document.createElement("link");
+  link.rel      = "stylesheet";
+  link.href     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  link.onload   = onReady;
+  link.onerror  = onReady; // don't block JS if CSS fails
   document.head.appendChild(link);
 
-  // Inject JS
-  const script  = document.createElement("script");
-  script.src    = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
-  script.onload = () => { _fancyboxLoaded = true; _fancyboxLoading = false; callback(); };
-  script.onerror = () => { _fancyboxLoading = false; };
+  const script   = document.createElement("script");
+  script.src     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
+  script.onload  = onReady;
+  script.onerror = () => { _fancyboxLoading = false; }; // hard fail if JS fails
   document.head.appendChild(script);
 }
 
