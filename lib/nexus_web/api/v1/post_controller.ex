@@ -3,6 +3,8 @@ defmodule NexusWeb.API.V1.PostController do
 
   alias Nexus.Forum
   alias Nexus.Accounts.User
+  import Ecto.Query
+  alias Nexus.Repo
 
   # GET /api/v1/posts/:id
   def show(conn, %{"id" => id}) do

@@ -1,7 +1,7 @@
 defmodule NexusWeb.API.V1.UploadController do
   use NexusWeb, :controller
 
-  alias Nexus.{Uploads, Repo}
+  alias Nexus.Uploads
   alias Nexus.Uploads.Upload
   alias Nexus.Accounts
 

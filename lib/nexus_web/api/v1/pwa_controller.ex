@@ -2,7 +2,6 @@ defmodule NexusWeb.API.V1.PwaController do
   use NexusWeb, :controller
 
   alias Nexus.Admin
-  import Ecto.Query
   alias Nexus.Repo
 
   # ---------------------------------------------------------------------------
