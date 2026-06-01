@@ -106,22 +106,25 @@ function loadFancybox(callback) {
 function openFancybox(items, startIndex) {
   loadFancybox(() => {
     if (!window.Fancybox) return;
-    // Build gallery items. src is the original file (shown in lightbox at full
-    // quality). thumbSrc is the WebP version (fast-loading thumbnail strip).
-    // When src and thumbSrc differ we show a "View original" link in the
-    // toolbar so users can open the raw file in a new tab.
+    // Build gallery items. src is the WebP (fast-loading, shown in lightbox).
+    // originalSrc is the raw uploaded file — only used for the "View original"
+    // toolbar link that opens it in a new tab. thumbSrc is also the WebP so
+    // the thumbnail strip loads quickly.
     const gallery = items.map(item => {
-      const src  = item.originalSrc || item.src;
-      const thumb = item.src;
-      const entry = { src, type: "image" };
-      if (thumb && thumb !== src) entry.thumbSrc = thumb;
+      const webp     = item.src;
+      const original = item.originalSrc || item.src;
+      const entry = { src: webp, type: "image" };
+      if (original && original !== webp) {
+        entry.thumbSrc   = webp;
+        entry.originalSrc = original;
+      }
       return entry;
     });
     const idx = startIndex ?? 0;
     // Build the toolbar items list. "viewOriginal" is a custom button that
     // appears only when the current slide has a thumbSrc (i.e. the lightbox
     // is showing the original file, distinct from the in-post WebP).
-    const hasAnyOriginal = gallery.some(g => g.thumbSrc);
+    const hasAnyOriginal = gallery.some(g => g.originalSrc);
     const toolbarRight = hasAnyOriginal
       ? ["viewOriginal", "autoplay", "fullscreen", "thumbs", "close"]
       : ["autoplay", "fullscreen", "thumbs", "close"];
@@ -135,8 +138,8 @@ function openFancybox(items, startIndex) {
               tpl: '<a class="f-button" title="View original" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>',
               click(fancyboxRef) {
                 const slide = fancyboxRef.getSlide();
-                if (slide && slide.thumbSrc) {
-                  window.open(slide.src, "_blank", "noopener");
+                if (slide && slide.originalSrc) {
+                  window.open(slide.originalSrc, "_blank", "noopener");
                 }
               },
             },
@@ -2340,8 +2343,12 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .md-link-preview a{cursor:pointer;}
 .md-link-preview img{cursor:pointer!important;border:none!important;border-radius:0!important;margin:0!important;background:none!important;}
 /* Image grid — [grid]...[/grid] shortcode */
-.md-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px;margin:12px 0;}
-.md-grid img{width:100%;height:auto;border-radius:6px;border:none!important;margin:0!important;max-height:none!important;object-fit:cover;cursor:zoom-in;display:block;background:var(--b1);}
+/* md-grid uses CSS columns for true masonry — images sit at their natural
+   aspect ratio with no cropping. column-count is responsive via media queries. */
+.md-grid{columns:2;column-gap:4px;margin:12px 0;}
+.md-grid img{width:100%;height:auto;border-radius:6px;border:none!important;margin:0 0 4px!important;max-height:none!important;object-fit:contain;cursor:zoom-in;display:block;background:var(--b1);break-inside:avoid;}
+@media(min-width:480px){.md-grid{columns:3;}}
+@media(min-width:768px){.md-grid{columns:4;}}
 /* Lightbox */
 /* Lightbox CSS removed — Fancybox handles styling */
 
