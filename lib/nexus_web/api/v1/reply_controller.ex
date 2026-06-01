@@ -12,13 +12,13 @@ defmodule NexusWeb.API.V1.ReplyController do
         %{replies: replies, next_cursor: next_cursor} =
           Forum.list_replies(post.id, cursor: params["cursor"])
 
-        # Batch-fetch reactions in one query. edit_count is now a denormalized
-        # column on replies, so no separate query is needed for that.
-        reply_ids     = Enum.map(replies, & &1.id)
-        reactions_map = Forum.list_reactions_for_replies(reply_ids)
+        # Batch-fetch edit counts and reactions — two queries instead of 2N.
+        reply_ids      = Enum.map(replies, & &1.id)
+        edit_count_map = Forum.reply_edit_counts(reply_ids)
+        reactions_map  = Forum.list_reactions_for_replies(reply_ids)
 
         json(conn, %{
-          replies: Enum.map(replies, &reply_json(&1, reactions_map)),
+          replies: Enum.map(replies, &reply_json(&1, edit_count_map, reactions_map)),
           next_cursor: next_cursor
         })
     end
@@ -190,9 +190,8 @@ defmodule NexusWeb.API.V1.ReplyController do
     user.id == reply.user_id || User.moderator?(user)
   end
 
-  # Called from index/2 with pre-fetched reactions map — one query for all replies.
-  # edit_count is denormalized on the reply struct so no separate query needed.
-  defp reply_json(reply, reactions_map) do
+  # Called from index/2 with pre-fetched batch maps — zero per-reply queries.
+  defp reply_json(reply, edit_count_map, reactions_map) do
     %{
       id: reply.id,
       body: reply.body,
@@ -203,7 +202,7 @@ defmodule NexusWeb.API.V1.ReplyController do
       inserted_at: reply.inserted_at,
       updated_at: reply.updated_at,
       user: user_json(reply.user),
-      edit_count: reply.edit_count
+      edit_count: Map.get(edit_count_map, reply.id, 0)
     }
   end
 
@@ -219,7 +218,7 @@ defmodule NexusWeb.API.V1.ReplyController do
       inserted_at: reply.inserted_at,
       updated_at: reply.updated_at,
       user: user_json(reply.user),
-      edit_count: reply.edit_count
+      edit_count: Forum.reply_edit_count(reply.id)
     }
   end
 

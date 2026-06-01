@@ -890,42 +890,26 @@ defmodule Nexus.Forum do
   alias Nexus.Forum.PostEdit
 
   def record_post_edit(post, editor_id) do
-    result =
-      %PostEdit{}
-      |> PostEdit.changeset(%{
-        post_id:   post.id,
-        user_id:   editor_id,
-        old_title: post.title,
-        old_body:  post.body,
-        edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
-      })
-      |> Repo.insert()
-
-    if match?({:ok, _}, result) do
-      from(p in Post, where: p.id == ^post.id)
-      |> Repo.update_all(inc: [edit_count: 1])
-    end
-
-    result
+    %PostEdit{}
+    |> PostEdit.changeset(%{
+      post_id:   post.id,
+      user_id:   editor_id,
+      old_title: post.title,
+      old_body:  post.body,
+      edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert()
   end
 
   def record_reply_edit(reply, editor_id) do
-    result =
-      %PostEdit{}
-      |> PostEdit.changeset(%{
-        reply_id:  reply.id,
-        user_id:   editor_id,
-        old_body:  reply.body,
-        edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
-      })
-      |> Repo.insert()
-
-    if match?({:ok, _}, result) do
-      from(r in Reply, where: r.id == ^reply.id)
-      |> Repo.update_all(inc: [edit_count: 1])
-    end
-
-    result
+    %PostEdit{}
+    |> PostEdit.changeset(%{
+      reply_id:  reply.id,
+      user_id:   editor_id,
+      old_body:  reply.body,
+      edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert()
   end
 
   def post_edit_count(post_id) do
