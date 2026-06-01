@@ -174,6 +174,49 @@ marked.use({
   }]
 });
 
+// ── [grid]...[/grid] block extension ─────────────────────────────────────────
+// Renders images inside [grid]...[/grid] tags as a responsive CSS grid gallery.
+// Each grid gets a unique data-gallery ID so its images form an isolated
+// lightbox gallery rather than merging with other images in the post.
+// Images are rendered at natural aspect ratio — no cropping.
+let _gridCounter = 0;
+marked.use({
+  extensions: [{
+    name: "grid",
+    level: "block",
+    start(src) { return src.indexOf("[grid]"); },
+    tokenizer(src) {
+      const m = src.match(/^\[grid\]([\s\S]*?)\[\/grid\]/);
+      if (m) return { type: "grid", raw: m[0], content: m[1] };
+    },
+    renderer(token) {
+      // Parse image markdown lines within the block.
+      // Each image is either [![alt](webp)](original) or ![alt](src).
+      // We extract src and data-original from each.
+      const galleryId = "grid-" + (++_gridCounter);
+      const imgRe = /\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)|!\[([^\]]*)\]\(([^)]+)\)/g;
+      let match;
+      let imgs = "";
+      while ((match = imgRe.exec(token.content)) !== null) {
+        if (match[2] && match[3]) {
+          // [![alt](webp)](original)
+          const alt     = match[1].replace(/"/g, "&quot;");
+          const webpSrc = match[2];
+          const origSrc = match[3];
+          imgs += `<img src="${webpSrc}" data-original="${origSrc}" alt="${alt}" loading="lazy"/>`;
+        } else if (match[5]) {
+          // ![alt](src) — no separate original
+          const alt = match[4].replace(/"/g, "&quot;");
+          const src = match[5];
+          imgs += `<img src="${src}" data-original="${src}" alt="${alt}" loading="lazy"/>`;
+        }
+      }
+      if (!imgs) return "";
+      return `<div class="md-grid" data-gallery="${galleryId}">${imgs}</div>`;
+    },
+  }],
+});
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 // Regex matching emoji unicode ranges — covers the vast majority of emoji
@@ -198,7 +241,7 @@ export function renderMd(t) {
   const withEmoji = wrapEmoji(raw);
   return DOMPurify.sanitize(withEmoji, {
     ADD_TAGS: ["iframe","video","source","audio","svg","path","span"],
-    ADD_ATTR: ["data-original","data-lightbox-link","data-id","data-tweet-id","data-url","allowfullscreen","loading","frameborder","src","controls","preload","allow","viewBox","d","fill","width","height","class","onclick"]
+    ADD_ATTR: ["data-original","data-lightbox-link","data-gallery","data-id","data-tweet-id","data-url","allowfullscreen","loading","frameborder","src","controls","preload","allow","viewBox","d","fill","width","height","class","onclick"]
   });
 }
 

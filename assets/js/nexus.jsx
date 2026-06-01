@@ -106,20 +106,45 @@ function loadFancybox(callback) {
 function openFancybox(items, startIndex) {
   loadFancybox(() => {
     if (!window.Fancybox) return;
-    const gallery = items.map(item => ({
-      src:  item.originalSrc || item.src,
-      type: "image",
-    }));
+    // Build gallery items. src is the original file (shown in lightbox at full
+    // quality). thumbSrc is the WebP version (fast-loading thumbnail strip).
+    // When src and thumbSrc differ we show a "View original" link in the
+    // toolbar so users can open the raw file in a new tab.
+    const gallery = items.map(item => {
+      const src  = item.originalSrc || item.src;
+      const thumb = item.src;
+      const entry = { src, type: "image" };
+      if (thumb && thumb !== src) entry.thumbSrc = thumb;
+      return entry;
+    });
     const idx = startIndex ?? 0;
+    // Build the toolbar items list. "viewOriginal" is a custom button that
+    // appears only when the current slide has a thumbSrc (i.e. the lightbox
+    // is showing the original file, distinct from the in-post WebP).
+    const hasAnyOriginal = gallery.some(g => g.thumbSrc);
+    const toolbarRight = hasAnyOriginal
+      ? ["viewOriginal", "autoplay", "fullscreen", "thumbs", "close"]
+      : ["autoplay", "fullscreen", "thumbs", "close"];
     window.Fancybox.show(gallery, {
       startIndex: idx,
       Carousel: {
         Thumbs: { type: "classic" },
         Toolbar: {
+          items: {
+            viewOriginal: {
+              tpl: '<a class="f-button" title="View original" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>',
+              click(fancyboxRef) {
+                const slide = fancyboxRef.getSlide();
+                if (slide && slide.thumbSrc) {
+                  window.open(slide.src, "_blank", "noopener");
+                }
+              },
+            },
+          },
           display: {
             left:   ["counter"],
             middle: [],
-            right:  ["autoplay","fullscreen","thumbs","close"],
+            right:  toolbarRight,
           },
         },
       },
@@ -411,20 +436,22 @@ document.addEventListener("click", e => {
   if (img.closest(".md-link-preview")) return;
   e.preventDefault();
   e.stopPropagation();
-  const originalSrc = img.getAttribute("data-original") || img.src;
-  // Collect all images in the same .md-body for gallery mode
-  const body = img.closest(".md-body");
-  const allImgs = body ? [...body.querySelectorAll("img:not(.yt-lite img):not(.md-link-preview img)")] : [img];
+  // If the clicked image is inside a [grid] block, scope the gallery to only
+  // that grid's images (isolated by data-gallery). Otherwise collect all
+  // images in the .md-body for the post-wide gallery.
+  const grid = img.closest(".md-grid");
+  let allImgs;
+  if (grid) {
+    allImgs = [...grid.querySelectorAll("img")];
+  } else {
+    const body = img.closest(".md-body");
+    allImgs = body
+      ? [...body.querySelectorAll("img:not(.yt-lite img):not(.md-link-preview img):not(.md-grid img)")]
+      : [img];
+  }
   const items = allImgs.map(i => ({ src: i.src, originalSrc: i.getAttribute("data-original") || i.src }));
   const startIdx = allImgs.indexOf(img);
-  // Blur the clicked image before handing off to Fancybox. On first-ever open,
-  // Fancybox inserts its DOM and triggers a browser layout pass. If an image
-  // element still has implicit focus at that point the browser will scroll it
-  // into view inside .post-content-wrap, making it appear to jump to whichever
-  // image was clicked. Blurring first removes the scroll target before the
-  // layout recalculation fires. On subsequent opens Fancybox is already
-  // initialised so no layout pass occurs and the scroll never happens — which
-  // is why this only manifests on the first click.
+  // Blur before opening — prevents browser scroll-into-view on first Fancybox load.
   img.blur();
   openFancybox(items, startIdx < 0 ? 0 : startIdx);
 }, true);
@@ -2312,6 +2339,9 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .md-link-preview.loading{min-height:60px;background:var(--bg2);border:0.5px solid var(--b1);border-radius:12px;}
 .md-link-preview a{cursor:pointer;}
 .md-link-preview img{cursor:pointer!important;border:none!important;border-radius:0!important;margin:0!important;background:none!important;}
+/* Image grid — [grid]...[/grid] shortcode */
+.md-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px;margin:12px 0;}
+.md-grid img{width:100%;height:auto;border-radius:6px;border:none!important;margin:0!important;max-height:none!important;object-fit:cover;cursor:zoom-in;display:block;background:var(--b1);}
 /* Lightbox */
 /* Lightbox CSS removed — Fancybox handles styling */
 

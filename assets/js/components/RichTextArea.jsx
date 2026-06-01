@@ -20,6 +20,7 @@ import { Md } from "./Markdown";
 // Slash command menu items
 const SLASH_ITEMS = [
   {type:"image",   icon:"🖼",  label:"Image",       desc:"Upload or embed"},
+  {type:"grid",    icon:"⊞",   label:"Image grid",  desc:"Mosaic image layout"},
   {type:"code",    icon:"</>", label:"Code block",  desc:"Syntax highlighted"},
   {type:"quote",   icon:'"',   label:"Blockquote",  desc:"Highlight a quote"},
   {type:"divider", icon:"—",   label:"Divider",     desc:"Horizontal rule"},
@@ -48,6 +49,7 @@ export const TB_BTNS = [
   {type:"emoji",   label:"fa-solid fa-face-smile", tip:"Emoji", style:{},                     wrap:null},
   {sep:true},
   {type:"image",   label:"🖼",  tip:"Upload image",  style:{},                                 wrap:null},
+  {type:"grid",    label:"fa-solid fa-table-cells", tip:"Image grid", style:{}, wrap:null, grid:true},
   {sep:true},
 ];
 
@@ -92,6 +94,19 @@ window._smPick = function(type) {
   if (type === "image") {
     const input = document.getElementById("comp-img-input");
     if (input) input.click();
+    return;
+  }
+  if (type === "grid") {
+    const pos = ta.selectionStart;
+    const cur = ta.value;
+    const needsNewline = pos > 0 && cur[pos - 1] !== "\n";
+    const insert = (needsNewline ? "\n" : "") + "[grid]\n\n[/grid]\n";
+    ta.value = cur.slice(0, pos) + insert + cur.slice(pos);
+    // Place cursor inside the grid block (on the blank line between tags)
+    const innerPos = pos + (needsNewline ? 1 : 0) + "[grid]\n".length;
+    ta.focus();
+    ta.setSelectionRange(innerPos, innerPos);
+    ta.dispatchEvent(new Event("input", {bubbles:true}));
     return;
   }
   const lines = ta.value.split("\n");
@@ -383,6 +398,33 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     }
   };
 
+  // Wraps selected image markdown in [grid]...[/grid] or inserts an empty
+  // grid block at the cursor if nothing relevant is selected.
+  const applyGrid = () => {
+    const ta = taRef.current; if (!ta) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.slice(s, e).trim();
+    const before = ta.value.slice(0, s);
+    const after  = ta.value.slice(e);
+    const needsLeadingNewline = s > 0 && ta.value[s - 1] !== "\n";
+    if (sel) {
+      // Wrap the selection
+      const insert = (needsLeadingNewline ? "\n" : "") + "[grid]\n" + sel + "\n[/grid]\n";
+      const newVal = before + insert + after;
+      ta.value = newVal;
+      onChange(newVal);
+      setTimeout(() => { ta.focus(); ta.setSelectionRange(s, s + insert.length); }, 0);
+    } else {
+      // Insert empty grid block with cursor placed inside
+      const insert = (needsLeadingNewline ? "\n" : "") + "[grid]\n\n[/grid]\n";
+      const newVal = before + insert + after;
+      ta.value = newVal;
+      onChange(newVal);
+      const innerPos = s + (needsLeadingNewline ? 1 : 0) + "[grid]\n".length;
+      setTimeout(() => { ta.focus(); ta.setSelectionRange(innerPos, innerPos); }, 0);
+    }
+  };
+
   // @mention state
   const [mentionDrop, setMentionDrop] = useState(null);
   const [isFocused,   setIsFocused]   = useState(false);
@@ -570,6 +612,11 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
             : b.list
               ? <button key={b.type} className="comp-tb-btn" title={b.tip}
                   onMouseDown={e=>{e.preventDefault(); applyList(b.list);}}>
+                  <i className={b.label} style={{fontSize:16}}/>
+                </button>
+            : b.grid
+              ? <button key={b.type} className="comp-tb-btn" title={b.tip}
+                  onMouseDown={e=>{e.preventDefault(); applyGrid();}}>
                   <i className={b.label} style={{fontSize:16}}/>
                 </button>
               : <button key={b.type} className="comp-tb-btn" title={b.tip}
