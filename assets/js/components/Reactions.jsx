@@ -158,7 +158,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
     const isMobile = vw <= 767.99;
     const margin = 16;
     const btnSize = isMobile ? 36 : 40;
-    const pickerW = Math.min((getReactions().length * (btnSize + 4)) + 12, vw - (margin * 2));
+    const pickerW = Math.min((getReactions().length * (btnSize + 4)) + 14, vw - (margin * 2));
     const pickerH = 56;
     let left = rect.right - pickerW;
     if (left < margin) left = margin;
