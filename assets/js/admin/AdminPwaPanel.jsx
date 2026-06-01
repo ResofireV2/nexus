@@ -94,10 +94,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
   const handleIconUpload=e=>{
     const file=e.target.files?.[0]; if(!file) return;
     setIconError(null); setIconUploading(true);
-    const fd=new FormData(); fd.append("icon-source",file);
-    const token=localStorage.getItem("nexus_token");
-    fetch("/api/v1/admin/pwa/icons",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd})
-      .then(r=>r.json())
+    api.upload("/admin/pwa/icons",file,{},"icon-source")
       .then(d=>{
         setIconUploading(false);
         if(d.ok&&d.icons){setPwaCfg(p=>({...p,...d.icons}));}
@@ -120,10 +117,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
   const handleBadgeUpload=e=>{
     const file=e.target.files?.[0]; if(!file) return;
     setBadgeError(null); setBadgeUploading(true);
-    const fd=new FormData(); fd.append("badge",file);
-    const token=localStorage.getItem("nexus_token");
-    fetch("/api/v1/admin/pwa/badge",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd})
-      .then(r=>r.json())
+    api.upload("/admin/pwa/badge",file,{},"badge")
       .then(d=>{
         setBadgeUploading(false);
         if(d.url) setPwaCfg(p=>({...p,badge_url:d.url}));

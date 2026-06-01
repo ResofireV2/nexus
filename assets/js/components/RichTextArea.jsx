@@ -535,21 +535,12 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     if (!currentUser) { toast("Sign in to upload images", "err"); return; }
     setUploading(true);
     setUploadProgress({done: 0, total: files.length});
-    const token = localStorage.getItem("nexus_token");
     let succeeded = 0;
     let failed = 0;
     try {
       for (const file of files) {
         try {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("type", "post_image");
-          const r = await fetch("/api/v1/uploads", {
-            method:  "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body:    fd,
-          });
-          const d = await r.json();
+          const d = await api.upload("/uploads", file, {type: "post_image"});
           if (d.upload) {
             insertImageMarkdown(d.url, d.original_url, file.name);
             succeeded++;

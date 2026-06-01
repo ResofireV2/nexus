@@ -840,10 +840,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <label style={{cursor:"pointer"}}>
                   <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" style={{display:"none"}} onChange={async e=>{
                     const f=e.target.files[0]; if(!f)return;
-                    const fd=new FormData(); fd.append("file",f); fd.append("type","logo");
-                    const token=localStorage.getItem("nexus_token");
-                    const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
-                    const d=await r.json();
+                    const d=await api.upload("/uploads",f,{type:"logo"});
                     if(d.upload){setGeneral(p=>({...p,logo_url:d.original_url}));toast("Logo uploaded");}
                     else toast(d.error||"Upload failed");
                   }}/>
@@ -864,10 +861,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               <label style={{cursor:"pointer"}}>
                 <input type="file" accept="image/x-icon,image/png,image/svg+xml,image/webp" style={{display:"none"}} onChange={async e=>{
                   const f=e.target.files[0]; if(!f)return;
-                  const fd=new FormData(); fd.append("file",f); fd.append("type","favicon");
-                  const token=localStorage.getItem("nexus_token");
-                  const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
-                  const d=await r.json();
+                  const d=await api.upload("/uploads",f,{type:"favicon"});
                   if(d.upload){setGeneral(p=>({...p,favicon_url:d.original_url}));toast("Favicon uploaded");}
                   else toast(d.error||"Upload failed");
                 }}/>
@@ -897,10 +891,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <label style={{cursor:"pointer"}}>
                   <input type="file" accept="image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={async e=>{
                     const f=e.target.files[0]; if(!f)return;
-                    const fd=new FormData(); fd.append("file",f); fd.append("type","og_image");
-                    const token=localStorage.getItem("nexus_token");
-                    const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
-                    const d=await r.json();
+                    const d=await api.upload("/uploads",f,{type:"og_image"});
                     if(d.upload){setGeneral(p=>({...p,og_image_url:d.original_url}));toast("OG image uploaded");}
                     else toast(d.error||"Upload failed");
                   }}/>

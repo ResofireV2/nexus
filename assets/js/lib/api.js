@@ -130,9 +130,9 @@ export const api = {
   // Multipart file upload. `file` is a File object, `params` is an object
   // of additional form fields (type, record_id, allowed_mime, etc.).
   // Returns the parsed JSON response.
-  async upload(path, file, params = {}) {
+  async upload(path, file, params = {}, fieldName = "file") {
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append(fieldName, file);
     Object.entries(params).forEach(([k, v]) => { if (v != null) fd.append(k, v); });
 
     const h = {};

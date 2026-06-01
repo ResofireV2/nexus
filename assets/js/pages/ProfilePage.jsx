@@ -117,10 +117,7 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
     if (!file) return;
     setUploadingAvatar(true);
     try {
-      const fd = new FormData(); fd.append("file", file); fd.append("type", "avatar");
-      const token = localStorage.getItem("nexus_token");
-      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
-      const d = await r.json();
+      const d = await api.upload("/uploads", file, {type: "avatar"});
       if (d.upload) { setUser(p=>({...p, avatar_url: d.url})); toast("Avatar updated"); }
       else toast(d.error||"Upload failed", "err");
     } finally { setUploadingAvatar(false); }
@@ -130,10 +127,7 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
     if (!file) return;
     setUploadingCover(true);
     try {
-      const fd = new FormData(); fd.append("file", file); fd.append("type", "cover_image");
-      const token = localStorage.getItem("nexus_token");
-      const r = await fetch("/api/v1/uploads", {method:"POST", headers:{Authorization:`Bearer ${token}`}, body:fd});
-      const d = await r.json();
+      const d = await api.upload("/uploads", file, {type: "cover_image"});
       if (d.upload) { setUser(p=>({...p, cover_url: d.url})); toast("Cover updated"); }
       else toast(d.error||"Upload failed", "err");
     } finally { setUploadingCover(false); }

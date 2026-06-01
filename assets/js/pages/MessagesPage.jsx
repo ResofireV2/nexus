@@ -145,10 +145,7 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
     if(!file)return;
     setUploading(true);
     try{
-      const fd=new FormData(); fd.append("file",file); fd.append("type","post_image");
-      const token=localStorage.getItem("nexus_token");
-      const r=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
-      const up=await r.json();
+      const up=await api.upload("/uploads",file,{type:"post_image"});
       if(up.url){
         const body=`[![image](${up.url})](${up.original_url||up.url})`;
         await api.post(`/threads/${threadId}/messages`,{body});
@@ -331,13 +328,7 @@ function GroupSettingsModal({thread, currentUser, onClose, onUpdate}) {
       // Upload new image if selected
       if(imageFile){
         setUploading(true);
-        const fd=new FormData();
-        fd.append("file",imageFile);
-        fd.append("type","group_image");
-        fd.append("thread_id",String(thread.id));
-        const token=localStorage.getItem("nexus_token");
-        const upRes=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
-        const upData=await upRes.json();
+        const upData=await api.upload("/uploads",imageFile,{type:"group_image",thread_id:String(thread.id)});
         setUploading(false);
         if(upData.url) onUpdate({image_url:upData.url});
         else{toast("Image upload failed","err");return;}
@@ -466,13 +457,7 @@ function DMNewPage({navigate, currentUser}) {
       // Upload the group image if one was selected
       let serverImageUrl = null;
       if(groupImage?.file && d.thread?.id){
-        const fd=new FormData();
-        fd.append("file",groupImage.file);
-        fd.append("type","group_image");
-        fd.append("thread_id",String(d.thread.id));
-        const token=localStorage.getItem("nexus_token");
-        const upRes=await fetch("/api/v1/uploads",{method:"POST",headers:{Authorization:`Bearer ${token}`},body:fd});
-        const upData=await upRes.json();
+        const upData=await api.upload("/uploads",groupImage.file,{type:"group_image",thread_id:String(d.thread.id)});
         serverImageUrl = upData.url || null;
       }
       navigate("dm",{threadId:d.thread.id,threadName:groupName,threadImage:serverImageUrl||groupImage?.url||null});
