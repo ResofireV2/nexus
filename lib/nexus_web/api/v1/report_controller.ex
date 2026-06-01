@@ -9,15 +9,13 @@ defmodule NexusWeb.API.V1.ReportController do
 
     case Moderation.create_report(attrs) do
       {:ok, report} ->
-        Task.start(fn ->
-          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-            "report_created", %{
-              user_id:   conn.assigns.current_user.id,
-              report_id: report.id
-            }
-          )
-          Nexus.Extensions.fire("report_created", payload)
-        end)
+        {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+          "report_created", %{
+            user_id:   conn.assigns.current_user.id,
+            report_id: report.id
+          }
+        )
+        Nexus.Extensions.fire("report_created", payload)
         conn |> put_status(:created) |> json(%{ok: true})
 
       {:error, changeset} ->
@@ -48,16 +46,14 @@ defmodule NexusWeb.API.V1.ReportController do
             # nor do re-resolutions (reviewed → dismissed, etc.) — only the
             # first move out of pending.
             if report.status == "pending" and updated.status != "pending" do
-              Task.start(fn ->
-                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-                  "report_resolved", %{
-                    user_id:   moderator.id,
-                    report_id: updated.id,
-                    status:    updated.status
-                  }
-                )
-                Nexus.Extensions.fire("report_resolved", payload)
-              end)
+              {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                "report_resolved", %{
+                  user_id:   moderator.id,
+                  report_id: updated.id,
+                  status:    updated.status
+                }
+              )
+              Nexus.Extensions.fire("report_resolved", payload)
             end
 
             json(conn, %{report: report_json(updated)})

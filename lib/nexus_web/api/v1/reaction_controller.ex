@@ -54,25 +54,21 @@ defmodule NexusWeb.API.V1.ReactionController do
 
     case Forum.add_reaction(user.id, attrs) do
       {:ok, reaction} ->
-        Task.start(fn ->
-          target = cond do
-            reaction.post_id  -> Forum.get_post(reaction.post_id)
-            reaction.reply_id -> Forum.get_reply(reaction.reply_id)
-            true -> nil
-          end
-          if target, do: Nexus.Notifications.notify_reaction(target, user, params["emoji"])
-        end)
-        Task.start(fn ->
-          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-            "reaction_added", %{
-              user_id:  user.id,
-              emoji:    params["emoji"],
-              post_id:  reaction.post_id,
-              reply_id: reaction.reply_id
-            }
-          )
-          Nexus.Extensions.fire("reaction_added", payload)
-        end)
+        target = cond do
+          reaction.post_id  -> Forum.get_post(reaction.post_id)
+          reaction.reply_id -> Forum.get_reply(reaction.reply_id)
+          true -> nil
+        end
+        if target, do: Nexus.Notifications.notify_reaction(target, user, params["emoji"])
+        {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+          "reaction_added", %{
+            user_id:  user.id,
+            emoji:    params["emoji"],
+            post_id:  reaction.post_id,
+            reply_id: reaction.reply_id
+          }
+        )
+        Nexus.Extensions.fire("reaction_added", payload)
 
         # Return updated counts and user's current reaction
         reactions = if reaction.post_id do
@@ -84,18 +80,16 @@ defmodule NexusWeb.API.V1.ReactionController do
         # Track activity stats
         Nexus.Activity.increment_stat(user.id, :reactions_given)
         # Track reactions received for the post/reply author
-        Task.start(fn ->
-          target = if reaction.post_id do
-            Nexus.Forum.get_post(reaction.post_id)
-          else
-            Nexus.Forum.get_reply(reaction.reply_id)
-          end
-          if target && target.user_id && target.user_id != user.id do
-            Nexus.Activity.increment_stat(target.user_id, :reactions_received)
-            %{"user_id" => target.user_id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
-            %{"user_id" => target.user_id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-          end
-        end)
+        target_for_stat = if reaction.post_id do
+          Nexus.Forum.get_post(reaction.post_id)
+        else
+          Nexus.Forum.get_reply(reaction.reply_id)
+        end
+        if target_for_stat && target_for_stat.user_id && target_for_stat.user_id != user.id do
+          Nexus.Activity.increment_stat(target_for_stat.user_id, :reactions_received)
+          %{"user_id" => target_for_stat.user_id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
+          %{"user_id" => target_for_stat.user_id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
+        end
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
         %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
 
@@ -119,17 +113,15 @@ defmodule NexusWeb.API.V1.ReactionController do
 
     case Forum.remove_reaction(user_id, attrs) do
       {:ok, :removed} ->
-        Task.start(fn ->
-          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-            "reaction_removed", %{
-              user_id:  user_id,
-              emoji:    params["emoji"],
-              post_id:  params["post_id"],
-              reply_id: params["reply_id"]
-            }
-          )
-          Nexus.Extensions.fire("reaction_removed", payload)
-        end)
+        {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+          "reaction_removed", %{
+            user_id:  user_id,
+            emoji:    params["emoji"],
+            post_id:  params["post_id"],
+            reply_id: params["reply_id"]
+          }
+        )
+        Nexus.Extensions.fire("reaction_removed", payload)
 
         reactions = if params["post_id"] do
           Forum.list_reactions(post_id: params["post_id"])

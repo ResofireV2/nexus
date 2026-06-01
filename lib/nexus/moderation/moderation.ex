@@ -145,16 +145,9 @@ defmodule Nexus.Moderation do
 
         # ── Notify moderators by email ────────────────────────────────────
         if mod_cfg["notify_mods_reports"] do
-          Task.start(fn ->
-            mods = Nexus.Repo.all(
-              from u in Nexus.Accounts.User,
-                where: u.role in ["admin", "moderator"] and u.status == "active",
-                select: u
-            )
-            Enum.each(mods, fn mod ->
-              Nexus.Mailer.send_mod_report_email(mod, report)
-            end)
-          end)
+          %{"type" => "mod_report", "report_id" => report.id}
+          |> Nexus.Workers.SendEmail.new()
+          |> Oban.insert()
         end
 
         {:ok, report}

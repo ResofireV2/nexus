@@ -258,7 +258,7 @@ defmodule Nexus.Forum do
         reply = Repo.preload(reply, :user)
 
         # Notify post author asynchronously
-        Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, reply.user) end)
+        Nexus.Notifications.notify_reply(post, reply, reply.user)
 
         {:ok, reply}
 

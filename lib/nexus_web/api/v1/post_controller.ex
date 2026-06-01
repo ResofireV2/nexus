@@ -77,21 +77,19 @@ defmodule NexusWeb.API.V1.PostController do
         else
           Nexus.Activity.increment_stat(user.id, :posts_count)
           NexusWeb.FeedChannel.broadcast_new_post(post)
-          Task.start(fn ->
-            {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-              "post_created", %{user_id: user.id, post_id: post.id}
-            )
-            Nexus.Extensions.fire("post_created", payload)
-          end)
+          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+            "post_created", %{user_id: user.id, post_id: post.id}
+          )
+          Nexus.Extensions.fire("post_created", payload)
           # Auto-follow if user preference is set (default: true)
           if Map.get(user.preferences || %{}, "auto_follow_own_posts", true) != false do
             Forum.follow_post(user.id, post.id)
           end
           %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
           %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-          Task.start(fn ->
-            Nexus.LinkPreviews.extract_urls(post.body)
-            |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
+          Nexus.LinkPreviews.extract_urls(post.body)
+          |> Enum.each(fn url ->
+            %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
           end)
           conn |> put_status(:created) |> json(%{post: post_json(post)})
         end
@@ -113,12 +111,10 @@ defmodule NexusWeb.API.V1.PostController do
           Forum.record_post_edit(post, user.id)
           case Forum.update_post(post, params, tag_ids) do
             {:ok, updated} ->
-              Task.start(fn ->
-                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-                  "post_updated", %{user_id: user.id, post_id: updated.id}
-                )
-                Nexus.Extensions.fire("post_updated", payload)
-              end)
+              {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                "post_updated", %{user_id: user.id, post_id: updated.id}
+              )
+              Nexus.Extensions.fire("post_updated", payload)
               Nexus.LinkPreviews.extract_urls(updated.body)
               |> Enum.each(fn url ->
                 %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
@@ -165,12 +161,10 @@ defmodule NexusWeb.API.V1.PostController do
       post ->
         if can_edit?(user, post) do
           {:ok, _} = Forum.delete_post(post)
-          Task.start(fn ->
-            {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-              "post_deleted", %{user_id: user.id, post_id: post.id}
-            )
-            Nexus.Extensions.fire("post_deleted", payload)
-          end)
+          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+            "post_deleted", %{user_id: user.id, post_id: post.id}
+          )
+          Nexus.Extensions.fire("post_deleted", payload)
           json(conn, %{ok: true})
         else
           conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})

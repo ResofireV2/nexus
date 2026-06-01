@@ -81,31 +81,27 @@ defmodule NexusWeb.API.V1.ReplyController do
               if Map.get(user.preferences || %{}, "auto_follow_replied_posts", true) != false do
                 Forum.follow_post(user.id, post.id)
               end
-              Task.start(fn -> Nexus.Notifications.notify_reply(post, reply, user) end)
+              Nexus.Notifications.notify_reply(post, reply, user)
               # Notify post followers (excluding the reply author)
-              Task.start(fn ->
-                follower_ids = Forum.post_follower_ids(post.id)
-                Enum.each(follower_ids, fn follower_id ->
-                  if follower_id != user.id do
-                    Nexus.Notifications.notify_followed_post_reply(post, reply, user, follower_id)
-                  end
-                end)
+              follower_ids = Forum.post_follower_ids(post.id)
+              Enum.each(follower_ids, fn follower_id ->
+                if follower_id != user.id do
+                  Nexus.Notifications.notify_followed_post_reply(post, reply, user, follower_id)
+                end
               end)
-              Task.start(fn ->
-                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-                  "reply_created", %{
-                    user_id:  user.id,
-                    reply_id: reply.id,
-                    post_id:  post.id
-                  }
-                )
-                Nexus.Extensions.fire("reply_created", payload)
-              end)
+              {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                "reply_created", %{
+                  user_id:  user.id,
+                  reply_id: reply.id,
+                  post_id:  post.id
+                }
+              )
+              Nexus.Extensions.fire("reply_created", payload)
               %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
               %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new() |> Oban.insert()
-              Task.start(fn ->
-                Nexus.LinkPreviews.extract_urls(reply.body)
-                |> Enum.each(&Nexus.LinkPreviews.get_or_fetch/1)
+              Nexus.LinkPreviews.extract_urls(reply.body)
+              |> Enum.each(fn url ->
+                %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
               end)
 
               # Broadcast to every subscriber of this post's notification channel.
@@ -164,16 +160,14 @@ defmodule NexusWeb.API.V1.ReplyController do
           parent_post_id = reply.post_id
           {:ok, _} = Forum.delete_reply(reply)
 
-          Task.start(fn ->
-            {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-              "reply_deleted", %{
-                user_id:  user.id,
-                reply_id: reply.id,
-                post_id:  parent_post_id
-              }
-            )
-            Nexus.Extensions.fire("reply_deleted", payload)
-          end)
+          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+            "reply_deleted", %{
+              user_id:  user.id,
+              reply_id: reply.id,
+              post_id:  parent_post_id
+            }
+          )
+          Nexus.Extensions.fire("reply_deleted", payload)
 
           json(conn, %{ok: true})
         else

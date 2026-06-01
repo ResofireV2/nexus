@@ -29,13 +29,11 @@ defmodule NexusWeb.API.V1.AuthController do
           case Accounts.register_user(params) do
             {:ok, user} ->
               # Send verification email (non-blocking — failure doesn't stop registration)
-              Task.start(fn -> Accounts.send_verification_email(user) end)
-              Task.start(fn ->
-                {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
-                  "user_registered", %{user_id: user.id}
-                )
-                Nexus.Extensions.fire("user_registered", payload)
-              end)
+              %{"type" => "verification", "user_id" => user.id} |> Nexus.Workers.SendEmail.new() |> Oban.insert()
+              {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                "user_registered", %{user_id: user.id}
+              )
+              Nexus.Extensions.fire("user_registered", payload)
 
               opts = [
                 user_agent: get_req_header(conn, "user-agent") |> List.first(),
@@ -96,12 +94,10 @@ defmodule NexusWeb.API.V1.AuthController do
 
         %{"user_id" => user.id} |> Nexus.Workers.CheckBadges.new(schedule_in: 60) |> Oban.insert()
         %{"user_id" => user.id} |> Nexus.Workers.UpdateScore.new(schedule_in: 60) |> Oban.insert()
-        Task.start(fn ->
-          {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
+                  {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
             "user_login", %{user_id: user.id}
           )
           Nexus.Extensions.fire("user_login", payload)
-        end)
 
         conn
         |> put_refresh_cookie(tokens.refresh_token, remember_me)
@@ -260,7 +256,7 @@ defmodule NexusWeb.API.V1.AuthController do
     if user.email_verified do
       json(conn, %{ok: true, message: "Email already verified"})
     else
-      Task.start(fn -> Accounts.send_verification_email(user) end)
+      %{"type" => "verification", "user_id" => user.id} |> Nexus.Workers.SendEmail.new() |> Oban.insert()
       json(conn, %{ok: true, message: "Verification email sent"})
     end
   end
