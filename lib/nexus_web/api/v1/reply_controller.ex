@@ -12,8 +12,13 @@ defmodule NexusWeb.API.V1.ReplyController do
         %{replies: replies, next_cursor: next_cursor} =
           Forum.list_replies(post.id, cursor: params["cursor"])
 
+        # Batch-fetch edit counts and reactions in two queries instead of 2N.
+        reply_ids       = Enum.map(replies, & &1.id)
+        edit_count_map  = Forum.reply_edit_counts(reply_ids)
+        reactions_map   = Forum.list_reactions_for_replies(reply_ids)
+
         json(conn, %{
-          replies: Enum.map(replies, &reply_json/1),
+          replies: Enum.map(replies, &reply_json(&1, edit_count_map, reactions_map)),
           next_cursor: next_cursor
         })
     end
@@ -191,6 +196,23 @@ defmodule NexusWeb.API.V1.ReplyController do
     user.id == reply.user_id || User.moderator?(user)
   end
 
+  # Called from index/2 with pre-fetched batch maps — zero per-reply queries.
+  defp reply_json(reply, edit_count_map, reactions_map) do
+    %{
+      id: reply.id,
+      body: reply.body,
+      body_format: reply.body_format,
+      post_id: reply.post_id,
+      reaction_count: reply.reaction_count,
+      reactions: Map.get(reactions_map, reply.id, []),
+      inserted_at: reply.inserted_at,
+      updated_at: reply.updated_at,
+      user: user_json(reply.user),
+      edit_count: Map.get(edit_count_map, reply.id, 0)
+    }
+  end
+
+  # Called from create/2 and update/2 for a single reply — fetches inline.
   defp reply_json(reply) do
     %{
       id: reply.id,

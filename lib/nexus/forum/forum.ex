@@ -46,15 +46,15 @@ defmodule Nexus.Forum do
   in the correct order everywhere — not just the sidebar.
   """
   def reorder_spaces(ordered_ids) when is_list(ordered_ids) do
-    Repo.transaction(fn ->
-      ordered_ids
-      |> Enum.with_index(1)
-      |> Enum.each(fn {id, position} ->
-        case Repo.get(Space, id) do
-          nil   -> :ok
-          space -> space |> Space.changeset(%{position: position}) |> Repo.update!()
-        end
-      end)
+    # N parameterized UPDATE statements — one per space, zero SELECT queries.
+    # Previously did N Repo.get + N Repo.update (2N round trips); this is N.
+    # A single-query CASE approach would require raw SQL to stay injection-safe
+    # with dynamic IDs, which is not worth the complexity at typical space counts.
+    ordered_ids
+    |> Enum.with_index(1)
+    |> Enum.each(fn {id, position} ->
+      from(s in Space, where: s.id == ^id)
+      |> Repo.update_all(set: [position: position])
     end)
     :ok
   end
@@ -384,6 +384,20 @@ defmodule Nexus.Forum do
       select: %{emoji: r.emoji, count: count(r.id)}
     )
     |> Repo.all()
+  end
+
+  @doc "Batch version of list_reactions for replies. Returns %{reply_id => [%{emoji, count}]}"
+  def list_reactions_for_replies([]), do: %{}
+  def list_reactions_for_replies(reply_ids) do
+    Repo.all(
+      from r in Reaction,
+        where: r.reply_id in ^reply_ids,
+        group_by: [r.reply_id, r.emoji],
+        select: {r.reply_id, %{emoji: r.emoji, count: count(r.id)}}
+    )
+    |> Enum.reduce(%{}, fn {reply_id, reaction}, acc ->
+      Map.update(acc, reply_id, [reaction], &(&1 ++ [reaction]))
+    end)
   end
 
   def list_reactions_with_users(post_id: post_id) do

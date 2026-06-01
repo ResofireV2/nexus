@@ -96,19 +96,13 @@ defmodule NexusWeb.API.V1.NotificationController do
     user_id = conn.assigns.current_user.id
     now     = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    # Collect reply IDs that belong to this post so we can also mark
-    # notifications that have reply_id set but post_id nil (e.g. reply reactions)
-    reply_ids =
-      from(r in Nexus.Forum.Reply,
-        where: r.post_id == ^post_id,
-        select: r.id
-      )
-      |> Repo.all()
+    # Single UPDATE using a subquery — avoids the separate SELECT for reply_ids.
+    reply_id_subquery = from(r in Nexus.Forum.Reply, where: r.post_id == ^post_id, select: r.id)
 
     from(n in Nexus.Notifications.Notification,
       where: n.user_id == ^user_id and n.read == false and (
         n.post_id == ^post_id or
-        (is_nil(n.post_id) and n.reply_id in ^reply_ids)
+        (is_nil(n.post_id) and n.reply_id in subquery(reply_id_subquery))
       )
     )
     |> Repo.update_all(set: [read: true, read_at: now])
