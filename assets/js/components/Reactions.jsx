@@ -194,7 +194,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
   const canReact = reactionsEnabled && (!isSelf || selfReactionsAllowed);
 
   return (
-    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+    <div style={{display:"flex",alignItems:"center",gap:6}}>
       {canReact && <div className={`rx-trigger ${userReaction?"reacted":""}`} ref={ref} onClick={()=>setOpen(p=>!p)}>
         {userReaction
           ? <span style={{fontSize:16,lineHeight:1}}>{userReaction}</span>
@@ -211,13 +211,17 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
           </div>
         )}
       </div>}
-      {reactions.filter(r=>r.count>0).map(r=>(
-        <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
-          onClick={()=>react(r.emoji)} title={getReactions().find(x=>x.emoji===r.emoji)?.label||r.emoji}>
-          <span style={{fontSize:14}}>{r.emoji}</span>
-          <span>{r.count}</span>
+      {reactions.filter(r=>r.count>0).length > 0 && (
+        <div className="rx-pills">
+          {reactions.filter(r=>r.count>0).map(r=>(
+            <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
+              onClick={()=>react(r.emoji)} title={getReactions().find(x=>x.emoji===r.emoji)?.label||r.emoji}>
+              <span style={{fontSize:14}}>{r.emoji}</span>
+              <span>{r.count}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
