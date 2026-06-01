@@ -691,6 +691,16 @@ defmodule Nexus.Forum do
     Repo.exists?(from s in PostSave, where: s.user_id == ^user_id and s.reply_id == ^reply_id)
   end
 
+  @doc "Returns the IDs of replies belonging to `post_id` that `user_id` has saved."
+  def saved_reply_ids_for_post(user_id, post_id) do
+    from(s in PostSave,
+      join: r in Nexus.Forum.Reply, on: r.id == s.reply_id and r.post_id == ^post_id,
+      where: s.user_id == ^user_id and not is_nil(s.reply_id),
+      select: s.reply_id
+    )
+    |> Repo.all()
+  end
+
   @saved_page_size 25
 
   def list_saved(user_id, opts \\ []) do

@@ -466,18 +466,23 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
         replyCursorRef.current=rd.next_cursor||null;
         replyHasMoreRef.current=!!rd.next_cursor;
         setUserReaction(pd.post?.user_reaction||null);
+        // acceptedReplyId comes from the post payload — set it here directly,
+        // not inside the saves callback where it was previously misplaced.
+        setAcceptedReplyId(pd.post?.accepted_reply_id||null);
         // Set to the saved reply ID if present, or null (= fetched, no position)
         setLastReadReplyId(rp.last_reply_id || null);
         if(rp.last_reply_id) setLastReadCount(rp.reply_count||0);
         if(currentUser){
-          api.get("/saved").then(d=>{
-            const saves = d.saved||[];
-            setPostSaved(saves.some(s=>s.type==="post"&&s.post?.id===pd.post?.id));
-          setAcceptedReplyId(pd.post?.accepted_reply_id||null);
-            setSavedReplyIds(new Set(saves.filter(s=>s.type==="reply").map(s=>s.reply?.id).filter(Boolean)));
+          // Two focused requests instead of fetching all saved items just to
+          // check one post. GET /posts/:id/saved → {saved: bool},
+          // GET /posts/:id/replies/saved → {saved_reply_ids: [...]}.
+          api.get(`/posts/${postId}/saved`).then(d=>{
+            if(d.saved !== undefined) setPostSaved(d.saved);
           }).catch(()=>{});
-          // Load follow state — placeholder until backend is built;
-          // reads from a post_follow endpoint when available
+          api.get(`/posts/${postId}/replies/saved`).then(d=>{
+            setSavedReplyIds(new Set(d.saved_reply_ids||[]));
+          }).catch(()=>{});
+          // Load follow state
           api.get(`/posts/${postId}/follow`).then(d=>{
             if(d.followed !== undefined) setPostFollowed(d.followed);
           }).catch(()=>{}); // silently ignore until endpoint exists

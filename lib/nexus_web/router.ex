@@ -232,6 +232,8 @@ defmodule NexusWeb.Router do
 
     # Saved items (bookmarks)
     get    "/saved",                               SaveController, :index
+    get    "/posts/:id/saved",                     SaveController, :post_saved
+    get    "/posts/:id/replies/saved",             SaveController, :saved_reply_ids
     post   "/posts/:id/save",                      SaveController, :save_post
     delete "/posts/:id/save",                      SaveController, :unsave_post
     post   "/posts/:post_id/replies/:id/save",     SaveController, :save_reply

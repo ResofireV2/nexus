@@ -11,6 +11,23 @@ defmodule NexusWeb.API.V1.SaveController do
     json(conn, %{saved: Enum.map(items, &saved_json/1), next_cursor: next_cursor})
   end
 
+  # GET /api/v1/posts/:id/saved
+  # Returns whether the current user has saved this specific post.
+  # Replaces the pattern of fetching all saved items just to check one post.
+  def post_saved(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+    saved = Forum.post_saved?(user.id, id)
+    json(conn, %{saved: saved})
+  end
+
+  # GET /api/v1/posts/:id/replies/saved
+  # Returns the IDs of saved replies belonging to this post for the current user.
+  def saved_reply_ids(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+    ids  = Forum.saved_reply_ids_for_post(user.id, id)
+    json(conn, %{saved_reply_ids: ids})
+  end
+
   # POST /api/v1/posts/:id/save
   def save_post(conn, %{"id" => id}) do
     user = conn.assigns.current_user
