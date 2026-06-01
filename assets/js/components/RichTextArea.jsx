@@ -219,6 +219,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   const toolbarRef  = useRef();
   const [toolbarH,  setToolbarH]  = useState(44); // tracks actual toolbar height for placeholder offset
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({done:0, total:0}); // {done, total} while uploading
 
   // Track toolbar height so the placeholder stays below it even when the
   // toolbar wraps to multiple rows on narrow screens.
@@ -493,6 +494,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     if (!files || files.length === 0) return;
     if (!currentUser) { toast("Sign in to upload images", "err"); return; }
     setUploading(true);
+    setUploadProgress({done: 0, total: files.length});
     const token = localStorage.getItem("nexus_token");
     let succeeded = 0;
     let failed = 0;
@@ -519,12 +521,14 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
           failed++;
           toast(`Upload failed: ${file.name}`, "err");
         }
+        setUploadProgress(p => ({...p, done: p.done + 1}));
       }
       if (succeeded > 0 && failed === 0) {
         toast(succeeded === 1 ? "Image uploaded" : `${succeeded} images uploaded`);
       }
     } finally {
       setUploading(false);
+      setUploadProgress({done: 0, total: 0});
       if (imgInputRef.current) imgInputRef.current.value = "";
     }
   };
@@ -582,6 +586,20 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
           <i className="fa-regular fa-eye" style={{fontSize:16}}/>
         </button>
       </div>
+
+      {/* Upload progress bar — visible only while uploading multiple images */}
+      {uploading && uploadProgress.total > 1 && (
+        <div style={{height:2, background:"var(--b1)", flexShrink:0, overflow:"hidden"}}>
+          <div style={{
+            height:"100%",
+            background:"var(--ac)",
+            width: uploadProgress.total > 0
+              ? `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%`
+              : "0%",
+            transition:"width .2s ease",
+          }}/>
+        </div>
+      )}
 
       {/* Placeholder */}
       {!value && !isFocused && (
