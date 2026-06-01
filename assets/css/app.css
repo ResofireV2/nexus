@@ -393,13 +393,14 @@ select option{background:#1a1a2e;color:var(--t1);}
 /* Reaction picker */
 .rx-picker{position:fixed;background:var(--s2);border:0.5px solid var(--b2);border-radius:16px;padding:8px;display:flex;flex-wrap:wrap;gap:4px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:rxPop .12s ease;max-width:calc(100vw - 32px);}
 @keyframes rxPop{from{opacity:0;transform:scale(.92) translateY(4px);}to{opacity:1;transform:scale(1) translateY(0);}}
-.rx-pick-btn{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:all .1s;border:1.5px solid transparent;color:unset;}
+.rx-pick-btn{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:all .1s;border:1.5px solid transparent;color:var(--t1);}
 .rx-pick-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.15);}
 .rx-pick-btn.selected{border-color:var(--ac);background:var(--ac-bg);}
+@media(max-width:767.99px){.rx-pick-btn{width:36px;height:36px;font-size:20px;}}
 /* Reaction count pills */
 .rx-pills{display:flex;gap:5px;flex-wrap:wrap;}
 .rx-pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 10px;border:0.5px solid rgba(255,255,255,0.1);border-radius:20px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--t4);transition:all .1s;}
-.rx-pill span:first-child{color:unset;}
+.rx-pill span:first-child{color:var(--t1);}
 .rx-pill:hover{border-color:var(--b2);color:var(--t2);}
 .rx-pill.mine{background:var(--ac-bg);color:var(--ac-text);border-color:var(--ac-border);}
 .replies-header{display:flex;align-items:center;padding:10px 0 6px;border-bottom:0.5px solid var(--b1);}
