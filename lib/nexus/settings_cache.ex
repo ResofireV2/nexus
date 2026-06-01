@@ -44,12 +44,18 @@ defmodule Nexus.SettingsCache do
   Falls back to `fetch_fn.()` — a zero-arity function that reads from the DB.
   """
   def get(key, fetch_fn) do
-    case :ets.lookup(@table, key) do
-      [{^key, value}] -> value
-      []              ->
-        value = fetch_fn.()
-        :ets.insert(@table, {key, value})
-        value
+    try do
+      case :ets.lookup(@table, key) do
+        [{^key, value}] -> value
+        []              ->
+          value = fetch_fn.()
+          :ets.insert(@table, {key, value})
+          value
+      end
+    rescue
+      # ETS table doesn't exist yet (GenServer restart, race on startup).
+      # Fall through to the DB directly — correct but uncached.
+      ArgumentError -> fetch_fn.()
     end
   end
 
@@ -71,7 +77,11 @@ defmodule Nexus.SettingsCache do
 
   @impl true
   def init(_) do
-    :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
+    # Guard against the table already existing on hot code reload or
+    # a GenServer restart where the previous process's table survived.
+    if :ets.whereis(@table) == :undefined do
+      :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
+    end
     {:ok, %{}}
   end
 end

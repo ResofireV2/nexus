@@ -46,14 +46,18 @@ defmodule Nexus.StatsCache do
   def get(fetch_fn) do
     now = System.system_time(:second)
 
-    case :ets.lookup(@table, @key) do
-      [{@key, stats, cached_at}] when now - cached_at < @ttl_sec ->
-        stats
+    try do
+      case :ets.lookup(@table, @key) do
+        [{@key, stats, cached_at}] when now - cached_at < @ttl_sec ->
+          stats
 
-      _ ->
-        stats = fetch_fn.()
-        :ets.insert(@table, {@key, stats, now})
-        stats
+        _ ->
+          stats = fetch_fn.()
+          :ets.insert(@table, {@key, stats, now})
+          stats
+      end
+    rescue
+      ArgumentError -> fetch_fn.()
     end
   end
 
@@ -69,7 +73,9 @@ defmodule Nexus.StatsCache do
 
   @impl true
   def init(_) do
-    :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
+    if :ets.whereis(@table) == :undefined do
+      :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
+    end
     {:ok, %{}}
   end
 end
