@@ -91,13 +91,13 @@ function loadFancybox(callback) {
 
   const link    = document.createElement("link");
   link.rel      = "stylesheet";
-  link.href     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  link.href     = "https://unpkg.com/@fancyapps/ui@6/dist/fancybox/fancybox.css";
   link.onload   = () => { cssReady = true;  onBothReady(); };
   link.onerror  = () => { cssReady = true;  onBothReady(); }; // don't block on CSS failure
   document.head.appendChild(link);
 
   const script   = document.createElement("script");
-  script.src     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
+  script.src     = "https://unpkg.com/@fancyapps/ui@6/dist/fancybox/fancybox.umd.js";
   script.onload  = () => { jsReady = true;  onBothReady(); };
   script.onerror = () => { _fancyboxLoading = false; };
   document.head.appendChild(script);
@@ -114,14 +114,13 @@ function openFancybox(items, startIndex) {
     window.Fancybox.show(gallery, {
       startIndex: idx,
       Carousel: {
-        initialPage: idx,
-      },
-      Thumbs: { type: "classic" },
-      Toolbar: {
-        display: {
-          left:   ["infobar"],
-          middle: [],
-          right:  ["slideshow","fullscreen","thumbs","close"],
+        Thumbs: { type: "classic" },
+        Toolbar: {
+          display: {
+            left:   ["counter"],
+            middle: [],
+            right:  ["autoplay","fullscreen","thumbs","close"],
+          },
         },
       },
     });
@@ -2314,7 +2313,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .md-link-preview a{cursor:pointer;}
 .md-link-preview img{cursor:pointer!important;border:none!important;border-radius:0!important;margin:0!important;background:none!important;}
 /* Lightbox */
-/* Lightbox CSS removed — Fancybox 5 handles styling */
+/* Lightbox CSS removed — Fancybox handles styling */
 
 
 /* User card popover */
