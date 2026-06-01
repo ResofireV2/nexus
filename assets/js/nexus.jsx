@@ -56,12 +56,19 @@ window.ReactDOM = ReactDOM;
 // This keeps ~47 KiB of JS+CSS off the initial page load entirely.
 // Fancybox is loaded on demand the first time a user clicks an image.
 // The CSS and JS are both injected lazily to keep them off the initial page load.
-// The callback is deferred by one setTimeout(0) after script.onload — this gives
-// Fancybox time to complete its own internal initialization (event listener
-// registration, auto-bind scan, internal state setup) before we call show().
-// Without this defer, show() is called synchronously inside onload while
-// Fancybox is still mid-initialization, and a subsequent internal state reset
-// overrides our startIndex and slides the carousel back to position 0.
+//
+// Root cause of the first-click-only carousel-reset-to-slide-0 bug:
+// When the Fancybox CSS <link> loads it triggers a style recalculation and
+// layout pass. Fancybox's Carousel listens to resize events and resets to
+// page 0 when its container dimensions change. If show() is called before
+// the CSS has fully applied and the layout has settled, the resize fires
+// after the Carousel is open and resets it to slide 0.
+//
+// Fix: wait for BOTH link.onload and script.onload (ensuring CSS is parsed
+// and JS is ready), then defer one requestAnimationFrame so the browser
+// completes the layout pass triggered by the new stylesheet before we call
+// show(). By that point the Carousel dimensions are stable and no resize
+// will fire after opening.
 let _fancyboxLoading = false;
 let _fancyboxLoaded  = false;
 
@@ -70,23 +77,28 @@ function loadFancybox(callback) {
   if (_fancyboxLoading) { setTimeout(() => loadFancybox(callback), 50); return; }
   _fancyboxLoading = true;
 
-  const link   = document.createElement("link");
-  link.rel     = "stylesheet";
-  link.href    = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  let cssReady = false;
+  let jsReady  = false;
+
+  function onBothReady() {
+    if (!cssReady || !jsReady) return;
+    _fancyboxLoaded  = true;
+    _fancyboxLoading = false;
+    // One rAF after both resources are ready lets the browser complete the
+    // layout pass triggered by the newly applied CSS before show() is called.
+    requestAnimationFrame(callback);
+  }
+
+  const link    = document.createElement("link");
+  link.rel      = "stylesheet";
+  link.href     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.css";
+  link.onload   = () => { cssReady = true;  onBothReady(); };
+  link.onerror  = () => { cssReady = true;  onBothReady(); }; // don't block on CSS failure
   document.head.appendChild(link);
 
   const script   = document.createElement("script");
   script.src     = "https://unpkg.com/@fancyapps/ui@5/dist/fancybox/fancybox.umd.js";
-  script.onload  = () => {
-    _fancyboxLoaded = true;
-    _fancyboxLoading = false;
-    // Defer until after the browser's next render cycle. Fancybox runs
-    // post-initialization work (RAF callbacks, microtasks) synchronously
-    // after the UMD executes. Calling show() inside onload interrupts that
-    // and causes Fancybox's internal state reset to override our startIndex.
-    // Waiting one rAF ensures Fancybox is fully settled first.
-    requestAnimationFrame(callback);
-  };
+  script.onload  = () => { jsReady = true;  onBothReady(); };
   script.onerror = () => { _fancyboxLoading = false; };
   document.head.appendChild(script);
 }
