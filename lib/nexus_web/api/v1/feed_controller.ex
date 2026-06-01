@@ -2,6 +2,10 @@ defmodule NexusWeb.API.V1.FeedController do
   use NexusWeb, :controller
 
   alias Nexus.Forum
+  import Ecto.Query
+  alias Nexus.Repo
+  alias Nexus.Accounts.User
+  alias Nexus.Forum.Post
 
   # GET /api/v1/feed
   # Query params: sort (latest|top|activity), space, tag, cursor
@@ -46,12 +50,6 @@ defmodule NexusWeb.API.V1.FeedController do
 
   # GET /api/v1/stats — public community stats for the right panel
   def stats(conn, _params) do
-    alias Nexus.Repo
-    alias Nexus.Accounts.User
-    alias Nexus.Forum.Post
-
-    import Ecto.Query
-
     total_members = Repo.aggregate(User, :count, :id)
     total_posts   = Repo.aggregate(from(p in Post, where: not p.hidden), :count, :id)
 

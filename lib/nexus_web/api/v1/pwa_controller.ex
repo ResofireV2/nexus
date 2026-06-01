@@ -2,6 +2,8 @@ defmodule NexusWeb.API.V1.PwaController do
   use NexusWeb, :controller
 
   alias Nexus.Admin
+  import Ecto.Query
+  alias Nexus.Repo
 
   # ---------------------------------------------------------------------------
   # GET /api/v1/pwa/vapid-public-key  (public — no auth required)
@@ -290,8 +292,6 @@ defmodule NexusWeb.API.V1.PwaController do
   end
 
   defp clear_push_subscriptions do
-    import Ecto.Query
-    alias Nexus.Repo
     alias Nexus.Accounts.PushSubscription
 
     {count, _} = Repo.delete_all(PushSubscription)

@@ -310,7 +310,7 @@ defmodule NexusWeb.API.V1.AuthController do
 
   def revoke_session(conn, %{"id" => id}) do
     user = conn.assigns.current_user
-    case Accounts.revoke_session(user.id, String.to_integer("#{id}")) do
+    case Accounts.revoke_session(user.id, id) do
       {:ok, _}         -> json(conn, %{ok: true})
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "Session not found"})

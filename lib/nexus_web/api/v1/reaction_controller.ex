@@ -6,16 +6,24 @@ defmodule NexusWeb.API.V1.ReactionController do
 
   # GET /api/v1/posts/:id/reactions
   def show_post_reactions(conn, %{"id" => post_id}) do
-    groups = Forum.list_reactions_with_users(post_id: String.to_integer(post_id))
-    total  = Enum.reduce(groups, 0, fn g, acc -> acc + g.count end)
-    json(conn, %{total: total, groups: groups})
+    case Integer.parse(post_id) do
+      {id, ""} ->
+        groups = Forum.list_reactions_with_users(post_id: id)
+        total  = Enum.reduce(groups, 0, fn g, acc -> acc + g.count end)
+        json(conn, %{total: total, groups: groups})
+      _ -> conn |> put_status(:bad_request) |> json(%{error: "Invalid id"})
+    end
   end
 
   # GET /api/v1/replies/:id/reactions
   def show_reply_reactions(conn, %{"id" => reply_id}) do
-    groups = Forum.list_reactions_with_users(reply_id: String.to_integer(reply_id))
-    total  = Enum.reduce(groups, 0, fn g, acc -> acc + g.count end)
-    json(conn, %{total: total, groups: groups})
+    case Integer.parse(reply_id) do
+      {id, ""} ->
+        groups = Forum.list_reactions_with_users(reply_id: id)
+        total  = Enum.reduce(groups, 0, fn g, acc -> acc + g.count end)
+        json(conn, %{total: total, groups: groups})
+      _ -> conn |> put_status(:bad_request) |> json(%{error: "Invalid id"})
+    end
   end
 
   # POST /api/v1/reactions
@@ -32,10 +40,10 @@ defmodule NexusWeb.API.V1.ReactionController do
     # Check self-reaction permission
     target_author_id = cond do
       params["post_id"]  ->
-        post = Forum.get_post(String.to_integer(to_string(params["post_id"])))
+        post = Forum.get_post(params["post_id"])
         post && post.user_id
       params["reply_id"] ->
-        reply = Forum.get_reply(String.to_integer(to_string(params["reply_id"])))
+        reply = Forum.get_reply(params["reply_id"])
         reply && reply.user_id
       true -> nil
     end

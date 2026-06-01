@@ -217,9 +217,13 @@ defmodule NexusWeb.API.V1.ReplyController do
 
   # GET /api/v1/posts/:post_id/replies/:id/edits
   def edits(conn, %{"id" => id}) do
-    edits = Forum.list_reply_edits(String.to_integer(id))
-    json(conn, %{edits: Enum.map(edits, fn e ->
-      %{id: e.id, old_body: e.old_body, edited_at: e.edited_at, editor: e.editor}
-    end)})
+    case Integer.parse(id) do
+      {reply_id_int, ""} ->
+        edits = Forum.list_reply_edits(reply_id_int)
+        json(conn, %{edits: Enum.map(edits, fn e ->
+          %{id: e.id, old_body: e.old_body, edited_at: e.edited_at, editor: e.editor}
+        end)})
+      _ -> conn |> put_status(:bad_request) |> json(%{error: "Invalid id"})
+    end
   end
 end

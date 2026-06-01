@@ -4,6 +4,7 @@ defmodule NexusWeb.API.V1.LeaderboardController do
   alias Nexus.Leaderboard
   alias Nexus.Admin
   alias Nexus.Badges
+  import Ecto.Query
 
   # ---------------------------------------------------------------------------
   # GET /api/v1/leaderboard?period=all|month|week
@@ -95,7 +96,6 @@ defmodule NexusWeb.API.V1.LeaderboardController do
   # Admin — GET /api/v1/admin/leaderboard/debug
   # Returns raw activity stats for the current user to diagnose scoring issues.
   def debug(conn, _params) do
-    import Ecto.Query
     user = conn.assigns.current_user
     today = Date.utc_today()
     week_start = Date.add(today, -7)
@@ -150,7 +150,6 @@ defmodule NexusWeb.API.V1.LeaderboardController do
     unless Leaderboard.enabled?() do
       conn |> put_status(:not_found) |> json(%{error: "Leaderboard is disabled"})
     else
-      import Ecto.Query, only: [from: 2]
       top = Nexus.Repo.all(
         from u in Nexus.Accounts.User,
           where: u.status == "active" and u.current_streak > 0,

@@ -3,6 +3,7 @@ defmodule NexusWeb.API.V1.BadgeController do
 
   alias Nexus.Badges
   alias Nexus.Accounts
+  import Ecto.Query
 
   # ---------------------------------------------------------------------------
   # Public
@@ -140,7 +141,6 @@ defmodule NexusWeb.API.V1.BadgeController do
   # Oban's unique constraint (60s per user) prevents duplicates,
   # and jobs are staggered to avoid hammering the DB all at once.
   def backfill(conn, _params) do
-    import Ecto.Query
     user_ids = Nexus.Repo.all(from u in Nexus.Accounts.User, select: u.id)
 
     user_ids

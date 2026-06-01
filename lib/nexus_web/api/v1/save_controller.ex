@@ -17,7 +17,7 @@ defmodule NexusWeb.API.V1.SaveController do
     case Forum.get_post(id) do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       _post ->
-        Forum.save_post(user.id, String.to_integer("#{id}"))
+        Forum.save_post(user.id, id)
         json(conn, %{ok: true, saved: true})
     end
   end
@@ -25,21 +25,21 @@ defmodule NexusWeb.API.V1.SaveController do
   # DELETE /api/v1/posts/:id/save
   def unsave_post(conn, %{"id" => id}) do
     user = conn.assigns.current_user
-    Forum.unsave_post(user.id, String.to_integer("#{id}"))
+    Forum.unsave_post(user.id, id)
     json(conn, %{ok: true, saved: false})
   end
 
   # POST /api/v1/posts/:post_id/replies/:id/save
   def save_reply(conn, %{"id" => id}) do
     user = conn.assigns.current_user
-    Forum.save_reply(user.id, String.to_integer("#{id}"))
+    Forum.save_reply(user.id, id)
     json(conn, %{ok: true, saved: true})
   end
 
   # DELETE /api/v1/posts/:post_id/replies/:id/save
   def unsave_reply(conn, %{"id" => id}) do
     user = conn.assigns.current_user
-    Forum.unsave_reply(user.id, String.to_integer("#{id}"))
+    Forum.unsave_reply(user.id, id)
     json(conn, %{ok: true, saved: false})
   end
 

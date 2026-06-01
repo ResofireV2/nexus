@@ -41,7 +41,7 @@ defmodule NexusWeb.API.V1.ThreadController do
         if thread.creator_id != user_id do
           conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can remove members"})
         else
-          Nexus.Messaging.remove_member(thread.id, String.to_integer("#{target_user_id}"))
+          Nexus.Messaging.remove_member(thread.id, target_user_id)
           json(conn, %{ok: true})
         end
     end

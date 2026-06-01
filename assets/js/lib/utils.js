@@ -96,3 +96,24 @@ export function fmtBytes(b) {
   while (b >= 1024 && i < 3) { b /= 1024; i++; }
   return `${b.toFixed(i ? 1 : 0)} ${u[i]}`;
 }
+
+// ── Link preview URL extraction ───────────────────────────────────────────────
+// Mirror of the backend skip logic. Extracts bare URLs from post/reply bodies
+// that will receive link preview cards, so the frontend can pre-register them
+// as "fresh" before the DOM renders.
+// Shared between PostPage and ComposePage — single source of truth.
+const _skipUnfurl = [
+  /(?:youtube\.com\/(?:watch|embed|shorts)|youtu\.be\/)/i,
+  /vimeo\.com\/(?:video\/)?[0-9]+/i,
+  /(?:twitter\.com|x\.com)\/[^/]+\/status/i,
+  /open\.spotify\.com\/(?:track|album|playlist|episode)\//i,
+  /\.(mp4|webm|ogg|mov|mp3|wav|flac|m4a)(\?.*)?$/i,
+  /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i,
+];
+export function extractUnfurlableUrls(body) {
+  if (!body) return [];
+  const matches = body.match(/(?<![(\[!])(https?:\/\/[^\s<>")\]]+)/g) || [];
+  return [...new Set(matches)]
+    .filter(u => !_skipUnfurl.some(r => r.test(u)))
+    .slice(0, 3);
+}

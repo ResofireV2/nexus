@@ -2,6 +2,8 @@ defmodule NexusWeb.API.V1.AdminController do
   use NexusWeb, :controller
 
   alias Nexus.{Admin, Accounts}
+  import Ecto.Query
+  alias Nexus.Repo
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
@@ -162,7 +164,7 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # PATCH /api/v1/admin/users/:id/verify-email
   def verify_email(conn, %{"id" => id}) do
-    case Nexus.Accounts.admin_verify_email(String.to_integer("#{id}")) do
+    case Nexus.Accounts.admin_verify_email(id) do
       {:ok, _}          -> json(conn, %{ok: true})
       {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "User not found"})
       {:error, cs}      -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
@@ -306,8 +308,6 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/admin/pending — list posts and replies pending approval
   def pending(conn, _params) do
-    import Ecto.Query
-    alias Nexus.Repo
     alias Nexus.Forum.{Post, Reply}
     alias Nexus.AntiSpam.CompositionVerdict
 
@@ -315,7 +315,7 @@ defmodule NexusWeb.API.V1.AdminController do
       from p in Post,
       where: p.pending_approval == true,
       left_join: u in assoc(p, :user),
-      preload: [user: u, space: :space_subscriptions],
+      preload: [user: u],
       order_by: [asc: p.inserted_at]
     ) |> Enum.map(fn p ->
       verdict = Repo.one(from v in CompositionVerdict,
@@ -346,9 +346,6 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # POST /api/v1/admin/pending/:type/:id/approve
   def approve_pending(conn, %{"type" => type, "id" => id}) do
-    import Ecto.Query
-    alias Nexus.Repo
-
     case type do
       "post" ->
         post = Repo.get(Nexus.Forum.Post, id)
@@ -384,8 +381,6 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # DELETE /api/v1/admin/pending/:type/:id
   def reject_pending(conn, %{"type" => type, "id" => id}) do
-    import Ecto.Query
-    alias Nexus.Repo
     case type do
       "post"  ->
         post = Repo.get(Nexus.Forum.Post, id)
@@ -477,9 +472,6 @@ defmodule NexusWeb.API.V1.AdminController do
 
       user ->
         # Fetch post/reply counts and reactions received
-        import Ecto.Query
-        alias Nexus.Repo
-
         post_count = Repo.one(from p in Nexus.Forum.Post,
           where: p.user_id == ^user.id and p.hidden == false and p.pending_approval == false,
           select: count(p.id)) || 0

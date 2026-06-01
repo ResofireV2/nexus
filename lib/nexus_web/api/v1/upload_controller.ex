@@ -42,7 +42,7 @@ defmodule NexusWeb.API.V1.UploadController do
               thread_id = params["thread_id"]
               if thread_id do
                 served_url = served_url(upload.webp_path || upload.original_path)
-                case Nexus.Repo.get(Nexus.Messaging.Thread, String.to_integer("#{thread_id}")) do
+                case Nexus.Repo.get(Nexus.Messaging.Thread, thread_id) do
                   nil    -> :not_found
                   thread ->
                     thread

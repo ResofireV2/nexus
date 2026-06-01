@@ -51,10 +51,7 @@ import { DraftsPage, useDraftAutosave }                    from "./pages/DraftsP
 window.React = React;
 window.ReactDOM = ReactDOM;
 
-// ── Lightbox — powered by Fancybox 5 ─────────────────────────────────────────
-// Fancybox is loaded on demand the first time a user clicks an image.
-// This keeps ~47 KiB of JS+CSS off the initial page load entirely.
-// Fancybox is loaded on demand the first time a user clicks an image.
+// ── Lightbox — powered by Fancybox 6 ─────────────────────────────────────────
 // The CSS and JS are both injected lazily to keep them off the initial page load.
 //
 // Root cause of the first-click-only carousel-reset-to-slide-0 bug:
@@ -1556,7 +1553,6 @@ window.NexusExtensions = {
 // ── Global CSS ───────────────────────────────────────────────────────────────
 const S = document.createElement("style");
 S.textContent = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 /* Font Awesome 7 Free — self-hosted via assets/css/fontawesome.css bundled into app.css */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
