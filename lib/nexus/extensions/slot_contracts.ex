@@ -76,6 +76,23 @@ defmodule Nexus.Extensions.SlotContracts do
                       "when the visitor is logged out. Extensions should " <>
                       "handle the nil case explicitly."
       }
+    },
+    %{
+      name:        "compose_attachments",
+      description: "Rendered below the post body on the /compose page, above " <>
+                   "the footer bar. Allows extensions to display and manage " <>
+                   "items they have attached to the in-flight post. One render " <>
+                   "per registered extension component; all stacked vertically. " <>
+                   "Not rendered on the reply composer.",
+      props: %{
+        attachments:     "Array of all current compose attachments. Each entry " <>
+                         "is %{kind: string, data: map}. Extensions should " <>
+                         "filter to their own kind(s) and ignore the rest.",
+        set_attachments: "Function — call with an updater fn or new array to " <>
+                         "mutate the attachment list. Use this to remove an " <>
+                         "attachment the user wants to discard before posting. " <>
+                         "Signature: setAttachments(prev => newArray)."
+      }
     }
   ]
 

@@ -209,6 +209,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
         <div className="comp-body-area">
           <RichTextArea value={body} onChange={setBody} placeholder="What's on your mind…" minHeight={240} autoFocus={false} currentUser={currentUser} attachments={attachments} setAttachments={setAttachments} context="post"/>
         </div>
+        <ComposeAttachmentsSlot attachments={attachments} setAttachments={setAttachments}/>
         <div className="comp-footer">
           <span className="comp-char">{body.length} characters</span>
           {lastSaved && (
@@ -222,6 +223,31 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
       </div>
     </div>
 
+  );
+}
+
+// Renders the compose_attachments slot — extension components displayed below
+// the post body, above the footer. Each extension receives the live attachments
+// array and setAttachments so it can display and remove its linked items.
+// Returns null when no extensions have registered for this slot.
+function ComposeAttachmentsSlot({attachments, setAttachments}) {
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const unsub = window.NexusExtensions.onToolbarChange(() => forceUpdate(n => n+1));
+    return unsub;
+  }, []);
+  const components = window.NexusExtensions.getSlot("compose_attachments");
+  if (!components.length) return null;
+  const slotProps = window.NexusExtensions.propsForSlot("compose_attachments", {
+    attachments,
+    setAttachments,
+  });
+  return (
+    <div className="compose-attachments-slot">
+      {components.map(({component: Comp}, i) => (
+        <Comp key={i} {...slotProps}/>
+      ))}
+    </div>
   );
 }
 

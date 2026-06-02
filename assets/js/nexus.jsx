@@ -792,6 +792,15 @@ window.NexusExtensions = {
           current_user: ctx.current_user ?? null,
         };
 
+      // compose_attachments — below the post body on /compose.
+      // attachments is the live array; setAttachments lets the extension
+      // remove items the user wants to discard before posting.
+      case "compose_attachments":
+        return {
+          attachments:    ctx.attachments    ?? [],
+          setAttachments: ctx.setAttachments ?? (() => {}),
+        };
+
       default:
         // Unknown slot — return empty bag and warn. This catches typos at
         // render-site callers AND catches getSlot calls left behind after

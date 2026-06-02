@@ -67,6 +67,7 @@ defmodule Nexus.Extensions do
   @ui_slots ~w(
     post_footer
     profile_sidebar
+    compose_attachments
   )
 
   def ui_slots, do: @ui_slots

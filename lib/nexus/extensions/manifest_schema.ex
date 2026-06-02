@@ -77,6 +77,7 @@ defmodule Nexus.Extensions.ManifestSchema do
   @known_slots ~w(
     post_footer
     profile_sidebar
+    compose_attachments
   )
 
   # Mirror of CORE_PAGES in assets/js/admin/AdminLayout.jsx. Used to validate
