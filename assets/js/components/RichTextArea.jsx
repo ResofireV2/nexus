@@ -274,7 +274,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     script.src = "https://cdn.jsdelivr.net/npm/emoji-mart@5.6.0/dist/browser.js";
     script.onload = () => {
       // emoji-mart browser build needs its data initialised before the picker renders
-      fetch("https://cdn.jsdelivr.net/npm/@emoji-mart/data@1.2.0/data.json")
+      fetch("https://cdn.jsdelivr.net/npm/@emoji-mart/data@1.2.0/sets/15/native.json")
         .then(r => r.json())
         .then(data => {
           if (window.EmojiMart) window.EmojiMart.init({ data });
