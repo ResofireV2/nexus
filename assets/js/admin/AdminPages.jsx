@@ -343,7 +343,7 @@ export function AdminPagesPanel() {
                     {page.published ? "Published" : "Draft"}
                   </span>
                   {page.widget_id && widgetName_(page.widget_id) && (
-                    <span style={{ fontSize: 10, fontWeight: 500, padding: "1px 7px", borderRadius: 20, background: "rgba(167,139,250,0.1)", color: "var(--ac)", border: "0.5px solid rgba(167,139,250,0.25)", display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 500, padding: "1px 7px", borderRadius: 20, background: "var(--ac-bg)", color: "var(--ac)", border: "0.5px solid var(--ac-border)", display: "flex", alignItems: "center", gap: 4 }}>
                       <i className="fa-solid fa-layer-group" style={{ fontSize: 9 }} />
                       {widgetName_(page.widget_id)}
                     </span>

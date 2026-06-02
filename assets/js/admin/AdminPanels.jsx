@@ -504,7 +504,7 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
         <div style={{display:"flex",gap:8}}>
           {DIGEST_FREQUENCIES.map(f=>(
             <div key={f} onClick={()=>toggleFreq(f)}
-              style={{padding:"7px 18px",borderRadius:20,border:`0.5px solid ${enabledFreqs.includes(f)?"rgba(167,139,250,0.4)":"rgba(255,255,255,0.1)"}`,background:enabledFreqs.includes(f)?"rgba(167,139,250,0.12)":"transparent",color:enabledFreqs.includes(f)?"#c4b5fd":"var(--t4)",cursor:"pointer",fontSize:13}}>
+              style={{padding:"7px 18px",borderRadius:20,border:`0.5px solid ${enabledFreqs.includes(f)?"var(--ac-border)":"rgba(255,255,255,0.1)"}`,background:enabledFreqs.includes(f)?"var(--ac-bg)":"transparent",color:enabledFreqs.includes(f)?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontSize:13}}>
               {f}
             </div>
           ))}
