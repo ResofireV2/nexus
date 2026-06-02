@@ -69,7 +69,7 @@ defmodule Nexus.Extensions.Loader do
            {:ok, modules}  <- tag(:compile,          compile_extension(build_dir, slug)),
            {:ok, module}   <- tag(:manifest_invalid, find_declared_module(modules, manifest)),
            :ok             <- tag(:manifest_invalid, check_module_exports(manifest, module)),
-           :ok             <- tag(:migration,        run_migrations(module)),
+           :ok             <- tag(:migration,        run_migrations(module, slug)),
            :ok             <- tag(:assets,           copy_static_assets(build_dir, slug, module)),
            :ok             <- tag(:supervisor,       ExtensionSupervisor.start_extension(slug, module)),
            :ok             <- tag(:registry,         Registry.register(slug, module, manifest)) do
@@ -137,8 +137,9 @@ defmodule Nexus.Extensions.Loader do
   @doc """
   Rolls back all migrations for an extension in reverse order.
   Called during uninstall after on_uninstall/0 has run.
+  The slug is required to correctly derive the collision-free version integer.
   """
-  def rollback_migrations(module) do
+  def rollback_migrations(module, slug) do
     migrations = safe_migrations(module)
     if migrations == [] do
       :ok
@@ -147,7 +148,7 @@ defmodule Nexus.Extensions.Loader do
       migrations
       |> Enum.reverse()
       |> Enum.each(fn migration_module ->
-        version = migration_version(migration_module)
+        version = migration_version(migration_module, slug)
         try do
           Ecto.Migrator.down(Repo, version, migration_module)
         rescue
@@ -509,14 +510,14 @@ defmodule Nexus.Extensions.Loader do
   Returns `{:ok, count}` where count is the number of migrations that ran,
   or `{:error, reason}` if something failed.
   """
-  def run_pending_migrations(module) do
+  def run_pending_migrations(module, slug) do
     migrations = safe_migrations(module)
     if migrations == [] do
       {:ok, 0}
     else
       ran =
         Enum.reduce(migrations, 0, fn migration_module, count ->
-          version = migration_version(migration_module)
+          version = migration_version(migration_module, slug)
           # Check if already recorded — only run if missing
           result = Repo.query!("SELECT 1 FROM schema_migrations WHERE version = $1", [version])
           if result.num_rows == 0 do
@@ -532,14 +533,14 @@ defmodule Nexus.Extensions.Loader do
     e -> {:error, "Migration failed: #{inspect(e)}"}
   end
 
-  defp run_migrations(module) do
+  defp run_migrations(module, slug) do
     migrations = safe_migrations(module)
     if migrations == [] do
       :ok
     else
       Logger.info("Loader: running #{length(migrations)} migration(s) for #{module}")
       Enum.each(migrations, fn migration_module ->
-        version = migration_version(migration_module)
+        version = migration_version(migration_module, slug)
         Ecto.Migrator.up(Repo, version, migration_module)
       end)
       :ok
@@ -561,22 +562,37 @@ defmodule Nexus.Extensions.Loader do
     end
   end
 
-  # Derive a migration version from the module name.
-  # e.g. MyExt.Migrations.V001CreateItems → 1
-  # e.g. MyExt.Migrations.V20260510000001CreateItems → 20260510000001
-  defp migration_version(module) do
-    module
-    |> Atom.to_string()
-    |> String.split(".")
-    |> List.last()
-    |> then(fn name ->
-      case Regex.run(~r/^V(\d+)/, name) do
+  # Derive a collision-free migration version integer from the module name and
+  # extension slug. This is the single place that maps (slug, migration) pairs
+  # to schema_migrations version integers.
+  #
+  # Design:
+  #   - Extract the sequence number N from the module name (V1 → 1, V42 → 42).
+  #   - Hash the string "#{slug}:#{N}" with phash2 into the range 0..8_999_999_999.
+  #   - Add 1_000_000_000 so the result is always in 1_000_000_000..9_999_999_999
+  #     (10 digits).
+  #   - Nexus core migrations are 14-digit timestamps (20260501000001…). No
+  #     overlap is possible.
+  #   - Two extensions with the same V1 get different integers because the slug
+  #     is part of the hash input.
+  #   - Collision probability for any (slug, N) pair: 1 in 9,000,000,000.
+  #
+  # Extension developers simply use V1, V2, V3… in their module names.
+  # No date prefixes, no awareness of Nexus core's version range required.
+  defp migration_version(module, slug) do
+    last_segment =
+      module
+      |> Atom.to_string()
+      |> String.split(".")
+      |> List.last()
+
+    n =
+      case Regex.run(~r/^V(\d+)/i, last_segment) do
         [_, version_str] -> String.to_integer(version_str)
-        nil ->
-          # Fallback: hash the module name to get a unique integer
-          :erlang.phash2(module, 1_000_000_000)
+        nil              -> :erlang.phash2(last_segment, 9_000_000_000)
       end
-    end)
+
+    :erlang.phash2("#{slug}:#{n}", 9_000_000_000) + 1_000_000_000
   end
 
   # ---------------------------------------------------------------------------

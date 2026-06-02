@@ -170,7 +170,7 @@ defmodule NexusWeb.API.V1.ExtensionController do
         if is_nil(module) do
           conn |> put_status(:unprocessable_entity) |> json(%{error: "Extension is not loaded — install or enable it first"})
         else
-          case Nexus.Extensions.Loader.run_pending_migrations(module) do
+          case Nexus.Extensions.Loader.run_pending_migrations(module, slug) do
             {:ok, 0}     -> json(conn, %{ok: true, ran: 0, message: "All migrations already up"})
             {:ok, count} -> json(conn, %{ok: true, ran: count, message: "Ran #{count} migration(s) successfully"})
             {:error, reason} ->

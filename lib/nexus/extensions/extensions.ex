@@ -220,7 +220,7 @@ defmodule Nexus.Extensions do
 
     # Roll back database migrations
     if module do
-      Nexus.Extensions.Loader.rollback_migrations(module)
+      Nexus.Extensions.Loader.rollback_migrations(module, ext.slug)
     end
 
     # Unload from VM
