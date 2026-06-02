@@ -1315,6 +1315,9 @@ function AdminExtensionsPanel() {
     );
     return true;
   }).sort((a,b)=>{
+    // Extensions with available updates always float to the top
+    if(a.update_available && !b.update_available) return -1;
+    if(!a.update_available && b.update_available) return 1;
     if(sort==="az") return (a.name||"").localeCompare(b.name||"");
     if(sort==="za") return (b.name||"").localeCompare(a.name||"");
     return 0;

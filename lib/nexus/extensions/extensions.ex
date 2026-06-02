@@ -932,12 +932,17 @@ defmodule Nexus.Extensions do
           :decode_error ->
             {:error, "The registry returned invalid JSON. Try again later."}
           entries ->
+            # Exclude theme-type entries — those belong in the Themes page.
+            # Registry entries with type == "theme" are surfaced by the themes
+            # store endpoint. Entries with no type field are extensions.
+            extensions = Enum.filter(entries, fn e -> e["type"] != "theme" end)
+
             installed_slugs =
               Repo.all(from e in Extension, select: e.slug)
               |> MapSet.new()
 
             enriched =
-              Enum.map(entries, fn entry ->
+              Enum.map(extensions, fn entry ->
                 Map.put(entry, "installed", MapSet.member?(installed_slugs, entry["slug"]))
               end)
 

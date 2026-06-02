@@ -142,6 +142,11 @@ export function AdminThemesPanel() {
     if (f && !item.name?.toLowerCase().includes(f) && !item.description?.toLowerCase().includes(f)) return false;
     return true;
   }).sort((a, b) => {
+    // Themes with available updates always float to the top
+    const aUp = !!(a.has_update || (installedBySlug[a.slug]?.has_update));
+    const bUp = !!(b.has_update || (installedBySlug[b.slug]?.has_update));
+    if (aUp && !bUp) return -1;
+    if (!aUp && bUp) return 1;
     if (sort === "az") return (a.name||"").localeCompare(b.name||"");
     if (sort === "za") return (b.name||"").localeCompare(a.name||"");
     return 0;
