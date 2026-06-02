@@ -568,14 +568,15 @@ defmodule Nexus.Extensions.Loader do
   #
   # Design:
   #   - Extract the sequence number N from the module name (V1 → 1, V42 → 42).
-  #   - Hash the string "#{slug}:#{N}" with phash2 into the range 0..8_999_999_999.
-  #   - Add 1_000_000_000 so the result is always in 1_000_000_000..9_999_999_999
-  #     (10 digits).
+  #   - Hash the string "#{slug}:#{N}" with phash2 into the range 0..2_999_999_999.
+  #   - Add 1_000_000_000 so the result is always in 1_000_000_000..3_999_999_999
+  #     (10 digits). Range is capped at 3_000_000_000 because :erlang.phash2's
+  #     range argument must be <= 2^32 (4_294_967_296). 9_000_000_000 overflows.
   #   - Nexus core migrations are 14-digit timestamps (20260501000001…). No
   #     overlap is possible.
   #   - Two extensions with the same V1 get different integers because the slug
   #     is part of the hash input.
-  #   - Collision probability for any (slug, N) pair: 1 in 9,000,000,000.
+  #   - Collision probability for any (slug, N) pair: 1 in 3,000,000,000.
   #
   # Extension developers simply use V1, V2, V3… in their module names.
   # No date prefixes, no awareness of Nexus core's version range required.
@@ -589,10 +590,10 @@ defmodule Nexus.Extensions.Loader do
     n =
       case Regex.run(~r/^V(\d+)/i, last_segment) do
         [_, version_str] -> String.to_integer(version_str)
-        nil              -> :erlang.phash2(last_segment, 9_000_000_000)
+        nil              -> :erlang.phash2(last_segment, 3_000_000_000)
       end
 
-    :erlang.phash2("#{slug}:#{n}", 9_000_000_000) + 1_000_000_000
+    :erlang.phash2("#{slug}:#{n}", 3_000_000_000) + 1_000_000_000
   end
 
   # ---------------------------------------------------------------------------
