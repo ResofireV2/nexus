@@ -143,17 +143,9 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelectRef}) {
     const el = document.createElement("div");
     el.id = "nexus-emoji-picker-wrap";
     el.className = isMobile ? "emoji-picker-sheet" : "emoji-picker-popup";
+    // Hide until positioned to avoid flash at default bottom:0 left:0
+    if (!isMobile) el.style.visibility = "hidden";
     document.body.appendChild(el);
-
-    // Desktop: position above the toolbar button, clamped to viewport
-    if (!isMobile && anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
-      const pickerH = 386;
-      const spaceAbove = rect.top - 8;
-      el.style.top    = (spaceAbove >= pickerH ? rect.top - pickerH : 8) + "px";
-      el.style.left   = Math.max(4, Math.min(rect.left, window.innerWidth - 324)) + "px";
-      el.style.bottom = "auto";
-    }
 
     if (isMobile) {
       const handle = document.createElement("div");
@@ -178,6 +170,17 @@ function EmojiPickerPortal({isMobile, anchorRef, onSelectRef}) {
         autoFocus: !isMobile,
       });
       el.appendChild(picker);
+      // Position after picker is in DOM so we have accurate dimensions.
+      // Anchor to the toolbar button, flipping above/below as needed.
+      if (!isMobile && anchorRef.current) {
+        const rect = anchorRef.current.getBoundingClientRect();
+        const pickerH = 386;
+        const spaceAbove = rect.top - 8;
+        el.style.top    = (spaceAbove >= pickerH ? rect.top - pickerH : rect.bottom + 8) + "px";
+        el.style.left   = Math.max(4, Math.min(rect.left, window.innerWidth - 324)) + "px";
+        el.style.bottom = "auto";
+        el.style.visibility = "visible";
+      }
     }, 0);
 
     return () => {
