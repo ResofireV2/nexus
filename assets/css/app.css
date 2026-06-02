@@ -159,7 +159,7 @@ html,body{background:var(--bg);color:var(--t1);font-family:'Inter',system-ui,san
 button{font-family:inherit;cursor:pointer;border:none;background:none;}
 input,textarea,select{font-family:inherit;}
 select{background:rgba(255,255,255,0.05);color:var(--t1);border:0.5px solid rgba(255,255,255,0.1);border-radius:8px;}
-select option{background:#1a1a2e;color:var(--t1);}
+select option{background:var(--s2);color:var(--t1);}
 
 @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}

@@ -2079,7 +2079,7 @@ function AuthPage({onLogin}) {
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-logo">
-          <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#4A90E2,#2563eb)",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
+          <div style={{width:40,height:40,borderRadius:"50%",background:"var(--ac)",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
           <div className="auth-title">{mode==="login"?"Welcome back":"Create account"}</div>
           <div className="auth-sub">{mode==="login"?"Sign in to continue":"Join the community"}</div>
         </div>
@@ -3168,7 +3168,7 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
           <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>{stats.online}</div><div className="stat-l">online</div></div>
           <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
           <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
-            <div className="stat-n" style={{color:"#4A90E2"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
+            <div className="stat-n" style={{color:"var(--ac)"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
             <div className="stat-l">your rank</div>
           </div>
         </div>
@@ -4402,7 +4402,7 @@ function App() {
                   ? <img src={appBranding.logo_url} style={{maxHeight:48,maxWidth:160,objectFit:"contain"}} alt={appBranding.site_name||"logo"}/>
                   : appBranding?.favicon_url
                     ? <img src={appBranding.favicon_url} style={{width:48,height:48,objectFit:"contain",borderRadius:12}} alt={appBranding.site_name||"logo"}/>
-                    : <div style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#4A90E2,#2563eb)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>
+                    : <div style={{width:48,height:48,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>
                         {(appBranding?.site_name||"N").slice(0,1).toUpperCase()}
                       </div>
                 }

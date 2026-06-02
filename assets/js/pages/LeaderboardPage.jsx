@@ -35,7 +35,7 @@ function LeaderboardPageSidebar({currentUser, navigate}) {
     <>
       {/* Points to next rank */}
       {currentUser&&nextRankInfo&&(
-        <div className="rw" style={{border:"0.5px solid rgba(167,139,250,0.2)",background:"rgba(167,139,250,0.04)"}}>
+        <div className="rw" style={{border:"0.5px solid var(--ac-border)",background:"var(--ac-bg)"}}>
           <div className="rw-label">your next rank</div>
           {nextRankInfo.isFirst
             ? <div style={{fontSize:14,color:"var(--green)",fontWeight:500,display:"flex",alignItems:"center",gap:8}}>
@@ -133,7 +133,7 @@ function LeaderboardPage({currentUser, navigate}) {
           <div style={{display:"flex",gap:4,flexShrink:0}}>
             {periodLabels.map(p=>(
               <button key={p.id} onClick={()=>setPeriod(p.id)}
-                style={{fontSize:11,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${period===p.id?"rgba(167,139,250,0.3)":"var(--b2)"}`,background:period===p.id?"rgba(167,139,250,0.1)":"transparent",color:period===p.id?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
+                style={{fontSize:11,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${period===p.id?"var(--ac-border)":"var(--b2)"}`,background:period===p.id?"var(--ac-bg)":"transparent",color:period===p.id?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
                 {p.label}
               </button>
             ))}
@@ -196,14 +196,14 @@ function LeaderboardPage({currentUser, navigate}) {
 
           {/* Your rank banner */}
           {currentUser && myRank && (
-            <div style={{background:"rgba(167,139,250,0.07)",border:"0.5px solid rgba(167,139,250,0.15)",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:12,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
               <RsAv user={currentUser} size={36} noCard={true}/>
               <div style={{flex:1}}>
                 <div style={{fontSize:11,color:"var(--t5)",marginBottom:2}}>your ranking — {periodLabels.find(p=>p.id===period)?.label?.toLowerCase()}</div>
                 <div style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{Number(myRank.score).toLocaleString()} {pointsName}</div>
               </div>
               <div style={{textAlign:"right"}}>
-                <div style={{fontSize:22,fontWeight:600,color:"#a78bfa",letterSpacing:-0.5,lineHeight:1}}>#{myRank.rank}</div>
+                <div style={{fontSize:22,fontWeight:600,color:"var(--ac)",letterSpacing:-0.5,lineHeight:1}}>#{myRank.rank}</div>
                 <div style={{fontSize:11,color:"var(--t5)"}}>top {myRank.pct}%</div>
               </div>
             </div>
@@ -219,7 +219,7 @@ function LeaderboardPage({currentUser, navigate}) {
               const isMe  = currentUser?.username === u.username;
               return (
                 <div key={u.user_id}
-                  style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"10px 16px",borderRadius:10,cursor:"pointer",alignItems:"center",marginBottom:2,background:isMe?"rgba(167,139,250,0.07)":"transparent",border:isMe?"0.5px solid rgba(167,139,250,0.15)":"0.5px solid transparent"}}
+                  style={{display:"grid",gridTemplateColumns:"40px 1fr 100px 80px",gap:0,padding:"10px 16px",borderRadius:10,cursor:"pointer",alignItems:"center",marginBottom:2,background:isMe?"var(--ac-bg)":"transparent",border:isMe?"0.5px solid var(--ac-border)":"0.5px solid transparent"}}
                   onMouseEnter={e=>{ if(!isMe) e.currentTarget.style.background=document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.04)":"rgba(255,255,255,0.03)"; }}
                   onMouseLeave={e=>{ if(!isMe) e.currentTarget.style.background="transparent"; }}
                   onClick={()=>navigate("profile",{username:u.username})}>
@@ -228,7 +228,7 @@ function LeaderboardPage({currentUser, navigate}) {
                     <RsAv user={u} size={34} noCard={true}/>
                     <div style={{minWidth:0}}>
                       <div style={{fontSize:13,fontWeight:500,color:isMe?"var(--t1)":"var(--t2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                        {u.username}{isMe&&<span style={{fontSize:11,color:"rgba(167,139,250,0.6)",fontWeight:400,marginLeft:6}}>you</span>}
+                        {u.username}{isMe&&<span style={{fontSize:11,color:"var(--ac-border)",fontWeight:400,marginLeft:6}}>you</span>}
                       </div>
                       {u.badges && u.badges.length > 0 && (
                         <div style={{display:"flex",gap:4,marginTop:2}}>

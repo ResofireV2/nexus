@@ -75,8 +75,8 @@ function UpdatesPanel() {
 
         {/* Current version row */}
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom: info?.release ? 14 : 0}}>
-          <div style={{width:36,height:36,borderRadius:9,background:"rgba(167,139,250,0.1)",
-            border:"0.5px solid rgba(167,139,250,0.2)",display:"flex",alignItems:"center",
+          <div style={{width:36,height:36,borderRadius:9,background:"var(--ac-bg)",
+            border:"0.5px solid var(--ac-border)",display:"flex",alignItems:"center",
             justifyContent:"center",flexShrink:0}}>
             <i className="fa-solid fa-cube" style={{fontSize:15,color:"var(--ac)"}}/>
           </div>

@@ -1276,7 +1276,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     implausibly_fast:   {text:"Typed implausibly fast", color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
                     no_keystrokes:      {text:"No keystrokes detected",  color:"#f87171", bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.3)"},
                     dominated_by_paste: {text:"Dominated by paste",      color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
-                    metadata_missing:   {text:"No composition metadata", color:"#94a3b8", bg:"rgba(148,163,184,0.1)", border:"rgba(148,163,184,0.3)"},
+                    metadata_missing:   {text:"No composition metadata", color:"var(--t4)", bg:"rgba(255,255,255,0.04)", border:"rgba(255,255,255,0.10)"},
                   };
                   const hl = item.hold_reason && HOLD_LABELS[item.hold_reason.verdict];
                   return (

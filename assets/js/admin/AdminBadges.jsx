@@ -180,8 +180,8 @@ function BadgesPage({currentUser, navigate}) {
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"0 28px 32px"}}>
-        {currentUser&&<div style={{background:"rgba(167,139,250,0.06)",border:"0.5px solid rgba(167,139,250,0.15)",borderRadius:14,padding:"16px 20px",margin:"20px 0 8px",display:"flex",alignItems:"center",gap:16}}>
-          <div style={{width:40,height:40,borderRadius:12,background:"rgba(167,139,250,0.12)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        {currentUser&&<div style={{background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:14,padding:"16px 20px",margin:"20px 0 8px",display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:40,height:40,borderRadius:12,background:"var(--ac-bg)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <i className="fa-solid fa-medal" style={{color:"var(--ac)",fontSize:18}}/>
           </div>
           <div style={{flex:1,minWidth:0}}>

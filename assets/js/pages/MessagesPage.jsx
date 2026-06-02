@@ -510,7 +510,7 @@ function DMNewPage({navigate, currentUser}) {
         {mode==="group"&&selected.length>0&&(
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {selected.map(u=>(
-              <div key={u.id} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(167,139,250,0.15)",border:"0.5px solid rgba(167,139,250,0.3)",borderRadius:20,padding:"4px 10px 4px 6px"}}>
+              <div key={u.id} style={{display:"flex",alignItems:"center",gap:6,background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:20,padding:"4px 10px 4px 6px"}}>
                 <span style={{fontSize:12,color:"var(--t2)"}}>{u.username}</span>
                 <span style={{fontSize:11,color:"var(--t5)",cursor:"pointer"}} onClick={()=>toggleSelect(u)}>✕</span>
               </div>
@@ -525,7 +525,7 @@ function DMNewPage({navigate, currentUser}) {
               return (
                 <div key={u.id} onClick={()=>mode==="direct"?startDirect(u):toggleSelect(u)}
                   style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",
-                    background:isSel?"rgba(167,139,250,0.08)":"transparent",
+                    background:isSel?"var(--ac-bg)":"transparent",
                     borderBottom:i<results.length-1?"0.5px solid var(--b1)":"none"}}>
                   <Av user={u} size={32}/>
                   <div style={{flex:1}}>

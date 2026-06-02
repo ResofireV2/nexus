@@ -76,7 +76,7 @@ function ReportCard({r, onAction, isAdmin}) {
           <span style={{display:"block",fontSize:16,fontWeight:600,color:"rgba(248,113,113,0.8)",lineHeight:1}}>{r._count||1}</span>
           report{(r._count||1)!==1?"s":""}
         </div>
-        {r.post_id&&<button onClick={()=>onAction?.("view",r)} style={{fontSize:11,fontWeight:500,padding:"5px 13px",borderRadius:20,cursor:"pointer",background:"rgba(167,139,250,0.15)",color:"#c4b5fd",border:"0.5px solid rgba(167,139,250,0.25)"}}>view post</button>}
+        {r.post_id&&<button onClick={()=>onAction?.("view",r)} style={{fontSize:11,fontWeight:500,padding:"5px 13px",borderRadius:20,cursor:"pointer",background:"var(--ac-bg)",color:"var(--ac-text)",border:"0.5px solid var(--ac-border)"}}>view post</button>}
         <button onClick={()=>onAction?.("remove",r)} style={{fontSize:11,fontWeight:500,padding:"5px 13px",borderRadius:20,cursor:"pointer",background:"rgba(248,113,113,0.15)",color:"#f87171",border:"0.5px solid rgba(248,113,113,0.25)"}}>remove</button>
         <button onClick={()=>onAction?.("dismiss",r)} style={{fontSize:11,fontWeight:500,padding:"5px 13px",borderRadius:20,cursor:"pointer",background:"rgba(255,255,255,0.05)",color:"var(--t4)",border:"0.5px solid var(--b1)"}}>dismiss</button>
       </div>}
@@ -158,7 +158,7 @@ function ModerationPage({currentUser, navigate}) {
     implausibly_fast:   {text:"Typed implausibly fast", color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
     no_keystrokes:      {text:"No keystrokes detected",  color:"#f87171", bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.3)"},
     dominated_by_paste: {text:"Dominated by paste",      color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
-    metadata_missing:   {text:"No composition metadata", color:"#94a3b8", bg:"rgba(148,163,184,0.1)", border:"rgba(148,163,184,0.3)"},
+    metadata_missing:   {text:"No composition metadata", color:"var(--t4)", bg:"rgba(255,255,255,0.04)", border:"rgba(255,255,255,0.10)"},
   };
 
   const pendingCount = reports.filter(r => r.status === "pending").length;
@@ -180,7 +180,7 @@ function ModerationPage({currentUser, navigate}) {
             <div style={{fontSize:20,fontWeight:600,color:"var(--t1)",letterSpacing:-0.3}}>Moderation</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:14}}>Review reports and flagged content across all spaces.</div>
           </div>
-          <div style={{fontSize:11,fontWeight:500,background:"rgba(167,139,250,0.12)",color:"#c4b5fd",border:"0.5px solid rgba(167,139,250,0.25)",borderRadius:20,padding:"4px 11px",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+          <div style={{fontSize:11,fontWeight:500,background:"var(--ac-bg)",color:"var(--ac-text)",border:"0.5px solid var(--ac-border)",borderRadius:20,padding:"4px 11px",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
             <i className="fa-solid fa-shield-halved" style={{fontSize:10}}/>
             {currentUser?.role}
           </div>
@@ -277,9 +277,9 @@ function ModerationPage({currentUser, navigate}) {
             {["pending","actioned","dismissed"].map(s=>(
               <div key={s} onClick={()=>setStatusFilter(s)}
                 style={{fontSize:11,padding:"5px 13px",borderRadius:20,cursor:"pointer",
-                  background:statusFilter===s?"rgba(167,139,250,0.1)":"transparent",
-                  border:`0.5px solid ${statusFilter===s?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.1)"}`,
-                  color:statusFilter===s?"#c4b5fd":"var(--t4)"}}>
+                  background:statusFilter===s?"var(--ac-bg)":"transparent",
+                  border:`0.5px solid ${statusFilter===s?"var(--ac-border)":"rgba(255,255,255,0.1)"}`,
+                  color:statusFilter===s?"var(--ac-text)":"var(--t4)"}}>
                 {s} <span style={{opacity:0.6}}>{statusFilter===s?reports.length:""}</span>
               </div>
             ))}
@@ -456,9 +456,9 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
           {["pending","actioned","dismissed"].map(s=>(
             <div key={s} onClick={()=>setStatusFilter(s)}
               style={{fontSize:11,padding:"5px 13px",borderRadius:20,cursor:"pointer",
-                background:statusFilter===s?"rgba(167,139,250,0.1)":"transparent",
-                border:`0.5px solid ${statusFilter===s?"rgba(167,139,250,0.3)":"rgba(255,255,255,0.1)"}`,
-                color:statusFilter===s?"#c4b5fd":"var(--t4)"}}>
+                background:statusFilter===s?"var(--ac-bg)":"transparent",
+                border:`0.5px solid ${statusFilter===s?"var(--ac-border)":"rgba(255,255,255,0.1)"}`,
+                color:statusFilter===s?"var(--ac-text)":"var(--t4)"}}>
               {s}
             </div>
           ))}
@@ -590,7 +590,7 @@ function ExtModerationTab({ type, context, currentUser }) {
                   : <i className="fa-solid fa-puzzle-piece" style={{fontSize:12,color:"var(--t4)"}}/>}
               </div>
               <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{section.label}</span>
-              <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:"rgba(167,139,250,0.08)",color:"var(--ac)",border:"0.5px solid rgba(167,139,250,0.2)"}}>extension</span>
+              <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:"var(--ac-bg)",color:"var(--ac)",border:"0.5px solid var(--ac-border)"}}>extension</span>
             </div>
             {/* Extension component */}
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>

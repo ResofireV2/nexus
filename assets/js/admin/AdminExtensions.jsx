@@ -712,8 +712,8 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
           </div>
           <button onClick={syncManifest} disabled={syncing}
             style={{fontSize:12,padding:"6px 16px",borderRadius:8,
-              background:"rgba(96,165,250,0.08)",border:"0.5px solid rgba(96,165,250,0.3)",
-              color:"#60a5fa",cursor:syncing?"default":"pointer",fontFamily:"inherit",
+              background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",
+              color:"var(--ac-text)",cursor:syncing?"default":"pointer",fontFamily:"inherit",
               opacity:syncing?0.6:1}}>
             <i className="fa-solid fa-rotate" style={{marginRight:6,fontSize:11}}/>{syncing?"Syncing…":"Sync manifest"}
           </button>
@@ -725,8 +725,8 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
         <div style={{fontSize:13,fontWeight:500,color:"var(--red)",marginBottom:12}}>Danger zone</div>
         {!confirmUninstall
           ? <button onClick={()=>setConfirmUninstall(true)}
-              style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(239,68,68,0.08)",
-                border:"0.5px solid rgba(239,68,68,0.3)",color:"var(--red)",cursor:"pointer",
+              style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(248,113,113,0.08)",
+                border:"0.5px solid rgba(248,113,113,0.3)",color:"var(--red)",cursor:"pointer",
                 fontFamily:"inherit"}}>
               Uninstall extension
             </button>
@@ -758,8 +758,8 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
             </div>
             {!confirmForce
               ? <button onClick={()=>setConfirmForce(true)}
-                  style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(239,68,68,0.08)",
-                    border:"0.5px solid rgba(239,68,68,0.3)",color:"var(--red)",cursor:"pointer",
+                  style={{fontSize:12,padding:"6px 16px",borderRadius:8,background:"rgba(248,113,113,0.08)",
+                    border:"0.5px solid rgba(248,113,113,0.3)",color:"var(--red)",cursor:"pointer",
                     fontFamily:"inherit"}}>
                   Force remove
                 </button>
@@ -1382,8 +1382,8 @@ function AdminExtensionsPanel() {
           )}
           <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4}}>
             <button onClick={checkForUpdates} disabled={checkingUpdates}
-              style={{background:"rgba(139,92,246,.12)",
-                border:"0.5px solid rgba(139,92,246,.3)",borderRadius:8,
+              style={{background:"var(--ac-bg)",
+                border:"0.5px solid var(--ac-border)",borderRadius:8,
                 color:"var(--ac)",cursor:checkingUpdates?"default":"pointer",
                 padding:"6px 12px",fontSize:12,flexShrink:0,fontFamily:"inherit",fontWeight:500,
                 display:"flex",alignItems:"center",gap:6,opacity:checkingUpdates?0.6:1}}
@@ -1461,7 +1461,7 @@ function AdminExtensionsPanel() {
         </div>
       )}
       {tab!=="url"&&storeError&&!storeItems&&(
-        <div style={{padding:16,background:"rgba(239,68,68,0.06)",border:"0.5px solid rgba(239,68,68,0.2)",borderRadius:10,fontSize:13,color:"var(--red)",display:"flex",alignItems:"flex-start",gap:10}}>
+        <div style={{padding:16,background:"rgba(248,113,113,0.06)",border:"0.5px solid rgba(248,113,113,0.2)",borderRadius:10,fontSize:13,color:"var(--red)",display:"flex",alignItems:"flex-start",gap:10}}>
           <i className="fa-solid fa-triangle-exclamation" style={{marginTop:1,flexShrink:0}}/>
           <div>
             <div style={{fontWeight:500,marginBottom:4}}>Could not load extension store</div>
@@ -1675,8 +1675,8 @@ function AdminExtensionsPanel() {
                           <button onClick={e=>{e.stopPropagation();
                             if(window._nexusAdminNav) window._nexusAdminNav(`ext-panel-${item.slug}`);
                           }} style={{fontSize:12,padding:"6px 14px",borderRadius:8,
-                            background:"rgba(167,139,250,0.1)",border:"0.5px solid rgba(167,139,250,0.3)",
-                            color:"#a78bfa",cursor:"pointer",fontFamily:"inherit",fontWeight:500,
+                            background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",
+                            color:"var(--ac-text)",cursor:"pointer",fontFamily:"inherit",fontWeight:500,
                             display:"flex",alignItems:"center",gap:5}}>
                             <i className="fa-solid fa-gear" style={{fontSize:11}}/>Manage
                           </button>
