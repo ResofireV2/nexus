@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../lib/api";
 import { toast } from "./Toasts";
 import { Av } from "./Avatar";
@@ -236,19 +236,70 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
   const imgInputRef = useRef();
   const toolbarRef  = useRef();
   const [toolbarH,  setToolbarH]  = useState(44); // tracks actual toolbar height for placeholder offset
+  const [overflowIdx, setOverflowIdx] = useState(null); // null = no overflow, N = first hidden item index
+  const [overflowOpen, setOverflowOpen] = useState(false); // whether the ⋯ dropdown is open
+  const overflowBtnRef = useRef(); // ref for the ⋯ button (for dropdown positioning)
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({done:0, total:0}); // {done, total} while uploading
 
-  // Track toolbar height so the placeholder stays below it even when the
-  // toolbar wraps to multiple rows on narrow screens.
+  // Compute which toolbar items overflow the available width (desktop only).
+  // On mobile (≤767px) the toolbar wraps via CSS — no JS measurement needed.
+  // The Preview button is pinned right and never enters the overflow menu,
+  // so we reserve its width (32px btn + 8px gap = 40px) when measuring.
+  const PREVIEW_RESERVED = 40;
+  const MORE_BTN_WIDTH   = 36; // width of the ⋯ button itself
+
+  const measureOverflow = useCallback(() => {
+    const el = toolbarRef.current;
+    if (!el || window.innerWidth <= 767) {
+      setOverflowIdx(null);
+      setToolbarH(el ? el.offsetHeight : 44);
+      return;
+    }
+    // Available width for toolbar buttons, minus the preview button reservation.
+    const available = el.clientWidth - PREVIEW_RESERVED;
+    const children  = Array.from(el.children);
+    // Children: [toolbar buttons/seps..., spacer div, preview button]
+    // We only measure up to the spacer (flex:1 div), which is the second-to-last child.
+    const spacerIdx = children.findIndex(c => c.style && c.style.flex === "1");
+    const btnChildren = spacerIdx >= 0 ? children.slice(0, spacerIdx) : children.slice(0, -2);
+
+    let used = 0;
+    let cutAt = null;
+    for (let i = 0; i < btnChildren.length; i++) {
+      const w = btnChildren[i].getBoundingClientRect().width;
+      // When overflow would occur, reserve room for the ⋯ button too.
+      if (used + w + (cutAt === null ? MORE_BTN_WIDTH : 0) > available) {
+        cutAt = i;
+        break;
+      }
+      used += w;
+    }
+    setOverflowIdx(cutAt);
+    setToolbarH(el.offsetHeight);
+  }, []);
+
+  // Track toolbar height and overflow on resize.
   useEffect(() => {
     const el = toolbarRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setToolbarH(el.offsetHeight));
+    const ro = new ResizeObserver(measureOverflow);
     ro.observe(el);
-    setToolbarH(el.offsetHeight);
+    measureOverflow();
     return () => ro.disconnect();
-  }, []);
+  }, [measureOverflow]);
+
+  // Close overflow dropdown on outside click.
+  useEffect(() => {
+    if (!overflowOpen) return;
+    const handler = (e) => {
+      if (overflowBtnRef.current && !overflowBtnRef.current.contains(e.target)) {
+        setOverflowOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [overflowOpen]);
 
   // ── Emoji picker ──────────────────────────────────────────────────────────
   const [emojiOpen,   setEmojiOpen]   = useState(false);
@@ -571,15 +622,35 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     <div ref={wrapRef} style={{position:"relative",display:"flex",flexDirection:"column",flex:1,height:"100%"}}>
       {/* Toolbar */}
       <div className="comp-toolbar" ref={toolbarRef}>
-        {(toolbarItems||getAllToolbarButtons())
-          .filter(b => !b.hidden)
-          .filter(b => !(b._ext && typeof b.onClick !== "function"))   // drop orphans from uninstalled extensions
-          .map((b,i)=> b.sep
-          ? <div key={i} className="comp-tb-sep"/>
-          : b._ext
-            ? <button key={b.type} className="comp-tb-btn" title={b.tip}
+        {(()=>{
+          const allBtns = (toolbarItems||getAllToolbarButtons())
+            .filter(b => !b.hidden)
+            .filter(b => !(b._ext && typeof b.onClick !== "function"));
+
+          // On desktop, split into visible and overflow sets.
+          // overflowIdx===null means everything fits; otherwise items from
+          // overflowIdx onward are hidden from the toolbar and shown in the ⋯ menu.
+          const isMobileView = window.innerWidth <= 767;
+          const visibleBtns  = (!isMobileView && overflowIdx !== null) ? allBtns.slice(0, overflowIdx) : allBtns;
+          const overflowBtns = (!isMobileView && overflowIdx !== null) ? allBtns.slice(overflowIdx)    : [];
+
+          // Strip trailing separators from the visible set so the ⋯ button
+          // never follows a dangling separator.
+          while (visibleBtns.length > 0 && visibleBtns[visibleBtns.length - 1].sep) {
+            visibleBtns.pop();
+          }
+          // Strip leading separators from the overflow set.
+          while (overflowBtns.length > 0 && overflowBtns[0].sep) {
+            overflowBtns.shift();
+          }
+
+          const renderBtn = (b, i, inOverflow=false) => {
+            if (b.sep) return <div key={i} className="comp-tb-sep"/>;
+            if (b._ext) return (
+              <button key={b.type} className="comp-tb-btn" title={b.tip}
                 onMouseDown={e=>{
                   e.preventDefault();
+                  if (inOverflow) setOverflowOpen(false);
                   // Toolbar button onClick is called with a single context
                   // object: { attach, currentUser, context }. Extensions
                   // destructure what they need.
@@ -592,32 +663,71 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
                 }}>
                 <i className={b.label} style={{fontSize:16}}/>
               </button>
-            : b.type==="emoji"
-              ? <button key="emoji" ref={emojiAnchorRef} className={`comp-tb-btn${emojiOpen?" comp-tb-btn--active":""}`} title="Emoji"
-                  onMouseDown={e=>{e.preventDefault(); toggleEmoji();}}>
-                  <i className="fa-solid fa-face-smile" style={{fontSize:16}}/>
-                </button>
-            : b.type==="image"
-              ? <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}>
-                  {uploading
-                    ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:16}}/>
-                    : <i className="fa-solid fa-image" style={{fontSize:16}}/>}
-                </label>
-            : b.list
-              ? <button key={b.type} className="comp-tb-btn" title={b.tip}
-                  onMouseDown={e=>{e.preventDefault(); applyList(b.list);}}>
-                  <i className={b.label} style={{fontSize:16}}/>
-                </button>
-            : b.grid
-              ? <button key={b.type} className="comp-tb-btn" title={b.tip}
-                  onMouseDown={e=>{e.preventDefault(); applyGrid();}}>
-                  <i className={b.label} style={{fontSize:16}}/>
-                </button>
-              : <button key={b.type} className="comp-tb-btn" title={b.tip}
-                  style={b.style} onMouseDown={e=>{e.preventDefault(); applyFormat(b.wrap);}}>
-                  {b.label}
-                </button>
-        )}
+            );
+            if (b.type==="emoji") return (
+              <button key="emoji" ref={emojiAnchorRef} className={`comp-tb-btn${emojiOpen?" comp-tb-btn--active":""}`} title="Emoji"
+                onMouseDown={e=>{e.preventDefault(); if(inOverflow)setOverflowOpen(false); toggleEmoji();}}>
+                <i className="fa-solid fa-face-smile" style={{fontSize:16}}/>
+              </button>
+            );
+            if (b.type==="image") return (
+              <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{cursor:"pointer"}}
+                onMouseDown={inOverflow ? ()=>setOverflowOpen(false) : undefined}>
+                {uploading
+                  ? <i className="fa-solid fa-spinner fa-spin" style={{fontSize:16}}/>
+                  : <i className="fa-solid fa-image" style={{fontSize:16}}/>}
+              </label>
+            );
+            if (b.list) return (
+              <button key={b.type} className="comp-tb-btn" title={b.tip}
+                onMouseDown={e=>{e.preventDefault(); if(inOverflow)setOverflowOpen(false); applyList(b.list);}}>
+                <i className={b.label} style={{fontSize:16}}/>
+              </button>
+            );
+            if (b.grid) return (
+              <button key={b.type} className="comp-tb-btn" title={b.tip}
+                onMouseDown={e=>{e.preventDefault(); if(inOverflow)setOverflowOpen(false); applyGrid();}}>
+                <i className={b.label} style={{fontSize:16}}/>
+              </button>
+            );
+            return (
+              <button key={b.type} className="comp-tb-btn" title={b.tip}
+                style={b.style} onMouseDown={e=>{e.preventDefault(); if(inOverflow)setOverflowOpen(false); applyFormat(b.wrap);}}>
+                {b.label}
+              </button>
+            );
+          };
+
+          return (
+            <>
+              {visibleBtns.map((b,i) => renderBtn(b, i, false))}
+              {overflowBtns.length > 0 && (
+                <div ref={overflowBtnRef} style={{position:"relative"}}>
+                  <button
+                    className={`comp-tb-btn${overflowOpen?" comp-tb-btn--active":""}`}
+                    title="More"
+                    onMouseDown={e=>{e.preventDefault(); setOverflowOpen(o=>!o);}}>
+                    <i className="fa-solid fa-ellipsis" style={{fontSize:14}}/>
+                  </button>
+                  {overflowOpen && (
+                    <div style={{
+                      position:"absolute", top:"calc(100% + 4px)", right:0,
+                      background:"var(--s2)", border:"0.5px solid var(--b2)",
+                      borderRadius:10, padding:"4px", zIndex:300,
+                      boxShadow:"0 4px 20px rgba(0,0,0,0.4)",
+                      display:"flex", flexDirection:"column", gap:2, minWidth:36,
+                    }}>
+                      {overflowBtns.map((b,i) => b.sep
+                        ? <div key={i} style={{height:"0.5px",background:"var(--b1)",margin:"2px 4px"}}/>
+                        : renderBtn(b, i, true)
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
         <div style={{flex:1}}/>
         <button className="comp-tb-btn" title="Preview"
           onMouseDown={e=>{e.preventDefault();setShowPreview(p=>!p);}}

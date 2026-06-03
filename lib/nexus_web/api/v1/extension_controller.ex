@@ -267,8 +267,17 @@ defmodule NexusWeb.API.V1.ExtensionController do
   # Helpers
   # ---------------------------------------------------------------------------
 
+  # Appends a cache-busting query param to local /uploads/ asset URLs.
+  # External URLs (http/https) are returned as-is.
+  # This ensures the browser refetches logo/banner after reinstall, since
+  # the filenames never change but updated_at does.
+  defp bust(nil, _ts),  do: nil
+  defp bust(url, _ts) when binary_part(url, 0, 4) == "http", do: url
+  defp bust(url, ts),   do: "#{url}?v=#{ts}"
+
   defp extension_json(ext) do
     manifest = ext.manifest || %{}
+    ts = ext.updated_at |> DateTime.to_unix()
 
     %{
       id:             ext.id,
@@ -282,8 +291,8 @@ defmodule NexusWeb.API.V1.ExtensionController do
       settings:       ext.settings,
       js_bundle_url:  ext.js_bundle_url,
       manifest_url:   ext.manifest_url,
-      logo_url:           manifest["logo_url"],
-      banner_url:         manifest["banner_url"],
+      logo_url:           bust(manifest["logo_url"], ts),
+      banner_url:         bust(manifest["banner_url"], ts),
       github_repo:        ext.github_repo,
       installed_version:  ext.installed_version,
       latest_version:     ext.latest_version,
