@@ -345,6 +345,15 @@ defmodule NexusWeb.Router do
     delete "/badges/:id/revoke/:user_id", BadgeController, :revoke
     get    "/badges/:id/holders",      BadgeController, :holders
 
+    # Groups (admin)
+    get    "/groups",                      GroupController, :index
+    post   "/groups",                      GroupController, :create
+    patch  "/groups/:id",                  GroupController, :update
+    delete "/groups/:id",                  GroupController, :delete
+    get    "/groups/:id/members",          GroupController, :members
+    post   "/groups/:id/members",          GroupController, :add_member
+    delete "/groups/:id/members/:user_id", GroupController, :remove_member
+
     # Leaderboard (admin)
     get    "/leaderboard/settings",    LeaderboardController, :get_settings
     patch  "/leaderboard/settings",    LeaderboardController, :update_settings

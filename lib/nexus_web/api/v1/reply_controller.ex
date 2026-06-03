@@ -2,6 +2,7 @@ defmodule NexusWeb.API.V1.ReplyController do
   use NexusWeb, :controller
 
   alias Nexus.Forum
+  alias Nexus.Groups
   alias Nexus.Accounts.User
 
   # GET /api/v1/posts/:post_id/replies
@@ -224,7 +225,25 @@ defmodule NexusWeb.API.V1.ReplyController do
   end
 
   defp user_json(nil), do: nil
-  defp user_json(u), do: %{id: u.id, username: u.username, avatar_url: u.avatar_url}
+  defp user_json(u) do
+    post_groups =
+      Groups.public_groups_for_user(u.id)
+      |> Enum.filter(& &1.show_on_posts)
+      |> Enum.map(fn g -> %{
+        slug:        g.slug,
+        badge_label: g.badge_label,
+        badge_color: g.badge_color,
+        badge_icon:  g.badge_icon
+      } end)
+
+    %{
+      id:          u.id,
+      username:    u.username,
+      avatar_url:  u.avatar_url,
+      avatar_color: Map.get(u, :avatar_color),
+      groups:      post_groups
+    }
+  end
 
   defp format_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->

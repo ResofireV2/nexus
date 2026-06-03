@@ -4,6 +4,7 @@ defmodule NexusWeb.API.V1.AdminController do
   alias Nexus.{Admin, Accounts}
   import Ecto.Query
   alias Nexus.Repo
+  alias Nexus.Groups
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
@@ -488,6 +489,8 @@ defmodule NexusWeb.API.V1.AdminController do
           where: s.user_id == ^user.id,
           select: sum(s.reactions_given)) || 0
 
+        public_groups = Groups.public_groups_for_user(user.id)
+
         json(conn, %{
           user: %{
             id: user.id,
@@ -502,7 +505,18 @@ defmodule NexusWeb.API.V1.AdminController do
             post_count: post_count,
             reply_count: reply_count,
             reactions_received: reactions_received,
-            reactions_given: reactions_given
+            reactions_given: reactions_given,
+            groups: Enum.map(public_groups, fn g -> %{
+              id:              g.id,
+              name:            g.name,
+              slug:            g.slug,
+              badge_label:     g.badge_label,
+              badge_color:     g.badge_color,
+              badge_icon:      g.badge_icon,
+              show_on_profile: g.show_on_profile,
+              show_on_posts:   g.show_on_posts,
+              show_on_popover: g.show_on_popover
+            } end)
           }
         })
     end
