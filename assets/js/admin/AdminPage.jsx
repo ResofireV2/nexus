@@ -17,6 +17,7 @@ import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { AdminPagesPanel } from "./AdminPages";
 import { AdminReactionsPanel } from "./AdminReactionsPanel";
+import { AdminGroupsPanel } from "./AdminGroups";
 import { PermissionGatePicker, normaliseGate, serialiseGate } from "../components/PermissionGatePicker";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
@@ -553,6 +554,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"spaces",     icon:"fa-layer-group",          label:"spaces"},
       {k:"tags",       icon:"fa-tag",                  label:"tags"},
       {k:"badges",     icon:"fa-medal",                label:"badges"},
+      {k:"groups",     icon:"fa-user-group",           label:"groups"},
       {k:"pages",      icon:"fa-file-lines",          label:"pages"},
       {k:"reactions",   icon:"fa-heart",               label:"reactions"},
     ]},
@@ -1351,6 +1353,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
+          {sec==="groups"&&<AdminGroupsPanel/>}
           {sec==="pages"&&<AdminPagesPanel/>}
           {sec==="themes"&&<AdminThemesPanel/>}
           {sec==="reactions"&&<AdminReactionsPanel reactionsCfg={reactionsCfg} setReactionsCfg={setReactionsCfg} setIsDirty={setIsDirty}/>}
