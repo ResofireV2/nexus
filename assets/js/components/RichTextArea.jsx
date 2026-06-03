@@ -138,6 +138,120 @@ export function setActiveReplyToolbar(items) { _activeReplyToolbar = items; }
 // onSelectRef is a React ref (not the callback directly) so the picker always
 // calls the latest version of insertEmoji without needing to re-mount when
 // the parent re-renders with a new `value` closure.
+// Overflow toolbar menu — appends a fixed-position div to document.body so it
+// escapes the overflow:hidden on composer-shell and composer-inner.
+// Receives pre-resolved callbacks from RichTextArea to avoid prop drilling.
+function OverflowMenuPortal({
+  overflowBtnRef, toolbarItems, overflowIdx,
+  emojiAnchorRef, emojiOpen, uploading,
+  onClose, onEmoji, onFormat, onList, onGrid, onExt,
+}) {
+  useEffect(() => {
+    // Create portal div if it doesn't exist.
+    let el = document.getElementById("nexus-tb-overflow-portal");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "nexus-tb-overflow-portal";
+      el.style.cssText = [
+        "position:fixed",
+        "z-index:400",
+        "background:var(--s2)",
+        "border:0.5px solid var(--b2)",
+        "border-radius:10px",
+        "padding:4px",
+        "box-shadow:0 4px 20px rgba(0,0,0,0.4)",
+        "display:flex",
+        "flex-direction:column",
+        "gap:2px",
+        "min-width:180px",
+      ].join(";");
+      document.body.appendChild(el);
+    }
+
+    // Position below the ⋯ button, clamped to viewport right edge.
+    if (overflowBtnRef.current) {
+      const rect = overflowBtnRef.current.getBoundingClientRect();
+      el.style.top  = (rect.bottom + 4) + "px";
+      el.style.left = Math.max(4, rect.right - 184) + "px";
+    }
+
+    return () => {
+      if (document.body.contains(el)) document.body.removeChild(el);
+    };
+  }, []);
+
+  // Build the overflow button list from definitions.
+  const allBtns = (toolbarItems || getAllToolbarButtons())
+    .filter(b => !b.hidden)
+    .filter(b => !(b._ext && typeof b.onClick !== "function"));
+  const overflowBtns = overflowIdx !== null ? allBtns.slice(overflowIdx) : [];
+  while (overflowBtns.length > 0 && overflowBtns[0].sep) overflowBtns.shift();
+  if (!overflowBtns.length) return null;
+
+  const ROW = {justifyContent:"flex-start",gap:10,width:"100%",padding:"0 10px"};
+  const ICO = {fontSize:16,width:20,textAlign:"center"};
+
+  const items = overflowBtns.map((b, i) => {
+    if (b.sep) return <div key={i} style={{height:"0.5px",background:"var(--b1)",margin:"2px 4px"}}/>;
+    if (b._ext) return (
+      <button key={b.type} className="comp-tb-btn" title={b.tip} style={ROW}
+        onMouseDown={e=>{e.preventDefault();onExt(b);}}>
+        <i className={b.label} style={ICO}/>
+        <span style={{fontSize:13}}>{b.tip}</span>
+      </button>
+    );
+    if (b.type==="emoji") return (
+      <button key="emoji" ref={emojiAnchorRef} className={`comp-tb-btn${emojiOpen?" comp-tb-btn--active":""}`} title="Emoji" style={ROW}
+        onMouseDown={e=>{e.preventDefault();onEmoji();}}>
+        <i className="fa-solid fa-face-smile" style={ICO}/>
+        <span style={{fontSize:13}}>Emoji</span>
+      </button>
+    );
+    if (b.type==="image") return (
+      <label key="image" className="comp-tb-btn" htmlFor="comp-img-input" title="Upload image" style={{...ROW,cursor:"pointer"}}
+        onMouseDown={onClose}>
+        {uploading
+          ? <i className="fa-solid fa-spinner fa-spin" style={ICO}/>
+          : <i className="fa-solid fa-image" style={ICO}/>}
+        <span style={{fontSize:13}}>Upload image</span>
+      </label>
+    );
+    if (b.list) return (
+      <button key={b.type} className="comp-tb-btn" title={b.tip} style={ROW}
+        onMouseDown={e=>{e.preventDefault();onList(b.list);}}>
+        <i className={b.label} style={ICO}/>
+        <span style={{fontSize:13}}>{b.tip}</span>
+      </button>
+    );
+    if (b.grid) return (
+      <button key={b.type} className="comp-tb-btn" title={b.tip} style={ROW}
+        onMouseDown={e=>{e.preventDefault();onGrid();}}>
+        <i className="fa-solid fa-table-cells" style={ICO}/>
+        <span style={{fontSize:13}}>{b.tip}</span>
+      </button>
+    );
+    return (
+      <button key={b.type} className="comp-tb-btn" title={b.tip} style={ROW}
+        onMouseDown={e=>{e.preventDefault();onFormat(b.wrap);}}>
+        <span style={{...b.style,fontSize:16,width:20,textAlign:"center",display:"inline-block"}}>{b.label}</span>
+        <span style={{fontSize:13}}>{b.tip}</span>
+      </button>
+    );
+  });
+
+  // Render items into the portal div using a mini React root.
+  // We reuse window.ReactDOM (exposed by nexus.jsx) for createRoot.
+  useEffect(() => {
+    const el = document.getElementById("nexus-tb-overflow-portal");
+    if (!el || !window.ReactDOM) return;
+    const root = window.ReactDOM.createRoot(el);
+    root.render(<>{items}</>);
+    return () => root.unmount();
+  });
+
+  return null;
+}
+
 function EmojiPickerPortal({isMobile, anchorRef, onSelectRef}) {
   useEffect(() => {
     const el = document.createElement("div");
@@ -244,10 +358,21 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
 
   // Compute which toolbar items overflow the available width (desktop only).
   // On mobile (≤767px) the toolbar wraps via CSS — no JS measurement needed.
-  // The Preview button is pinned right and never enters the overflow menu,
-  // so we reserve its width (32px btn + 8px gap = 40px) when measuring.
-  const PREVIEW_RESERVED = 40;
-  const MORE_BTN_WIDTH   = 36; // width of the ⋯ button itself
+  //
+  // Uses fixed item widths from the button definitions rather than reading
+  // DOM children, which avoids the circular problem of measuring the ⋯
+  // wrapper div as if it were a button.
+  //
+  // Item widths (matching CSS):
+  //   comp-tb-btn: min-width 32px + 2px gap = 34px
+  //   comp-tb-sep: 0.5px width + 3px margin each side + 2px gap = 9px
+  //   ⋯ button:    34px (same as a regular button)
+  //   Preview btn: 34px — always pinned right, reserved from available width
+  //   Toolbar padding: 8px each side = 16px total
+  const BTN_W  = 34; // button width + gap
+  const SEP_W  = 9;  // separator width + margins + gap
+  const MORE_W = 34; // ⋯ button width + gap
+  const TB_PAD = 16; // toolbar left+right padding
 
   const measureOverflow = useCallback(() => {
     const el = toolbarRef.current;
@@ -256,30 +381,33 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
       setToolbarH(el ? el.offsetHeight : 44);
       return;
     }
-    // Available width for toolbar buttons, minus the preview button reservation.
-    const available = el.clientWidth - PREVIEW_RESERVED;
-    const children  = Array.from(el.children);
-    // Children: [toolbar buttons/seps..., spacer div, preview button]
-    // We only measure up to the spacer (flex:1 div), which is the second-to-last child.
-    const spacerIdx = children.findIndex(c => c.style && c.style.flex === "1");
-    const btnChildren = spacerIdx >= 0 ? children.slice(0, spacerIdx) : children.slice(0, -2);
+
+    const items = (toolbarItems || getAllToolbarButtons())
+      .filter(b => !b.hidden)
+      .filter(b => !(b._ext && typeof b.onClick !== "function"));
+
+    // Available width: toolbar width minus padding and the pinned preview button.
+    const available = el.clientWidth - TB_PAD - BTN_W;
 
     let used = 0;
     let cutAt = null;
-    for (let i = 0; i < btnChildren.length; i++) {
-      const w = btnChildren[i].getBoundingClientRect().width;
-      // When overflow would occur, reserve room for the ⋯ button too.
-      if (used + w + (cutAt === null ? MORE_BTN_WIDTH : 0) > available) {
-        cutAt = i;
+    for (let i = 0; i < items.length; i++) {
+      const w = items[i].sep ? SEP_W : BTN_W;
+      // Reserve room for the ⋯ button from the point where overflow first occurs.
+      if (used + w + MORE_W > available) {
+        // Walk back to skip any trailing separators before the cut point.
+        let cut = i;
+        while (cut > 0 && items[cut - 1].sep) cut--;
+        cutAt = cut;
         break;
       }
       used += w;
     }
     setOverflowIdx(cutAt);
     setToolbarH(el.offsetHeight);
-  }, []);
+  }, [toolbarItems]);
 
-  // Track toolbar height and overflow on resize.
+  // Track toolbar height and overflow on resize or when toolbar items change.
   useEffect(() => {
     const el = toolbarRef.current;
     if (!el) return;
@@ -629,23 +757,19 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
 
           // On desktop, split into visible and overflow sets.
           // overflowIdx===null means everything fits; otherwise items from
-          // overflowIdx onward are hidden from the toolbar and shown in the ⋯ menu.
+          // overflowIdx onward go into the ⋯ dropdown.
           const isMobileView = window.innerWidth <= 767;
           const visibleBtns  = (!isMobileView && overflowIdx !== null) ? allBtns.slice(0, overflowIdx) : allBtns;
           const overflowBtns = (!isMobileView && overflowIdx !== null) ? allBtns.slice(overflowIdx)    : [];
 
-          // Strip trailing separators from the visible set so the ⋯ button
-          // never follows a dangling separator.
-          while (visibleBtns.length > 0 && visibleBtns[visibleBtns.length - 1].sep) {
-            visibleBtns.pop();
-          }
-          // Strip leading separators from the overflow set.
-          while (overflowBtns.length > 0 && overflowBtns[0].sep) {
-            overflowBtns.shift();
-          }
+          // Strip trailing separators from the visible set and leading
+          // separators from the overflow set.
+          while (visibleBtns.length > 0 && visibleBtns[visibleBtns.length - 1].sep) visibleBtns.pop();
+          while (overflowBtns.length > 0 && overflowBtns[0].sep) overflowBtns.shift();
 
           const renderBtn = (b, i, inOverflow=false) => {
-            if (b.sep) return <div key={i} className="comp-tb-sep"/>;
+            if (b.sep) return <div key={i} className={inOverflow ? undefined : "comp-tb-sep"}
+              style={inOverflow ? {height:"0.5px",background:"var(--b1)",margin:"2px 4px"} : undefined}/>;
             if (b._ext) return (
               <button key={b.type} className="comp-tb-btn" title={b.tip}
                 onMouseDown={e=>{
@@ -702,28 +826,13 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
             <>
               {visibleBtns.map((b,i) => renderBtn(b, i, false))}
               {overflowBtns.length > 0 && (
-                <div ref={overflowBtnRef} style={{position:"relative"}}>
-                  <button
-                    className={`comp-tb-btn${overflowOpen?" comp-tb-btn--active":""}`}
-                    title="More"
-                    onMouseDown={e=>{e.preventDefault(); setOverflowOpen(o=>!o);}}>
-                    <i className="fa-solid fa-ellipsis" style={{fontSize:14}}/>
-                  </button>
-                  {overflowOpen && (
-                    <div style={{
-                      position:"absolute", top:"calc(100% + 4px)", right:0,
-                      background:"var(--s2)", border:"0.5px solid var(--b2)",
-                      borderRadius:10, padding:"4px", zIndex:300,
-                      boxShadow:"0 4px 20px rgba(0,0,0,0.4)",
-                      display:"flex", flexDirection:"column", gap:2, minWidth:36,
-                    }}>
-                      {overflowBtns.map((b,i) => b.sep
-                        ? <div key={i} style={{height:"0.5px",background:"var(--b1)",margin:"2px 4px"}}/>
-                        : renderBtn(b, i, true)
-                      )}
-                    </div>
-                  )}
-                </div>
+                <button
+                  ref={overflowBtnRef}
+                  className={`comp-tb-btn${overflowOpen?" comp-tb-btn--active":""}`}
+                  title="More"
+                  onMouseDown={e=>{e.preventDefault();setOverflowOpen(o=>!o);}}>
+                  <i className="fa-solid fa-ellipsis" style={{fontSize:14}}/>
+                </button>
               )}
             </>
           );
@@ -809,6 +918,27 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
           ))}
         </div>
       )}
+
+      {/* Overflow toolbar menu — React component that renders a body-appended DOM portal
+           to escape the overflow:hidden ancestors (composer-shell, composer-inner).
+           Positioned via getBoundingClientRect on the ⋯ button each time it opens. */}
+      {overflowOpen && <OverflowMenuPortal
+        overflowBtnRef={overflowBtnRef}
+        toolbarItems={toolbarItems}
+        overflowIdx={overflowIdx}
+        emojiAnchorRef={emojiAnchorRef}
+        emojiOpen={emojiOpen}
+        uploading={uploading}
+        onClose={()=>setOverflowOpen(false)}
+        onEmoji={()=>{setOverflowOpen(false);toggleEmoji();}}
+        onFormat={wrap=>{setOverflowOpen(false);applyFormat(wrap);}}
+        onList={list=>{setOverflowOpen(false);applyList(list);}}
+        onGrid={()=>{setOverflowOpen(false);applyGrid();}}
+        onExt={(b)=>{setOverflowOpen(false);b.onClick&&b.onClick({attach,currentUser,context});}}
+        attach={attach}
+        currentUser={currentUser}
+        context={context}
+      />}
 
       {/* Emoji picker popup (desktop) / bottom sheet (mobile) */}
       {emojiOpen && <EmojiPickerPortal isMobile={isMobile()} anchorRef={emojiAnchorRef} onSelectRef={onSelectRef}/>}
