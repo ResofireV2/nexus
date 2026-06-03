@@ -284,9 +284,21 @@ function ProfilePage({username, currentUser, navigate, initialTab}) {
               <button className="btn-ghost" style={{fontSize:12,padding:"6px 14px"}} onClick={startDM}>Message</button>
             </div>}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4,flexWrap:"wrap"}}>
             <div className="profile-name">{username}</div>
             {user?.role&&user.role!=="member"&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{user.role}</div>}
+            {(user?.groups||[]).filter(g=>g.show_on_profile).map(g=>(
+              <span key={g.slug} style={{
+                display:"inline-flex",alignItems:"center",gap:5,
+                fontSize:11,fontWeight:500,padding:"3px 9px",borderRadius:20,
+                background:g.badge_color?g.badge_color+"1a":"rgba(255,255,255,0.08)",
+                color:g.badge_color||"var(--t3)",
+                border:`0.5px solid ${g.badge_color?g.badge_color+"40":"rgba(255,255,255,0.15)"}`,
+              }}>
+                {g.badge_icon&&<i className={`fa-solid ${g.badge_icon}`} style={{fontSize:9}}/>}
+                {g.badge_label||g.name}
+              </span>
+            ))}
           </div>
           <div className="profile-handle">@{username?.toLowerCase()} · joined {fmtDate(user?.inserted_at)}</div>
           {user?.bio&&<div style={{fontSize:13,color:"var(--t3)",lineHeight:1.6,margin:"8px 0 12px",maxWidth:480}}>{user.bio}</div>}

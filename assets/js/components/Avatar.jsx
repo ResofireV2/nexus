@@ -235,6 +235,23 @@ export function UserCardPopover({ card, setCard, currentUser, navigate }) {
                 )}
               </div>
 
+              {(u.groups||[]).filter(g=>g.show_on_popover).length>0&&(
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+                  {(u.groups||[]).filter(g=>g.show_on_popover).map(g=>(
+                    <span key={g.slug} style={{
+                      display:"inline-flex",alignItems:"center",gap:4,
+                      fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,
+                      background:g.badge_color?g.badge_color+"1a":"rgba(255,255,255,0.08)",
+                      color:g.badge_color||"var(--t3)",
+                      border:`0.5px solid ${g.badge_color?g.badge_color+"40":"rgba(255,255,255,0.15)"}`,
+                    }}>
+                      {g.badge_icon&&<i className={`fa-solid ${g.badge_icon}`} style={{fontSize:8}}/>}
+                      {g.badge_label||g.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {u.bio && (
                 <p style={{ fontSize: 13, color: "var(--t3)", margin: "0 0 12px", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {u.bio}

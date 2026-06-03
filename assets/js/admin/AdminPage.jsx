@@ -17,6 +17,7 @@ import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { AdminPagesPanel } from "./AdminPages";
 import { AdminReactionsPanel } from "./AdminReactionsPanel";
+import { AdminGroupsPanel } from "./AdminGroups";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
@@ -552,6 +553,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"spaces",     icon:"fa-layer-group",          label:"spaces"},
       {k:"tags",       icon:"fa-tag",                  label:"tags"},
       {k:"badges",     icon:"fa-medal",                label:"badges"},
+      {k:"groups",     icon:"fa-user-group",           label:"groups"},
       {k:"pages",      icon:"fa-file-lines",          label:"pages"},
       {k:"reactions",   icon:"fa-heart",               label:"reactions"},
     ]},
@@ -1276,7 +1278,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     implausibly_fast:   {text:"Typed implausibly fast", color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
                     no_keystrokes:      {text:"No keystrokes detected",  color:"#f87171", bg:"rgba(248,113,113,0.1)", border:"rgba(248,113,113,0.3)"},
                     dominated_by_paste: {text:"Dominated by paste",      color:"#fb923c", bg:"rgba(251,146,60,0.1)",   border:"rgba(251,146,60,0.3)"},
-                    metadata_missing:   {text:"No composition metadata", color:"var(--t4)", bg:"rgba(255,255,255,0.04)", border:"rgba(255,255,255,0.10)"},
+                    metadata_missing:   {text:"No composition metadata", color:"#94a3b8", bg:"rgba(148,163,184,0.1)", border:"rgba(148,163,184,0.3)"},
                   };
                   const hl = item.hold_reason && HOLD_LABELS[item.hold_reason.verdict];
                   return (
@@ -1356,6 +1358,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
+          {sec==="groups"&&<AdminGroupsPanel/>}
           {sec==="pages"&&<AdminPagesPanel/>}
           {sec==="themes"&&<AdminThemesPanel/>}
           {sec==="reactions"&&<AdminReactionsPanel reactionsCfg={reactionsCfg} setReactionsCfg={setReactionsCfg} setIsDirty={setIsDirty}/>}
