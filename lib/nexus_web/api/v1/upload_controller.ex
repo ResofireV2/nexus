@@ -4,6 +4,7 @@ defmodule NexusWeb.API.V1.UploadController do
   alias Nexus.Uploads
   alias Nexus.Uploads.Upload
   alias Nexus.Accounts
+  alias Nexus.Permissions
 
   # POST /api/v1/uploads
   # Params: file (multipart), type ("post_image" | "avatar" | "logo" | "favicon"), post_id (optional)
@@ -15,6 +16,10 @@ defmodule NexusWeb.API.V1.UploadController do
     # Only admins can upload logos/favicons/og images
     if type in ["logo", "favicon", "og_image"] and user.role != "admin" do
       conn |> put_status(:forbidden) |> json(%{error: "Admin only"})
+    # post_image is gated by the who_can_upload permission setting
+    # (avatar, cover_image, group_image are personal — always allowed for any member)
+    else if type == "post_image" and not Permissions.can_upload?(user) do
+      conn |> put_status(:forbidden) |> json(%{error: "You do not have permission to upload images"})
     else
       plug_upload = params["file"]
 
@@ -76,6 +81,7 @@ defmodule NexusWeb.API.V1.UploadController do
             conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
         end
       end
+    end
     end
   end
 

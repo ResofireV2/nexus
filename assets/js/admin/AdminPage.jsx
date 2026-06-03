@@ -17,7 +17,7 @@ import { AdminPwaPanel, IosInstallPrompt } from "./AdminPwaPanel";
 import { AdminAnalyticsPanel } from "./AdminAnalyticsPanel";
 import { AdminPagesPanel } from "./AdminPages";
 import { AdminReactionsPanel } from "./AdminReactionsPanel";
-import { AdminGroupsPanel } from "./AdminGroups";
+import { PermissionGatePicker, normaliseGate, serialiseGate } from "../components/PermissionGatePicker";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
@@ -486,7 +486,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     extsWithPerms.forEach(e => {
       initial[e.slug] = {};
       e.permissions.forEach(p => {
-        initial[e.slug][p.key] = (e.settings && e.settings[p.key]) || p.default || "member";
+        initial[e.slug][p.key] = normaliseGate((e.settings && e.settings[p.key]) || p.default || "member");
       });
     });
     setExtPermCfg(initial);
@@ -553,7 +553,6 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"spaces",     icon:"fa-layer-group",          label:"spaces"},
       {k:"tags",       icon:"fa-tag",                  label:"tags"},
       {k:"badges",     icon:"fa-medal",                label:"badges"},
-      {k:"groups",     icon:"fa-user-group",           label:"groups"},
       {k:"pages",      icon:"fa-file-lines",          label:"pages"},
       {k:"reactions",   icon:"fa-heart",               label:"reactions"},
     ]},
@@ -1204,12 +1203,11 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <option value="member">All members</option>
               </Select>
             </F>
-            <F label="Who can upload images">
-              <Select value={postCfg.who_can_upload||"member"} onChange={v=>setPostCfg(p=>({...p,who_can_upload:v}))}>
-                <option value="admin">Admins only</option>
-                <option value="moderator">Moderators and admins</option>
-                <option value="member">All members</option>
-              </Select>
+            <F label="Who can upload images" hint="Groups grant access in addition to the selected role — members in any selected group can upload regardless of role.">
+              <PermissionGatePicker
+                value={postCfg.who_can_upload||"member"}
+                onChange={v=>{setPostCfg(p=>({...p,who_can_upload:serialiseGate(v)}));setIsDirty(true);}}
+              />
             </F>
 
             <div className="fgt" style={{marginTop:20}}>Account deletion</div>
@@ -1246,19 +1244,14 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                           <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",lineHeight:1.4}}>{perm.label}</div>
                           {perm.hint&&<div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>{perm.hint}</div>}
                         </div>
-                        <div style={{width:160,flexShrink:0}}>
-                          <Select
+                        <div style={{flexShrink:0}}>
+                          <PermissionGatePicker
                             value={(extPermCfg[ext.slug]&&extPermCfg[ext.slug][perm.key])||perm.default||"member"}
-                            style={{width:160}}
                             onChange={v=>{
-                              setExtPermCfg(p=>({...p,[ext.slug]:{...(p[ext.slug]||{}),[perm.key]:v}}));
+                              setExtPermCfg(p=>({...p,[ext.slug]:{...(p[ext.slug]||{}),[perm.key]:serialiseGate(v)}}));
                               setIsDirty(true);
-                            }}>
-                            <option value="everyone">Everyone</option>
-                            <option value="member">Members</option>
-                            <option value="moderator">Moderators</option>
-                            <option value="admin">Admins only</option>
-                          </Select>
+                            }}
+                          />
                         </div>
                       </div>
                     ))}
@@ -1358,7 +1351,6 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="badges"&&<AdminBadgesPanel/>}
-          {sec==="groups"&&<AdminGroupsPanel/>}
           {sec==="pages"&&<AdminPagesPanel/>}
           {sec==="themes"&&<AdminThemesPanel/>}
           {sec==="reactions"&&<AdminReactionsPanel reactionsCfg={reactionsCfg} setReactionsCfg={setReactionsCfg} setIsDirty={setIsDirty}/>}

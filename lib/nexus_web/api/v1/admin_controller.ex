@@ -4,7 +4,6 @@ defmodule NexusWeb.API.V1.AdminController do
   alias Nexus.{Admin, Accounts}
   import Ecto.Query
   alias Nexus.Repo
-  alias Nexus.Groups
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
@@ -229,7 +228,7 @@ defmodule NexusWeb.API.V1.AdminController do
         general:      Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url","og_image_url","hero_enabled","hero_title","hero_body"]),
         appearance:   Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css","tint_color","light_accent_color","light_tint_color","dark_enabled","light_enabled","default_theme","fs_ui","fs_body","fs_title","fs_feed_title","fs_content","fs_code"]),
         registration: Map.take(s["registration"]||%{}, ["open", "require_email_verification"]),
-        posting:      Map.take(s["posting"]||%{},      ["questions_enabled", "guest_browsing", "allow_self_reactions"]),
+        posting:      Map.take(s["posting"]||%{},      ["questions_enabled", "guest_browsing", "allow_self_reactions", "who_can_upload"]),
         layout:       s["layout"] || %{},
         digest:       Map.take(s["digest"]||%{}, ["enabled","frequencies"]),
         pwa:          Map.take(s["pwa"]||%{}, [
@@ -489,8 +488,6 @@ defmodule NexusWeb.API.V1.AdminController do
           where: s.user_id == ^user.id,
           select: sum(s.reactions_given)) || 0
 
-        public_groups = Groups.public_groups_for_user(user.id)
-
         json(conn, %{
           user: %{
             id: user.id,
@@ -505,18 +502,7 @@ defmodule NexusWeb.API.V1.AdminController do
             post_count: post_count,
             reply_count: reply_count,
             reactions_received: reactions_received,
-            reactions_given: reactions_given,
-            groups: Enum.map(public_groups, fn g -> %{
-              id:              g.id,
-              name:            g.name,
-              slug:            g.slug,
-              badge_label:     g.badge_label,
-              badge_color:     g.badge_color,
-              badge_icon:      g.badge_icon,
-              show_on_profile: g.show_on_profile,
-              show_on_posts:   g.show_on_posts,
-              show_on_popover: g.show_on_popover
-            } end)
+            reactions_given: reactions_given
           }
         })
     end

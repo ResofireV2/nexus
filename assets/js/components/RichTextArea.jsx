@@ -181,9 +181,21 @@ function OverflowMenuPortal({
   }, []);
 
   // Build the overflow button list from definitions.
+  const canUploadImages = (()=>{
+    const gate = window._postCfg?.who_can_upload;
+    if (!gate) return true;
+    const role   = typeof gate === "string" ? gate : (gate.role || "member");
+    const groups = typeof gate === "object"  ? (gate.groups || []) : [];
+    const LEVELS = {everyone:0, member:1, moderator:2, admin:3};
+    // In the portal we don't have currentUser in scope, so we optimistically show
+    // if groups are set (backend will enforce). Portal is only shown to logged-in users.
+    return (LEVELS["member"]||1) >= (LEVELS[role]||1) || groups.length > 0;
+  })();
+
   const allBtns = (toolbarItems || getAllToolbarButtons())
     .filter(b => !b.hidden)
-    .filter(b => !(b._ext && typeof b.onClick !== "function"));
+    .filter(b => !(b._ext && typeof b.onClick !== "function"))
+    .filter(b => canUploadImages || (b.type !== "image" && b.type !== "grid"));
   const overflowBtns = overflowIdx !== null ? allBtns.slice(overflowIdx) : [];
   while (overflowBtns.length > 0 && overflowBtns[0].sep) overflowBtns.shift();
   if (!overflowBtns.length) return null;
@@ -751,9 +763,25 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
       {/* Toolbar */}
       <div className="comp-toolbar" ref={toolbarRef}>
         {(()=>{
+          // Determine if the current user can upload images (UX hint only — backend enforces the real gate).
+          // Reads window._postCfg.who_can_upload which is set from the public branding endpoint.
+          const canUploadImages = (()=>{
+            const gate = window._postCfg?.who_can_upload;
+            if (!gate || !currentUser) return !!currentUser; // default: any logged-in user
+            const role   = typeof gate === "string" ? gate : (gate.role || "member");
+            const groups = typeof gate === "object"  ? (gate.groups || []) : [];
+            const uRole  = currentUser.role || "member";
+            const LEVELS = {everyone:0, member:1, moderator:2, admin:3};
+            const rolePasses = (LEVELS[uRole]||1) >= (LEVELS[role]||1);
+            // Group check: currentUser doesn't carry group slugs in the auth token,
+            // so we can only grant via role client-side. The backend is authoritative.
+            return rolePasses || groups.length > 0; // if groups exist, optimistically show button
+          })();
+
           const allBtns = (toolbarItems||getAllToolbarButtons())
             .filter(b => !b.hidden)
-            .filter(b => !(b._ext && typeof b.onClick !== "function"));
+            .filter(b => !(b._ext && typeof b.onClick !== "function"))
+            .filter(b => canUploadImages || (b.type !== "image" && b.type !== "grid"));
 
           // On desktop, split into visible and overflow sets.
           // overflowIdx===null means everything fits; otherwise items from
