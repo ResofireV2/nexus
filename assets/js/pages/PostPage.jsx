@@ -1032,7 +1032,7 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                   ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
                   :<div className="reply-av" style={{background:userColor(r.user),color:"#fff",marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
-                {(r.user?.groups||[]).filter(g=>g.show_on_posts).map(g=>(
+                {(r.user?.groups||[]).map(g=>(
                   <span key={g.slug} style={{
                     display:"inline-flex",alignItems:"center",gap:4,
                     fontSize:10,fontWeight:500,padding:"2px 7px",borderRadius:20,
