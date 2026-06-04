@@ -97,36 +97,58 @@ defmodule Nexus.Search do
     query = filter_by_author(query, author, :post)
     query = filter_by_date(query, date_from, date_to, :post)
 
-    query =
+    # Build the tsvector query. If websearch_to_tsquery produces no tokens
+    # (e.g. all stop words) tsquery will be nil and we go straight to trigram.
+    # Otherwise we try the tsvector path first; if it returns zero results we
+    # fall back to trigram similarity for typo tolerance.
+    {fts_query, fts_used} =
       if tsquery do
         q = from p in query,
               where: fragment("? @@ websearch_to_tsquery('english', ?)", p.search_vector, ^tsquery)
-        if sort == "relevance" do
+        q = if sort == "relevance" do
           from p in q, order_by: [
-            # Flag 32: divide rank by document length — normalises for long posts.
             desc: fragment("ts_rank(?, websearch_to_tsquery('english', ?), 32)", p.search_vector, ^tsquery),
             desc: p.inserted_at
           ]
         else
           q
         end
+        {q, true}
       else
-        from p in query,
-          where: fragment("similarity(title, ?) > 0.1 OR similarity(body, ?) > 0.1", ^query_string, ^query_string),
-          order_by: [
-            desc: fragment("GREATEST(similarity(title, ?), similarity(body, ?))", ^query_string, ^query_string),
-            desc: p.inserted_at
-          ]
+        {query, false}
       end
 
-    query = apply_sort_override(query, sort)
+    trigram_query =
+      from p in query,
+        where: fragment("similarity(title, ?) > 0.1 OR similarity(body, ?) > 0.1", ^query_string, ^query_string),
+        order_by: [
+          desc: fragment("GREATEST(similarity(title, ?), similarity(body, ?))", ^query_string, ^query_string),
+          desc: p.inserted_at
+        ]
+
+    # Try FTS first; fall back to trigram if FTS returns nothing.
+    # This gives typo tolerance: "phoenixx" won't match via tsvector but
+    # trigram similarity will find "phoenix" with score > 0.1.
+    {active_query, active_tsquery} =
+      if fts_used do
+        probe = fts_query |> apply_sort_override(sort) |> limit(1) |> Repo.all()
+        if probe == [] do
+          {trigram_query, nil}
+        else
+          {fts_query, tsquery}
+        end
+      else
+        {trigram_query, nil}
+      end
+
+    query = apply_sort_override(active_query, sort)
     query = apply_post_cursor(query, cursor, sort)
     query = limit(query, @page_size + 1)
 
     results = Repo.all(query)
 
     # Attach highlights in a single query rather than two follow-up queries.
-    results = attach_post_highlights(results, tsquery, query_string)
+    results = attach_post_highlights(results, active_tsquery, query_string)
 
     {results, next_cursor} =
       if length(results) > @page_size do
@@ -295,33 +317,43 @@ defmodule Nexus.Search do
           |> join(:inner, [r, p], s in Space, on: p.space_id == s.id and s.slug == ^slug)
       end
 
-    query =
+    trigram_reply_query =
+      from r in query,
+        where: fragment("similarity(body, ?) > 0.1", ^query_string),
+        order_by: [
+          desc: fragment("similarity(body, ?)", ^query_string),
+          desc: r.inserted_at
+        ]
+
+    {active_query, active_tsquery} =
       if tsquery do
-        q = from r in query,
-              where: fragment("? @@ websearch_to_tsquery('english', ?)", r.search_vector, ^tsquery)
-        if sort == "relevance" do
-          from r in q, order_by: [
+        fts_q = from r in query,
+                  where: fragment("? @@ websearch_to_tsquery('english', ?)", r.search_vector, ^tsquery)
+        fts_q = if sort == "relevance" do
+          from r in fts_q, order_by: [
             # Flag 32: normalise rank by document length — consistent with post search.
             desc: fragment("ts_rank(?, websearch_to_tsquery('english', ?), 32)", r.search_vector, ^tsquery),
             desc: r.inserted_at
           ]
         else
-          from r in q, order_by: [desc: r.inserted_at]
+          from r in fts_q, order_by: [desc: r.inserted_at]
+        end
+        # Fall back to trigram if FTS returns nothing (typo tolerance).
+        probe = fts_q |> limit(1) |> Repo.all()
+        if probe == [] do
+          {trigram_reply_query, nil}
+        else
+          {fts_q, tsquery}
         end
       else
-        from r in query,
-          where: fragment("similarity(body, ?) > 0.1", ^query_string),
-          order_by: [
-            desc: fragment("similarity(body, ?)", ^query_string),
-            desc: r.inserted_at
-          ]
+        {trigram_reply_query, nil}
       end
 
-    query = apply_reply_cursor(query, cursor, sort)
+    query = apply_reply_cursor(active_query, cursor, sort)
     query = limit(query, @page_size + 1)
 
     results = Repo.all(query)
-    results = attach_reply_highlights(results, tsquery)
+    results = attach_reply_highlights(results, active_tsquery)
 
     {results, next_cursor} =
       if length(results) > @page_size do
