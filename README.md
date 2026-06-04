@@ -125,7 +125,7 @@ Extensions are standalone services that integrate with Nexus via a `manifest.jso
 
 A dedicated Oban queue named `:extensions` is reserved for extension background jobs — use it for any async work your extension needs to run. Nexus core never schedules jobs into this queue.
 
-See [`lib/nexus/extensions/EXTENSION_GUIDE.md`](lib/nexus/extensions/EXTENSION_GUIDE.md) for full documentation on building extensions, including routes, hooks, settings, digest sections, and background jobs.
+See the [Extension Development Guide](https://docs.nexusprism.org/extensions/building/) for full documentation on building extensions.
 
 See the [nexus-extensions](https://github.com/ResofireV2/nexus-extensions) repository for the extension registry and published extensions.
 

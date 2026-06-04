@@ -56,7 +56,7 @@
     },
 
     "settings_schema": {
-      "description": "Declarative schema for the admin settings form. See EXTENSION_GUIDE.md.",
+      "description": "Declarative schema for the admin settings form. See https://docs.nexusprism.org/extensions/building/",
       "type": "object"
     },
     "settings_tabs": {
