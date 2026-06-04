@@ -277,8 +277,6 @@ defmodule NexusWeb.Router do
     # User moderation
     post   "/moderation/users/:username/ban",     ModerationController, :ban
     delete "/moderation/users/:username/ban",     ModerationController, :unban
-    post   "/moderation/users/:username/mute",    ModerationController, :mute
-    delete "/moderation/users/:username/mute",    ModerationController, :unmute
     post   "/moderation/users/:username/suspend", ModerationController, :suspend
     delete "/moderation/users/:username/suspend", ModerationController, :unsuspend
 

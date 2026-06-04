@@ -29,6 +29,9 @@ defmodule NexusWeb.API.V1.ReplyController do
   def create(conn, %{"post_id" => post_id} = params) do
     user = conn.assigns.current_user
 
+    if user.status in ["banned", "suspended"] do
+      conn |> put_status(:forbidden) |> json(%{error: "Your account is not permitted to post"})
+    else
     case Forum.get_post(post_id) do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
@@ -122,6 +125,7 @@ defmodule NexusWeb.API.V1.ReplyController do
             conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
         end
     end
+    end # status check
   end
 
   # PATCH /api/v1/posts/:post_id/replies/:id

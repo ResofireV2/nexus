@@ -26,6 +26,9 @@ defmodule NexusWeb.API.V1.MessageController do
   def create(conn, %{"thread_id" => thread_id} = params) do
     user = conn.assigns.current_user
 
+    if user.status in ["banned", "suspended"] do
+      conn |> put_status(:forbidden) |> json(%{error: "Your account is not permitted to send messages"})
+    else
     unless Nexus.AntiSpam.can_send_dm?(user) do
       remaining = Nexus.AntiSpam.dm_lockout_remaining(user)
       conn
@@ -65,6 +68,7 @@ defmodule NexusWeb.API.V1.MessageController do
           end
       end
     end
+    end # status check
   end
 
   defp message_json(message) do

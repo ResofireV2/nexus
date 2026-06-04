@@ -29,27 +29,6 @@ defmodule NexusWeb.API.V1.ModerationController do
     end)
   end
 
-  # POST /api/v1/moderation/users/:username/mute
-  def mute(conn, %{"username" => username} = params) do
-    with_target_user(conn, username, fn moderator, user ->
-      opts = [duration: params["duration"], reason: params["reason"]]
-      case Moderation.mute_user(moderator, user, opts) do
-        {:ok, _} -> json(conn, %{ok: true})
-        {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
-      end
-    end)
-  end
-
-  # DELETE /api/v1/moderation/users/:username/mute
-  def unmute(conn, %{"username" => username}) do
-    with_target_user(conn, username, fn moderator, user ->
-      case Moderation.unmute_user(moderator, user) do
-        {:ok, _} -> json(conn, %{ok: true})
-        {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
-      end
-    end)
-  end
-
   # POST /api/v1/moderation/users/:username/suspend
   def suspend(conn, %{"username" => username} = params) do
     with_target_user(conn, username, fn moderator, user ->

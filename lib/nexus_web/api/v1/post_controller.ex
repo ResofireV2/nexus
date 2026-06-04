@@ -28,6 +28,10 @@ defmodule NexusWeb.API.V1.PostController do
     user    = conn.assigns.current_user
     tag_ids = Map.get(params, "tag_ids", [])
 
+    if user.status in ["banned", "suspended"] do
+      conn |> put_status(:forbidden) |> json(%{error: "Your account is not permitted to post"})
+    else
+
     # Determine if post needs approval
     pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
@@ -97,6 +101,7 @@ defmodule NexusWeb.API.V1.PostController do
       {:error, changeset} ->
         conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
     end
+    end # status check
   end
 
   # PATCH /api/v1/posts/:id
