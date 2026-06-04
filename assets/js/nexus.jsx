@@ -107,21 +107,26 @@ function openFancybox(items, startIndex) {
     // originalSrc is the raw uploaded file — only used for the "View original"
     // toolbar link that opens it in a new tab. thumbSrc is also the WebP so
     // the thumbnail strip loads quickly.
-    const gallery = items.map(item => {
+    //
+    // Fancybox 6 does not carry arbitrary custom properties through to its
+    // internal slide objects, so originalSrc set on a gallery entry is lost
+    // by the time the toolbar click handler runs. We keep a side map keyed
+    // by gallery index and look up from there instead.
+    const originalSrcByIndex = {};
+    const gallery = items.map((item, i) => {
       const webp     = item.src;
       const original = item.originalSrc || item.src;
       const entry = { src: webp, type: "image" };
       if (original && original !== webp) {
-        entry.thumbSrc   = webp;
-        entry.originalSrc = original;
+        entry.thumbSrc = webp;
+        originalSrcByIndex[i] = original;
       }
       return entry;
     });
     const idx = startIndex ?? 0;
     // Build the toolbar items list. "viewOriginal" is a custom button that
-    // appears only when the current slide has a thumbSrc (i.e. the lightbox
-    // is showing the original file, distinct from the in-post WebP).
-    const hasAnyOriginal = gallery.some(g => g.originalSrc);
+    // appears only when at least one slide has a distinct original file.
+    const hasAnyOriginal = Object.keys(originalSrcByIndex).length > 0;
     const toolbarRight = hasAnyOriginal
       ? ["viewOriginal", "autoplay", "fullscreen", "thumbs", "close"]
       : ["autoplay", "fullscreen", "thumbs", "close"];
@@ -134,10 +139,9 @@ function openFancybox(items, startIndex) {
             viewOriginal: {
               tpl: '<a class="f-button" title="View original" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>',
               click(fancyboxRef) {
-                const slide = fancyboxRef.getSlide();
-                if (slide && slide.originalSrc) {
-                  window.open(slide.originalSrc, "_blank", "noopener");
-                }
+                const index = fancyboxRef.getSlide()?.index ?? 0;
+                const url   = originalSrcByIndex[index];
+                if (url) window.open(url, "_blank", "noopener");
               },
             },
           },
