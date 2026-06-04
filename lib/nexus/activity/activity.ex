@@ -44,6 +44,13 @@ defmodule Nexus.Activity do
 
         # Update streak
         update_streak(user.id, today)
+
+        # Streak may have crossed a badge threshold — check now so the
+        # award fires on the same request that incremented the streak,
+        # rather than waiting for the next post/reply/reaction action.
+        %{"user_id" => user.id}
+        |> Nexus.Workers.CheckBadges.new()
+        |> Oban.insert()
       end
     end)
   end
