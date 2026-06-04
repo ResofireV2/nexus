@@ -163,7 +163,7 @@ defmodule Nexus.Extensions.Behaviour do
 
   @doc """
   Returns the extension's settings schema for the admin panel UI.
-  Same format as the current manifest settings_schema — see EXTENSION_GUIDE.md.
+  Same format as the current manifest settings_schema — see https://docs.nexusprism.org/extensions/building/
 
       def settings_schema do
         %{
@@ -186,7 +186,7 @@ defmodule Nexus.Extensions.Behaviour do
   building an email. The list of declared digest sections lives in the
   manifest's `digest_sections` field; this callback produces the content
   for each one. Returns a map with title, layout, items, and optional cta.
-  See EXTENSION_GUIDE.md for the full response format.
+  See https://docs.nexusprism.org/extensions/building/ for the full response format.
   """
   @callback handle_digest_section(
     section_key :: String.t(),

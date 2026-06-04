@@ -185,7 +185,7 @@ defmodule Mix.Tasks.Nexus.Extension.New do
     // register time; undeclared registrations log a console warning and
     // appear as a mismatch in Admin → Extensions → Runtime registrations.
     //
-    // Available register* APIs (see EXTENSION_GUIDE.md for full details):
+    // Available register* APIs (see https://docs.nexusprism.org/extensions/building/ for full details):
     //
     //   NE.registerSlot({slug, slot, component, priority?})
     //   NE.registerRoute(slug, path, Component, options?)
@@ -247,7 +247,7 @@ defmodule Mix.Tasks.Nexus.Extension.New do
     in the browser at register time and surfaced in the admin runtime
     panel.
 
-    For full API documentation, see Nexus's EXTENSION_GUIDE.md.
+    For full API documentation, see https://docs.nexusprism.org/extensions/building/
     """
   end
 
