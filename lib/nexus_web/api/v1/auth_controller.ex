@@ -116,6 +116,11 @@ defmodule NexusWeb.API.V1.AuthController do
         |> put_status(:forbidden)
         |> json(%{error: "This account has been banned"})
 
+      {:error, :suspended} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "This account is currently suspended"})
+
       {:error, :no_password} ->
         conn
         |> put_status(:unprocessable_entity)
@@ -164,6 +169,12 @@ defmodule NexusWeb.API.V1.AuthController do
               conn
               |> put_refresh_cookie(new_refresh, remember_me)
               |> json(%{access_token: access_token})
+
+            {:error, :account_inactive} ->
+              conn
+              |> delete_resp_cookie("_nexus_refresh")
+              |> put_status(:forbidden)
+              |> json(%{error: "This account is inactive"})
 
             {:error, _} ->
               # Genuine invalid/expired token — clear the cookie
@@ -484,6 +495,16 @@ defmodule NexusWeb.API.V1.AuthController do
           access_token: tokens.access_token,
           user: user_json(user)
         })
+
+      {:error, :banned} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "This account has been banned"})
+
+      {:error, :suspended} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "This account is currently suspended"})
 
       {:error, changeset} ->
         conn

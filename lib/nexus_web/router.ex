@@ -7,7 +7,17 @@ defmodule NexusWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {NexusWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; " <>
+        "script-src 'self' 'unsafe-inline'; " <>
+        "style-src 'self' 'unsafe-inline'; " <>
+        "img-src 'self' data: https:; " <>
+        "font-src 'self'; " <>
+        "connect-src 'self' wss:; " <>
+        "frame-ancestors 'self'; " <>
+        "base-uri 'self';"
+    }
     plug NexusWeb.Plugs.PwaSettings
     plug NexusWeb.Plugs.ExtensionBundles
   end

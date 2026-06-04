@@ -174,10 +174,10 @@ defmodule Nexus.Accounts do
 
   defp check_password(user, password) do
     if Bcrypt.verify_pass(password, user.password_hash) do
-      if user.status == "banned" do
-        {:error, :banned}
-      else
-        {:ok, user}
+      cond do
+        user.status == "banned"    -> {:error, :banned}
+        user.status == "suspended" -> {:error, :suspended}
+        true                       -> {:ok, user}
       end
     else
       {:error, :invalid_credentials}
@@ -206,20 +206,28 @@ defmodule Nexus.Accounts do
         if RefreshToken.valid?(token) do
           user = get_user!(token.user_id)
 
-          # remember_me may not exist if the migration hasn't run yet —
-          # use Map.get with a safe fallback so we never crash on a missing column.
-          remember_me = Map.get(token, :remember_me, true) || true
+          # Deny refresh for banned or suspended accounts. Revoke the token so
+          # the client can't retry — they must re-authenticate once the suspension
+          # is lifted (at which point check_password will allow it again).
+          if user.status in ["banned", "suspended"] do
+            Repo.update!(RefreshToken.revoke_changeset(token))
+            {:error, :account_inactive}
+          else
+            # remember_me may not exist if the migration hasn't run yet —
+            # use Map.get with a safe fallback so we never crash on a missing column.
+            remember_me = Map.get(token, :remember_me, true) || true
 
-          # Rotate: revoke old token, issue a new one preserving device info
-          Repo.update!(RefreshToken.revoke_changeset(token))
-          {:ok, new_refresh} = create_refresh_token(user, [
-            remember_me: remember_me,
-            user_agent:  token.user_agent,
-            ip_address:  token.ip_address
-          ])
+            # Rotate: revoke old token, issue a new one preserving device info
+            Repo.update!(RefreshToken.revoke_changeset(token))
+            {:ok, new_refresh} = create_refresh_token(user, [
+              remember_me: remember_me,
+              user_agent:  token.user_agent,
+              ip_address:  token.ip_address
+            ])
 
-          {:ok, access_token} = JWT.generate_access_token(user)
-          {:ok, %{access_token: access_token, refresh_token: new_refresh.token_hash, remember_me: remember_me}}
+            {:ok, access_token} = JWT.generate_access_token(user)
+            {:ok, %{access_token: access_token, refresh_token: new_refresh.token_hash, remember_me: remember_me}}
+          end
         else
           {:error, :token_expired}
         end
@@ -482,7 +490,11 @@ defmodule Nexus.Accounts do
   def find_or_create_oauth_user(provider, uid, attrs) do
     case Repo.get_by(User, oauth_provider: provider, oauth_uid: uid) do
       %User{} = user ->
-        {:ok, user}
+        cond do
+          user.status == "banned"    -> {:error, :banned}
+          user.status == "suspended" -> {:error, :suspended}
+          true                       -> {:ok, user}
+        end
 
       nil ->
         attrs

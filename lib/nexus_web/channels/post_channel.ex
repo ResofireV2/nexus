@@ -44,29 +44,6 @@ defmodule NexusWeb.PostChannel do
     {:noreply, socket}
   end
 
-  # Client sends "new_reply" with %{"body" => "..."}
-  @impl true
-  def handle_in("new_reply", %{"body" => body}, socket) do
-    user_id = socket.assigns[:current_user_id]
-
-    if is_nil(user_id) do
-      {:reply, {:error, %{reason: "Authentication required"}}, socket}
-    else
-      user = Accounts.get_user(user_id)
-      post = Forum.get_post(socket.assigns.post_id)
-
-      case Forum.create_reply(post, %{"body" => body}, user) do
-        {:ok, reply} ->
-          payload = reply_payload(reply)
-          broadcast!(socket, "new_reply", payload)
-          {:reply, {:ok, payload}, socket}
-
-        {:error, changeset} ->
-          {:reply, {:error, %{errors: format_errors(changeset)}}, socket}
-      end
-    end
-  end
-
   def handle_in("typing_start", _payload, socket) do
     user_id = socket.assigns[:current_user_id]
     if user_id, do: broadcast_from!(socket, "typing_start", %{user_id: user_id})
