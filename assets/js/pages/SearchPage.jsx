@@ -36,6 +36,8 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
   const [q,         setQ]         = useState(initialQ);
   const [results,   setResults]   = useState(null);
   const [loading,   setLoading]   = useState(false);
+  const [nextCursor,setNextCursor] = useState(null);
+  const [loadingMore,setLoadingMore] = useState(false);
   const [filters,   setFilters]   = useState({
     kind:"all", sort:"relevance", space:"", tag:"",
     author:"", date_from:"", date_to:""
@@ -64,13 +66,29 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
   }, []);
 
   const doSearch = useCallback(async (qVal, f) => {
-    if (!qVal.trim()) { setResults(null); return; }
+    if (!qVal.trim()) { setResults(null); setNextCursor(null); return; }
     setLoading(true);
     try {
       const d = await api.get(`/search?${buildParams(qVal, f)}`);
       setResults(d);
+      setNextCursor(d.next_cursor || null);
     } finally { setLoading(false); }
   }, [buildParams]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore || !q.trim()) return;
+    setLoadingMore(true);
+    try {
+      const params = buildParams(q, filtersRef.current);
+      const d = await api.get(`/search?${params}&cursor=${encodeURIComponent(nextCursor)}`);
+      setResults(prev => prev ? {
+        ...prev,
+        posts:   [...(prev.posts   || []), ...(d.posts   || [])],
+        replies: [...(prev.replies || []), ...(d.replies || [])],
+      } : d);
+      setNextCursor(d.next_cursor || null);
+    } finally { setLoadingMore(false); }
+  }, [nextCursor, loadingMore, q, buildParams]);
 
   // Listen for filter changes dispatched by SearchFilterPanel in the right sidebar
   useEffect(() => {
@@ -81,6 +99,7 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
       setMobSort(f.sort);
       setMobSpace(f.space);
       if (filtersRef.current !== f && q.trim()) {
+        setNextCursor(null);
         clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => doSearch(q, f), 150);
       }
@@ -301,6 +320,26 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
             })}
           </>}
         </>}
+
+        {/* Load more — shown when backend has more pages */}
+        {nextCursor && !loading && (
+          <div style={{textAlign:"center", padding:"20px 0 8px"}}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              style={{
+                fontSize:13, padding:"8px 24px", borderRadius:20,
+                background:"var(--ac-bg)", color:"var(--ac-text)",
+                border:"0.5px solid var(--ac-border)",
+                cursor:loadingMore?"default":"pointer",
+                fontFamily:"inherit", opacity:loadingMore?0.6:1,
+              }}>
+              {loadingMore
+                ? <><i className="fa-solid fa-spinner fa-spin" style={{marginRight:6}}/>Loading…</>
+                : "Load more results"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
