@@ -11,8 +11,8 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 ## Features
 
 **Forum**
-- Spaces (sub-forums) with custom colors and descriptions
-- Threads with rich Markdown composer — images, code blocks, embeds, mentions, emoji picker
+- Spaces and sub-spaces with custom colors and descriptions
+- Threads with rich Markdown composer — images, image grids, code blocks, embeds, mentions, emoji picker
 - Nested replies with voting, reactions, and accepted answers
 - Pinned threads, thread tags, saved threads
 - Full-text search across posts and replies (PostgreSQL tsvector)
@@ -23,6 +23,7 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 - Magic link (passwordless) login
 - OAuth via Google and GitHub
 - User profiles with avatars, cover images, bio, and social links
+- Groups — admin-defined member groups for permission gating and optional public badges on profiles, posts, and user cards
 - Follow system and activity feed
 - Direct messages
 - Badges and award system
@@ -41,23 +42,32 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 
 **Extensions**
 - Install extensions from a URL or the built-in store
-- Extensions can add sidebar widgets, composer tools, admin panels, and feed items
-- Webhook system for backend event hooks
+- Extensions run in-VM alongside Nexus — no separate service, no webhook delivery, no Docker networking
+- Extensions can add sidebar widgets, composer tools, slots, admin panels, API routes, and background workers
+- Group-aware permission gates — grant access by role, group membership, or both
 - Sync and update extensions independently of core
+
+**Themes**
+- Install themes from a URL or the built-in store
+- Themes inject a CSS stylesheet into every page — full layout, typography, and component control
+- Assign different themes to dark and light mode independently
 
 **Admin panel**
 - General settings: site name, description, branding, logo, favicon, OG image
 - Appearance: accent color, theme, layout options
-- Registration: open/invite-only/closed, email domain allowlists
+- Registration: open/invite-only/closed, email domain allowlists, DM lockout duration
 - Email: Postmark, Resend, Mailgun, or SMTP configuration
 - Storage: local filesystem or Cloudflare R2 / S3-compatible
+- Reactions: configurable emoji reaction set (1–8 reactions)
+- Groups: create and manage member groups with optional public badges
+- Themes: install and assign themes per mode
 - Leaderboard configuration
 - Digest email configuration and preview
 - PWA settings: icons, theme color, push notification VAPID keys
 - Pages: create static pages (privacy policy, community guidelines, etc.) served at `/p/:slug`
 - Extensions management
 - Moderation queue and user management
-- Permissions: account deletion content mode — anonymise content or delete it permanently
+- Permissions: role and group-based access gates for uploads and extension features
 - Logs: job failures and settings change history
 
 **Right sidebar**
@@ -72,11 +82,11 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 
 ## Installation
 
-Nexus runs on Ubuntu 22.04 or 24.04. You need a domain pointing at your server and a root shell.
+Nexus runs on Ubuntu 22.04, 24.04, or 26.04. You need a domain pointing at your server and a root shell.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ResofireV2/nexus/master/install.sh -o install.sh
-bash install.sh
+sudo bash install.sh
 ```
 
 The installer will:
@@ -89,8 +99,9 @@ The installer will:
 
 Total time: approximately 5–10 minutes depending on server speed.
 
-**Management command installed automatically:**
+**Management commands installed automatically:**
 ```bash
+nexus-update   # update Nexus to the latest release
 nexus-backup   # back up the database and uploads
 ```
 
@@ -116,16 +127,19 @@ nexus-backup   # back up the database and uploads
 
 ## Extension Development
 
-Extensions are standalone services that integrate with Nexus via a `manifest.json`. They can:
+Extensions run directly inside the Nexus VM — compiled into the running BEAM, sharing the database, supervision tree, and dependency tree. There is no separate service to deploy, no webhook delivery, and no inter-service authentication.
 
-- Register frontend JS bundles that inject React components into sidebar slots, the composer, and admin panels
-- Subscribe to backend webhook events (new post, new reply, new member, etc.)
-- Add settings tabs to the admin panel
-- Expose their own API routes through the Nexus extension proxy
+Extensions can:
+
+- Subscribe to backend hook events (new post, new reply, new member, etc.) via direct function calls
+- Register frontend JS bundles that inject React components into slots, the composer, the sidebar, and admin panels
+- Add their own API routes through the Nexus extension router
+- Define database migrations, background workers, and admin settings
+- Gate features using role tiers or admin-configured group membership
 
 A dedicated Oban queue named `:extensions` is reserved for extension background jobs — use it for any async work your extension needs to run. Nexus core never schedules jobs into this queue.
 
-See the [Extension Development Guide](https://docs.nexusprism.org/extensions/building/) for full documentation on building extensions.
+See the [Extension Development Guide](https://docs.nexusprism.org/extensions/building/) for full documentation on building extensions, including routes, hooks, settings, digest sections, and background jobs.
 
 See the [nexus-extensions](https://github.com/ResofireV2/nexus-extensions) repository for the extension registry and published extensions.
 
