@@ -81,6 +81,67 @@ self.addEventListener("push", event => {
   );
 });
 
+// ---------------------------------------------------------------------------
+// Push subscription renewal
+// ---------------------------------------------------------------------------
+//
+// Browsers expire push subscriptions periodically for security. When that
+// happens the browser fires pushsubscriptionchange with the old (now invalid)
+// subscription and a new one already created. Without this handler Nexus
+// never learns about the new subscription, the old endpoint goes stale, and
+// push notifications stop arriving until the user manually re-enables them in
+// Settings.
+//
+// This handler re-registers the new subscription with the Nexus backend
+// automatically so push notifications continue without user intervention.
+self.addEventListener("pushsubscriptionchange", event => {
+  const newSub = event.newSubscription;
+  if (!newSub) return;
+
+  const subJson = JSON.stringify({
+    endpoint: newSub.endpoint,
+    keys: {
+      p256dh: btoa(String.fromCharCode(...new Uint8Array(newSub.getKey("p256dh")))),
+      auth:   btoa(String.fromCharCode(...new Uint8Array(newSub.getKey("auth")))),
+    }
+  });
+
+  // Re-register with the Nexus backend. The token is stored in localStorage
+  // by the main app; we read it here to authenticate the request.
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true })
+      .then(clientList => {
+        // Ask an open window for the auth token via MessageChannel.
+        // If no window is open we fall back to an unauthenticated request
+        // which will fail — the user will need to re-enable manually in
+        // that rare case. In practice the browser only fires this event
+        // when the page has been opened recently.
+        const client = clientList.find(c => c.url && !c.url.includes("offline"));
+
+        const getToken = client
+          ? new Promise(resolve => {
+              const channel = new MessageChannel();
+              channel.port1.onmessage = e => resolve(e.data?.token || null);
+              client.postMessage({ type: "GET_AUTH_TOKEN" }, [channel.port2]);
+              // Timeout after 2 seconds
+              setTimeout(() => resolve(null), 2000);
+            })
+          : Promise.resolve(null);
+
+        return getToken.then(token => {
+          const headers = { "Content-Type": "application/json" };
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+
+          return fetch("/api/v1/push/subscribe", {
+            method:  "POST",
+            headers: headers,
+            body:    JSON.stringify({ subscription: JSON.parse(subJson) })
+          });
+        });
+      })
+  );
+});
+
 self.addEventListener("notificationclick", event => {
   event.notification.close();
 

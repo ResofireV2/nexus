@@ -60,6 +60,17 @@
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+        // Respond to the service worker's GET_AUTH_TOKEN message.
+        // The pushsubscriptionchange handler in sw.js sends this message
+        // to get the current JWT so it can re-register a renewed push
+        // subscription without requiring the user to visit Settings.
+        navigator.serviceWorker.addEventListener('message', function(event) {
+          if (event.data && event.data.type === 'GET_AUTH_TOKEN') {
+            var token = localStorage.getItem('nexus_token');
+            event.ports[0].postMessage({ token: token });
+          }
+        });
       }
     </script>
     <script>
