@@ -124,9 +124,9 @@ function BadgesPage({currentUser, navigate}) {
     const rc = RARITY_COLOR[badge.rarity]||"var(--t5)";
     const rb = RARITY_BG[badge.rarity]||"rgba(255,255,255,0.06)";
     return (
-      <div style={{borderRadius:14,border:`0.5px solid ${isEarned?"rgba(167,139,250,0.2)":"rgba(255,255,255,0.08)"}`,padding:16,position:"relative",transition:"border-color .15s",background:isEarned?"rgba(167,139,250,0.04)":"transparent",opacity:isLocked?0.55:1,cursor:"default"}}
-        onMouseEnter={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.35)":document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.16)":"rgba(255,255,255,0.16)"}
-        onMouseLeave={e=>e.currentTarget.style.borderColor=isEarned?"rgba(167,139,250,0.2)":document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.10)":"rgba(255,255,255,0.08)"}>
+      <div style={{borderRadius:14,border:`0.5px solid ${isEarned?"var(--ac-border)":"rgba(255,255,255,0.08)"}`,padding:16,position:"relative",transition:"border-color .15s",background:isEarned?"var(--ac-bg)":"transparent",opacity:isLocked?0.55:1,cursor:"default"}}
+        onMouseEnter={e=>e.currentTarget.style.borderColor=isEarned?"var(--ac)":document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.16)":"rgba(255,255,255,0.16)"}
+        onMouseLeave={e=>e.currentTarget.style.borderColor=isEarned?"var(--ac-border)":document.documentElement.getAttribute("data-theme")==="light"?"rgba(26,20,80,0.10)":"rgba(255,255,255,0.08)"}>
         {isEarned&&<div style={{position:"absolute",top:10,right:10,width:18,height:18,borderRadius:"50%",background:"#34d399",display:"flex",alignItems:"center",justifyContent:"center"}}>
           <i className="fa-solid fa-check" style={{fontSize:8,color:"#0d0d14"}}/>
         </div>}
@@ -173,7 +173,7 @@ function BadgesPage({currentUser, navigate}) {
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
           {["all","earned","progress","locked"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)}
-              style={{fontSize:12,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${filter===f?"rgba(167,139,250,0.3)":"var(--b2)"}`,background:filter===f?"rgba(167,139,250,0.1)":"transparent",color:filter===f?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
+              style={{fontSize:12,padding:"5px 14px",borderRadius:20,border:`0.5px solid ${filter===f?"var(--ac-border)":"var(--b2)"}`,background:filter===f?"var(--ac-bg)":"transparent",color:filter===f?"var(--ac-text)":"var(--t4)",cursor:"pointer",fontFamily:"inherit"}}>
               {f==="all"?"all badges":f==="progress"?"in progress":f}
             </button>
           ))}
