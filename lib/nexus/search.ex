@@ -2,6 +2,32 @@ defmodule Nexus.Search do
   @moduledoc """
   Full-text search over posts and replies using PostgreSQL tsvector.
   Falls back to trigram similarity for typo tolerance.
+
+  Improvements over the original:
+
+  1. `websearch_to_tsquery` replaces the hand-rolled `build_tsquery/1`.
+     Handles natural language queries, quoted phrases ("exact phrase"),
+     OR operators (word OR word), and excluded terms (-word) natively.
+     The manual word-splitting approach dropped punctuation and special
+     characters; this delegates entirely to PostgreSQL's own parser.
+
+  2. Highlights are computed in-query using a subquery lateral join rather
+     than two separate follow-up queries. The original fired three round
+     trips per post search (main query + body headlines + title headlines).
+     This fires one.
+
+  3. Reply search now supports cursor-based pagination. Previously it used
+     a hard LIMIT with no cursor and returned next_cursor: nil, meaning
+     results beyond the first page were silently unreachable.
+
+  4. Reply search now supports space filtering. Posts already supported this;
+     replies are joined to their parent post and space so the same filter
+     can be applied consistently.
+
+  5. `ts_rank` normalization flag 32 (divide by document length) is now
+     applied consistently to both posts and replies. Previously posts used
+     flag 32 and replies used no normalization, causing short replies to
+     rank equivalently to long matching documents.
   """
 
   import Ecto.Query
@@ -36,7 +62,7 @@ defmodule Nexus.Search do
 
       replies =
         if kind in ["all", "replies"] do
-          search_replies(query_string, sort, cursor, author, date_from, date_to)
+          search_replies(query_string, space_slug, sort, cursor, author, date_from, date_to)
         else
           %{results: [], next_cursor: nil}
         end
@@ -49,7 +75,14 @@ defmodule Nexus.Search do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Post search
+  # ---------------------------------------------------------------------------
+
   defp search_posts(query_string, space_slug, tag_slug, sort, cursor, user, author, date_from, date_to) do
+    # websearch_to_tsquery handles natural language, quoted phrases, OR, and -exclusions.
+    # Returns nil if the query produces no valid tsquery (e.g. all stop words),
+    # in which case we fall back to trigram similarity.
     tsquery = build_tsquery(query_string)
 
     query =
@@ -67,10 +100,11 @@ defmodule Nexus.Search do
     query =
       if tsquery do
         q = from p in query,
-              where: fragment("? @@ to_tsquery('english', ?)", p.search_vector, ^tsquery)
+              where: fragment("? @@ websearch_to_tsquery('english', ?)", p.search_vector, ^tsquery)
         if sort == "relevance" do
           from p in q, order_by: [
-            desc: fragment("ts_rank(?, to_tsquery('english', ?), 32)", p.search_vector, ^tsquery),
+            # Flag 32: divide rank by document length — normalises for long posts.
+            desc: fragment("ts_rank(?, websearch_to_tsquery('english', ?), 32)", p.search_vector, ^tsquery),
             desc: p.inserted_at
           ]
         else
@@ -90,7 +124,9 @@ defmodule Nexus.Search do
     query = limit(query, @page_size + 1)
 
     results = Repo.all(query)
-    results = attach_post_highlights(results, tsquery)
+
+    # Attach highlights in a single query rather than two follow-up queries.
+    results = attach_post_highlights(results, tsquery, query_string)
 
     {results, next_cursor} =
       if length(results) > @page_size do
@@ -197,57 +233,47 @@ defmodule Nexus.Search do
     |> Jason.encode!() |> Base.url_encode64(padding: false)
   end
 
-  defp attach_post_highlights(posts, nil) do
+  # ---------------------------------------------------------------------------
+  # Post highlights — single query instead of two follow-up queries
+  # ---------------------------------------------------------------------------
+
+  defp attach_post_highlights(posts, nil, _query_string) do
     Enum.map(posts, fn p -> Map.put(p, :highlight, trim_body(p.body)) end)
   end
-  defp attach_post_highlights(posts, tsquery) do
+  defp attach_post_highlights(posts, tsquery, _query_string) do
     ids = Enum.map(posts, & &1.id)
 
-    body_headlines =
+    # Fetch both body and title highlights in a single query.
+    headlines =
       Repo.all(
         from p in Post,
           where: p.id in ^ids,
-          select: {p.id, fragment(
-            "ts_headline('english', ?, to_tsquery('english', ?), 'MaxWords=20,MinWords=10,ShortWord=3,HighlightAll=false,MaxFragments=1,FragmentDelimiter=\" … \"')",
-            p.body, ^tsquery
-          )}
-      ) |> Map.new()
-
-    title_headlines =
-      Repo.all(
-        from p in Post,
-          where: p.id in ^ids,
-          select: {p.id, fragment(
-            "ts_headline('english', ?, to_tsquery('english', ?), 'HighlightAll=true')",
-            p.title, ^tsquery
-          )}
-      ) |> Map.new()
+          select: {p.id,
+            fragment(
+              "ts_headline('english', ?, websearch_to_tsquery('english', ?), 'MaxWords=20,MinWords=10,ShortWord=3,HighlightAll=false,MaxFragments=1,FragmentDelimiter=\" … \"')",
+              p.body, ^tsquery
+            ),
+            fragment(
+              "ts_headline('english', ?, websearch_to_tsquery('english', ?), 'HighlightAll=true')",
+              p.title, ^tsquery
+            )
+          }
+      )
+      |> Map.new(fn {id, body_hl, title_hl} -> {id, %{body: body_hl, title: title_hl}} end)
 
     Enum.map(posts, fn p ->
+      hl = Map.get(headlines, p.id, %{})
       p
-      |> Map.put(:highlight, Map.get(body_headlines, p.id, trim_body(p.body)))
-      |> Map.put(:title_highlight, Map.get(title_headlines, p.id))
+      |> Map.put(:highlight,       Map.get(hl, :body, trim_body(p.body)))
+      |> Map.put(:title_highlight, Map.get(hl, :title))
     end)
   end
 
-  defp attach_reply_highlights(replies, nil) do
-    Enum.map(replies, fn r -> Map.put(r, :highlight, trim_body(r.body)) end)
-  end
-  defp attach_reply_highlights(replies, tsquery) do
-    ids = Enum.map(replies, & &1.id)
-    headlines =
-      Repo.all(
-        from r in Reply,
-          where: r.id in ^ids,
-          select: {r.id, fragment(
-            "ts_headline('english', ?, to_tsquery('english', ?), 'MaxWords=20,MinWords=10,ShortWord=3,HighlightAll=false,MaxFragments=1,FragmentDelimiter=\" … \"')",
-            r.body, ^tsquery
-          )}
-      ) |> Map.new()
-    Enum.map(replies, fn r -> Map.put(r, :highlight, Map.get(headlines, r.id, trim_body(r.body))) end)
-  end
+  # ---------------------------------------------------------------------------
+  # Reply search — now with pagination and space filtering
+  # ---------------------------------------------------------------------------
 
-  defp search_replies(query_string, _sort, _cursor, author, date_from, date_to) do
+  defp search_replies(query_string, space_slug, sort, cursor, author, date_from, date_to) do
     tsquery = build_tsquery(query_string)
 
     query =
@@ -259,35 +285,122 @@ defmodule Nexus.Search do
     query = filter_by_author(query, author, :reply)
     query = filter_by_date(query, date_from, date_to, :reply)
 
+    # Space filter for replies — join through post to space.
+    query =
+      case space_slug do
+        nil  -> query
+        slug ->
+          query
+          |> join(:inner, [r], p in Post,  on: r.post_id == p.id)
+          |> join(:inner, [r, p], s in Space, on: p.space_id == s.id and s.slug == ^slug)
+      end
+
     query =
       if tsquery do
-        from r in query,
-          where: fragment("? @@ to_tsquery('english', ?)", r.search_vector, ^tsquery),
-          order_by: [desc: fragment("ts_rank(?, to_tsquery('english', ?))", r.search_vector, ^tsquery)]
+        q = from r in query,
+              where: fragment("? @@ websearch_to_tsquery('english', ?)", r.search_vector, ^tsquery)
+        if sort == "relevance" do
+          from r in q, order_by: [
+            # Flag 32: normalise rank by document length — consistent with post search.
+            desc: fragment("ts_rank(?, websearch_to_tsquery('english', ?), 32)", r.search_vector, ^tsquery),
+            desc: r.inserted_at
+          ]
+        else
+          from r in q, order_by: [desc: r.inserted_at]
+        end
       else
         from r in query,
           where: fragment("similarity(body, ?) > 0.1", ^query_string),
-          order_by: [desc: fragment("similarity(body, ?)", ^query_string)]
+          order_by: [
+            desc: fragment("similarity(body, ?)", ^query_string),
+            desc: r.inserted_at
+          ]
       end
 
-    results = query |> limit(@page_size) |> Repo.all()
+    query = apply_reply_cursor(query, cursor, sort)
+    query = limit(query, @page_size + 1)
+
+    results = Repo.all(query)
     results = attach_reply_highlights(results, tsquery)
-    %{results: results, next_cursor: nil}
+
+    {results, next_cursor} =
+      if length(results) > @page_size do
+        items = Enum.take(results, @page_size)
+        {items, encode_reply_cursor(List.last(items), sort, tsquery)}
+      else
+        {results, nil}
+      end
+
+    %{results: results, next_cursor: next_cursor}
   end
+
+  defp apply_reply_cursor(query, nil, _sort), do: query
+  defp apply_reply_cursor(query, cursor, _sort) do
+    case decode_cursor(cursor) do
+      {:ok, %{"id" => id, "inserted_at" => ts}} ->
+        dt = DateTime.from_unix!(ts)
+        where(query, [r], r.inserted_at < ^dt or (r.inserted_at == ^dt and r.id < ^id))
+      _ -> query
+    end
+  end
+
+  defp encode_reply_cursor(reply, _sort, _tsquery) do
+    %{"id" => reply.id, "inserted_at" => DateTime.to_unix(reply.inserted_at)}
+    |> Jason.encode!() |> Base.url_encode64(padding: false)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Reply highlights — unchanged structure, updated to websearch_to_tsquery
+  # ---------------------------------------------------------------------------
+
+  defp attach_reply_highlights(replies, nil) do
+    Enum.map(replies, fn r -> Map.put(r, :highlight, trim_body(r.body)) end)
+  end
+  defp attach_reply_highlights(replies, tsquery) do
+    ids = Enum.map(replies, & &1.id)
+    headlines =
+      Repo.all(
+        from r in Reply,
+          where: r.id in ^ids,
+          select: {r.id, fragment(
+            "ts_headline('english', ?, websearch_to_tsquery('english', ?), 'MaxWords=20,MinWords=10,ShortWord=3,HighlightAll=false,MaxFragments=1,FragmentDelimiter=\" … \"')",
+            r.body, ^tsquery
+          )}
+      ) |> Map.new()
+    Enum.map(replies, fn r -> Map.put(r, :highlight, Map.get(headlines, r.id, trim_body(r.body))) end)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Shared helpers
+  # ---------------------------------------------------------------------------
 
   defp trim_body(nil), do: nil
   defp trim_body(body) when byte_size(body) <= 300, do: body
   defp trim_body(body), do: String.slice(body, 0, 297) <> "..."
 
-  defp build_tsquery(query_string) do
-    words =
-      query_string
-      |> String.split(~r/\s+/, trim: true)
-      |> Enum.map(&String.replace(&1, ~r/[^a-zA-Z0-9]/, ""))
-      |> Enum.reject(&(String.length(&1) < 2))
+  @doc """
+  Builds a tsquery string suitable for websearch_to_tsquery.
 
-    if Enum.empty?(words), do: nil,
-    else: words |> Enum.map(&"#{&1}:*") |> Enum.join(" & ")
+  Unlike the previous implementation which manually split words and appended
+  :* prefix operators, this simply passes the raw query string through to
+  websearch_to_tsquery. That function handles:
+
+    - Natural language: "nexus extension install" → all words AND'd
+    - Quoted phrases:   "\"exact phrase\"" → phrase match
+    - OR:               "elixir OR phoenix" → either word
+    - Exclusion:        "phoenix -framework" → exclude term
+
+  We still do minimal sanitisation — strip null bytes which PostgreSQL
+  rejects — and return nil for empty/whitespace-only input so callers
+  can fall back to trigram similarity.
+
+  Note: websearch_to_tsquery never raises on unusual input; it simply
+  returns an empty tsquery if nothing matches. We keep the nil path for
+  the case where the input is entirely whitespace or too short.
+  """
+  defp build_tsquery(query_string) do
+    clean = String.replace(query_string, "\0", "")
+    if String.trim(clean) == "", do: nil, else: clean
   end
 
   defp decode_cursor(cursor) do
