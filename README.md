@@ -38,7 +38,7 @@ Open source, self-hosted forum software built on Elixir/Phoenix. Nexus is design
 **Notifications**
 - Real-time in-app notifications via WebSocket
 - Web push notifications (VAPID)
-- Weekly digest emails with configurable sections
+- Daily, weekly, and monthly digest emails with configurable sections
 
 **Extensions**
 - Install extensions from a URL or the built-in store
