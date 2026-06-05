@@ -976,7 +976,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         value={branding.accent_color||"#a78bfa"}
                         onChange={v=>{
                           setBranding(p=>({...p,accent_color:v}));
-                          if(_currentTheme==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
+                          if(document.documentElement.getAttribute("data-theme")==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVars(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
                         }}
                       />
                     </F>
@@ -985,7 +985,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         value={branding.tint_color||"#0d0d14"}
                         onChange={v=>{
                           setBranding(p=>({...p,tint_color:v}));
-                          if(_currentTheme==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                          if(document.documentElement.getAttribute("data-theme")==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
                         }}
                       />
                     </F>
@@ -997,7 +997,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         value={branding.light_accent_color||"#2563eb"}
                         onChange={v=>{
                           setBranding(p=>({...p,light_accent_color:v}));
-                          if(_currentTheme==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVarsLight(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
+                          if(document.documentElement.getAttribute("data-theme")==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const vars=deriveAccentVarsLight(v);if(vars){const r=document.documentElement;r.style.setProperty("--ac",v);r.style.setProperty("--ac-on",vars.onAccent);r.style.setProperty("--ac-bg",vars.acBg);r.style.setProperty("--ac-border",vars.acBorder);r.style.setProperty("--ac-text",vars.acText);}}
                         }}
                       />
                     </F>
@@ -1006,7 +1006,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         value={branding.light_tint_color||"#f5f4fb"}
                         onChange={v=>{
                           setBranding(p=>({...p,light_tint_color:v}));
-                          if(_currentTheme==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVarsLight(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                          if(document.documentElement.getAttribute("data-theme")==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVarsLight(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
                         }}
                       />
                     </F>
