@@ -4,7 +4,7 @@ defmodule Nexus.MixProject do
   def project do
     [
       app: :nexus,
-      version: "0.3.6-beta",
+      version: "0.3.7-beta",
       elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
