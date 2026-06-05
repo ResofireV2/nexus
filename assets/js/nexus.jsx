@@ -4015,6 +4015,14 @@ function App() {
     if (user) localStorage.setItem("nexus_user", JSON.stringify(user));
     else localStorage.removeItem("nexus_user");
   };
+  // Reactive token — mirrors api.token in React state so useSocket re-runs
+  // whenever a refresh issues a new access token. Without this, useSocket
+  // captures the stale token at mount time and never reconnects with the
+  // fresh one, causing permanent WebSocket failures and dead notifications.
+  const [apiToken, setApiToken] = useState(() => api.token);
+  // Register immediately at render time (not in a useEffect) so the callback
+  // is in place before init() fires its async refresh.
+  api._onTokenChange = setApiToken;
   const [authChecked,setAuthChecked]=useState(()=>{
     // Fast-path: if we have a cached user AND a non-expired token, skip the
     // loading screen entirely. If the token is expired we still have the cached
@@ -4125,7 +4133,7 @@ function App() {
 
   const seenPostIds = useRef(new Set());
   const {joinTopic, leaveTopic, sendEvent} = useSocket(
-    api.token,
+    apiToken,
     currentUser?.id,
     useCallback(post=>{
       // Deduplicate: the socket may briefly double-fire during token refresh

@@ -45,10 +45,15 @@ try {
 export const api = {
   token: localStorage.getItem("nexus_token"),
   refreshing: false,
+  // Callback registered by App so React state stays in sync with api.token.
+  // Called with the new token value (string or null) on every setToken call,
+  // including refreshes that happen inside api.js internals.
+  _onTokenChange: null,
 
   setToken(t) {
     this.token = t;
     t ? localStorage.setItem("nexus_token", t) : localStorage.removeItem("nexus_token");
+    if (this._onTokenChange) this._onTokenChange(t);
   },
 
   async request(method, path, body, retry = true, silentAuth = false) {
