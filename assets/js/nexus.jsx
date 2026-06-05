@@ -1972,11 +1972,15 @@ function applyBranding(app={}, gen={}) {
 // ── Layout constants ──────────────────────────────────────────────────────────
 // Expose branding utilities on window so admin/AdminPage.jsx can access them
 // without circular imports. Same pattern used for _postCfg, _nexusNavigate, etc.
-window._applyBranding    = applyBranding;
-window._getBrandingState = () => _brandingState;
-window._applyTheme       = applyTheme;
-window._resolveTheme     = resolveTheme;
-window._onBrandingChange = onBrandingChange;
+window._applyBranding      = applyBranding;
+window._getBrandingState   = () => _brandingState;
+window._applyTheme         = applyTheme;
+window._resolveTheme       = resolveTheme;
+window._onBrandingChange   = onBrandingChange;
+window._deriveTintVars     = deriveTintVars;
+window._deriveTintVarsLight = deriveTintVarsLight;
+window._deriveAccentVars   = deriveAccentVars;
+window._deriveAccentVarsLight = deriveAccentVarsLight;
 
 // These define the default items for the sidebar, explore section, and right
 // panel. Admins can reorder them via the Layout admin panel.
