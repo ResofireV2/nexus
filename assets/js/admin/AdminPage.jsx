@@ -985,9 +985,21 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         value={branding.tint_color||"#0d0d14"}
                         onChange={v=>{
                           setBranding(p=>({...p,tint_color:v}));
-                          if(document.documentElement.getAttribute("data-theme")==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                          if(document.documentElement.getAttribute("data-theme")==="dark"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVars(v,branding.tint_intensity);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
                         }}
                       />
+                    </F>
+                    <F label="Tint intensity" hint="How strongly the tint colour is applied to dark surfaces">
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <input type="range" min="0" max="50" value={branding.tint_intensity??10}
+                          style={{flex:1,accentColor:"var(--ac)"}}
+                          onChange={e=>{
+                            const v=parseInt(e.target.value);
+                            setBranding(p=>({...p,tint_intensity:v}));
+                            if(document.documentElement.getAttribute("data-theme")==="dark"&&branding.tint_color){const tint=deriveTintVars(branding.tint_color,v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                          }}/>
+                        <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.tint_intensity??10}%</span>
+                      </div>
                     </F>
                   </>}
 
@@ -1006,9 +1018,21 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         value={branding.light_tint_color||"#f5f4fb"}
                         onChange={v=>{
                           setBranding(p=>({...p,light_tint_color:v}));
-                          if(document.documentElement.getAttribute("data-theme")==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVarsLight(v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                          if(document.documentElement.getAttribute("data-theme")==="light"&&/^#[0-9a-fA-F]{6}$/.test(v)){const tint=deriveTintVarsLight(v,branding.light_tint_intensity);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
                         }}
                       />
+                    </F>
+                    <F label="Tint intensity" hint="How strongly the tint colour is applied to light surfaces">
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <input type="range" min="0" max="50" value={branding.light_tint_intensity??22}
+                          style={{flex:1,accentColor:"var(--ac)"}}
+                          onChange={e=>{
+                            const v=parseInt(e.target.value);
+                            setBranding(p=>({...p,light_tint_intensity:v}));
+                            if(document.documentElement.getAttribute("data-theme")==="light"&&branding.light_tint_color){const tint=deriveTintVarsLight(branding.light_tint_color,v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
+                          }}/>
+                        <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.light_tint_intensity??22}%</span>
+                      </div>
                     </F>
                   </>}
                 </div>

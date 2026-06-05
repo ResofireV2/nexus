@@ -1726,14 +1726,16 @@ function deriveAccentVars(hex) {
   return {onAccent, acBg, acBorder, acText};
 }
 
-function deriveTintVars(hex) {
+function deriveTintVars(hex, intensity) {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
   const [r,g,b] = hexToRgb(hex);
+  // intensity: 0–100 (default 10 = original behaviour)
+  const amt = ((intensity ?? 10) / 100);
   const mix = (base, amt) => {
     const br=(base>>16)&255, bg=(base>>8)&255, bb=base&255;
     return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
   };
-  return { bg:mix(0x111111,0.10), s1:mix(0x1a1a1a,0.10), s2:mix(0x222222,0.10), s3:mix(0x2a2a2a,0.10) };
+  return { bg:mix(0x111111,amt), s1:mix(0x1a1a1a,amt), s2:mix(0x222222,amt), s3:mix(0x2a2a2a,amt) };
 }
 
 // ── Light-mode derive functions ──────────────────────────────────────────────
@@ -1758,21 +1760,22 @@ function deriveAccentVarsLight(hex) {
   return {onAccent, acBg, acBorder, acText};
 }
 
-function deriveTintVarsLight(hex) {
+function deriveTintVarsLight(hex, intensity) {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
   const [r,g,b] = hexToRgb(hex);
-  // Mix toward light bases. Higher amounts than dark mode are needed because
-  // the human eye is less sensitive to hue shifts near white — 0.08-0.12 was
-  // imperceptible in practice.
+  // intensity: 0–100 (default 22 = visible but tasteful on light surfaces)
+  // Light mode needs higher base than dark because the eye is less sensitive
+  // to hue shifts near white.
+  const amt = ((intensity ?? 22) / 100);
   const mix = (base, amt) => {
     const br=(base>>16)&255, bg=(base>>8)&255, bb=base&255;
     return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
   };
   return {
-    bg: mix(0xf4f4f5, 0.22),
-    s1: mix(0xffffff, 0.15),
-    s2: mix(0xe4e4e7, 0.22),
-    s3: mix(0xd4d4d8, 0.22),
+    bg: mix(0xf4f4f5, amt),
+    s1: mix(0xffffff, amt * 0.68), // s1 slightly less intense than bg
+    s2: mix(0xe4e4e7, amt),
+    s3: mix(0xd4d4d8, amt),
   };
 }
 
@@ -1817,7 +1820,7 @@ function applyTheme(mode, app={}) {
     if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
     // 3. Admin surface tint or fallback
     if (app.light_tint_color) {
-      const tint = deriveTintVarsLight(app.light_tint_color);
+      const tint = deriveTintVarsLight(app.light_tint_color, app.light_tint_intensity);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
     } else {
       r.style.setProperty("--bg","#f4f4f5"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#e4e4e7"); r.style.setProperty("--s3","#d4d4d8");
@@ -1832,7 +1835,7 @@ function applyTheme(mode, app={}) {
     if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
     // 3. Admin surface tint or fallback
     if (app.tint_color) {
-      const tint = deriveTintVars(app.tint_color);
+      const tint = deriveTintVars(app.tint_color, app.tint_intensity);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
     } else {
       r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
