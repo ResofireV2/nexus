@@ -3179,7 +3179,7 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
       return (
         <div className="stat-grid" key="stats">
           <div className="stat-card"><div className="stat-n">{stats.threads}</div><div className="stat-l">threads</div></div>
-          <div className="stat-card"><div className="stat-n" style={{color:"#34d399"}}>{stats.online}</div><div className="stat-l">online</div></div>
+          <div className="stat-card"><div className="stat-n" style={{color:"var(--ac)"}}>{stats.online}</div><div className="stat-l">online</div></div>
           <div className="stat-card"><div className="stat-n">{stats.members}</div><div className="stat-l">members</div></div>
           <div className="stat-card" style={{cursor:navigate?"pointer":undefined}} onClick={()=>navigate&&navigate("leaderboard")}>
             <div className="stat-n" style={{color:"var(--ac)"}}>{myRank ? `#${myRank.rank}` : "—"}</div>
