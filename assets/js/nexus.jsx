@@ -4173,6 +4173,25 @@ function App() {
         await api.tryRefreshWithRetry(expired ? 3 : 2, 800);
       }
 
+      // Only call /auth/me if we now have a valid (non-expired) token.
+      // If the refresh failed but the token is still present (e.g. network
+      // blip, server momentarily unavailable), do NOT call /auth/me with the
+      // expired token — that would get "Authentication required" back and
+      // wipe the cached user, showing the logged-out UI incorrectly.
+      // Instead keep the cached user in place; the next API call will
+      // re-attempt the refresh automatically via the 401 retry path.
+      const tokenAfterRefresh = (() => {
+        try { return JSON.parse(atob(api.token.split(".")[1])); } catch { return null; }
+      })();
+      const tokenNowValid = tokenAfterRefresh && (tokenAfterRefresh.exp - Math.floor(Date.now() / 1000)) > 0;
+
+      if (!tokenNowValid) {
+        // Token still expired — keep cached user, mark auth as checked.
+        // The socket and next API call will trigger a fresh refresh attempt.
+        setAuthChecked(true);
+        return;
+      }
+
       const d = await api.request("GET", "/auth/me", null, true, true).catch(()=>({}));
       if (d.user) {
         updateCurrentUser(d.user);
