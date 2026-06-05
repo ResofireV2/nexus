@@ -89,13 +89,13 @@ defmodule Nexus.Forum do
   def get_post(id) do
     Post
     |> where([p], p.id == ^id and p.hidden == false)
-    |> preload([:user, :space, :tags])
+    |> preload([:user, space: :parent, :tags])
     |> Repo.one()
   end
 
   def get_post!(id) do
     Post
-    |> preload([:user, :space, :tags])
+    |> preload([:user, space: :parent, :tags])
     |> Repo.get!(id)
   end
 
@@ -130,7 +130,7 @@ defmodule Nexus.Forum do
       {:ok, post} ->
         increment_space_post_count(post.space_id)
         increment_tag_post_counts(tag_ids)
-        {:ok, Repo.preload(post, [:user, :space, :tags])}
+        {:ok, Repo.preload(post, [:user, space: :parent, :tags])}
 
       error ->
         error
@@ -149,7 +149,7 @@ defmodule Nexus.Forum do
       end
 
     case Repo.update(changeset) do
-      {:ok, post} -> {:ok, Repo.preload(post, [:user, :space, :tags], force: true)}
+      {:ok, post} -> {:ok, Repo.preload(post, [:user, space: :parent, :tags], force: true)}
       error -> error
     end
   end
@@ -465,7 +465,7 @@ defmodule Nexus.Forum do
     query =
       Post
       |> where([p], p.hidden == false)
-      |> preload([:user, :space, :tags])
+      |> preload([:user, space: :parent, :tags])
 
     query = filter_by_space(query, space_slug)
     query = filter_pinned_for_context(query, space_slug)

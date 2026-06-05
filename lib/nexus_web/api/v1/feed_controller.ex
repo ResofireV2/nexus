@@ -96,7 +96,11 @@ defmodule NexusWeb.API.V1.FeedController do
 
   defp space_json(nil), do: nil
   defp space_json(space) do
-    %{id: space.id, name: space.name, slug: space.slug, color: space.color}
+    parent_color = case space.parent do
+      %{color: c} when is_binary(c) and c != "" -> c
+      _ -> nil
+    end
+    %{id: space.id, name: space.name, slug: space.slug, color: space.color || parent_color}
   end
 
   defp tag_json(tag) do
