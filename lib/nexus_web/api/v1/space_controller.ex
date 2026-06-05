@@ -116,6 +116,8 @@ defmodule NexusWeb.API.V1.SpaceController do
 
   # Normalise params before passing to the changeset. Converts a JSON-decoded
   # parent_id (may arrive as a string, integer, or nil) to an integer or nil.
+  # When a parent_id is set and no colour is explicitly provided, inherit the
+  # parent space's colour so sub-spaces always display correctly.
   defp build_attrs(params) do
     parent_id =
       case params["parent_id"] do
@@ -128,7 +130,22 @@ defmodule NexusWeb.API.V1.SpaceController do
             :error -> nil
           end
       end
-    Map.put(params, "parent_id", parent_id)
+
+    params = Map.put(params, "parent_id", parent_id)
+
+    # Inherit parent colour when creating/updating a sub-space that has no
+    # explicit colour set. This stores the colour directly on the sub-space so
+    # it displays correctly everywhere without runtime fallback logic.
+    if parent_id && (is_nil(params["color"]) || params["color"] == "") do
+      case Forum.get_space(parent_id) do
+        %{color: parent_color} when is_binary(parent_color) and parent_color != "" ->
+          Map.put(params, "color", parent_color)
+        _ ->
+          params
+      end
+    else
+      params
+    end
   end
 
   defp format_errors(changeset) do

@@ -249,13 +249,7 @@ defmodule NexusWeb.API.V1.PostController do
   end
 
   defp space_json(nil), do: nil
-  defp space_json(s) do
-    parent_color = case s.parent do
-      %{color: c} when is_binary(c) and c != "" -> c
-      _ -> nil
-    end
-    %{id: s.id, name: s.name, slug: s.slug, color: s.color || parent_color}
-  end
+  defp space_json(s), do: %{id: s.id, name: s.name, slug: s.slug, color: s.color}
 
   defp tag_json(t), do: %{id: t.id, name: t.name, slug: t.slug, color: t.color}
 
