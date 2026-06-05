@@ -1761,16 +1761,18 @@ function deriveAccentVarsLight(hex) {
 function deriveTintVarsLight(hex) {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
   const [r,g,b] = hexToRgb(hex);
-  // Mix toward light bases (inverted from dark)
+  // Mix toward light bases. Higher amounts than dark mode are needed because
+  // the human eye is less sensitive to hue shifts near white — 0.08-0.12 was
+  // imperceptible in practice.
   const mix = (base, amt) => {
     const br=(base>>16)&255, bg=(base>>8)&255, bb=base&255;
     return `rgb(${Math.round(br+(r-br)*amt)},${Math.round(bg+(g-bg)*amt)},${Math.round(bb+(b-bb)*amt)})`;
   };
   return {
-    bg: mix(0xf4f4f5, 0.12),
-    s1: mix(0xffffff, 0.08),
-    s2: mix(0xe4e4e7, 0.12),
-    s3: mix(0xd4d4d8, 0.12),
+    bg: mix(0xf4f4f5, 0.22),
+    s1: mix(0xffffff, 0.15),
+    s2: mix(0xe4e4e7, 0.22),
+    s3: mix(0xd4d4d8, 0.22),
   };
 }
 
