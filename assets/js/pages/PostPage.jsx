@@ -356,7 +356,7 @@ function EditHistoryPairs({edits, postId, replyId}) {
   );
 }
 
-function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply, resumeDraft=null}) {
+function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequired, joinTopic, leaveTopic, sendEvent, openReport, scrollToReply, resumeDraft=null}) {
   const [post,setPost]=useState(null); const [replies,setReplies]=useState([]);
   const [loading,setLoading]=useState(true); const [replyBody,setReplyBody]=useState(resumeDraft?.body||"");
   // Piece 4: generic compose attachments. Toolbar buttons in the reply
@@ -727,6 +727,11 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  // Mod/admin only — space and tag editing
+  const [editSpaceId, setEditSpaceId] = useState("");
+  const [editTagIds, setEditTagIds] = useState([]);
+  const [showEditTagModal, setShowEditTagModal] = useState(false);
+  const [editTagModalSel, setEditTagModalSel] = useState([]);
   const col = spaceColor(post?.space||{id:postId});
 
   const loadMoreReplies = useCallback(async()=>{
@@ -894,21 +899,105 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                 <input className="fi" value={editTitle} onChange={e=>setEditTitle(e.target.value)}
                   style={{fontWeight:600,fontSize:17,marginBottom:10}} placeholder="Title"/>
                 <textarea className="fi" value={editBody} onChange={e=>setEditBody(e.target.value)}
-                  style={{minHeight:140,resize:"vertical",lineHeight:1.7,fontFamily:"inherit",fontSize:13}}
+                  style={{minHeight:320,resize:"vertical",lineHeight:1.7,fontFamily:"inherit",fontSize:14}}
                   placeholder="Post body…"/>
-                <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+                {/* Space + tag editing — mod/admin only */}
+                {isMod&&(
+                  <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                      {/* Space picker */}
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <label style={{fontSize:12,color:"var(--t4)",flexShrink:0}}>Space</label>
+                        <select value={editSpaceId} onChange={e=>setEditSpaceId(e.target.value)}
+                          style={{fontSize:13,padding:"5px 10px",borderRadius:8,border:"0.5px solid var(--b2)",
+                            background:"var(--s2)",color:"var(--t1)",cursor:"pointer",outline:"none"}}>
+                          <option value="">— no space —</option>
+                          {spaces.map(s=>(
+                            <option key={s.id} value={String(s.id)}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Tag picker trigger */}
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                        <label style={{fontSize:12,color:"var(--t4)",flexShrink:0}}>Tags</label>
+                        {editTagIds.map(id=>{
+                          const t=tags.find(x=>x.id===id);
+                          return t?<span key={id}
+                            onClick={()=>setEditTagIds(p=>p.filter(x=>x!==id))}
+                            style={{fontSize:12,padding:"3px 9px",borderRadius:99,cursor:"pointer",
+                              background:t.color?`${t.color}22`:"var(--ac-bg)",
+                              color:t.color||"var(--ac-text)",
+                              border:`0.5px solid ${t.color?`${t.color}44`:"var(--ac-border)"}`}}>
+                            #{t.name} ×
+                          </span>:null;
+                        })}
+                        {tags.length>0&&<button type="button"
+                          onClick={()=>{setEditTagModalSel([...editTagIds]);setShowEditTagModal(true);}}
+                          style={{fontSize:12,padding:"4px 10px",borderRadius:99,border:"0.5px solid var(--b2)",
+                            background:"transparent",color:"var(--t3)",cursor:"pointer"}}>
+                          <i className="fa-solid fa-tag" style={{fontSize:11,marginRight:5}}/>
+                          {editTagIds.length>0?`${editTagIds.length} tag${editTagIds.length>1?"s":""}`:"+  tags"}
+                        </button>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:12}}>
                   <button className="btn-ghost" onClick={()=>setEditingPost(false)} style={{fontSize:12}}>Cancel</button>
                   <button className="btn-primary" style={{fontSize:12,padding:"6px 18px"}} disabled={editSaving||!editTitle.trim()||!editBody.trim()}
                     onClick={async()=>{
                       setEditSaving(true);
-                      const d = await api.patch(`/posts/${post.id}`,{title:editTitle.trim(),body:editBody.trim()});
+                      const payload={title:editTitle.trim(),body:editBody.trim()};
+                      if(isMod){
+                        if(editSpaceId) payload.space_id=parseInt(editSpaceId);
+                        payload.tag_ids=editTagIds;
+                      }
+                      const d = await api.patch(`/posts/${post.id}`,payload);
                       setEditSaving(false);
-                      if(d.post){setPost(p=>({...p,title:d.post.title,body:d.post.body}));setEditingPost(false);toast("Post updated");}
-                      else toast(d.error||"Failed","err");
+                      if(d.post){
+                        setPost(p=>({...p,title:d.post.title,body:d.post.body,space:d.post.space,tags:d.post.tags}));
+                        setEditingPost(false);
+                        toast("Post updated");
+                      } else toast(d.error||"Failed","err");
                     }}>
                     {editSaving?"Saving…":"Save changes"}
                   </button>
                 </div>
+                {/* Tag selection modal */}
+                {showEditTagModal&&(
+                  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+                    <div style={{background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 8px 48px rgba(0,0,0,.6)"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"0.5px solid var(--b1)"}}>
+                        <span style={{fontSize:16,fontWeight:500,color:"var(--t1)"}}>Select tags</span>
+                        <button onClick={()=>setShowEditTagModal(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
+                      </div>
+                      <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,maxHeight:360,overflowY:"auto"}}>
+                        {tags.map(t=>{
+                          const sel=editTagModalSel.includes(t.id);
+                          const tc=t.color||"var(--ac)";
+                          return (
+                            <div key={t.id} onClick={()=>setEditTagModalSel(p=>sel?p.filter(x=>x!==t.id):[...p,t.id])}
+                              style={{padding:"10px 14px",borderRadius:10,cursor:"pointer",
+                                border:`1.5px solid ${sel?tc:"var(--b1)"}`,
+                                background:sel?`${tc}18`:"var(--s2)",color:sel?tc:"var(--t3)",
+                                transition:"all .1s",display:"flex",alignItems:"center",gap:8,
+                                fontSize:14,fontWeight:sel?500:400}}>
+                              {sel&&<i className="fa-solid fa-check" style={{fontSize:12,flexShrink:0}}/>}
+                              #{t.name}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{padding:"16px 24px",borderTop:"0.5px solid var(--b1)",display:"flex",justifyContent:"flex-end",gap:10}}>
+                        <button className="btn-ghost" style={{fontSize:14}} onClick={()=>{setEditTagModalSel([]);setShowEditTagModal(false);}}>Clear</button>
+                        <button className="btn-primary" style={{fontSize:14,padding:"8px 20px"}}
+                          onClick={()=>{setEditTagIds(editTagModalSel);setShowEditTagModal(false);}}>
+                          {editTagModalSel.length>0?`Add ${editTagModalSel.length} tag${editTagModalSel.length>1?"s":""}` :"Add tags"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               :<div className="post-body"><Md text={post.body}/></div>}
             <div className="reaction-row" style={{justifyContent:"flex-end",position:"relative"}} onMouseEnter={()=>setShowPostMenu(true)} onMouseLeave={()=>setShowPostMenu(false)}>
@@ -958,7 +1047,13 @@ function PostPage({postId, currentUser, navigate, spaces, onAuthRequired, joinTo
                       </button>
                     </>}
                     {/* Edit — author only */}
-                    {currentUser.id===post.user?.id&&<button onClick={()=>{setPostMenuOpen(false);setEditTitle(post.title||"");setEditBody(post.body||"");setEditingPost(true);}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                    {currentUser.id===post.user?.id&&<button onClick={()=>{setPostMenuOpen(false);setEditTitle(post.title||"");setEditBody(post.body||"");setEditSpaceId(String(post.space?.id||""));setEditTagIds(post.tags?.map(t=>t.id)||[]);setEditingPost(true);}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <i className="fa-solid fa-pen" style={{fontSize:11,color:"var(--t4)",width:14}}/>Edit post
+                    </button>}
+                    {/* Edit — mod/admin (includes space + tag editing) */}
+                    {isMod&&currentUser.id!==post.user?.id&&<button onClick={()=>{setPostMenuOpen(false);setEditTitle(post.title||"");setEditBody(post.body||"");setEditSpaceId(String(post.space?.id||""));setEditTagIds(post.tags?.map(t=>t.id)||[]);setEditingPost(true);}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                       onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       <i className="fa-solid fa-pen" style={{fontSize:11,color:"var(--t4)",width:14}}/>Edit post
