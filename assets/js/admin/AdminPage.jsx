@@ -229,7 +229,10 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
           </Select>
         </div>
         <div><label className="f-label">Parent space <span style={{fontSize:10,color:"var(--t5)",textTransform:"none",letterSpacing:0}}>optional</span></label>
-          <Select value={form.parent_id||""} onChange={v=>setForm(p=>({...p,parent_id:v||""}))}>
+          <Select value={form.parent_id||""} onChange={v=>{
+            const parent = v ? spaces.find(s=>String(s.id)===String(v)) : null;
+            setForm(p=>({...p, parent_id: v||"", color: parent?.color || p.color}));
+          }}>
             <option value="">None — top level</option>
             {spaces.filter(s=>!s.parent_id&&(editing==="new"||s.id!==editing?.id)).map(s=>(
               <option key={s.id} value={""+s.id}>{s.name}</option>
