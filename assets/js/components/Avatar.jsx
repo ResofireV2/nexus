@@ -271,25 +271,32 @@ export function UserCardPopover({ card, setCard, currentUser, navigate }) {
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                {currentUser && currentUser.username !== u.username && (
-                  <button className="btn-ghost" style={{ flex: 1, fontSize: 13, padding: "8px 0", borderRadius: 8 }} onClick={startDM}>
-                    <i className="fa-solid fa-message" style={{ fontSize: 11, marginRight: 5 }} />Message
-                  </button>
-                )}
-                <button className="btn-ghost" style={{ flex: 1, fontSize: 13, padding: "8px 0", borderRadius: 8 }} onClick={() => { setCard(null); navigate("profile", { username: u.username }); }}>
-                  <i className="fa-solid fa-user" style={{ fontSize: 11, marginRight: 5 }} />Profile
-                </button>
-                {window.NexusExtensions.getUserActions()
-                  .filter(a => !a.authOnly || currentUser)
-                  .map(a => (
-                    <button key={a.id} className="btn-ghost" style={{ flex: 1, fontSize: 13, padding: "8px 0", borderRadius: 8 }}
-                      onClick={() => a.onClick({ user: u, currentUser, navigate, closeCard: () => setCard(null) })}>
-                      <i className={`fa-solid ${a.icon}`} style={{ fontSize: 11, marginRight: 5 }} />
-                      {a.label}
+              {(() => {
+                const actions = window.NexusExtensions.getUserActions()
+                  .filter(a => !a.authOnly || currentUser);
+                const coreButtons = (currentUser && currentUser.username !== u.username ? 1 : 0) + 1;
+                const total = coreButtons + actions.length;
+                const cols = total <= 3 ? total : 2;
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 7 }}>
+                    {currentUser && currentUser.username !== u.username && (
+                      <button className="btn-ghost" style={{ fontSize: 13, padding: "8px 0", borderRadius: 8 }} onClick={startDM}>
+                        <i className="fa-solid fa-message" style={{ fontSize: 11, marginRight: 5 }} />Message
+                      </button>
+                    )}
+                    <button className="btn-ghost" style={{ fontSize: 13, padding: "8px 0", borderRadius: 8 }} onClick={() => { setCard(null); navigate("profile", { username: u.username }); }}>
+                      <i className="fa-solid fa-user" style={{ fontSize: 11, marginRight: 5 }} />Profile
                     </button>
-                  ))}
-              </div>
+                    {actions.map(a => (
+                      <button key={a.id} className="btn-ghost" style={{ fontSize: 13, padding: "8px 0", borderRadius: 8 }}
+                        onClick={() => a.onClick({ user: u, currentUser, navigate, closeCard: () => setCard(null) })}>
+                        <i className={`fa-solid ${a.icon}`} style={{ fontSize: 11, marginRight: 5 }} />
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
