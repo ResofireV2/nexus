@@ -2,14 +2,16 @@ defmodule Nexus.Auth.JWT do
   @moduledoc """
   JWT access token generation and verification using Joken.
 
-  Access tokens expire in 15 minutes.
+  Access tokens expire in 30 days, matching the remember_me refresh cookie TTL.
+  This eliminates the refresh dance on cold page load that caused users to
+  briefly appear logged out after being away for more than 15 minutes.
   Refresh tokens are stored server-side in the database (see RefreshToken schema).
   """
 
   use Joken.Config
 
-  @access_token_ttl 15 * 60
-  # 15 minutes in seconds
+  @access_token_ttl 30 * 24 * 60 * 60
+  # 30 days in seconds
 
   @impl true
   def token_config do
