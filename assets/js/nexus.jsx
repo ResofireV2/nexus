@@ -4295,6 +4295,31 @@ function App() {
       // Keep legacy lc.toolbar in sync for any code that still reads it
       lc.toolbar = postTB;
       setLayoutCfg(lc);
+      // Guard against the race where an extension bundle's defer script
+      // finishes executing AFTER the branding fetch resolves. In that case
+      // the mergeTB/seedTB calls above ran before registerToolbarButton was
+      // called, so _activePostToolbar and _activeReplyToolbar were built
+      // without the extension buttons. Subscribe once — as a one-shot
+      // listener — so that when the late registerToolbarButton call fires
+      // onToolbarChange, we rebuild both toolbars with the now-complete
+      // button list and update both the module-level active toolbar state
+      // and the React layoutCfg state together.
+      var tbUnsub = window.NexusExtensions.onToolbarChange(function() {
+        tbUnsub();
+        var savedPost  = lc.post_toolbar;
+        var savedReply = lc.reply_toolbar;
+        var refreshedPost  = savedPost  ? mergeTB(savedPost,  'post')  : seedTB('post');
+        var refreshedReply = savedReply ? mergeTB(savedReply, 'reply') : seedTB('reply');
+        setActivePostToolbar(refreshedPost);
+        setActiveReplyToolbar(refreshedReply);
+        setLayoutCfg(function(prev) {
+          return Object.assign({}, prev, {
+            post_toolbar:  refreshedPost,
+            reply_toolbar: refreshedReply,
+            toolbar:       refreshedPost,
+          });
+        });
+      });
       // Load page widgets for sidebar rendering
       api.get("/pages/widgets/public").then(function(d){
         window._pageWidgets = d.widgets || [];
