@@ -1841,13 +1841,43 @@ function applyTheme(mode, app={}) {
       r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
     }
   }
+  // Apply admin non-colour vars (avatar radius, font sizes).
+  // Placed here so they are set before css_vars can override them, and so
+  // mode-switch calls (which invoke applyTheme directly) also re-apply them.
+  r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
+  if (app.fs_ui)         r.style.setProperty("--fs-ui",         `${app.fs_ui}px`);
+  if (app.fs_body)       r.style.setProperty("--fs-body",       `${app.fs_body}px`);
+  if (app.fs_title)      r.style.setProperty("--fs-title",      `${app.fs_title}px`);
+  if (app.fs_content)    r.style.setProperty("--fs-content",    `${app.fs_content}px`);
+  if (app.fs_feed_title) r.style.setProperty("--fs-feed-title", `${app.fs_feed_title}px`);
+  if (app.fs_code)       r.style.setProperty("--fs-code",       `${app.fs_code}px`);
+
+  // Apply theme CSS variable overrides declared in theme.json.
+  // These run after all admin vars so they take precedence.
+  // variables:       applied in both modes
+  // dark_variables:  applied in dark mode only
+  // light_variables: applied in light mode only
+  const activeThemeForVars = mode === "light" ? app.active_theme_light : app.active_theme_dark;
+  if (activeThemeForVars) {
+    const vars = {
+      ...(activeThemeForVars.variables      || {}),
+      ...(mode === "dark"  ? (activeThemeForVars.dark_variables  || {}) : {}),
+      ...(mode === "light" ? (activeThemeForVars.light_variables || {}) : {}),
+    };
+    Object.entries(vars).forEach(([k, v]) => r.style.setProperty(k, v));
+  }
+
   // Cache the final computed CSS vars so the early-theme script can restore
   // them synchronously on the next page load — before React mounts.
+  // Includes --av-radius and --fs-* so theme overrides of those vars are also
+  // restored flash-free on page load.
   const varsToCache = [
     "--bg","--s1","--s2","--s3",
     "--t1","--t2","--t3","--t4","--t5",
     "--b1","--b2","--b3",
     "--ac","--ac-on","--ac-bg","--ac-border","--ac-text",
+    "--av-radius",
+    "--fs-ui","--fs-body","--fs-title","--fs-feed-title","--fs-content","--fs-code",
   ];
   const cached = { theme: mode };
   varsToCache.forEach(v => {
@@ -1899,14 +1929,6 @@ function applyBranding(app={}, gen={}) {
   const theme = resolveTheme(storedPref, window._defaultTheme, window._darkEnabled, window._lightEnabled);
   applyTheme(theme, app);
 
-  // Avatar radius: 0=square, 50=circle. Default 22%
-  r.style.setProperty("--av-radius", `${app.avatar_radius ?? 22}%`);
-  if (app.fs_ui)      r.style.setProperty("--fs-ui",      `${app.fs_ui}px`);
-  if (app.fs_body)    r.style.setProperty("--fs-body",    `${app.fs_body}px`);
-  if (app.fs_title)   r.style.setProperty("--fs-title",   `${app.fs_title}px`);
-  if (app.fs_content)    r.style.setProperty("--fs-content",    `${app.fs_content}px`);
-  if (app.fs_feed_title) r.style.setProperty("--fs-feed-title", `${app.fs_feed_title}px`);
-  if (app.fs_code)    r.style.setProperty("--fs-code",    `${app.fs_code}px`);
   if (gen.site_name) document.title = gen.site_name;
   if (app.custom_css) {
     if (!_cssEl) { _cssEl = document.createElement("style"); document.head.appendChild(_cssEl); }
@@ -1940,16 +1962,12 @@ function applyBranding(app={}, gen={}) {
   }
   const newBranding = {logo_url: gen.logo_url||null, site_name: gen.site_name||null, favicon_url: gen.favicon_url||null, hero_title: gen.hero_title||null, hero_body: gen.hero_body||null, hero_enabled: gen.hero_enabled||false};
   try { localStorage.setItem("nexus_branding", JSON.stringify(newBranding)); } catch {}
-  // Cache non-color appearance settings so the early script can restore them
+  // Cache custom_css so the early script can apply it synchronously.
+  // avatar_radius and fs_* are now cached in nexus_appearance_vars (inside
+  // applyTheme) so the early script reads them from there instead, ensuring
+  // theme css_vars overrides of those properties are restored flash-free.
   try {
     localStorage.setItem("nexus_appearance_app", JSON.stringify({
-      avatar_radius: app.avatar_radius ?? 22,
-      fs_ui:      app.fs_ui      || null,
-      fs_body:    app.fs_body    || null,
-      fs_title:   app.fs_title   || null,
-      fs_content:    app.fs_content    || null,
-      fs_feed_title: app.fs_feed_title || null,
-      fs_code:       app.fs_code       || null,
       custom_css: app.custom_css || null,
     }));
   } catch {}
