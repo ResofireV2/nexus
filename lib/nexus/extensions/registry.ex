@@ -9,15 +9,19 @@ defmodule Nexus.Extensions.Registry do
   whenever an extension is installed, updated, enabled, or disabled.
 
   Tables:
-  - :nexus_ext_modules  — slug → module
-  - :nexus_ext_hooks    — {event, slug} → {module, priority}
-  - :nexus_ext_routes   — slug → [{path, plug, opts}]
-  - :nexus_ext_digest   — {section_key, slug} → {label, icon, enabled_by_default}
-  - :nexus_ext_declared — slug → manifest    (normalized JSON manifest; the
-                                             extension's declared contract,
-                                             stored alongside the live
-                                             registrations so the admin
-                                             runtime panel can compare them)
+  - :nexus_ext_modules    — slug → module
+  - :nexus_ext_hooks      — {event, slug} → {module, priority}
+  - :nexus_ext_routes     — slug → [{path, plug, opts}]
+  - :nexus_ext_digest     — {section_key, slug} → {label, icon, enabled_by_default}
+  - :nexus_ext_declared   — slug → manifest    (normalized JSON manifest; the
+                                               extension's declared contract,
+                                               stored alongside the live
+                                               registrations so the admin
+                                               runtime panel can compare them)
+  - :nexus_ext_mismatches — slug → [{kind, value, message}]  (conflict records
+                                               surfaced in the admin runtime
+                                               panel; e.g. side_data ownership
+                                               collisions between extensions)
 
   UI slots are not tracked server-side — they're a purely client-side
   concept. Extensions register slot components via NexusExtensions.registerSlot
@@ -43,6 +47,11 @@ defmodule Nexus.Extensions.Registry do
     # routes, side-data, digest) to filter out disabled extensions in O(1).
     # Populated by Registry.register and updated by set_enabled/2.
     :nexus_ext_enabled,
+    # Records conflicts detected at registration time, e.g. two extensions
+    # declaring the same side_data {entity, kind} pair. Each entry is a
+    # {kind, value, message} tuple. Read by the admin runtime panel to
+    # surface warnings alongside the declared-vs-registered delta view.
+    :nexus_ext_mismatches,
   ]
 
   # ---------------------------------------------------------------------------
@@ -118,8 +127,8 @@ defmodule Nexus.Extensions.Registry do
 
   Only one extension can own a given {entity, kind} pair. If two extensions
   declare the same pair, the most-recently-registered one wins (ETS insert
-  overwrites). This is a contract violation that should be surfaced in the
-  admin runtime panel — TODO for a future polish step.
+  overwrites) and a conflict record is written to :nexus_ext_mismatches for
+  both slugs so the admin runtime panel can surface the warning.
   """
   def side_data_owner_for(entity, kind) when is_binary(entity) and is_binary(kind) do
     case :ets.lookup(:nexus_ext_side_data_owners, {entity, kind}) do
@@ -151,6 +160,24 @@ defmodule Nexus.Extensions.Registry do
   def set_enabled(slug, enabled) when is_binary(slug) and is_boolean(enabled) do
     :ets.insert(:nexus_ext_enabled, {slug, enabled})
     :ok
+  end
+
+  @doc """
+  Returns the list of conflict records for a slug, or [] if none exist.
+
+  Each entry is a map with keys `kind`, `value`, and `message` describing
+  a registration conflict detected when the extension was loaded. Currently
+  only side_data ownership collisions are recorded here; the list is
+  designed to be extensible.
+
+  Read by the admin runtime endpoint to surface warnings in the runtime
+  panel alongside the declared-vs-registered delta view.
+  """
+  def mismatches_for(slug) when is_binary(slug) do
+    case :ets.lookup(:nexus_ext_mismatches, slug) do
+      [{^slug, list}] -> list
+      []              -> []
+    end
   end
 
   @doc """
@@ -340,9 +367,29 @@ defmodule Nexus.Extensions.Registry do
     # declares becomes a row in :nexus_ext_side_data_owners. The compose
     # attachment dispatcher uses this lookup to route incoming attachments
     # to the correct extension's persist_attachment/3 callback.
+    #
+    # If another extension already owns the same {entity, kind} pair, we log
+    # a warning, record a conflict entry for both slugs in
+    # :nexus_ext_mismatches, and let the new registration win (last writer
+    # takes ownership). The conflict is surfaced in the admin runtime panel.
     for entry <- Map.get(manifest, "side_data", []) do
       entity = entry["entity"]
       kind   = entry["kind"]
+
+      case :ets.lookup(:nexus_ext_side_data_owners, {entity, kind}) do
+        [{{^entity, ^kind}, existing_slug}] when existing_slug != slug ->
+          message = "#{slug} and #{existing_slug} both declare side_data " <>
+                    "{entity: \"#{entity}\", kind: \"#{kind}\"}. " <>
+                    "#{slug} takes ownership; #{existing_slug} will not receive attachments of this kind."
+          Logger.warning("Registry: side_data conflict — #{message}")
+          record_mismatch(slug,          "side_data_conflict", "#{entity}/#{kind}",
+                          "Ownership conflict with #{existing_slug} — this extension wins.")
+          record_mismatch(existing_slug, "side_data_conflict", "#{entity}/#{kind}",
+                          "Ownership taken by #{slug} — this extension will not receive attachments of this kind.")
+        _ ->
+          :ok
+      end
+
       :ets.insert(:nexus_ext_side_data_owners, {{entity, kind}, slug})
     end
 
@@ -352,16 +399,29 @@ defmodule Nexus.Extensions.Registry do
 
   @impl true
   def handle_call({:unregister, slug}, _from, state) do
-    :ets.delete(:nexus_ext_modules,  slug)
-    :ets.delete(:nexus_ext_declared, slug)
+    :ets.delete(:nexus_ext_modules,   slug)
+    :ets.delete(:nexus_ext_declared,  slug)
+    :ets.delete(:nexus_ext_mismatches, slug)
 
-    :ets.match_delete(:nexus_ext_hooks,              {{:_, slug}, :_})
-    :ets.match_delete(:nexus_ext_digest,             {{:_, slug}, :_})
-    :ets.match_delete(:nexus_ext_side_data_owners,   {{:_, :_}, slug})
+    :ets.match_delete(:nexus_ext_hooks,            {{:_, slug}, :_})
+    :ets.match_delete(:nexus_ext_digest,           {{:_, slug}, :_})
+    :ets.match_delete(:nexus_ext_side_data_owners, {{:_, :_}, slug})
     :ets.delete(:nexus_ext_routes, slug)
 
     Logger.info("Registry: unregistered #{slug}")
     {:reply, :ok, state}
+  end
+
+  # Appends a conflict record for `slug` to :nexus_ext_mismatches.
+  # Each record is a map with string keys so it serializes cleanly to JSON
+  # for the admin runtime endpoint without any extra conversion.
+  defp record_mismatch(slug, kind, value, message) do
+    existing =
+      case :ets.lookup(:nexus_ext_mismatches, slug) do
+        [{^slug, list}] -> list
+        []              -> []
+      end
+    :ets.insert(:nexus_ext_mismatches, {slug, [%{"kind" => kind, "value" => value, "message" => message} | existing]})
   end
 
   defp safe_call(module, fun, args, default) do

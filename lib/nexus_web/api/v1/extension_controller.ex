@@ -65,6 +65,7 @@ defmodule NexusWeb.API.V1.ExtensionController do
           routes:          info.routes,
           digest_sections: info.digest_sections,
           declared:        declared,
+          mismatches:      Nexus.Extensions.Registry.mismatches_for(slug),
         }})
     end
   end
