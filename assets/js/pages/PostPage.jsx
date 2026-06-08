@@ -128,7 +128,7 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
   var displayIdx = replyIdxFromPct(scrollPct);
 
   return (
-    <div style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
+    <div className="desk-scrubber-panel" style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
       <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
       {/* Full-width hit area — track is visual only, this div captures all clicks/drags */}
@@ -139,7 +139,7 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
         {/* Track background */}
         <div style={{position:"absolute",top:0,bottom:0,left:"50%",transform:"translateX(-50%)",width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,pointerEvents:"none"}}/>
         {/* Read high-water fill */}
-        <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"rgba(167,139,250,0.25)",height:readPct+"%",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"var(--ac-bg)",height:readPct+"%",pointerEvents:"none"}}/>
         {/* Scroll position fill */}
         <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"var(--ac)",height:scrollPct+"%",pointerEvents:"none"}}/>
         {/* Pip per reply */}
@@ -149,7 +149,7 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
             position:"absolute",left:"50%",transform:"translateX(-50%)",
             top:topPct+"%",marginTop:-1,
             width:6,height:2,borderRadius:1,
-            background:i <= displayIdx ? "rgba(167,139,250,0.6)" : "rgba(255,255,255,0.12)",
+            background:i <= displayIdx ? "var(--ac-text)" : "rgba(255,255,255,0.12)",
             pointerEvents:"none"
           }});
         })}
@@ -855,8 +855,8 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           {replies.length>0&&<MobileScrubberBar replies={replies} displayIdx={mobDisplayIdx} onClick={()=>setMobSheetOpen(true)}/>}
           <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrollPct={replies.length>1?(mobDisplayIdx/(replies.length-1))*100:0} displayIdx={mobDisplayIdx} onJump={(ri)=>{var r=replies[ri];if(!r)return;var el=document.getElementById("reply-"+r.id);var c=repliesContainerRef.current;if(el&&c){c.scrollTo({top:el.offsetTop-20,behavior:"smooth"});setMobSheetOpen(false);}}}/>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
-        <div style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
-          <div style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
+        <div className="post-header" style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
+          <div className="post-space-bar" style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
           <div style={{flex:1}}>
             {/* Avatar + meta row */}
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
@@ -888,7 +888,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
             </div>
             {/* Title full-width */}
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
-              <div className="post-title" style={{marginBottom:0}}>{post.title}</div>
+              <div className="post-title">{post.title}</div>
               {post.type==="question"&&<span style={{fontSize:11,fontWeight:500,padding:"2px 8px",borderRadius:20,background:acceptedReplyId?"rgba(52,211,153,0.15)":"rgba(96,165,250,0.15)",color:acceptedReplyId?"#34d399":"#60a5fa",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
                 <i className={`fa-solid ${acceptedReplyId?"fa-circle-check":"fa-circle-question"}`} style={{fontSize:14}}/>{acceptedReplyId?"Answered":"Question"}
               </span>}
@@ -1124,16 +1124,16 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
               {r._historyOpen&&<EditHistoryModal replyId={{id:r.id,postId:postId}} editCount={r.edit_count||0} onClose={()=>setReplies(p=>p.map(x=>x.id===r.id?{...x,_historyOpen:false}:x))}/>}
               <div className="reply-meta">
                 {r.user?.avatar_url
-                  ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",borderRadius:"var(--av-radius)",cursor:"pointer",marginRight:10}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
-                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff",marginRight:10}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                  ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
+                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff"}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 {(r.user?.groups||[]).map(g=>(
                   <span key={g.slug} style={{
                     display:"inline-flex",alignItems:"center",gap:4,
                     fontSize:10,fontWeight:500,padding:"2px 7px",borderRadius:20,
-                    background:g.badge_color?g.badge_color+"1a":"rgba(255,255,255,0.08)",
+                    background:g.badge_color?g.badge_color+"1a":"var(--b1)",
                     color:g.badge_color||"var(--t3)",
-                    border:`0.5px solid ${g.badge_color?g.badge_color+"40":"rgba(255,255,255,0.15)"}`,
+                    border:`0.5px solid ${g.badge_color?g.badge_color+"40":"var(--b2)"}`,
                     flexShrink:0,
                   }}>
                     {g.badge_icon&&<i className={`fa-solid ${g.badge_icon}`} style={{fontSize:8}}/>}

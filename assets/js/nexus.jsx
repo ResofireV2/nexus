@@ -1930,6 +1930,8 @@ function applyBranding(app={}, gen={}) {
     // No active theme for this mode — remove the stylesheet
     _themeStyleEl.href = "";
   }
+  // Set data-theme-slug on <html> so themes can scope rules to a specific theme
+  r.setAttribute("data-theme-slug", activeTheme?.slug || "");
   // Apply favicon
   if (gen.favicon_url) {
     let link = document.querySelector("link[rel~='icon']");

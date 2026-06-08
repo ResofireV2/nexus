@@ -123,7 +123,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             </div>
           )}
           {!spaceFilter&&!followingOnly&&hero.hero_enabled&&(hero.hero_title||hero.hero_body)&&(
-            <div style={{padding:"32px 28px",borderBottom:"0.5px solid var(--b1)",background:"linear-gradient(180deg, var(--s2) 0%, transparent 100%)",flexShrink:0}}>
+            <div className="feed-hero" style={{padding:"32px 28px",borderBottom:"0.5px solid var(--b1)",background:"linear-gradient(180deg, var(--s2) 0%, transparent 100%)",flexShrink:0}}>
               {hero.hero_title&&<div style={{fontSize:22,fontWeight:600,color:"var(--t1)",letterSpacing:-0.4,marginBottom:hero.hero_body?8:0,lineHeight:1.3}}>{hero.hero_title}</div>}
               {hero.hero_body&&<div style={{fontSize:14,color:"var(--t3)",lineHeight:1.7,maxWidth:600}}>{hero.hero_body}</div>}
             </div>
@@ -152,7 +152,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             <div className="feed-title">{feedTitle}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               {spaceFilter && activeSpace && (
-                <button onClick={toggleSubscribe} disabled={subLoading} style={{fontSize:13,padding:"6px 16px",borderRadius:20,border:`0.5px solid ${subscribed?"rgba(255,255,255,0.2)":"var(--ac-border)"}`,background:subscribed?"rgba(255,255,255,0.06)":"var(--ac-bg)",color:subscribed?"var(--t2)":"var(--ac-text)",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",fontWeight:500}}>
+                <button className="space-follow-btn" onClick={toggleSubscribe} disabled={subLoading} style={{fontSize:13,padding:"6px 16px",borderRadius:20,border:`0.5px solid ${subscribed?"rgba(255,255,255,0.2)":"var(--ac-border)"}`,background:subscribed?"rgba(255,255,255,0.06)":"var(--ac-bg)",color:subscribed?"var(--t2)":"var(--ac-text)",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",fontWeight:500}}>
                   {subscribed ? "✓ following" : "+ follow"}
                 </button>
               )}
@@ -165,7 +165,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             </div>
           </div>
           {activeSpace?.description && (
-            <div style={{padding:"8px 18px",borderBottom:"0.5px solid var(--b1)",fontSize:12,color:"var(--t4)",lineHeight:1.5}}>
+            <div className="feed-space-desc" style={{padding:"8px 18px",borderBottom:"0.5px solid var(--b1)",fontSize:12,color:"var(--t4)",lineHeight:1.5}}>
               {activeSpace.description}
             </div>
           )}
@@ -195,9 +195,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               :posts.map(p=>{
                 const col = spaceColor(p.space||{id:p.id});
                 return (
-                  <div key={p.id} className="thread" style={{position:"relative",
-                      background:p.pinned?"var(--ac-bg)":"var(--bg)",
-                      borderColor:p.pinned?"var(--ac-border)":"var(--b1)"}}
+                  <div key={p.id} className={`thread${p.pinned?" thread--pinned":""}`} style={{position:"relative"}}
+                    data-pinned={p.pinned||undefined}
+                    data-post-type={p.type||undefined}
                     onMouseEnter={()=>setHoveredPost(p.id)}
                     onMouseLeave={()=>{setHoveredPost(null);if(openPostMenu===p.id)setOpenPostMenu(null);}}
                     onClick={e=>{if(e.target.closest(".feed-post-menu"))return;navigate("post",{id:p.id});}}>
@@ -209,10 +209,10 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:p.pinned?"var(--ac)":col}}/>
-                      <div style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
+                      <div className="thread-av-wrap" style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
-                          <div className="thread-title" style={{color:p.pinned?"var(--ac-text)":undefined}}>{p.title}</div>
+                          <div className="thread-title">{p.title}</div>
                           {p.pinned&&<div style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"2px 8px",borderRadius:20,background:"var(--ac-bg)",color:"var(--ac-text)",border:"0.5px solid var(--ac-border)",flexShrink:0,marginLeft:8}}>
                             <i className="fa-solid fa-thumbtack" style={{fontSize:10}}/>{p.pin_scope==="global"?"Pinned":"Pinned to space"}
                           </div>}
@@ -223,7 +223,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           </div>}
                           {p.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{p.space.name}</div>}
                         </div>
-                        {p.body&&<div className="thread-preview" style={{color:p.pinned?"var(--ac-text)":undefined,opacity:p.pinned?0.8:1}}>{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
+                        {p.body&&<div className="thread-preview">{p.body.replace(/!\[.*?\]\(.*?\)/g,"").replace(/\[!\[.*?\]\(.*?\)\]\(.*?\)/g,"").replace(/\[[^\]]*\]\([^)]*\)/g,"").replace(/[#*`>]/g,"").trim().slice(0,120)}</div>}
                         <div className="participants-row">
                           <div className="av-stack">
                             {/* OP avatar */}
