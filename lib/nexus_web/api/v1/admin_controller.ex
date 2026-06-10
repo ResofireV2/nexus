@@ -216,6 +216,7 @@ defmodule NexusWeb.API.V1.AdminController do
           dark_variables: get_in(theme.manifest, ["modes", "dark", "variables"]) || %{},
           light_variables: get_in(theme.manifest, ["modes", "light", "variables"]) || %{},
           stylesheet_url: if(theme.stylesheet_path, do: "/uploads/#{theme.stylesheet_path}", else: nil),
+          script_url:     if(theme.script_path,     do: "/uploads/#{theme.script_path}",     else: nil),
           settings:       theme.settings || %{},
           settings_schema: get_in(theme.manifest, ["settings"]) || []
         }

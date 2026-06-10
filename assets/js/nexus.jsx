@@ -1673,7 +1673,8 @@ function stripNonSerializable(value) {
 }
 
 let _cssEl = null;
-let _themeStyleEl = null; // <link> for active theme stylesheet
+let _themeStyleEl  = null; // <link> for active theme stylesheet
+let _themeScriptEl = null; // <script> for active theme script
 
 // Strip CSS constructs that can be used to exfiltrate data:
 // @import, external url() references, and IE expression().
@@ -1951,6 +1952,28 @@ function applyBranding(app={}, gen={}) {
   } else if (_themeStyleEl) {
     // No active theme for this mode — remove the stylesheet
     _themeStyleEl.href = "";
+  }
+  // Inject active theme script — remove and re-inject when the URL changes
+  // so the new script executes. applyBranding is not called on every mode
+  // switch (mode switches call _applyTheme directly) so this does not
+  // cause repeated execution during normal use.
+  const scriptUrl = activeTheme?.script_url || null;
+  if (scriptUrl) {
+    const resolvedScriptUrl = new URL(scriptUrl, location.origin).href;
+    if (_themeScriptEl && _themeScriptEl.src !== resolvedScriptUrl) {
+      _themeScriptEl.remove();
+      _themeScriptEl = null;
+    }
+    if (!_themeScriptEl) {
+      _themeScriptEl = document.createElement("script");
+      _themeScriptEl.src = scriptUrl;
+      _themeScriptEl.id  = "nexus-theme-script";
+      document.head.appendChild(_themeScriptEl);
+    }
+  } else if (_themeScriptEl) {
+    // No active theme script for this mode — remove it
+    _themeScriptEl.remove();
+    _themeScriptEl = null;
   }
   // Set data-theme-slug on <html> so themes can scope rules to a specific theme
   r.setAttribute("data-theme-slug", activeTheme?.slug || "");

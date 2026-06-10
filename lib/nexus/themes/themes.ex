@@ -69,7 +69,7 @@ defmodule Nexus.Themes do
           case ThemeLoader.install_from_url(tarball_url, slug_hint, clean_tag) do
             {:error, reason} -> {:error, reason}
 
-            {:ok, %{manifest: manifest, stylesheet_path: css_path}} ->
+            {:ok, %{manifest: manifest, stylesheet_path: css_path, script_path: js_path}} ->
               slug = manifest["slug"] || slug_hint
               # Check for duplicate
               if get_theme_by_slug(slug) do
@@ -88,6 +88,7 @@ defmodule Nexus.Themes do
                   release_notes:     release.body,
                   manifest:          manifest,
                   stylesheet_path:   css_path,
+                  script_path:       js_path,
                   settings:          default_settings(manifest)
                 }
                 %Theme{}
@@ -117,7 +118,7 @@ defmodule Nexus.Themes do
           case ThemeLoader.install_from_url(tarball_url, theme.slug, clean_tag) do
             {:error, reason} -> {:error, reason}
 
-            {:ok, %{manifest: manifest, stylesheet_path: css_path}} ->
+            {:ok, %{manifest: manifest, stylesheet_path: css_path, script_path: js_path}} ->
               ThemeLoader.prune_cache(theme.slug, clean_tag)
               {:ok, updated} =
                 theme
@@ -127,7 +128,8 @@ defmodule Nexus.Themes do
                   latest_version:    clean_tag,
                   release_notes:     release.body,
                   manifest:          manifest,
-                  stylesheet_path:   css_path
+                  stylesheet_path:   css_path,
+                  script_path:       js_path
                 })
                 |> Repo.update()
               {:ok, updated}

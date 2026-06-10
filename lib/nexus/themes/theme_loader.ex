@@ -6,13 +6,15 @@ defmodule Nexus.Themes.ThemeLoader do
   A theme package is a GitHub release tarball containing at minimum:
     - theme.json  — theme manifest (name, slug, version, variables, settings)
     - theme.css   — optional stylesheet for structural CSS changes
+    - theme.js    — optional JavaScript for behavioural customisation
 
   Unlike extensions, themes require no compilation. The loader:
     1. Downloads the tarball (or loads from cache)
     2. Extracts it to a temporary build directory
     3. Reads and validates theme.json
     4. Copies theme.css (if present) to /app/uploads/themes/:slug/
-    5. Clears the build directory
+    5. Copies theme.js (if present) to /app/uploads/themes/:slug/
+    6. Clears the build directory
 
   The tarball cache uses the same slug+version scheme as the extension loader
   so themes survive container restarts without re-downloading from GitHub.
@@ -47,8 +49,9 @@ defmodule Nexus.Themes.ThemeLoader do
     result =
       with :ok <- fetch_and_extract(tarball_url, build_dir, slug, version),
            {:ok, manifest} <- read_and_validate_manifest(build_dir, slug),
-           {:ok, css_path} <- copy_stylesheet(build_dir, manifest["slug"] || slug) do
-        {:ok, %{manifest: manifest, stylesheet_path: css_path}}
+           {:ok, css_path} <- copy_stylesheet(build_dir, manifest["slug"] || slug),
+           {:ok, js_path}  <- copy_script(build_dir, manifest["slug"] || slug) do
+        {:ok, %{manifest: manifest, stylesheet_path: css_path, script_path: js_path}}
       end
 
     File.rm_rf(build_dir)
@@ -222,6 +225,23 @@ defmodule Nexus.Themes.ThemeLoader do
       File.mkdir_p!(dest_dir)
       case File.cp(src, dest_path) do
         :ok    -> {:ok, "themes/#{slug}/theme.css"}
+        err    -> err
+      end
+    else
+      {:ok, nil}
+    end
+  end
+
+  defp copy_script(build_dir, slug) do
+    src = Path.join(build_dir, "theme.js")
+
+    if File.exists?(src) do
+      uploads_dir = Application.get_env(:nexus, :uploads_dir, "/app/uploads")
+      dest_dir  = Path.join([uploads_dir, "themes", slug])
+      dest_path = Path.join(dest_dir, "theme.js")
+      File.mkdir_p!(dest_dir)
+      case File.cp(src, dest_path) do
+        :ok    -> {:ok, "themes/#{slug}/theme.js"}
         err    -> err
       end
     else

@@ -17,6 +17,7 @@ defmodule Nexus.Themes.Theme do
 
     field :manifest,          :map,    default: %{}
     field :stylesheet_path,   :string
+    field :script_path,       :string
     field :settings,          :map,    default: %{}
 
     field :active_dark,       :boolean, default: false
@@ -29,7 +30,7 @@ defmodule Nexus.Themes.Theme do
     theme
     |> cast(attrs, [:name, :slug, :version, :description, :author, :homepage,
                     :github_repo, :installed_version, :latest_version, :release_notes,
-                    :manifest, :stylesheet_path, :settings,
+                    :manifest, :stylesheet_path, :script_path, :settings,
                     :active_dark, :active_light])
     |> validate_required([:name, :slug, :version])
     |> validate_format(:slug, ~r/^[a-z0-9\-]+$/, message: "only lowercase letters, numbers, and hyphens")
