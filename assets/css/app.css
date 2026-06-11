@@ -799,6 +799,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .md-body blockquote p{margin-bottom:0;}
 .md-body strong{color:var(--t1);font-weight:600;}
 .md-body a{color:var(--blue);}
+.post-body .md-body a,.reply-text .md-body a{color:var(--link-color,var(--blue));}
 .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;}
 @keyframes refHighlight{0%{background:transparent;}25%{background:rgba(74,144,226,0.18);}75%{background:rgba(74,144,226,0.12);}100%{background:transparent;}}

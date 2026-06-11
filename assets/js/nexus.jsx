@@ -1826,6 +1826,8 @@ function applyTheme(mode, app={}) {
     } else {
       r.style.setProperty("--bg","#f4f4f5"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#e4e4e7"); r.style.setProperty("--s3","#d4d4d8");
     }
+    // 4. Content link color (post/reply body hyperlinks only)
+    r.style.setProperty("--link-color", app.light_link_color || "#2563eb");
   } else {
     // 1. Base text + border vars
     Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
@@ -1841,6 +1843,8 @@ function applyTheme(mode, app={}) {
     } else {
       r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
     }
+    // 4. Content link color (post/reply body hyperlinks only)
+    r.style.setProperty("--link-color", app.link_color || "#60a5fa");
   }
   // Apply admin non-colour vars (avatar radius, font sizes).
   // Placed here so they are set before css_vars can override them, and so
@@ -1879,6 +1883,7 @@ function applyTheme(mode, app={}) {
     "--ac","--ac-on","--ac-bg","--ac-border","--ac-text",
     "--av-radius",
     "--fs-ui","--fs-body","--fs-title","--fs-feed-title","--fs-content","--fs-code",
+    "--link-color",
   ];
   const cached = { theme: mode };
   varsToCache.forEach(v => {

@@ -1004,6 +1004,15 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.tint_intensity??10}%</span>
                       </div>
                     </F>
+                    <F label="Content link color" hint="Color of hyperlinks inside post and reply bodies on dark backgrounds">
+                      <ColorPicker
+                        value={branding.link_color||"#60a5fa"}
+                        onChange={v=>{
+                          setBranding(p=>({...p,link_color:v}));
+                          if(document.documentElement.getAttribute("data-theme")==="dark"){document.documentElement.style.setProperty("--link-color",v);}
+                        }}
+                      />
+                    </F>
                   </>}
 
                   {appTab==="light"&&lightOn&&<>
@@ -1036,6 +1045,15 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                           }}/>
                         <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.light_tint_intensity??22}%</span>
                       </div>
+                    </F>
+                    <F label="Content link color" hint="Color of hyperlinks inside post and reply bodies on light backgrounds">
+                      <ColorPicker
+                        value={branding.light_link_color||"#2563eb"}
+                        onChange={v=>{
+                          setBranding(p=>({...p,light_link_color:v}));
+                          if(document.documentElement.getAttribute("data-theme")==="light"){document.documentElement.style.setProperty("--link-color",v);}
+                        }}
+                      />
                     </F>
                   </>}
                 </div>
