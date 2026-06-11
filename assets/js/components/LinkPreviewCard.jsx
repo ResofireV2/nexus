@@ -179,6 +179,15 @@ function hydrateLinkPreviews(root) {
         fetchPreview(url, node);
       } else {
         _lpPending.get(url).push(node);
+        // Safety timeout — if the WebSocket signal never arrives (e.g. the
+        // scraper was blocked), fall back to the link pill after 12 seconds.
+        setTimeout(() => {
+          if (_lpPending.has(url)) {
+            const waiting = _lpPending.get(url) || [];
+            _lpPending.delete(url);
+            waiting.forEach(n => renderLinkPreviewError(n, url));
+          }
+        }, 12000);
       }
       return;
     }
@@ -187,9 +196,18 @@ function hydrateLinkPreviews(root) {
     fetch(`/api/v1/link_previews?url=${encodeURIComponent(url)}`)
       .then(r => {
         if (r.status === 404) {
-          // Not ready yet — register for WebSocket notification
+          // Not ready yet — register for WebSocket notification and set a
+          // safety timeout in case the scraper never succeeds (e.g. GitHub
+          // blocks the request and link_preview_ready never fires).
           if (!_lpPending.has(url)) _lpPending.set(url, []);
           _lpPending.get(url).push(node);
+          setTimeout(() => {
+            if (_lpPending.has(url)) {
+              const waiting = _lpPending.get(url) || [];
+              _lpPending.delete(url);
+              waiting.forEach(n => renderLinkPreviewError(n, url));
+            }
+          }, 12000);
           return null;
         }
         if (!r.ok) throw new Error("error");
