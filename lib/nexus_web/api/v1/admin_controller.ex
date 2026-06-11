@@ -228,7 +228,7 @@ defmodule NexusWeb.API.V1.AdminController do
     json(conn, %{
       settings: %{
         general:      Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url","og_image_url","hero_enabled","hero_title","hero_body"]),
-        appearance:   Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css","tint_color","tint_intensity","light_accent_color","light_tint_color","light_tint_intensity","dark_enabled","light_enabled","default_theme","fs_ui","fs_body","fs_title","fs_feed_title","fs_content","fs_code"]),
+        appearance:   Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css","tint_color","tint_intensity","light_accent_color","light_tint_color","light_tint_intensity","dark_enabled","light_enabled","default_theme","fs_ui","fs_body","fs_title","fs_feed_title","fs_content","fs_code","link_color","light_link_color"]),
         registration: Map.take(s["registration"]||%{}, ["open", "require_email_verification"]),
         posting:      Map.take(s["posting"]||%{},      ["questions_enabled", "guest_browsing", "allow_self_reactions", "who_can_upload"]),
         layout:       s["layout"] || %{},
