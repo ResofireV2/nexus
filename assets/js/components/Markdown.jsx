@@ -37,12 +37,14 @@ function getVimeoId(url) {
 function isVideoUrl(url) { return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url); }
 function isAudioUrl(url) { return /\.(mp3|ogg|wav|flac|m4a)(\?.*)?$/i.test(url); }
 
-// Extract raw URL from either a plain URL or a GFM auto-linked <a href="url">url</a>
+// Extract raw URL from either a plain URL or a GFM auto-linked <a href="url">url</a>.
+// Named links like <a href="url">some text</a> are NOT bare URLs — only match
+// when the visible text exactly equals the href (GFM bare autolink behaviour).
 function extractBareUrl(text) {
   const stripped = text.trim();
   if (/^https?:\/\/[^\s<>"]+$/.test(stripped)) return stripped;
-  const m = stripped.match(/^<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>.*<\/a>$/);
-  if (m) return m[1];
+  const m = stripped.match(/^<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([^<]*)<\/a>$/);
+  if (m && m[2].trim() === m[1].trim()) return m[1];
   return null;
 }
 
