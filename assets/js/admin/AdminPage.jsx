@@ -102,8 +102,19 @@ function TagsAdmin({tags, onRefresh}) {
 // ── Admin Spaces CRUD ─────────────────────────────────────────────────────────
 function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
   const [editing,setEditing]=useState(null); // null | "new" | space object
-  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:""});
+  const [form,setForm]=useState({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:"",permissions:{view:{role:"everyone",groups:[]},read:{role:"everyone",groups:[]},post:{role:"member",groups:[]},reply:{role:"member",groups:[]}}});
   const [saving,setSaving]=useState(false);
+  const [permsOpen,setPermsOpen]=useState(false);
+
+  // Read permissions from a space object returned by the API.
+  // The backend only includes the permissions field for admin users (which is
+  // always the case here), and falls back to open defaults when absent.
+  const readPerms = (s) => ({
+    view:  normaliseGate(s.permissions?.view  || "everyone"),
+    read:  normaliseGate(s.permissions?.read  || "everyone"),
+    post:  normaliseGate(s.permissions?.post  || "member"),
+    reply: normaliseGate(s.permissions?.reply || "member"),
+  });
 
   var savedOrder = layoutCfg.spaces_order || [];
   var orderedForEditor = (function(){
@@ -120,8 +131,8 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
     api.post("/admin/spaces/reorder", {order: ordered.map(function(s){return s.id;})}).catch(function(){});
   }
 
-  const openNew=()=>{ setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:""}); setEditing("new"); };
-  const openEdit=s=>{ setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",icon:s.icon||"fa-layer-group",visibility:s.visibility,parent_id:s.parent_id?""+s.parent_id:""}); setEditing(s); };
+  const openNew=()=>{ setPermsOpen(false); setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:"",permissions:{view:{role:"everyone",groups:[]},read:{role:"everyone",groups:[]},post:{role:"member",groups:[]},reply:{role:"member",groups:[]}}}); setEditing("new"); };
+  const openEdit=s=>{ setPermsOpen(false); setForm({name:s.name,slug:s.slug,description:s.description||"",color:s.color||"#a78bfa",icon:s.icon||"fa-layer-group",visibility:s.visibility,parent_id:s.parent_id?""+s.parent_id:"",permissions:readPerms(s)}); setEditing(s); };
   const close=()=>setEditing(null);
 
   const autoSlug=name=>name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
@@ -135,7 +146,7 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
         else toast(formatApiErrors(d, "Failed"),"err");
       } else {
         // Explicitly build payload to avoid any stale closure issues with form state
-        const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility,parent_id:form.parent_id||null};
+        const payload={name:form.name,slug:form.slug,description:form.description||"",color:form.color,icon:form.icon||"fa-layer-group",visibility:form.visibility,parent_id:form.parent_id||null,permissions:{view:serialiseGate(form.permissions.view),read:serialiseGate(form.permissions.read),post:serialiseGate(form.permissions.post),reply:serialiseGate(form.permissions.reply)}};
         const d=await api.patch(`/admin/spaces/${editing.slug}`,payload);
         if(d.space){toast("Space updated");onRefresh();close();}
         else toast(formatApiErrors(d, "Failed"),"err");
@@ -268,7 +279,42 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
             style={{fontFamily:"monospace",fontSize:12,width:100}} placeholder="#a78bfa"/>
         </div>
       </div>}
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+      {/* ── Permissions — collapsed by default ──────────────────────────────── */}
+      <div style={{marginTop:16,borderTop:"0.5px solid var(--b1)",paddingTop:12}}>
+        <button onClick={()=>setPermsOpen(o=>!o)}
+          style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
+            background:"none",border:"none",cursor:"pointer",color:"var(--t4)",
+            fontSize:12,fontFamily:"inherit",fontWeight:500}}>
+          <i className={`fa-solid fa-chevron-${permsOpen?"down":"right"}`}
+            style={{fontSize:9,color:"var(--t5)"}}/>
+          Permissions
+        </button>
+        {permsOpen&&(
+          <div style={{marginTop:8,paddingLeft:18}}>
+            <div style={{fontSize:12,color:"var(--t4)",marginBottom:16,lineHeight:1.6}}>
+              Controls who can see, read, post in, and reply in this space.
+              Admins and moderators always have full access regardless of these settings.
+            </div>
+            {[
+              {key:"view",  label:"Who can see this space",      hint:"Controls visibility in the sidebar and space listings."},
+              {key:"read",  label:"Who can read posts",          hint:"Controls access to posts and the feed for this space."},
+              {key:"post",  label:"Who can create posts",        hint:"Controls who can start new top-level threads."},
+              {key:"reply", label:"Who can reply",               hint:"Controls who can reply to existing posts. Can differ from post permissions."},
+            ].map(({key,label,hint})=>(
+              <div key={key} style={{marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:500,color:"var(--t2)",marginBottom:2}}>{label}</div>
+                <div style={{fontSize:11,color:"var(--t4)",marginBottom:6}}>{hint}</div>
+                <PermissionGatePicker
+                  value={form.permissions[key]}
+                  onChange={v=>setForm(p=>({...p,permissions:{...p.permissions,[key]:v}}))}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
         <button className="btn-ghost" onClick={close}>Cancel</button>
         <button className="btn-primary" onClick={save} disabled={saving||!form.name.trim()||!form.slug.trim()}>{saving?"Saving…":"Save space"}</button>
       </div>
