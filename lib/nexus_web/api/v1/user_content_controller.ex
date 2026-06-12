@@ -27,19 +27,26 @@ defmodule NexusWeb.API.V1.UserContentController do
       nil -> conn |> put_status(:not_found) |> json(%{error: "User not found"})
       user ->
         cursor_id = decode_id_cursor(params["cursor"])
+        viewer = conn.assigns[:current_user]
 
         query =
           from(r in Reply,
             where: r.user_id == ^user.id and r.hidden == false and r.pending_approval == false,
             join: p in Post, on: r.post_id == p.id and p.hidden == false,
-            join: s in Space, on: p.space_id == s.id,
+            join: s in Space, on: p.space_id == s.id and s.visibility == "public",
             order_by: [desc: r.inserted_at, desc: r.id],
             limit: ^(@limit + 1),
             preload: [post: :space]
           )
 
         query = if cursor_id, do: where(query, [r], r.id < ^cursor_id), else: query
-        replies = Repo.all(query)
+        raw_replies = Repo.all(query)
+
+        # Filter by space read permission. reply.post.space is always loaded
+        # via preload: [post: :space] and the inner join guarantees non-nil.
+        replies = Enum.filter(raw_replies, fn r ->
+          Nexus.Forum.SpacePermissions.can_read?(r.post.space, viewer)
+        end)
 
         {items, next_cursor} = paginate(replies, @limit, & &1.id)
 
@@ -72,9 +79,19 @@ defmodule NexusWeb.API.V1.UserContentController do
 
         {rows, next_cursor} = paginate(rows, @limit, & &1.id)
 
+        viewer     = conn.assigns[:current_user]
         post_ids   = Enum.map(rows, & &1.post_id)
         posts      = from(p in Post, where: p.id in ^post_ids, preload: [:space, :user]) |> Repo.all()
-        posts_by_id = Map.new(posts, & {&1.id, &1})
+
+        # Filter posts by space read permission before assembling results.
+        # post.space is always loaded via preload: [:space, :user].
+        readable_post_ids = posts
+          |> Enum.filter(fn p -> Nexus.Forum.SpacePermissions.can_read?(p.space, viewer) end)
+          |> MapSet.new(& &1.id)
+
+        posts_by_id = posts
+          |> Enum.filter(fn p -> MapSet.member?(readable_post_ids, p.id) end)
+          |> Map.new(& {&1.id, &1})
 
         results =
           rows
@@ -157,9 +174,17 @@ defmodule NexusWeb.API.V1.UserContentController do
           |> then(fn q -> if cursor_id, do: where(q, [r], r.id < ^cursor_id), else: q end)
           |> Repo.all()
 
+        user = conn.assigns[:current_user]
+
+        # Filter posts and replies by space read permission before merging.
+        # post.space is loaded via preload: [:user, :space].
+        # reply.post.space is loaded via preload: [:user, post: :space].
+        readable_posts   = Enum.filter(posts,   fn p -> Nexus.Forum.SpacePermissions.can_read?(p.space,          user) end)
+        readable_replies = Enum.filter(replies, fn r -> Nexus.Forum.SpacePermissions.can_read?(r.post.space,     user) end)
+
         merged =
-          (Enum.map(posts,   fn p -> %{type: "post",  item: p, ts: p.inserted_at} end) ++
-           Enum.map(replies, fn r -> %{type: "reply", item: r, ts: r.inserted_at} end))
+          (Enum.map(readable_posts,   fn p -> %{type: "post",  item: p, ts: p.inserted_at} end) ++
+           Enum.map(readable_replies, fn r -> %{type: "reply", item: r, ts: r.inserted_at} end))
           |> Enum.sort_by(& &1.ts, {:desc, NaiveDateTime})
           |> Enum.take(@limit + 1)
 
