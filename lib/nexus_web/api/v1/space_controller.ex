@@ -15,28 +15,46 @@ defmodule NexusWeb.API.V1.SpaceController do
 
   # GET /api/v1/spaces
   def index(conn, _params) do
+    user = conn.assigns[:current_user]
+
     spaces =
-      if conn.assigns[:current_user] && User.moderator?(conn.assigns.current_user) do
+      if user && User.moderator?(user) do
         Forum.list_all_spaces()
       else
         Forum.list_spaces()
       end
 
-    json(conn, %{spaces: Enum.map(spaces, &space_json/1)})
+    # Filter by the space-level view permission. Moderators and admins bypass
+    # this (can_view? returns true for them unconditionally), so the filter
+    # is a no-op for privileged users and correctly restricts members/guests.
+    visible = Enum.filter(spaces, &Nexus.Forum.SpacePermissions.can_view?(&1, user))
+
+    json(conn, %{spaces: Enum.map(visible, &space_json(&1, user))})
   end
 
   # GET /api/v1/spaces/:slug
   def show(conn, %{"slug" => slug}) do
+    user = conn.assigns[:current_user]
+
     case Forum.get_space_by_slug(slug) do
       nil ->
         conn |> put_status(:not_found) |> json(%{error: "Space not found"})
 
       space ->
-        subscribed = case conn.assigns[:current_user] do
-          nil -> false
-          user -> Forum.subscribed_to_space?(user.id, space.id)
+        cond do
+          not Nexus.Forum.SpacePermissions.can_view?(space, user) ->
+            conn |> put_status(:not_found) |> json(%{error: "Space not found"})
+
+          not Nexus.Forum.SpacePermissions.can_read?(space, user) ->
+            conn |> put_status(:forbidden) |> json(%{error: "You do not have permission to access this space"})
+
+          true ->
+            subscribed = case user do
+              nil  -> false
+              _    -> Forum.subscribed_to_space?(user.id, space.id)
+            end
+            json(conn, %{space: Map.put(space_json(space, user), :subscribed, subscribed)})
         end
-        json(conn, %{space: Map.put(space_json(space), :subscribed, subscribed)})
     end
   end
 
@@ -45,7 +63,7 @@ defmodule NexusWeb.API.V1.SpaceController do
     attrs = build_attrs(params)
     case Forum.create_space(attrs, conn.assigns.current_user) do
       {:ok, space} ->
-        conn |> put_status(:created) |> json(%{space: space_json(space)})
+        conn |> put_status(:created) |> json(%{space: space_json(space, conn.assigns.current_user)})
 
       {:error, changeset} ->
         conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
@@ -61,7 +79,7 @@ defmodule NexusWeb.API.V1.SpaceController do
       space ->
         attrs = build_attrs(params)
         case Forum.update_space(space, attrs) do
-          {:ok, updated} -> json(conn, %{space: space_json(updated)})
+          {:ok, updated} -> json(conn, %{space: space_json(updated, conn.assigns.current_user)})
           {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
         end
     end
@@ -99,8 +117,8 @@ defmodule NexusWeb.API.V1.SpaceController do
     end
   end
 
-  defp space_json(space) do
-    %{
+  defp space_json(space, user \\ nil) do
+    base = %{
       id:          space.id,
       name:        space.name,
       slug:        space.slug,
@@ -112,6 +130,14 @@ defmodule NexusWeb.API.V1.SpaceController do
       post_count:  space.post_count,
       parent_id:   space.parent_id
     }
+
+    # Expose the full permissions map only to admins — members do not need
+    # to see the raw gate configuration.
+    if user && User.admin?(user) do
+      Map.put(base, :permissions, space.permissions || %{})
+    else
+      base
+    end
   end
 
   # Normalise params before passing to the changeset. Converts a JSON-decoded

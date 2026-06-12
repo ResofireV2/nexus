@@ -36,6 +36,11 @@ defmodule NexusWeb.API.V1.ReplyController do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
       post ->
+        # Check space-level reply permission before proceeding.
+        if !Nexus.Forum.SpacePermissions.can_reply?(post.space, user) do
+          conn |> put_status(:forbidden) |> json(%{error: "You do not have permission to reply in this space"})
+        else
+
         pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
         # Composition spam check
@@ -124,6 +129,7 @@ defmodule NexusWeb.API.V1.ReplyController do
           {:error, changeset} ->
             conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
         end
+        end # space reply permission check
     end
     end # status check
   end

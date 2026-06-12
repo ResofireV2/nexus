@@ -477,7 +477,18 @@ defmodule Nexus.Forum do
     query = apply_sort(query, sort)
     query = limit(query, @page_size + 1)
 
-    posts = Repo.all(query)
+    raw = Repo.all(query)
+
+    # Post-filter by space read permission. The query already handles the
+    # guest/visibility case via filter_by_visibility/2. For authenticated
+    # users, we additionally enforce space-level read gates here.
+    # NOTE: filtering happens before pagination so the has-more-pages
+    # detection is based on the filtered count, not the raw DB count.
+    # This means a page may contain fewer than @page_size items when some
+    # posts are filtered out, but the next_cursor will always be correct.
+    posts = Enum.filter(raw, fn post ->
+      Nexus.Forum.SpacePermissions.can_read?(post.space, user)
+    end)
 
     {posts, next_cursor} =
       if length(posts) > @page_size do

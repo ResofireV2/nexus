@@ -11,6 +11,12 @@ defmodule Nexus.Forum.Space do
     field :visibility,  :string, default: "public"
     field :position,    :integer, default: 0
     field :post_count,  :integer, default: 0
+    field :permissions, :map, default: %{
+      "view"  => %{"role" => "everyone", "groups" => []},
+      "read"  => %{"role" => "everyone", "groups" => []},
+      "post"  => %{"role" => "member",   "groups" => []},
+      "reply" => %{"role" => "member",   "groups" => []}
+    }
 
     belongs_to :parent,     Nexus.Forum.Space, foreign_key: :parent_id
     belongs_to :created_by, Nexus.Accounts.User
@@ -23,7 +29,7 @@ defmodule Nexus.Forum.Space do
 
   def changeset(space, attrs) do
     space
-    |> cast(attrs, [:name, :slug, :description, :color, :icon, :visibility, :position, :parent_id])
+    |> cast(attrs, [:name, :slug, :description, :color, :icon, :visibility, :position, :parent_id, :permissions])
     |> validate_required([:name, :slug])
     |> validate_length(:name, min: 1, max: 50)
     |> validate_inclusion(:visibility, ~w(public private))

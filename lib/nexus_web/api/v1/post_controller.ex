@@ -32,6 +32,17 @@ defmodule NexusWeb.API.V1.PostController do
       conn |> put_status(:forbidden) |> json(%{error: "Your account is not permitted to post"})
     else
 
+    # Check space-level post permission before doing anything else.
+    space_id = params["space_id"]
+    space = if space_id, do: Forum.get_space(space_id), else: nil
+
+    if is_nil(space) do
+      conn |> put_status(:unprocessable_entity) |> json(%{error: "Invalid space"})
+    else
+    if !Nexus.Forum.SpacePermissions.can_post?(space, user) do
+      conn |> put_status(:forbidden) |> json(%{error: "You do not have permission to post in this space"})
+    else
+
     # Determine if post needs approval
     pending = !Nexus.Permissions.can_post_immediately?(user) && user.role == "member"
 
@@ -101,6 +112,8 @@ defmodule NexusWeb.API.V1.PostController do
       {:error, changeset} ->
         conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
     end
+    end # space can_post? check
+    end # space nil check
     end # status check
   end
 

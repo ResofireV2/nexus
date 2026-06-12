@@ -148,7 +148,14 @@ defmodule Nexus.Search do
     results = Repo.all(query)
 
     # Attach highlights in a single query rather than two follow-up queries.
-    results = attach_post_highlights(results, active_tsquery, query_string)
+    raw = attach_post_highlights(results, active_tsquery, query_string)
+
+    # Filter out posts the requesting user cannot read based on space permissions.
+    # Filtering before pagination means a page may contain fewer than @page_size
+    # items when some results are filtered out, but next_cursor is always correct.
+    results = Enum.filter(raw, fn post ->
+      Nexus.Forum.SpacePermissions.can_read?(post.space, user)
+    end)
 
     {results, next_cursor} =
       if length(results) > @page_size do
@@ -176,6 +183,8 @@ defmodule Nexus.Search do
   defp filter_posts_by_visibility(query, nil) do
     join(query, :inner, [p], s in Space, on: p.space_id == s.id and s.visibility == "public")
   end
+  # For authenticated users, the SQL query is not filtered — we apply the
+  # space read permission check in-process after the query returns results.
   defp filter_posts_by_visibility(query, _user), do: query
 
   defp filter_by_author(query, nil,    _kind), do: query
