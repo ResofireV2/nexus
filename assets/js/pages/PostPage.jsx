@@ -432,8 +432,15 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
     const replyFn = e => {
       if(String(e.detail.postId)===String(postId) && e.detail.reply) {
         if(window._lpRegisterFresh) window._lpRegisterFresh(extractUnfurlableUrls(e.detail.reply.body));
-        setReplies(p=>p.some(r=>r.id===e.detail.reply.id)?p:[...p,e.detail.reply]);
-        setPost(p=>p?{...p,reply_count:(p.reply_count||0)+1}:p);
+        setReplies(p => {
+          // If we already have this reply (posted by the current user and added
+          // optimistically in submitReply), do not add it again and do not
+          // increment reply_count a second time.
+          if(p.some(r => r.id === e.detail.reply.id)) return p;
+          // Genuinely new reply (from another user) — add it and bump the count.
+          setPost(q => q ? {...q, reply_count: (q.reply_count||0)+1} : q);
+          return [...p, e.detail.reply];
+        });
       }
     };
     const typingFn = e => {
