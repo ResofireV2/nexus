@@ -128,7 +128,8 @@ defmodule NexusWeb.API.V1.SpaceController do
       visibility:  space.visibility,
       position:    space.position,
       post_count:  space.post_count,
-      parent_id:   space.parent_id
+      parent_id:   space.parent_id,
+      can_post:    Nexus.Forum.SpacePermissions.can_post?(space, user)
     }
 
     # Expose the full permissions map only to admins — members do not need

@@ -12,7 +12,7 @@ import { useDraftAutosave } from "./DraftsPage";
 function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const resumeDraft = pageProps?.resumeDraft || null;
   const [title,setTitle]=useState(resumeDraft?.title||""); const [body,setBody]=useState(resumeDraft?.body||"");
-  const [spaceId,setSpaceId]=useState(resumeDraft?.space_id||spaces.find(s=>!s.parent_id)?.id||"");
+  const [spaceId,setSpaceId]=useState(resumeDraft?.space_id||spaces.find(s=>!s.parent_id&&s.can_post)?.id||"");
   const [subSpaceId,setSubSpaceId]=useState("");
   const [postType,setPostType]=useState(resumeDraft?.post_type||"discussion");
   const [postBody,setPostBody]=useState("");
@@ -27,10 +27,13 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
   const submittingRef=useRef(false); // true while submit is in flight — suppresses autosave
   const toggleTag=id=>setSelTags(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
-  // Separate top-level spaces from sub-spaces
-  const topLevelSpaces = spaces.filter(s => !s.parent_id);
+  // Separate top-level spaces from sub-spaces.
+  // Only spaces where can_post is true are shown in the dropdown — spaces the
+  // user cannot post to are excluded entirely rather than shown as disabled.
+  const postableSpaces   = spaces.filter(s => s.can_post);
+  const topLevelSpaces   = postableSpaces.filter(s => !s.parent_id);
   const selectedParentSpace = spaces.find(s => String(s.id) === String(spaceId));
-  const childSpaces = spaces.filter(s => String(s.parent_id) === String(spaceId));
+  const childSpaces      = postableSpaces.filter(s => String(s.parent_id) === String(spaceId));
   // The effective space to post to: the chosen sub-space if one is selected,
   // otherwise the parent space itself
   const effectiveSpaceId = subSpaceId || spaceId;
