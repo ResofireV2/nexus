@@ -585,7 +585,8 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
         setReplyBody("");
         setReplyAttachments([]);
         await clearDraft();
-        setPost(p=>({...p,reply_count:(p.reply_count||0)+1}));
+        // reply_count is incremented by the replyFn WebSocket handler which
+        // fires for all viewers including the poster — do not increment here.
       }
       else toast(d.error||"Failed","err"); }
     finally { setSubmitting(false); }
