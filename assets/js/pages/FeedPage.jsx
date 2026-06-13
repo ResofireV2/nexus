@@ -123,6 +123,21 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   useEffect(()=>{setPosts([]);setLiveCount(0);load(true);},[sort,spaceFilter,followingOnly]);
 
+  // Reload the feed when the user logs in so posts get their correct read status.
+  // Uses a ref to track the previous user id — only fires on the null→id transition,
+  // not on every render where currentUser is already set.
+  const prevUserIdRef = useRef(currentUser?.id ?? null);
+  useEffect(()=>{
+    const prevId = prevUserIdRef.current;
+    const nextId = currentUser?.id ?? null;
+    prevUserIdRef.current = nextId;
+    if(prevId === null && nextId !== null) {
+      setPosts([]);
+      setLiveCount(0);
+      load(true);
+    }
+  },[currentUser?.id]);
+
   useEffect(()=>{
     const sentinel=sentinelRef.current; if(!sentinel) return;
     const observer=new IntersectionObserver(entries=>{
