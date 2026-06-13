@@ -1015,11 +1015,14 @@ defmodule Nexus.Forum do
   Returns a map of read status for the given post IDs and user.
 
   Each entry is %{post_id => %{seen: boolean, new_reply_count: integer}}.
-  `seen` is true when a post_reads row exists for this user+post, or when the
-  post was created before the user's marked_all_as_read_at timestamp.
-  `new_reply_count` is the number of replies added since the user last read
-  the post, computed as post.reply_count - post_reads.reply_count. Posts
-  covered by marked_all_as_read_at with no post_reads row get new_reply_count 0.
+
+  A post is considered seen when:
+    - A post_reads row exists (the user has opened the post), OR
+    - The post was created at or before the user's marked_all_as_read_at timestamp.
+
+  new_reply_count is post.reply_count - post_reads.reply_count for posts
+  with a post_reads row, and 0 for posts covered only by marked_all_as_read_at.
+  Posts created after marked_all_as_read_at with no post_reads row get seen:false.
 
   Returns %{} for an empty post list or nil user.
   """
@@ -1029,44 +1032,33 @@ defmodule Nexus.Forum do
     user_id = user.id
     marked_at = user.marked_all_as_read_at
 
+    # Single query: LEFT JOIN post_reads so we get one row per post regardless
+    # of whether a post_reads row exists. The seen and new_reply_count values
+    # are derived entirely in SQL, eliminating any cross-query race conditions.
     rows =
-      from(r in Nexus.Forum.PostRead,
-        join: p in Post, on: p.id == r.post_id,
-        where: r.user_id == ^user_id and r.post_id in ^post_ids,
-        select: {r.post_id, p.reply_count - r.reply_count}
+      from(p in Post,
+        left_join: r in Nexus.Forum.PostRead,
+          on: r.post_id == p.id and r.user_id == ^user_id,
+        where: p.id in ^post_ids,
+        select: {
+          p.id,
+          not is_nil(r.post_id),
+          p.reply_count - coalesce(r.reply_count, 0),
+          p.inserted_at
+        }
       )
       |> Repo.all()
 
-    seen_ids = MapSet.new(rows, fn {post_id, _} -> post_id end)
-
-    # Fetch inserted_at for posts not yet in post_reads but potentially
-    # covered by marked_all_as_read_at, so we can apply the timestamp check.
-    unmarked_ids = Enum.reject(post_ids, &MapSet.member?(seen_ids, &1))
-
-    inserted_at_map =
-      if marked_at && unmarked_ids != [] do
-        from(p in Post,
-          where: p.id in ^unmarked_ids,
-          select: {p.id, p.inserted_at}
-        )
-        |> Repo.all()
-        |> Map.new()
-      else
-        %{}
-      end
-
-    Enum.reduce(post_ids, %{}, fn post_id, acc ->
+    Map.new(rows, fn {post_id, has_row, delta, inserted_at} ->
       cond do
-        MapSet.member?(seen_ids, post_id) ->
-          {^post_id, delta} = Enum.find(rows, fn {id, _} -> id == post_id end)
-          Map.put(acc, post_id, %{seen: true, new_reply_count: max(delta, 0)})
+        has_row ->
+          {post_id, %{seen: true, new_reply_count: max(delta, 0)}}
 
-        marked_at && Map.get(inserted_at_map, post_id) &&
-            DateTime.compare(Map.get(inserted_at_map, post_id), marked_at) != :gt ->
-          Map.put(acc, post_id, %{seen: true, new_reply_count: 0})
+        not is_nil(marked_at) and DateTime.compare(inserted_at, marked_at) != :gt ->
+          {post_id, %{seen: true, new_reply_count: 0}}
 
         true ->
-          Map.put(acc, post_id, %{seen: false, new_reply_count: 0})
+          {post_id, %{seen: false, new_reply_count: 0}}
       end
     end)
   end
