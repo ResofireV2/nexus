@@ -9,7 +9,7 @@ import { RichTextArea } from "../components/RichTextArea";
 
 const _brandingState   = () => (window._getBrandingState && window._getBrandingState()) || {};
 const onBrandingChange = (fn) => window._onBrandingChange ? window._onBrandingChange(fn) : () => {};
-function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], liveReplyUpdates=[], onAuthRequired}) {
+function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], liveReplyUpdate=null, onAuthRequired}) {
   const [sort,setSort]=useState(sortOverride||"latest");
   useEffect(()=>{setSort(sortOverride||"latest");},[sortOverride]);
   const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true);
@@ -52,23 +52,32 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   };
   useEffect(()=>{ if(livePosts.length>0) setLiveCount(livePosts.length); },[livePosts]);
 
+  // Track the seq of the last update applied so remounting the feed doesn't
+  // replay updates that arrived before this render cycle began.
+  const lastAppliedSeq = useRef(liveReplyUpdate?.seq ?? 0);
+
   // Apply live reply count updates. When a new reply is created anywhere on
-  // the forum, the backend broadcasts {post_id, reply_count} on feed:global.
-  // We update the matching post in local state so the count and +N pill
-  // update without a reload. Posts not currently in the feed are ignored.
+  // the forum, the backend broadcasts {post_id, reply_count, user_id} on
+  // feed:global. We update the matching post in local state so the count and
+  // +N pill update without a reload. Skips own replies (no self-notification)
+  // and any updates that predate this component mount (stale replay guard).
   useEffect(()=>{
-    if(!liveReplyUpdates.length) return;
-    const latest = liveReplyUpdates[0];
-    if(!latest || !latest.post_id) return;
+    if(!liveReplyUpdate) return;
+    if(liveReplyUpdate.seq <= lastAppliedSeq.current) return;
+    lastAppliedSeq.current = liveReplyUpdate.seq;
+    const {post_id, reply_count, user_id} = liveReplyUpdate.data;
+    if(!post_id) return;
+    const isOwnReply = currentUser && user_id === currentUser.id;
     setPosts(prev => prev.map(p => {
-      if(p.id !== latest.post_id) return p;
-      // Always update the visible reply count.
-      // For seen posts, increment new_reply_count by 1 so the +N pill grows live.
-      // For unseen posts the dot already shows — just keep new_reply_count at 0.
-      const newReplyCount = p.seen === true ? (p.new_reply_count||0) + 1 : (p.new_reply_count||0);
-      return {...p, reply_count: latest.reply_count, new_reply_count: newReplyCount};
+      if(p.id !== post_id) return p;
+      // Always update the visible reply count to the authoritative value.
+      // Only increment new_reply_count for replies by other users on seen posts.
+      const newReplyCount = (!isOwnReply && p.seen === true)
+        ? (p.new_reply_count||0) + 1
+        : (p.new_reply_count||0);
+      return {...p, reply_count, new_reply_count: newReplyCount};
     }));
-  },[liveReplyUpdates]);
+  },[liveReplyUpdate, currentUser]);
   const activeSpace = useMemo(() => spaces.find(s=>s.slug===spaceFilter), [spaces, spaceFilter]);
 
   const load=useCallback(async(reset=true,cur=null)=>{
