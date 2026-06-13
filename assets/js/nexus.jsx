@@ -3687,15 +3687,22 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
   // Load Turnstile script on demand when site key is present and mode is register
   useEffect(()=>{
     if (!turnstileSiteKey || mode !== "register") return;
+    let cancelled = false;
     const load = () => {
-      if (window.turnstile && turnstileRef.current && !turnstileWidgetId.current) {
-        const theme = typeof _currentTheme !== "undefined" ? _currentTheme : "dark";
-        turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
-          sitekey: turnstileSiteKey,
-          theme:   theme === "light" ? "light" : "dark",
-          size:    "flexible",
-        });
-      }
+      if (cancelled) return;
+      // Defer render until the browser has performed layout so the container
+      // has non-zero dimensions — Cloudflare silently fails on zero-width targets.
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        if (window.turnstile && turnstileRef.current && !turnstileWidgetId.current) {
+          const theme = typeof _currentTheme !== "undefined" ? _currentTheme : "dark";
+          turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+            sitekey: turnstileSiteKey,
+            theme:   theme === "light" ? "light" : "dark",
+            size:    "flexible",
+          });
+        }
+      });
     };
     if (window.turnstile) {
       load();
@@ -3712,6 +3719,7 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
       return () => clearInterval(poll);
     }
     return () => {
+      cancelled = true;
       if (turnstileWidgetId.current != null && window.turnstile) {
         window.turnstile.remove(turnstileWidgetId.current);
         turnstileWidgetId.current = null;
@@ -3737,7 +3745,9 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
         // If Turnstile is configured but the user hasn't completed the challenge yet,
         // block submission and prompt them rather than sending an empty token
         // (which the backend would reject as "Human verification failed").
-        if (turnstileSiteKey && (!cfToken || cfToken === "")) {
+        // Only block if the widget actually rendered (turnstileWidgetId.current != null)
+        // — if Cloudflare failed to load or render, fail open like the backend does.
+        if (turnstileSiteKey && turnstileWidgetId.current != null && (!cfToken || cfToken === "")) {
           setErr("Please complete the human verification challenge.");
           setLoading(false);
           return;
@@ -3873,7 +3883,7 @@ function AuthModalForm({mode, onLogin, onSwitch, registrationOpen=true, oauthPro
 
       {/* Turnstile widget — register mode only */}
       {mode==="register" && turnstileSiteKey && (
-        <div ref={turnstileRef} style={{marginBottom:14}}/>
+        <div ref={turnstileRef} style={{marginBottom:14, width:"100%", minHeight:65}}/>
       )}
 
       {/* Primary action button */}
@@ -4516,7 +4526,7 @@ function App() {
       {userCard&&<UserCardPopover card={userCard} setCard={setUserCard} currentUser={currentUser} navigate={navigate}/>}
       <RefPreviewPopup/>
       {authModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAuthModal(null)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onMouseDown={e=>e.target===e.currentTarget&&setAuthModal(null)}>
           <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:20,padding:40,position:"relative"}}>
             <button onClick={()=>setAuthModal(null)} style={{position:"absolute",top:16,right:18,background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
             <div style={{textAlign:"center",marginBottom:28}}>
