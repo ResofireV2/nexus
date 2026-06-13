@@ -228,6 +228,24 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             </div>
           )}
 
+          {/* New posts banner — sits between header and feed list, outside the list
+              so it never visually merges with a pinned post below it */}
+          {liveCount>0&&!spaceFilter&&(
+            <div style={{padding:"10px 18px",background:"var(--s2)",borderBottom:"1.5px solid var(--b3)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+              <span style={{fontSize:14,fontWeight:600,color:"var(--t1)",display:"flex",alignItems:"center",gap:8}}>
+                <i className="fa-solid fa-arrow-up" style={{fontSize:12,color:"var(--ac)"}}/>
+                {liveCount} new {liveCount===1?"post":"posts"}
+              </span>
+              <button
+                onClick={()=>{setLiveCount(0);load(true);}}
+                style={{fontSize:12,fontWeight:600,padding:"5px 14px",borderRadius:20,background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",color:"var(--ac-text)",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="var(--ac)";e.currentTarget.style.color="var(--ac-on)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="var(--ac-bg)";e.currentTarget.style.color="var(--ac-text)";}}>
+                Load
+              </button>
+            </div>
+          )}
+
           {/* Extension tab content — replaces the post list when active */}
           {activeTabDef ? (
             <div style={{flex:1,overflow:"auto"}}>
@@ -235,11 +253,6 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             </div>
           ) : (
           <div className="feed-list">
-            {liveCount>0&&!spaceFilter&&(
-              <div style={{padding:"10px 18px",background:"var(--ac-bg)",borderBottom:"0.5px solid var(--ac-border)",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>{setLiveCount(0);load(true);}}>
-                <span style={{fontSize:12,color:"var(--ac-text)"}}><i className="fa-solid fa-arrow-up" style={{fontSize:10,marginRight:6}}></i>{liveCount} new {liveCount===1?"post":"posts"} — click to load</span>
-              </div>
-            )}
             {loading&&!posts.length?<div style={{padding:"40px",textAlign:"center",color:"var(--t5)"}}>Loading...</div>
               :posts.length===0?<div style={{padding:"60px 20px",textAlign:"center",color:"var(--t5)"}}>
                   {followingOnly
