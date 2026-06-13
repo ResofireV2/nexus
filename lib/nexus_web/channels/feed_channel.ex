@@ -81,6 +81,11 @@ defmodule NexusWeb.FeedChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:reply_count_updated, payload}, socket) do
+    push(socket, "reply_count_updated", payload)
+    {:noreply, socket}
+  end
+
   def handle_info({:link_preview_ready, payload}, socket) do
     push(socket, "link_preview_ready", payload)
     {:noreply, socket}

@@ -123,6 +123,14 @@ defmodule NexusWeb.API.V1.ReplyController do
                 {:new_reply, reply_json(reply)}
               )
 
+              # Broadcast the updated reply count to feed subscribers so the
+              # feed can update live without a reload.
+              reply_count_payload = %{post_id: post.id, reply_count: post.reply_count + 1}
+              Phoenix.PubSub.broadcast(Nexus.PubSub, "feed:global", {:reply_count_updated, reply_count_payload})
+              if post.space do
+                Phoenix.PubSub.broadcast(Nexus.PubSub, "feed:space:#{post.space.slug}", {:reply_count_updated, reply_count_payload})
+              end
+
               conn |> put_status(:created) |> json(%{reply: reply_json(reply)})
             end
 

@@ -3478,7 +3478,7 @@ function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
-function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount) {
+function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount, onReplyCountUpdate) {
   const wsRef = useRef(null);
   const heartbeatRef = useRef(null);
   const reconnectRef = useRef(null);
@@ -3494,10 +3494,12 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const onNewNotifRef = useRef(onNewNotif);
   const onNewMsgRef = useRef(onNewMsg);
   const onUnreadCountRef = useRef(onUnreadCount);
+  const onReplyCountUpdateRef = useRef(onReplyCountUpdate);
   useEffect(() => { onNewPostRef.current = onNewPost; }, [onNewPost]);
   useEffect(() => { onNewNotifRef.current = onNewNotif; }, [onNewNotif]);
   useEffect(() => { onNewMsgRef.current = onNewMsg; }, [onNewMsg]);
   useEffect(() => { onUnreadCountRef.current = onUnreadCount; }, [onUnreadCount]);
+  useEffect(() => { onReplyCountUpdateRef.current = onReplyCountUpdate; }, [onReplyCountUpdate]);
 
   const connectRef = useRef(null);
 
@@ -3564,6 +3566,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
         try {
           const [, , topic, event, payload] = JSON.parse(e.data);
           if (event === "new_post" && topic === "feed:global") onNewPostRef.current?.(payload);
+          if (event === "reply_count_updated" && topic.startsWith("feed:")) onReplyCountUpdateRef.current?.(payload);
           if (event === "link_preview_ready" && topic === "feed:global") onLinkPreviewReady(payload?.url);
           if (event === "new_notification" && topic === `notifications:${userId}`) {
             // Dispatch to NotificationsPage if it's open
@@ -4102,6 +4105,7 @@ function App() {
   const [msgPageKey,setMsgPageKey]=useState(0);
   const [livePosts,setLivePosts]=useState([]);
   const [liveEvents,setLiveEvents]=useState([]);
+  const [liveReplyUpdates,setLiveReplyUpdates]=useState([]);
   const [authModal,setAuthModal]=useState(null); // null | "login" | "register"
   const [registrationOpen,setRegistrationOpen]=useState(true);
   const [iosPromptDismissed,setIosPromptDismissed]=useState(()=>{
@@ -4192,7 +4196,8 @@ function App() {
     },[]),
     useCallback(()=>setNotifCount(c=>c+1),[]),
     useCallback(()=>setMsgCount(c=>c+1),[]),
-    useCallback(count=>setNotifCount(count),[])
+    useCallback(count=>setNotifCount(count),[]),
+    useCallback(update=>setLiveReplyUpdates(p=>[update,...p]),[])
   );
 
   useEffect(()=>{
@@ -4441,7 +4446,7 @@ function App() {
     };
     switch(page) {
       case "feed":
-        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} onAuthRequired={m=>setAuthModal(m)}/>;
+        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdates={liveReplyUpdates} onAuthRequired={m=>setAuthModal(m)}/>;
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
       case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
       case "drafts":      return requireAuth(<DraftsPage currentUser={currentUser} navigate={navigate}/>);
@@ -4461,7 +4466,7 @@ function App() {
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate} initialTab={pageProps.tab||null}/>;
       case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
-      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents}/>;
+      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdates={liveReplyUpdates}/>;
     }
   };
 
