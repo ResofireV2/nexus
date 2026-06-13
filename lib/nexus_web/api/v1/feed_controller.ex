@@ -2,6 +2,7 @@ defmodule NexusWeb.API.V1.FeedController do
   use NexusWeb, :controller
 
   alias Nexus.Forum
+  alias Nexus.Accounts
   import Ecto.Query
   alias Nexus.Repo
   alias Nexus.Accounts.User
@@ -41,12 +42,27 @@ defmodule NexusWeb.API.V1.FeedController do
         _ -> %{}
       end
 
-    read_status_map = Forum.read_status_for_posts(post_ids, conn.assigns[:current_user] && conn.assigns.current_user.id)
+    read_status_map = Forum.read_status_for_posts(post_ids, conn.assigns[:current_user])
 
     json(conn, %{
       posts: Enum.map(posts, &post_json(&1, last_reply_map, recent_users_map, read_status_map)),
       next_cursor: next_cursor
     })
+    end
+  end
+
+  # POST /api/v1/feed/mark-all-read
+  # Sets marked_all_as_read_at = now() on the user. All posts created at or
+  # before this timestamp will be treated as seen in subsequent feed loads,
+  # without touching post_reads rows. Individual post_reads rows (from actually
+  # opening a post) still take precedence and are unaffected.
+  def mark_all_read(conn, _params) do
+    user = conn.assigns.current_user
+    case Accounts.mark_all_read(user) do
+      {:ok, updated} ->
+        json(conn, %{ok: true, marked_all_as_read_at: updated.marked_all_as_read_at})
+      {:error, _} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "Failed"})
     end
   end
 

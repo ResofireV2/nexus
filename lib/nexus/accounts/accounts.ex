@@ -586,6 +586,13 @@ defmodule Nexus.Accounts do
     |> Repo.update()
   end
 
+  def mark_all_read(user) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    user
+    |> Ecto.Changeset.change(marked_all_as_read_at: now)
+    |> Repo.update()
+  end
+
   # ---------------------------------------------------------------------------
   # Account deletion
   # ---------------------------------------------------------------------------

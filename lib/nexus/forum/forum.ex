@@ -1015,16 +1015,20 @@ defmodule Nexus.Forum do
   Returns a map of read status for the given post IDs and user.
 
   Each entry is %{post_id => %{seen: boolean, new_reply_count: integer}}.
-  `seen` is true when a post_reads row exists for this user+post.
+  `seen` is true when a post_reads row exists for this user+post, or when the
+  post was created before the user's marked_all_as_read_at timestamp.
   `new_reply_count` is the number of replies added since the user last read
-  the post, computed as post.reply_count - post_reads.reply_count. Posts not
-  in the result map have never been seen by the user.
+  the post, computed as post.reply_count - post_reads.reply_count. Posts
+  covered by marked_all_as_read_at with no post_reads row get new_reply_count 0.
 
-  Returns %{} for an empty post list.
+  Returns %{} for an empty post list or nil user.
   """
   def read_status_for_posts(_post_ids, nil), do: %{}
-  def read_status_for_posts([], _user_id), do: %{}
-  def read_status_for_posts(post_ids, user_id) do
+  def read_status_for_posts([], _user), do: %{}
+  def read_status_for_posts(post_ids, user) do
+    user_id = user.id
+    marked_at = user.marked_all_as_read_at
+
     rows =
       from(r in Nexus.Forum.PostRead,
         join: p in Post, on: p.id == r.post_id,
@@ -1035,12 +1039,34 @@ defmodule Nexus.Forum do
 
     seen_ids = MapSet.new(rows, fn {post_id, _} -> post_id end)
 
-    Enum.reduce(post_ids, %{}, fn post_id, acc ->
-      if MapSet.member?(seen_ids, post_id) do
-        {^post_id, delta} = Enum.find(rows, fn {id, _} -> id == post_id end)
-        Map.put(acc, post_id, %{seen: true, new_reply_count: max(delta, 0)})
+    # Fetch inserted_at for posts not yet in post_reads but potentially
+    # covered by marked_all_as_read_at, so we can apply the timestamp check.
+    unmarked_ids = Enum.reject(post_ids, &MapSet.member?(seen_ids, &1))
+
+    inserted_at_map =
+      if marked_at && unmarked_ids != [] do
+        from(p in Post,
+          where: p.id in ^unmarked_ids,
+          select: {p.id, p.inserted_at}
+        )
+        |> Repo.all()
+        |> Map.new()
       else
-        Map.put(acc, post_id, %{seen: false, new_reply_count: 0})
+        %{}
+      end
+
+    Enum.reduce(post_ids, %{}, fn post_id, acc ->
+      cond do
+        MapSet.member?(seen_ids, post_id) ->
+          {^post_id, delta} = Enum.find(rows, fn {id, _} -> id == post_id end)
+          Map.put(acc, post_id, %{seen: true, new_reply_count: max(delta, 0)})
+
+        marked_at && Map.get(inserted_at_map, post_id) &&
+            DateTime.compare(Map.get(inserted_at_map, post_id), marked_at) != :gt ->
+          Map.put(acc, post_id, %{seen: true, new_reply_count: 0})
+
+        true ->
+          Map.put(acc, post_id, %{seen: false, new_reply_count: 0})
       end
     end)
   end

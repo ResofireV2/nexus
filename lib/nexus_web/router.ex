@@ -185,6 +185,9 @@ defmodule NexusWeb.Router do
     get  "/posts/:id/read-position",  PostController, :read_position
     post "/posts/:id/read-position",  PostController, :save_read_position
 
+    # Feed read state
+    post "/feed/mark-all-read", FeedController, :mark_all_read
+
     # User profile media (auth required — access enforced in controller)
     get "/users/:username/uploads", UserContentController, :uploads
   end

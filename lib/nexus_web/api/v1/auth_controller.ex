@@ -542,7 +542,8 @@ defmodule NexusWeb.API.V1.AuthController do
       email_verified: user.email_verified,
       inserted_at: user.inserted_at,
       preferences: user.preferences || %{},
-      has_push_subscription: Nexus.Accounts.has_push_subscription?(user.id)
+      has_push_subscription: Nexus.Accounts.has_push_subscription?(user.id),
+      marked_all_as_read_at: user.marked_all_as_read_at
     }
   end
 

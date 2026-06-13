@@ -20,6 +20,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
   const loadingRef=useRef(false);
   const cursorRef=useRef(null);
   const hasMoreRef=useRef(false);
+  const [markingAllRead,setMarkingAllRead]=useState(false);
   const [openPostMenu,setOpenPostMenu]=useState(null);
   const [subscribed,setSubscribed]=useState(false);
   const [subLoading,setSubLoading]=useState(false);
@@ -81,6 +82,23 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     }));
   },[liveReplyUpdate, currentUser]);
   const activeSpace = useMemo(() => spaces.find(s=>s.slug===spaceFilter), [spaces, spaceFilter]);
+
+  const hasUnread = posts.some(p => p.seen === false || p.new_reply_count > 0);
+
+  const markAllRead = async () => {
+    if(!currentUser || markingAllRead) return;
+    setMarkingAllRead(true);
+    // Optimistic: clear all unread indicators immediately.
+    setPosts(prev => prev.map(p => ({...p, seen: p.seen === null ? null : true, new_reply_count: 0})));
+    try {
+      await api.post("/feed/mark-all-read", {});
+    } catch(_) {
+      // On failure reload to restore accurate state.
+      load(true);
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
 
   const load=useCallback(async(reset=true,cur=null)=>{
     setLoading(true); loadingRef.current=true;
@@ -190,6 +208,17 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                 <div className="sort-pills">
                   {["latest","rising","top"].map(s=><div key={s} className={`sort-pill ${sort===s?"active":""}`} onClick={()=>setSort(s)}>{s}</div>)}
                 </div>
+              )}
+              {currentUser && hasUnread && (!followingOnly || activeFollowingTab === "posts") && (
+                <button
+                  onClick={markAllRead}
+                  disabled={markingAllRead}
+                  title="Mark all as read"
+                  style={{background:"none",border:"none",color:"var(--t4)",cursor:"pointer",padding:"4px 6px",borderRadius:6,fontSize:13,display:"flex",alignItems:"center",transition:"color .1s",opacity:markingAllRead?0.5:1}}
+                  onMouseEnter={e=>e.currentTarget.style.color="var(--t2)"}
+                  onMouseLeave={e=>e.currentTarget.style.color="var(--t4)"}>
+                  <i className="fa-solid fa-check-double"/>
+                </button>
               )}
             </div>
           </div>

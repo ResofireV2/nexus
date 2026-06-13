@@ -35,6 +35,8 @@ defmodule Nexus.Accounts.User do
     field :preferences,          :map, default: %{}
     field :push_subscription,    :map
 
+    field :marked_all_as_read_at, :utc_datetime
+
     field :magic_token,          :string
     field :magic_token_sent_at,  :utc_datetime
 
