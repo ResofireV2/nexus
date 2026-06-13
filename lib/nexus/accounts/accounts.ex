@@ -588,6 +588,22 @@ defmodule Nexus.Accounts do
 
   def mark_all_read(user) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    # Sync any existing post_reads rows so their reply_count matches the post's
+    # current reply_count. This eliminates the new_reply_count delta for posts
+    # the user has previously opened, so the unread dot clears for those too.
+    Repo.query!(
+      """
+      UPDATE post_reads
+      SET reply_count = posts.reply_count
+      FROM posts
+      WHERE post_reads.post_id = posts.id
+        AND post_reads.user_id = $1
+        AND post_reads.reply_count < posts.reply_count
+      """,
+      [user.id]
+    )
+
     user
     |> Ecto.Changeset.change(marked_all_as_read_at: now)
     |> Repo.update()
