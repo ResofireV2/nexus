@@ -10,11 +10,12 @@ defmodule NexusWeb.Router do
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
         "default-src 'self'; " <>
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; " <>
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://challenges.cloudflare.com; " <>
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; " <>
         "font-src 'self' https://fonts.gstatic.com; " <>
         "img-src 'self' data: https:; " <>
         "connect-src 'self' wss: https://cdn.jsdelivr.net; " <>
+        "frame-src 'self' https://challenges.cloudflare.com; " <>
         "frame-ancestors 'self'; " <>
         "base-uri 'self';"
     }
