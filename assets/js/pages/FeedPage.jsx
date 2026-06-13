@@ -58,9 +58,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
 
   // Apply live reply count updates. When a new reply is created anywhere on
   // the forum, the backend broadcasts {post_id, reply_count, user_id} on
-  // feed:global. We update the matching post in local state so the count and
-  // +N pill update without a reload. Skips own replies (no self-notification)
-  // and any updates that predate this component mount (stale replay guard).
+  // feed:global. new_reply_count is derived as (live reply_count - read_at_count)
+  // rather than incremented, so the update is idempotent — replaying it
+  // never double-counts. Skips own replies and updates predating this mount.
   useEffect(()=>{
     if(!liveReplyUpdate) return;
     if(liveReplyUpdate.seq <= lastAppliedSeq.current) return;
@@ -70,11 +70,13 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     const isOwnReply = currentUser && user_id === currentUser.id;
     setPosts(prev => prev.map(p => {
       if(p.id !== post_id) return p;
-      // Always update the visible reply count to the authoritative value.
-      // Only increment new_reply_count for replies by other users on seen posts.
-      const newReplyCount = (!isOwnReply && p.seen === true)
-        ? (p.new_reply_count||0) + 1
-        : (p.new_reply_count||0);
+      // read_at_count is the reply count at the time the user last read this
+      // post, stored on the post object when the feed loaded. Derive
+      // new_reply_count from it so repeated updates are idempotent.
+      const readAtCount = p.read_at_count ?? (p.reply_count - (p.new_reply_count||0));
+      const newReplyCount = (isOwnReply || p.seen !== true)
+        ? (p.new_reply_count||0)
+        : Math.max(0, reply_count - readAtCount);
       return {...p, reply_count, new_reply_count: newReplyCount};
     }));
   },[liveReplyUpdate, currentUser]);

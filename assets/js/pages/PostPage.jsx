@@ -605,6 +605,15 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
         await clearDraft();
         // reply_count is incremented by the replyFn WebSocket handler which
         // fires for all viewers including the poster — do not increment here.
+        // Save read-position with the new reply so the feed doesn't show this
+        // reply as unread when the user returns to the feed.
+        setPost(q => {
+          if(q && currentUser) {
+            const newCount = (q.reply_count||0) + 1;
+            api.post(`/posts/${postId}/read-position`, {last_reply_id: d.reply.id, reply_count: newCount}).catch(()=>{});
+          }
+          return q;
+        });
       }
       else toast(d.error||"Failed","err"); }
     finally { setSubmitting(false); }
