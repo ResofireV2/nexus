@@ -480,6 +480,24 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
         setLastReadReplyId(rp.last_reply_id || null);
         if(rp.last_reply_id) setLastReadCount(rp.reply_count||0);
         if(currentUser){
+          // Mark the post as seen immediately on open. This ensures posts with
+          // 0 replies get a post_reads row, and updates the stored reply_count
+          // to the current total so +N on the feed reflects only truly new
+          // replies added after this visit. Only write when the stored count
+          // is behind the current total (or no row exists yet).
+          const storedCount = rp.reply_count || 0;
+          const currentCount = pd.post?.reply_count || 0;
+          if(!rp.last_reply_id && currentCount === 0) {
+            // 0-reply post — create/update the row so seen=true on the feed.
+            api.post(`/posts/${postId}/read-position`, {last_reply_id: null, reply_count: 0}).catch(()=>{});
+          } else if(currentCount > storedCount) {
+            // Post has more replies than stored — advance the high-water mark
+            // to current total so +N only fires for replies after this visit.
+            const lastReply = (rd.replies||[]).length > 0 ? rd.replies[(rd.replies||[]).length-1] : null;
+            const lastReplyId = lastReply ? lastReply.id : (rp.last_reply_id || null);
+            api.post(`/posts/${postId}/read-position`, {last_reply_id: lastReplyId, reply_count: currentCount}).catch(()=>{});
+          }
+
           // Two focused requests instead of fetching all saved items just to
           // check one post. GET /posts/:id/saved → {saved: bool},
           // GET /posts/:id/replies/saved → {saved_reply_ids: [...]}.
