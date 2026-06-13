@@ -5,7 +5,7 @@ defmodule Nexus.Forum do
 
   import Ecto.Query
   alias Nexus.Repo
-  alias Nexus.Forum.{Space, Tag, Post, Reply, Reaction, SpaceSubscription, TagSubscription, PostSave}
+  alias Nexus.Forum.{Space, Tag, Post, Reply, Reaction, SpaceSubscription, TagSubscription, PostSave, PostFollow}
 
   # ---------------------------------------------------------------------------
   # Spaces
@@ -545,7 +545,13 @@ defmodule Nexus.Forum do
       join: ts in TagSubscription, on: ts.tag_id == pt.tag_id and ts.user_id == ^user_id,
       select: p.id
 
-    where(query, [p], p.id in subquery(space_sub_query) or p.id in subquery(tag_sub_query))
+    # Individual posts the user explicitly follows
+    post_sub_query =
+      from f in PostFollow,
+      where: f.user_id == ^user_id,
+      select: f.post_id
+
+    where(query, [p], p.id in subquery(space_sub_query) or p.id in subquery(tag_sub_query) or p.id in subquery(post_sub_query))
   end
 
   defp filter_by_username(query, username) do
@@ -871,8 +877,6 @@ defmodule Nexus.Forum do
 
 
   # ── Post follows ──────────────────────────────────────────────────────────
-
-  alias Nexus.Forum.PostFollow
 
   def follow_post(user_id, post_id) do
     %PostFollow{}
