@@ -41,8 +41,10 @@ defmodule NexusWeb.API.V1.FeedController do
         _ -> %{}
       end
 
+    read_status_map = Forum.read_status_for_posts(post_ids, conn.assigns[:current_user] && conn.assigns.current_user.id)
+
     json(conn, %{
-      posts: Enum.map(posts, &post_json(&1, last_reply_map, recent_users_map)),
+      posts: Enum.map(posts, &post_json(&1, last_reply_map, recent_users_map, read_status_map)),
       next_cursor: next_cursor
     })
     end
@@ -70,8 +72,9 @@ defmodule NexusWeb.API.V1.FeedController do
   end
 
 
-  defp post_json(post, last_reply_map \\ %{}, recent_users_map \\ %{}) do
+  defp post_json(post, last_reply_map \\ %{}, recent_users_map \\ %{}, read_status_map \\ %{}) do
     recent_users = Map.get(recent_users_map, post.id, [])
+    read_status  = Map.get(read_status_map, post.id, %{seen: nil, new_reply_count: 0})
     %{
       id: post.id,
       title: post.title,
@@ -90,7 +93,9 @@ defmodule NexusWeb.API.V1.FeedController do
       tags: Enum.map(post.tags, &tag_json/1),
       user: user_json(post.user),
       last_reply_user: user_json(Map.get(last_reply_map, post.id)),
-      recent_users: Enum.map(recent_users, &user_json/1)
+      recent_users: Enum.map(recent_users, &user_json/1),
+      seen: read_status.seen,
+      new_reply_count: read_status.new_reply_count
     }
   end
 

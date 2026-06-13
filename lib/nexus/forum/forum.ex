@@ -1008,4 +1008,40 @@ defmodule Nexus.Forum do
     )
     {:ok, :unaccepted}
   end
+
+  # ── Read status ───────────────────────────────────────────────────────────
+
+  @doc """
+  Returns a map of read status for the given post IDs and user.
+
+  Each entry is %{post_id => %{seen: boolean, new_reply_count: integer}}.
+  `seen` is true when a post_reads row exists for this user+post.
+  `new_reply_count` is the number of replies added since the user last read
+  the post, computed as post.reply_count - post_reads.reply_count. Posts not
+  in the result map have never been seen by the user.
+
+  Returns %{} for an empty post list.
+  """
+  def read_status_for_posts(_post_ids, nil), do: %{}
+  def read_status_for_posts([], _user_id), do: %{}
+  def read_status_for_posts(post_ids, user_id) do
+    rows =
+      from(r in Nexus.Forum.PostRead,
+        join: p in Post, on: p.id == r.post_id,
+        where: r.user_id == ^user_id and r.post_id in ^post_ids,
+        select: {r.post_id, p.reply_count - r.reply_count}
+      )
+      |> Repo.all()
+
+    seen_ids = MapSet.new(rows, fn {post_id, _} -> post_id end)
+
+    Enum.reduce(post_ids, %{}, fn post_id, acc ->
+      if MapSet.member?(seen_ids, post_id) do
+        {^post_id, delta} = Enum.find(rows, fn {id, _} -> id == post_id end)
+        Map.put(acc, post_id, %{seen: true, new_reply_count: max(delta, 0)})
+      else
+        Map.put(acc, post_id, %{seen: false, new_reply_count: 0})
+      end
+    end)
+  end
 end
