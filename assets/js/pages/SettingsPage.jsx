@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { api } from "../lib/api";
 import { ago, formatApiErrors } from "../lib/utils";
 import { toast } from "../components/Toasts";
-import { Select, Toggle } from "../components/Select";
 import { F } from "../admin/FormHelpers";
 
 const applyTheme   = (...args) => window._applyTheme   && window._applyTheme(...args);
@@ -510,38 +509,28 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   },[pushSupported]);
 
   const subscribePush = async () => {
-    console.log("subscribePush: started");
     setPushLoading(true); setPushError(null);
     try {
       // Fetch VAPID public key
-      console.log("subscribePush: fetching VAPID key");
       const kr = await fetch("/api/v1/pwa/vapid-public-key");
-      console.log("subscribePush: VAPID key response status", kr.status);
       if(!kr.ok) { setPushError("Push notifications are not configured. Contact an admin."); return; }
       const {public_key} = await kr.json();
-      console.log("subscribePush: VAPID key received, length", public_key?.length);
 
       // Convert base64url key to Uint8Array for applicationServerKey
       const padding = "=".repeat((4 - public_key.length % 4) % 4);
       const base64  = (public_key + padding).replace(/-/g,"+").replace(/_/g,"/");
       const raw     = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      console.log("subscribePush: key converted, bytes", raw.length);
 
       // Subscribe via PushManager
-      console.log("subscribePush: waiting for service worker");
       const reg = await navigator.serviceWorker.ready;
-      console.log("subscribePush: calling pushManager.subscribe");
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: raw
       });
-      console.log("subscribePush: got subscription", sub.endpoint?.slice(0,60));
 
       // POST subscription to server
       const subJson = sub.toJSON();
-      console.log("subscribePush: posting to server", subJson);
       const d = await api.post("/push/subscribe", {subscription: subJson});
-      console.log("subscribePush: server response", d);
       if(d.ok) {
         setPushSubscribed(true);
         api.get("/push/subscriptions").then(d=>{ if(d.subscriptions) setPushSubs(d.subscriptions); }).catch(()=>{});

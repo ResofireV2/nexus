@@ -44,10 +44,6 @@ defmodule Nexus.Admin do
   end
 
   def extended_stats do
-    alias Nexus.Forum.{Post, Reply, Space}
-    alias Nexus.Accounts.User
-    alias Nexus.Moderation.Report
-
     # Time boundaries
     week_ago  = days_ago(7)
     month_ago = days_ago(30)

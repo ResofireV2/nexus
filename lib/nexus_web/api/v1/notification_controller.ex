@@ -4,7 +4,6 @@ defmodule NexusWeb.API.V1.NotificationController do
   import Ecto.Query
   alias Nexus.Notifications
   alias Nexus.Repo
-  alias Nexus.Forum.Reply
 
   # GET /api/v1/notifications
   def index(conn, params) do
@@ -28,7 +27,7 @@ defmodule NexusWeb.API.V1.NotificationController do
   end
 
   # GET /api/v1/notifications/declared-types
-  # Piece 7: returns declared notification types from all currently-enabled
+  # Returns declared notification types from all currently-enabled
   # extensions, grouped per-extension. The preferences page renders one
   # section per extension below the built-in notification types.
   def declared_types(conn, _params) do
@@ -117,10 +116,11 @@ defmodule NexusWeb.API.V1.NotificationController do
 
     json(conn, %{ok: true})
   end
+
   # Called by extension JS bundles to notify a specific user.
   # The caller must supply slug (their extension's slug), target_user_id,
-  # and a type string. Piece 7: validates against the declared notification
-  # type when one exists; returns 422 on validation failure.
+  # and a type string. Validates against the declared notification type
+  # when one exists; returns 422 on validation failure.
   def create_extension(conn, params) do
     actor    = conn.assigns.current_user
     slug     = params["slug"]

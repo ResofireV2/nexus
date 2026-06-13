@@ -8,8 +8,8 @@ defmodule Nexus.Moderation do
   alias Nexus.Repo
   alias Nexus.Accounts
   alias Nexus.Forum
+  alias Nexus.Forum.{Post, Reply}
   alias Nexus.Moderation.{Log, Report}
-
   # ---------------------------------------------------------------------------
   # User moderation
   # ---------------------------------------------------------------------------
@@ -173,7 +173,6 @@ defmodule Nexus.Moderation do
   end
 
   def list_hidden_posts(opts \\ []) do
-    alias Nexus.Forum.{Post, Reply}
     import Ecto.Query
     type = Keyword.get(opts, :type, "all")
 

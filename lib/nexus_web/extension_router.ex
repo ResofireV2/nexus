@@ -26,7 +26,7 @@ defmodule NexusWeb.ExtensionRouter do
   # ---------------------------------------------------------------------------
 
   defp serve_asset(conn, slug, path_parts) do
-    # Piece 5: live disable applies to asset serving too. A disabled
+    # Live disable applies to asset serving too. A disabled
     # extension's JS bundle and static files should 404 so clients can't
     # load them after a refresh while disabled.
     if not Registry.enabled?(slug) do
@@ -98,7 +98,7 @@ defmodule NexusWeb.ExtensionRouter do
         |> json(%{error: "Extension \"#{slug}\" not found or not loaded"})
 
       not Registry.enabled?(slug) ->
-        # Piece 5: live disable. Extension is loaded but currently disabled —
+        # Live disable. Extension is loaded but currently disabled —
         # 404 the same as if it weren't installed. Admin can re-enable it
         # from the runtime panel.
         conn

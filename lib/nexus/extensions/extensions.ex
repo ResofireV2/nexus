@@ -186,7 +186,7 @@ defmodule Nexus.Extensions do
     module = Nexus.Extensions.Registry.get_module(ext.slug)
     warnings = []
 
-    # Call on_uninstall before removing anything. Piece 5: capture errors
+    # Call on_uninstall before removing anything. Capture errors
     # as warnings to surface to the admin in the uninstall response.
     warnings =
       if module && function_exported?(module, :on_uninstall, 0) do
@@ -203,7 +203,7 @@ defmodule Nexus.Extensions do
         warnings
       end
 
-    # Piece 5: cancel any pending Oban jobs owned by this extension's
+    # Cancel any pending Oban jobs owned by this extension's
     # module namespace. Workers nested under the extension's root module
     # (e.g. Gamepedia.Workers.* for a Gamepedia extension) get cancelled.
     # Jobs already running are NOT killed — they run to completion. Jobs
@@ -656,7 +656,7 @@ defmodule Nexus.Extensions do
                   set_load_status(slug, "loaded")
 
                 {:error, reason} ->
-                  # Piece 5: on_install raised. Module is loaded, registry is
+                  # on_install raised. Module is loaded, registry is
                   # populated, migrations have run — the extension is "installed"
                   # but its initialization hook failed. Surface this to the
                   # admin instead of pretending everything is fine.
@@ -899,8 +899,6 @@ defmodule Nexus.Extensions do
     end
   end
 
-
-
   # ---------------------------------------------------------------------------
   # Store — fetch the community registry
   # ---------------------------------------------------------------------------
@@ -1065,7 +1063,7 @@ defmodule Nexus.Extensions do
     handlers =
       Nexus.Extensions.Registry.hooks_for(event)
       |> Enum.filter(fn {slug, _module} ->
-        # Piece 5: skip disabled extensions. Hot enable/disable means the
+        # Skip disabled extensions. Hot enable/disable means the
         # registry may have entries for slugs whose modules are still
         # loaded but whose admin disabled them. Filter them out here.
         Nexus.Extensions.Registry.enabled?(slug)

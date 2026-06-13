@@ -135,7 +135,7 @@ defmodule Nexus.Workers.DeliverNotification do
     # Respect the "web" (in-app) notification preference.
     # If the user has disabled web notifications for this type, skip entirely —
     # don't create the DB row, don't push, don't email.
-    # Piece 7: ctx-aware variant resolves ext_type → preference key for
+    # ctx-aware variant resolves ext_type → preference key for
     # extension notifications.
     if web_enabled_for_ctx?(user, attrs) do
       case Notifications.create_notification(attrs) do
@@ -164,7 +164,7 @@ defmodule Nexus.Workers.DeliverNotification do
 
   defp do_maybe_send_email(notification) do
     user = Nexus.Accounts.get_user(notification.user_id)
-    # Piece 7: ctx-aware variant for extension ext_type resolution.
+    # ctx-aware variant for extension ext_type resolution.
     with true <- email_enabled_for_ctx?(user, notification),
          actor_name <- actor_display(notification.actor) do
       Task.start(fn ->
@@ -183,7 +183,7 @@ defmodule Nexus.Workers.DeliverNotification do
     Map.get(prefs, "email", false) == true
   end
 
-  # Piece 7: variant that takes the full notification context. For
+  # Variant that takes the full notification context. For
   # extension notifications, the preference key is the ext_type (the
   # extension's own notification key), not the generic "extension" string.
   # The default value also comes from the extension's declared
@@ -448,7 +448,7 @@ defmodule Nexus.Workers.DeliverNotification do
     Map.get(prefs, "push", true) != false
   end
 
-  # Piece 7: ctx-aware variant — see email_enabled_for_ctx? for rationale.
+  # ctx-aware variant — see email_enabled_for_ctx? for rationale.
   defp push_enabled_for_ctx?(nil, _ctx), do: false
   defp push_enabled_for_ctx?(user, %{type: "extension", data: data}) when is_map(data) do
     key = data["ext_type"]
@@ -465,7 +465,7 @@ defmodule Nexus.Workers.DeliverNotification do
     Map.get(prefs, "web", true) != false
   end
 
-  # Piece 7: ctx-aware variant — see email_enabled_for_ctx? for rationale.
+  # ctx-aware variant — see email_enabled_for_ctx? for rationale.
   defp web_enabled_for_ctx?(nil, _ctx), do: true
   defp web_enabled_for_ctx?(user, %{type: "extension", data: data}) when is_map(data) do
     key = data["ext_type"]
@@ -474,7 +474,7 @@ defmodule Nexus.Workers.DeliverNotification do
   end
   defp web_enabled_for_ctx?(user, %{type: type}), do: web_enabled_for?(user, type)
 
-  # Piece 7: shared channel resolver for extension notifications.
+  # Shared channel resolver for extension notifications.
   #
   # The user's preference JSON looks like:
   #

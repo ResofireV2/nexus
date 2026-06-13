@@ -76,7 +76,7 @@ defmodule NexusWeb.API.V1.ReplyController do
               :pass -> :ok
             end
 
-            # Piece 4: dispatch any compose attachments to their declaring
+            # Dispatch any compose attachments to their declaring
             # extensions. Fires regardless of pending state.
             Nexus.Extensions.SideData.persist_attachments(
               "reply", reply.id, params["attachments"] || []

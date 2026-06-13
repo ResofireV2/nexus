@@ -5,6 +5,8 @@ defmodule NexusWeb.API.V1.AdminController do
   import Ecto.Query
   alias Nexus.Repo
   alias Nexus.Groups
+  alias Nexus.Forum.{Post, Reply}
+  alias Nexus.AntiSpam.CompositionVerdict
 
   # GET /api/v1/admin/dashboard
   def dashboard(conn, _params) do
@@ -310,9 +312,6 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/admin/pending — list posts and replies pending approval
   def pending(conn, _params) do
-    alias Nexus.Forum.{Post, Reply}
-    alias Nexus.AntiSpam.CompositionVerdict
-
     posts = Repo.all(
       from p in Post,
       where: p.pending_approval == true,

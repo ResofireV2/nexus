@@ -7,6 +7,7 @@ defmodule Nexus.Accounts do
   import Ecto.Query
   alias Nexus.Repo
   alias Nexus.Accounts.{User, RefreshToken, PushSubscription}
+  alias Nexus.Activity.UserDailyStat
   alias Nexus.Auth.JWT
 
   # ---------------------------------------------------------------------------
@@ -19,7 +20,6 @@ defmodule Nexus.Accounts do
 
   def list_users_public(sort \\ "newest") do
     import Ecto.Query
-    alias Nexus.Activity.UserDailyStat
 
     base =
       from u in User,
@@ -54,7 +54,6 @@ defmodule Nexus.Accounts do
 
   def search_users(q, sort \\ "newest") do
     import Ecto.Query
-    alias Nexus.Activity.UserDailyStat
     pattern = "%#{q}%"
 
     base =

@@ -79,7 +79,7 @@ defmodule NexusWeb.API.V1.PostController do
           :pass -> :ok
         end
 
-        # Piece 4: dispatch any compose attachments to their declaring
+        # Dispatch any compose attachments to their declaring
         # extensions. Fires regardless of pending state — attachments
         # persist into the extension's tables; whether the parent post
         # is visible to others is a separate concern.
