@@ -85,8 +85,8 @@ function NotificationsPage({navigate, onCountChange}) {
     return window.NexusExtensions.getNotifType(n.type);
   };
 
-  const getIcon      = n => resolveExtType(n)?.icon      || ICON[n.type]      || "fa-bell";
-  const getIconColor = n => resolveExtType(n)?.iconColor || ICON_COLOR[n.type]|| "var(--ac)";
+  const getIcon      = n => resolveExtType(n)?.icon      || n.data?.icon       || ICON[n.type]      || "fa-bell";
+  const getIconColor = n => resolveExtType(n)?.iconColor || n.data?.icon_color || ICON_COLOR[n.type]|| "var(--ac)";
   const renderBody   = n => {
     const extType = resolveExtType(n);
     if (extType?.renderBody) return extType.renderBody(n);
