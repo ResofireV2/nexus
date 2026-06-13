@@ -212,7 +212,10 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                       <div className="thread-av-wrap" style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
-                          <div className="thread-title" style={p.seen === false ? {fontWeight: 600} : undefined}>{p.title}</div>
+                          {(p.seen === false || p.new_reply_count > 0) && (
+                            <div style={{width:7,height:7,borderRadius:"50%",background:"var(--ac)",flexShrink:0,marginRight:8,alignSelf:"center"}}/>
+                          )}
+                          <div className="thread-title" style={p.seen === null || p.seen === undefined ? undefined : p.seen && p.new_reply_count === 0 ? {color:"var(--t3)"} : {color:"var(--t1)"}}>{p.title}</div>
                           {p.pinned&&<div style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"2px 8px",borderRadius:20,background:"var(--ac-bg)",color:"var(--ac-text)",border:"0.5px solid var(--ac-border)",flexShrink:0,marginLeft:8}}>
                             <i className="fa-solid fa-thumbtack" style={{fontSize:10}}/>{p.pin_scope==="global"?"Pinned":"Pinned to space"}
                           </div>}
