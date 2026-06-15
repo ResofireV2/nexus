@@ -919,7 +919,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
       {/* Preview modal */}
       {showPreview && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}}
-          onClick={e=>{if(e.target===e.currentTarget)setShowPreview(false);}}>
+          onMouseDown={e=>{if(e.target===e.currentTarget)setShowPreview(false);}}>
           <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:680,maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 8px 40px rgba(0,0,0,0.5)"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
               <span style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>Preview</span>

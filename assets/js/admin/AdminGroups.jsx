@@ -110,7 +110,7 @@ function GroupModal({ group, onClose, onSaved }) {
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", display: "flex",
                alignItems: "center", justifyContent: "center", zIndex: 500, padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}
+      onMouseDown={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
         width: "100%", maxWidth: 500, background: "var(--s2)",
@@ -306,7 +306,7 @@ function MembersModal({ group, onClose }) {
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", display: "flex",
                alignItems: "center", justifyContent: "center", zIndex: 500, padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}
+      onMouseDown={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
         width: "100%", maxWidth: 440, background: "var(--s2)",

@@ -379,7 +379,7 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
 
       {/* Delete confirmation modal */}
       {showDeleteModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={e=>{if(e.target===e.currentTarget)setShowDeleteModal(false);}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onMouseDown={e=>{if(e.target===e.currentTarget)setShowDeleteModal(false);}}>
           <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,overflow:"hidden",boxShadow:"0 8px 40px rgba(0,0,0,0.5)",maxWidth:440,width:"100%"}}>
             <div style={{padding:"20px 22px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:12}}>
               <div style={{width:36,height:36,borderRadius:9,background:"rgba(248,113,113,0.1)",border:"0.5px solid rgba(248,113,113,0.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>

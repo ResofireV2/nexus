@@ -339,7 +339,7 @@ function GroupSettingsModal({thread, currentUser, onClose, onUpdate}) {
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onMouseDown={e=>e.target===e.currentTarget&&onClose()}>
       <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,width:"100%",maxWidth:440,display:"flex",flexDirection:"column",gap:16}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Group settings</div>

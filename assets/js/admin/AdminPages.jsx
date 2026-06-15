@@ -465,7 +465,7 @@ function WidgetNameModal({ title, value, onChange, saving, onSave, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: "var(--s1)", border: "0.5px solid var(--b2)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 420 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 20 }}>{title}</div>
         <div style={{ fontSize: 12, color: "var(--t4)", marginBottom: 6 }}>Widget name</div>
@@ -495,7 +495,7 @@ function WidgetDeleteModal({ widget, assignedPages, onConfirm, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: "var(--s1)", border: "0.5px solid var(--b2)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 460 }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: "var(--t1)", marginBottom: 8 }}>
           Delete "{widget.name}"?

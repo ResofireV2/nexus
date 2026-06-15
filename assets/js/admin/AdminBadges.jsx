@@ -378,7 +378,7 @@ function AdminBadgesPanel() {
       }
 
       {editing&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&closeEdit()}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onMouseDown={e=>e.target===e.currentTarget&&closeEdit()}>
           <div style={{width:"100%",maxWidth:480,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:28,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:16,fontWeight:600,color:"var(--t1)",marginBottom:20}}>{editing==="new"?"New badge":"Edit badge"}</div>
             <div style={{marginBottom:16}}>
@@ -443,7 +443,7 @@ function AdminBadgesPanel() {
       )}
 
       {holders&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setHolders(null)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onMouseDown={e=>e.target===e.currentTarget&&setHolders(null)}>
           <div style={{width:"100%",maxWidth:440,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,maxHeight:"80vh",overflowY:"auto"}}>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>{holders.badge.name}</div>
             <div style={{fontSize:12,color:"var(--t5)",marginBottom:16}}>{holders.list.length} holder{holders.list.length!==1?"s":""}</div>
@@ -471,7 +471,7 @@ function AdminBadgesPanel() {
       )}
 
       {awardTarget&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onClick={e=>e.target===e.currentTarget&&setAwardTarget(null)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:20}} onMouseDown={e=>e.target===e.currentTarget&&setAwardTarget(null)}>
           <div style={{width:"100%",maxWidth:360,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24}}>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Award badge</div>
             <div style={{fontSize:12,color:"var(--t5)",marginBottom:16}}>Manually award <strong style={{color:"var(--t3)"}}>{awardTarget.name}</strong> to a user.</div>
