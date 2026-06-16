@@ -4125,6 +4125,7 @@ function App() {
   const [pwaCfgPublic,setPwaCfgPublic]=useState({});
   const [oauthProviders,setOauthProviders]=useState({google:false,github:false});
   const [turnstileSiteKey,setTurnstileSiteKey]=useState(null);
+  const [cookieConsentCfg,setCookieConsentCfg]=useState(null);
 
   // Detect iOS Safari (not already installed, not already dismissed)
   const isIosSafari = (()=>{
@@ -4309,7 +4310,7 @@ function App() {
 
   useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
     // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};const app={...(s.appearance||{}),active_theme_dark:s.active_theme_dark||null,active_theme_light:s.active_theme_light||null};applyBranding(app,s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);window._postCfg=s.posting||{};
+    api.get("/branding").then(d=>{const s=d.settings||{};const app={...(s.appearance||{}),active_theme_dark:s.active_theme_dark||null,active_theme_light:s.active_theme_light||null};applyBranding(app,s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);setCookieConsentCfg(s.cookie_consent||null);window._postCfg=s.posting||{};
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
       const digest=s.digest||{};
@@ -4557,8 +4558,118 @@ function App() {
         />
       )}
       <AndroidInstallSheet pwaCfg={pwaCfgPublic} appBranding={appBranding}/>
+      {(!currentUser || cookieConsentCfg?.show_to_members) && <CookieBanner config={cookieConsentCfg}/>}
       <Toasts/>
     </>
+  );
+}
+
+// ── CookieBanner ──────────────────────────────────────────────────────────────
+//
+// Shown on first visit when cookie_consent.enabled is true. Persists choice
+// in localStorage under "nexus.cookie_consent" as "all" | "essential".
+// Exposes window.NexusCookieConsent = { level: "all"|"essential"|null }
+// so extensions can gate optional cookies on user consent.
+
+function CookieBanner({ config }) {
+  const STORAGE_KEY = "nexus.cookie_consent";
+  const saved = (() => { try { return localStorage.getItem(STORAGE_KEY); } catch { return null; } })();
+  const [dismissed, setDismissed] = useState(!!saved);
+  const [expanded, setExpanded] = useState(false);
+  const [prefs, setPrefs] = useState(() => {
+    // Initialise category toggles: required categories always on, others on by default
+    const cats = config?.categories || [];
+    return Object.fromEntries(cats.map(c => [c.key, c.required || saved === "all" || !saved]));
+  });
+
+  // Expose consent level globally for extensions
+  useEffect(() => {
+    window.NexusCookieConsent = { level: saved || null };
+  }, []);
+
+  if (dismissed || !config?.enabled) return null;
+
+  const save = (level) => {
+    try { localStorage.setItem(STORAGE_KEY, level); } catch {}
+    window.NexusCookieConsent = { level };
+    setDismissed(true);
+  };
+
+  const acceptAll   = () => save("all");
+  const rejectOpt   = () => save("essential");
+  const savePrefs   = () => {
+    // If all optional categories are toggled on treat as "all", else "essential"
+    const optCats = (config?.categories || []).filter(c => !c.required);
+    const allOn   = optCats.every(c => prefs[c.key]);
+    save(allOn ? "all" : "essential");
+  };
+
+  const privacyLink = config?.privacy_policy_url
+    ? <a href={config.privacy_policy_url} target="_blank" rel="noopener noreferrer"
+         style={{color:"var(--ac-text)",textDecoration:"none",marginLeft:4}}>Privacy policy</a>
+    : null;
+
+  const bannerStyle = {
+    position:"fixed", bottom:0, left:0, right:0,
+    background:"var(--s2)", borderTop:"0.5px solid var(--b3)",
+    zIndex:9999, boxShadow:"0 -8px 32px rgba(0,0,0,0.4)"
+  };
+  const innerStyle = { maxWidth:900, margin:"0 auto", padding:"18px 24px" };
+
+  if (expanded) {
+    const categories = config?.categories || [];
+    return (
+      <div style={bannerStyle}>
+        <div style={innerStyle}>
+          <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:3}}>Manage cookie preferences</div>
+          <div style={{fontSize:12,color:"var(--t3)",marginBottom:18}}>
+            Choose which cookies you allow. Essential cookies cannot be disabled as they are required for the forum to function.
+            {privacyLink}
+          </div>
+          {categories.map(cat => (
+            <div key={cat.key} style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,padding:"12px 0",borderBottom:"0.5px solid rgba(255,255,255,0.04)"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>
+                  {cat.name}
+                  {cat.required && <span style={{fontSize:10,background:"rgba(255,255,255,0.06)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"2px 8px",color:"var(--t4)",marginLeft:8}}>Always on</span>}
+                </div>
+                <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>{cat.description}</div>
+              </div>
+              <div style={{flexShrink:0,paddingTop:2}}>
+                <div
+                  style={{width:36,height:20,borderRadius:10,background:prefs[cat.key]?"var(--ac)":"var(--tgl-off)",position:"relative",cursor:cat.required?"not-allowed":"pointer",transition:"background .2s",flexShrink:0,opacity:cat.required?0.5:1}}
+                  onClick={()=>{ if(!cat.required) setPrefs(p=>({...p,[cat.key]:!p[cat.key]})); }}>
+                  <div style={{position:"absolute",top:3,left:prefs[cat.key]?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,paddingTop:14,borderTop:"0.5px solid var(--b1)",marginTop:4}}>
+            <button className="btn-ghost" style={{fontSize:12,padding:"6px 16px"}} onClick={rejectOpt}>Reject optional</button>
+            <button className="btn-primary" style={{fontSize:13,padding:"8px 20px"}} onClick={savePrefs}>Save preferences</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={bannerStyle}>
+      <div style={{...innerStyle,display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:220}}>
+          <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Cookie preferences</div>
+          <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.55}}>
+            {config?.banner_message || "We use cookies to keep you signed in and improve your experience."}
+            {privacyLink}
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+          <button onClick={()=>setExpanded(true)} style={{fontSize:12,color:"var(--t4)",cursor:"pointer",background:"none",border:"none",fontFamily:"inherit",padding:0,textDecoration:"underline",textUnderlineOffset:2}}>Manage preferences</button>
+          <button className="btn-ghost" style={{fontSize:12,padding:"6px 16px"}} onClick={rejectOpt}>Reject optional</button>
+          <button className="btn-primary" style={{fontSize:13,padding:"8px 20px"}} onClick={acceptAll}>Accept all</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

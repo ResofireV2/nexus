@@ -253,6 +253,16 @@ defmodule NexusWeb.API.V1.AdminController do
           else
             nil
           end
+        end).(),
+        cookie_consent: (fn ->
+          cc = Admin.get_setting("cookie_consent") || %{}
+          %{
+            enabled:            cc["enabled"] == true,
+            show_to_members:    cc["show_to_members"] == true,
+            privacy_policy_url: cc["privacy_policy_url"] || "",
+            banner_message:     cc["banner_message"] || "",
+            categories:         cc["categories"] || []
+          }
         end).()
       }
     })

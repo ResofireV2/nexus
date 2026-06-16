@@ -348,6 +348,17 @@ defmodule Nexus.Admin do
       "turnstile_enabled"        => false,
       "turnstile_site_key"       => "",
       "turnstile_secret_key"     => ""
+    },
+    "cookie_consent" => %{
+      "enabled"             => false,
+      "show_to_members"     => false,
+      "privacy_policy_url"  => "",
+      "banner_message"      => "We use cookies to keep you signed in and improve your experience. Optional cookies may be set by extensions you have enabled.",
+      "categories"          => [
+        %{"key" => "essential",  "name" => "Essential",  "description" => "Required for login sessions and core forum functionality. Cannot be disabled.", "required" => true},
+        %{"key" => "analytics",  "name" => "Analytics",  "description" => "Help us understand how members use the forum so we can improve it.", "required" => false},
+        %{"key" => "marketing",  "name" => "Marketing",  "description" => "Used by extensions to deliver relevant content and promotions.", "required" => false}
+      ]
     }
   }
 

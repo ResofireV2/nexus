@@ -430,6 +430,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
   const [spamCfg,setSpamCfg]=useState({});
   const [integrationsCfg,setIntegrationsCfg]=useState({});
   const [reactionsCfg,setReactionsCfg]=useState({});
+  const [cookieCfg,setCookieCfg]=useState({});
   // Watch all cfg values and mark dirty — but only after the fetch has fully
   // settled. Captures the current gen at effect-run time; if the settled gen
   // hasn't caught up yet, this is still a hydration flush, not a user change.
@@ -437,7 +438,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     const gen = loadGen.current;
     if(settledGen.current < gen) return;
     setIsDirty(true);
-  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg,integrationsCfg,reactionsCfg]);
+  },[general,branding,emailCfg,uploadCfg,regCfg,postCfg,lbCfg,digestCfg,pwaCfg,spamCfg,integrationsCfg,reactionsCfg,cookieCfg]);
   const [pendingItems,setPendingItems]=useState([]);
   const [uploadStats,setUploadStats]=useState(null);
   const [uploads,setUploads]=useState([]);
@@ -461,7 +462,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     settingsLoadedOnce.current = true;
     loadGen.current += 1;
     const myGen = loadGen.current;
-    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});}).then(()=>{ settledGen.current = myGen; });
+    api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});setCookieCfg(s.cookie_consent||{});}).then(()=>{ settledGen.current = myGen; });
   },[currentUser]);
 
   // Live data — re-runs when currentUser changes (e.g. after session refresh).
@@ -596,6 +597,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
       {k:"themes",     icon:"fa-palette",               label:"themes"},
       {k:"pwa",        icon:"fa-mobile-screen",         label:"pwa"},
       {k:"integrations",icon:"fa-plug-circle-bolt",       label:"integrations"},
+      {k:"cookie-consent",icon:"fa-cookie-bite",           label:"cookie consent"},
     ]},
     {label:"manage", items:[
       {k:"members",    icon:"fa-users",                label:"members"},
@@ -679,7 +681,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           <button className="btn-ghost" disabled={!isDirty} onClick={()=>{
             loadGen.current += 1;
             const myGen = loadGen.current;
-            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});}).then(()=>{ settledGen.current = myGen; setIsDirty(false); toast("Discarded"); });
+            api.get("/admin/settings").then(d=>{const s=d.settings||{};setGeneral(s.general||{});setBranding(s.appearance||{});setEmailCfg(s.email||{});setUploadCfg(s.uploads||{});setRegCfg(s.registration||{});const pc=s.posting||{};setPostCfg(pc);window._postCfg=pc;window._reactionsCfg=s.reactions||{};setLbCfg(s.leaderboard||{});setDigestCfg(s.digest||{});setPwaCfg(s.pwa||{});setSpamCfg(s.anti_spam||{});setIntegrationsCfg(s.integrations||{});setReactionsCfg(s.reactions||{});setCookieCfg(s.cookie_consent||{});}).then(()=>{ settledGen.current = myGen; setIsDirty(false); toast("Discarded"); });
           }}>Discard</button>
           <button className="btn-primary" onClick={()=>{
             if(sec==="appearance") saveSection("appearance",branding);
@@ -701,6 +703,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             else if(sec==="moderation") saveSection("moderation",general);
             else if(sec==="pwa") saveSection("pwa",pwaCfg);
             else if(sec==="anti-spam") saveSection("anti_spam",spamCfg);
+            else if(sec==="cookie-consent") saveSection("cookie_consent",cookieCfg);
             else if(sec==="integrations") saveSection("integrations",integrationsCfg);
             else if(sec.startsWith("ext-panel-")&&window._nexusAdminSaveFn) window._nexusAdminSaveFn().then(()=>setIsDirty(false));
           }} disabled={saving||!isDirty} style={{opacity:isDirty?1:0.4,cursor:isDirty?"pointer":"default"}}>{saving?"…":"Save changes"}</button>
@@ -1253,6 +1256,93 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
           </>}
 
           {sec==="anti-spam"&&<AdminAntiSpamPanel spamCfg={spamCfg} setSpamCfg={setSpamCfg}/>}
+          {sec==="cookie-consent"&&<>
+            <div className="fgt">Cookie consent banner</div>
+
+            {/* Enable toggle */}
+            <div className="toggle-row">
+              <div>
+                <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>Enable cookie consent banner</div>
+                <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>Show a consent banner to visitors before any optional cookies are set. Required in many jurisdictions.</div>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginLeft:24,flexShrink:0}}>
+                <div className={`tgl-track ${cookieCfg.enabled?"on":""}`} onClick={()=>setCookieCfg(p=>({...p,enabled:!p.enabled}))} style={{width:36,height:20,borderRadius:10,background:cookieCfg.enabled?"var(--ac)":"var(--tgl-off)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:cookieCfg.enabled?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+                </div>
+                <span style={{fontSize:12,color:"var(--t3)"}}>{cookieCfg.enabled?"Enabled":"Disabled"}</span>
+              </label>
+            </div>
+
+            {/* Show to logged-in members toggle */}
+            <div className="toggle-row">
+              <div>
+                <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>Show to logged-in members</div>
+                <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>If off, the banner only appears for guests. Members are assumed to have consented at registration.</div>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginLeft:24,flexShrink:0}}>
+                <div className={`tgl-track ${cookieCfg.show_to_members?"on":""}`} onClick={()=>setCookieCfg(p=>({...p,show_to_members:!p.show_to_members}))} style={{width:36,height:20,borderRadius:10,background:cookieCfg.show_to_members?"var(--ac)":"var(--tgl-off)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:cookieCfg.show_to_members?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+                </div>
+                <span style={{fontSize:12,color:"var(--t3)"}}>{cookieCfg.show_to_members?"Enabled":"Disabled"}</span>
+              </label>
+            </div>
+
+            {/* Privacy policy URL */}
+            <F label="Privacy policy URL" hint="Linked from the banner as 'Privacy policy'. Leave blank to omit the link.">
+              <input className="fi" type="text" placeholder="https://example.com/privacy" value={cookieCfg.privacy_policy_url||""} onChange={e=>setCookieCfg(p=>({...p,privacy_policy_url:e.target.value}))}/>
+            </F>
+
+            {/* Banner message */}
+            <F label="Banner message" hint="Short text shown in the consent banner.">
+              <textarea className="fi" rows={2} style={{resize:"vertical",lineHeight:1.6}} value={cookieCfg.banner_message||""} onChange={e=>setCookieCfg(p=>({...p,banner_message:e.target.value}))}/>
+            </F>
+
+            {/* Categories */}
+            <div className="fgt" style={{marginTop:8}}>Cookie categories</div>
+            <div style={{fontSize:12,color:"var(--t4)",marginBottom:12}}>Define the categories shown when a visitor clicks "Manage preferences". Essential is always shown as required.</div>
+            <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:14}}>
+              {(cookieCfg.categories||[]).map((cat,i)=>(
+                <div key={cat.key||i} style={{display:"grid",gridTemplateColumns:"1fr auto auto",alignItems:"center",gap:12,padding:"11px 14px",borderBottom:i<(cookieCfg.categories||[]).length-1?"0.5px solid var(--b1)":"none"}}>
+                  <div>
+                    <span style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{cat.name}</span>
+                    {cat.required&&<span style={{fontSize:10,background:"rgba(255,255,255,0.06)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"2px 8px",color:"var(--t4)",marginLeft:8}}>Always on</span>}
+                    {cat.description&&<div style={{fontSize:11,color:"var(--t4)",marginTop:2}}>{cat.description}</div>}
+                  </div>
+                  <span style={{fontSize:11,color:"var(--t5)",whiteSpace:"nowrap"}}>{cat.required?"Required":"Optional"}</span>
+                  {cat.required
+                    ?<button className="btn-ghost" style={{fontSize:11,padding:"4px 10px",opacity:0.4,cursor:"not-allowed"}}>Edit</button>
+                    :<button className="btn-ghost" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>{
+                      const name    = window.prompt("Category name:",cat.name)||cat.name;
+                      const desc    = window.prompt("Description:",cat.description)||cat.description;
+                      const updated = [...(cookieCfg.categories||[])];
+                      updated[i]    = {...cat,name,description:desc};
+                      setCookieCfg(p=>({...p,categories:updated}));
+                    }}>Edit</button>
+                  }
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button className="btn-ghost" style={{fontSize:12,padding:"5px 14px"}} onClick={()=>{
+                const name = window.prompt("Category name (e.g. Analytics):"); if(!name) return;
+                const desc = window.prompt("Description:","") || "";
+                const key  = name.toLowerCase().replace(/\s+/g,"_");
+                setCookieCfg(p=>({...p,categories:[...(p.categories||[]),{key,name,description:desc,required:false}]}));
+              }}>
+                <i className="fa-solid fa-plus" style={{fontSize:10,marginRight:6}}/>Add category
+              </button>
+              <button className="btn-ghost" style={{fontSize:12,padding:"5px 14px",color:"var(--red)",borderColor:"rgba(248,113,113,0.3)"}} onClick={()=>{
+                const cats = (cookieCfg.categories||[]);
+                const opt  = cats.filter(c=>!c.required);
+                if(!opt.length){toast("No optional categories to remove.","err");return;}
+                const names = opt.map(c=>c.name).join(", ");
+                if(!window.confirm(`Remove optional categories: ${names}?`)) return;
+                setCookieCfg(p=>({...p,categories:cats.filter(c=>c.required)}));
+              }}>
+                <i className="fa-solid fa-trash" style={{fontSize:10,marginRight:6}}/>Remove optional
+              </button>
+            </div>
+          </>}
           {sec==="integrations"&&<AdminIntegrationsPanel cfg={integrationsCfg} setCfg={setIntegrationsCfg}/>}
 
           {sec==="spaces"&&<SpacesAdmin spaces={spaces} onRefresh={()=>{ api.get("/spaces").then(d=>setSpaces(d.spaces||[])); onSpacesUpdated?.(); }} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/>}
@@ -1624,7 +1714,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
     </div>
     {/* Create User Modal */}
     {showCreateUser&&(
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onMouseDown={e=>e.target===e.currentTarget&&setShowCreateUser(false)}>
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:20}} onClick={e=>e.target===e.currentTarget&&setShowCreateUser(false)}>
         <div style={{background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:24,width:"100%",maxWidth:420,display:"flex",flexDirection:"column",gap:14}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)"}}>Create member</div>
