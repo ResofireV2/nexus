@@ -682,7 +682,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
     }, 50);
   };
   const insertReply = (username, anchor)=>{
-    const link = `[↩ ${username}](${anchor}) `;
+    const link = `[${username}](${anchor}) `;
     setReplyBody(prev => prev ? prev + link : link);
     setQuoteTooltip(null);
     setTimeout(()=>{
