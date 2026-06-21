@@ -802,7 +802,7 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .post-body .md-body a,.reply-text .md-body a{color:var(--link-color,var(--blue));}
 .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 6px 1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;display:inline-flex;align-items:center;gap:3px;}
-.reply-ref-link::before{content:"\f3e5";font-family:"Font Awesome 6 Free";font-weight:900;font-size:9px;color:var(--ac-text);}
+.reply-ref-link::before{content:"\f3e5";font-family:"Font Awesome 7 Free";font-weight:900;font-size:9px;color:var(--ac-text);}
 @keyframes refHighlight{0%{background:transparent;}25%{background:rgba(74,144,226,0.18);}75%{background:rgba(74,144,226,0.12);}100%{background:transparent;}}
 .reply-ref-highlight{animation:refHighlight 1.2s ease forwards;}
 .ref-popup{position:fixed;z-index:9100;width:420px;max-width:calc(100vw - 24px);background:var(--s2);border:0.5px solid var(--b2);border-radius:12px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.55);pointer-events:none;}
