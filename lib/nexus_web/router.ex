@@ -20,7 +20,6 @@ defmodule NexusWeb.Router do
         "base-uri 'self';"
     }
     plug NexusWeb.Plugs.PwaSettings
-    plug NexusWeb.Plugs.AppearanceSettings
     plug NexusWeb.Plugs.ExtensionBundles
   end
 
@@ -114,6 +113,7 @@ defmodule NexusWeb.Router do
   # API v1 — public read
   scope "/api/v1", NexusWeb.API.V1 do
     pipe_through :api
+    get "/boot",                   BootController,   :index
     get "/spaces",                 SpaceController,  :index
     get "/themes",                 ThemeController,  :index
     get "/spaces/:slug",           SpaceController,  :show

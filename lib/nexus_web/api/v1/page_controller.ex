@@ -18,6 +18,13 @@ defmodule NexusWeb.API.V1.PageController do
   # GET /api/v1/pages/widgets — returns all widgets with their published pages
   # Used by the public sidebar to render Page Widgets.
   def widgets_public(conn, _params) do
+    json(conn, widgets_payload())
+  end
+
+  # Builds the public page-widgets payload. Shared by GET /pages/widgets/public
+  # and the consolidated GET /boot endpoint (BootController).
+  @doc false
+  def widgets_payload do
     grouped = Pages.list_published_by_widget()
     data = Enum.map(grouped, fn {widget, pages} ->
       %{
@@ -26,7 +33,7 @@ defmodule NexusWeb.API.V1.PageController do
         pages: Enum.map(pages, fn p -> %{title: p.title, slug: p.slug} end)
       }
     end)
-    json(conn, %{widgets: data})
+    %{widgets: data}
   end
 
   # ---------------------------------------------------------------------------

@@ -194,6 +194,15 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/branding — public, returns only safe display settings
   def get_branding(conn, _params) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> json(branding_payload())
+  end
+
+  # Builds the public branding/settings payload. Shared by GET /branding and
+  # the consolidated GET /boot endpoint (BootController) so the two never drift.
+  @doc false
+  def branding_payload do
     s = Admin.get_settings()
     integrations = s["integrations"] || %{}
 
@@ -227,9 +236,7 @@ defmodule NexusWeb.API.V1.AdminController do
       end
     end
 
-    conn
-    |> put_resp_header("cache-control", "no-store")
-    |> json(%{
+    %{
       settings: %{
         general:      Map.take(s["general"]||%{}, ["site_name","site_description","logo_url","favicon_url","og_image_url","hero_enabled","hero_title","hero_body"]),
         appearance:   Map.take(s["appearance"]||%{}, ["accent_color","avatar_radius","custom_css","tint_color","tint_intensity","light_accent_color","light_tint_color","light_tint_intensity","dark_enabled","light_enabled","default_theme","fs_ui","fs_body","fs_title","fs_feed_title","fs_content","fs_code","link_color","light_link_color"]),
@@ -265,7 +272,7 @@ defmodule NexusWeb.API.V1.AdminController do
           }
         end).()
       }
-    })
+    }
   end
 
   defp is_nil_or_empty(nil), do: true

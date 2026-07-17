@@ -5,13 +5,22 @@ defmodule NexusWeb.API.V1.TagController do
 
   # GET /api/v1/tags
   def index(conn, _params) do
+    json(conn, tags_payload(conn.assigns[:current_user]))
+  end
+
+  # Builds the tags list payload for the given user (nil = guest). Shared by
+  # GET /tags and the consolidated GET /boot endpoint (BootController).
+  @doc false
+  def tags_payload(user) do
     tags = Forum.list_tags()
+
     subscribed_ids =
-      case conn.assigns[:current_user] do
-        nil  -> []
-        user -> Forum.user_tag_ids(user.id)
+      case user do
+        nil -> []
+        u   -> Forum.user_tag_ids(u.id)
       end
-    json(conn, %{tags: Enum.map(tags, &tag_json(&1, subscribed_ids))})
+
+    %{tags: Enum.map(tags, &tag_json(&1, subscribed_ids))}
   end
 
   # POST /api/v1/tags  (moderator+)

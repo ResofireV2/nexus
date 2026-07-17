@@ -4403,9 +4403,14 @@ function App() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  useEffect(()=>{loadSpaces();api.get("/tags").then(d=>setTags(d.tags||[]));
-    // Load registration setting publicly to show/hide signup buttons
-    api.get("/branding").then(d=>{const s=d.settings||{};const app={...(s.appearance||{}),active_theme_dark:s.active_theme_dark||null,active_theme_light:s.active_theme_light||null};applyBranding(app,s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);setCookieConsentCfg(s.cookie_consent||null);window._postCfg=s.posting||{};
+  useEffect(()=>{
+    // Consolidated boot: a single round-trip returns spaces, tags, branding
+    // settings and public page widgets (previously four separate GETs — the
+    // widgets one was sequenced after branding — see BootController).
+    api.get("/boot").then(d=>{
+      setSpaces(d.spaces||[]);
+      setTags(d.tags||[]);
+      const s=d.settings||{};const app={...(s.appearance||{}),active_theme_dark:s.active_theme_dark||null,active_theme_light:s.active_theme_light||null};applyBranding(app,s.general||{});setRegistrationOpen((s.registration||{}).open!==false);setAppBranding({...s.appearance||{},...s.general||{}});setPwaCfgPublic(s.pwa||{});setOauthProviders(s.oauth_providers||{google:false,github:false});setTurnstileSiteKey(s.turnstile_site_key||null);setCookieConsentCfg(s.cookie_consent||null);window._postCfg=s.posting||{};
       const reg=s.registration||{};
       window._requireEmailVerification = reg.require_email_verification===true;
       const digest=s.digest||{};
@@ -4483,10 +4488,8 @@ function App() {
           });
         });
       });
-      // Load page widgets for sidebar rendering
-      api.get("/pages/widgets/public").then(function(d){
-        window._pageWidgets = d.widgets || [];
-      }).catch(function(){ window._pageWidgets = []; });
+      // Page widgets now arrive in the same boot payload.
+      window._pageWidgets = d.widgets || [];
     }).catch(()=>{});
   },[]);
 

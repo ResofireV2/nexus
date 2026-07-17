@@ -15,8 +15,14 @@ defmodule NexusWeb.API.V1.SpaceController do
 
   # GET /api/v1/spaces
   def index(conn, _params) do
-    user = conn.assigns[:current_user]
+    json(conn, spaces_payload(conn.assigns[:current_user]))
+  end
 
+  # Builds the spaces list payload for the given user (nil = guest). Shared by
+  # GET /spaces and the consolidated GET /boot endpoint (BootController) so the
+  # two can never drift.
+  @doc false
+  def spaces_payload(user) do
     spaces =
       if user && User.moderator?(user) do
         Forum.list_all_spaces()
@@ -29,7 +35,7 @@ defmodule NexusWeb.API.V1.SpaceController do
     # is a no-op for privileged users and correctly restricts members/guests.
     visible = Enum.filter(spaces, &Nexus.Forum.SpacePermissions.can_view?(&1, user))
 
-    json(conn, %{spaces: Enum.map(visible, &space_json(&1, user))})
+    %{spaces: Enum.map(visible, &space_json(&1, user))}
   end
 
   # GET /api/v1/spaces/:slug
