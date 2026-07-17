@@ -1,124 +1,34 @@
---- nexus-master/assets/build.js	2026-06-21 19:39:28.000000000 +0000
-+++ stage2/assets/build.js	2026-07-17 04:29:47.611641785 +0000
-@@ -7,27 +7,78 @@
- 
- const outdir = path.join(__dirname, "../priv/static/assets");
- 
--const jsConfig = {
-+const alias = {
-+  "components": path.join(__dirname, "js/components"),
-+  "lib":        path.join(__dirname, "js/lib"),
-+  "pages":      path.join(__dirname, "js/pages"),
-+  "admin":      path.join(__dirname, "js/admin"),
-+  "layout":     path.join(__dirname, "js/layout"),
-+};
-+
-+// See package README / Stage 2 notes: admin.js is loaded lazily and must reuse
-+// the main app's single instances of React and the shared modules, not bundle
-+// its own. Bundling a second React breaks hooks; re-running the api client
-+// re-registers its module-level install-prompt listeners; duplicating Toasts /
-+// Avatar splits their singleton state so admin toasts and user-card popovers
-+// silently stop working. This plugin rewrites those imports (admin build only)
-+// to read window.__nexusRuntime, which nexus.jsx populates.
-+const SHARED = {
-+  "react":                           "react",
-+  "react/jsx-runtime":               "react/jsx-runtime",
-+  "lib/api":                         "lib/api",
-+  "lib/utils":                       "lib/utils",
-+  "components/Avatar":               "components/Avatar",
-+  "components/Markdown":             "components/Markdown",
-+  "components/Select":               "components/Select",
-+  "components/Toasts":               "components/Toasts",
-+  "components/RichTextArea":         "components/RichTextArea",
-+  "components/PermissionGatePicker": "components/PermissionGatePicker",
-+  "pages/UpdatesPanel":              "pages/UpdatesPanel",
-+};
-+
-+function sharedKey(spec) {
-+  if (SHARED[spec]) return SHARED[spec];
-+  const stripped = spec.replace(/^(\.\.?\/)+/, "");
-+  if (SHARED[stripped]) return SHARED[stripped];
-+  return null;
-+}
-+
-+const sharedRuntimePlugin = {
-+  name: "nexus-shared-runtime",
-+  setup(build) {
-+    build.onResolve({ filter: /.*/ }, (a) => {
-+      const key = sharedKey(a.path);
-+      if (!key) return null;
-+      return { path: key, namespace: "nexus-shared" };
-+    });
-+    build.onLoad({ filter: /.*/, namespace: "nexus-shared" }, (a) => ({
-+      contents: "module.exports = window.__nexusRuntime[" + JSON.stringify(a.path) + "];",
-+      loader: "js",
-+    }));
-+  },
-+};
-+
-+const common = {
-+  bundle:   true,
-+  target:   "es2017",
-+  logLevel: "info",
-+  jsx:      "automatic",
-+  define:   { "process.env.NODE_ENV": deploy ? '"production"' : '"development"' },
-+  minify:   deploy,
-+  alias,
-+};
-+
-+const mainConfig = {
-+  ...common,
-   entryPoints: ["js/nexus.jsx"],
--  bundle:      true,
--  target:      "es2017",
-   outfile:     path.join(outdir, "app.js"),
--  logLevel:    "info",
--  jsx:         "automatic",
--  define: {
--    "process.env.NODE_ENV": deploy ? '"production"' : '"development"',
--  },
--  minify: deploy,
-+};
- 
--  // Path aliases — lets any file import cleanly without relative path hell
--  // as the directory tree grows.
--  alias: {
--    "components": path.join(__dirname, "js/components"),
--    "lib":        path.join(__dirname, "js/lib"),
--    "pages":      path.join(__dirname, "js/pages"),
--    "admin":      path.join(__dirname, "js/admin"),
--    "layout":     path.join(__dirname, "js/layout"),
--  },
-+const adminConfig = {
-+  ...common,
-+  entryPoints: ["js/admin-entry.jsx"],
-+  outfile:     path.join(outdir, "admin.js"),
-+  plugins:     [sharedRuntimePlugin],
- };
- 
- const cssConfig = {
-@@ -36,20 +87,19 @@
-   outfile: path.join(outdir, "app.css"),
-   logLevel: "info",
-   minify: deploy,
--  // Font files are served directly by Phoenix/Caddy from priv/static/fonts/.
--  // Mark them as external so esbuild leaves the url() references as-is rather
--  // than trying to resolve them as local filesystem paths during bundling.
+--- stage2/assets/build.js	2026-07-17 04:29:47.611641785 +0000
++++ csssplit/assets/build.js	2026-07-17 23:56:46.538845448 +0000
+@@ -90,16 +90,31 @@
    external: ["/fonts/*"],
  };
  
++// FontAwesome is split out of app.css (no longer @imported) and built as its
++// own file so it can be loaded non-render-blocking. It's the bulk of the CSS
++// and mostly unused icon classes, so keeping it off the critical path is the
++// biggest mobile-LCP win. Same /fonts/* external handling as app.css.
++const faCssConfig = {
++  entryPoints: ["css/fontawesome.css"],
++  bundle: true,
++  outfile: path.join(outdir, "fontawesome.css"),
++  logLevel: "info",
++  minify: deploy,
++  external: ["/fonts/*"],
++};
++
  if (watch) {
    Promise.all([
--    esbuild.context(jsConfig).then(ctx => ctx.watch()),
-+    esbuild.context(mainConfig).then(ctx => ctx.watch()),
-+    esbuild.context(adminConfig).then(ctx => ctx.watch()),
+     esbuild.context(mainConfig).then(ctx => ctx.watch()),
+     esbuild.context(adminConfig).then(ctx => ctx.watch()),
      esbuild.context(cssConfig).then(ctx => ctx.watch()),
++    esbuild.context(faCssConfig).then(ctx => ctx.watch()),
    ]);
  } else {
    Promise.all([
--    esbuild.build(jsConfig),
-+    esbuild.build(mainConfig),
-+    esbuild.build(adminConfig),
+     esbuild.build(mainConfig),
+     esbuild.build(adminConfig),
      esbuild.build(cssConfig),
++    esbuild.build(faCssConfig),
    ]);
  }

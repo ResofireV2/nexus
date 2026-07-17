@@ -90,16 +90,31 @@ const cssConfig = {
   external: ["/fonts/*"],
 };
 
+// FontAwesome is split out of app.css (no longer @imported) and built as its
+// own file so it can be loaded non-render-blocking. It's the bulk of the CSS
+// and mostly unused icon classes, so keeping it off the critical path is the
+// biggest mobile-LCP win. Same /fonts/* external handling as app.css.
+const faCssConfig = {
+  entryPoints: ["css/fontawesome.css"],
+  bundle: true,
+  outfile: path.join(outdir, "fontawesome.css"),
+  logLevel: "info",
+  minify: deploy,
+  external: ["/fonts/*"],
+};
+
 if (watch) {
   Promise.all([
     esbuild.context(mainConfig).then(ctx => ctx.watch()),
     esbuild.context(adminConfig).then(ctx => ctx.watch()),
     esbuild.context(cssConfig).then(ctx => ctx.watch()),
+    esbuild.context(faCssConfig).then(ctx => ctx.watch()),
   ]);
 } else {
   Promise.all([
     esbuild.build(mainConfig),
     esbuild.build(adminConfig),
     esbuild.build(cssConfig),
+    esbuild.build(faCssConfig),
   ]);
 }

@@ -1,5 +1,4 @@
 /* Nexus — base styles */
-@import "./fontawesome.css";
 *, *::before, *::after { box-sizing: border-box; }
 
 :root {

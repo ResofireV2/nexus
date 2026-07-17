@@ -40,6 +40,13 @@
       <%= assigns[:page_title] || "Forum" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+    <%!-- FontAwesome split out of app.css and loaded non-render-blocking: the
+         core styles above paint immediately, icons swap in a beat later. The
+         print->all onload trick keeps it off the critical request chain
+         (CSP allows the inline handler via script-src 'unsafe-inline'); the
+         noscript link covers JS-disabled clients. --%>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/fontawesome.css"} media="print" onload="this.media='all';this.onload=null" />
+    <noscript><link rel="stylesheet" href={~p"/assets/fontawesome.css"} /></noscript>
 
     <!-- Server-computed theme variables. Rendered before any script so the very
          first paint has the correct accent, surfaces and text colours for both

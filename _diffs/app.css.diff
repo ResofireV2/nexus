@@ -1,20 +1,8 @@
---- a11yfix/assets/css/app.css	2026-07-17 23:35:13.973614614 +0000
-+++ accentfix/assets/css/app.css	2026-07-17 23:47:43.307503923 +0000
-@@ -265,7 +265,7 @@
- .feed-title{font-size:var(--fs-body);font-weight:500;color:var(--t2);}
- .sort-pills{display:flex;gap:4px;}
- .sort-pill{font-size:var(--fs-ui);color:var(--t3);padding:4px 11px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);cursor:pointer;transition:all .1s;}
--.sort-pill.active{color:var(--ac);border-color:var(--ac-border);background:var(--ac-bg);}
-+.sort-pill.active{color:var(--ac-text);border-color:var(--ac-border);background:var(--ac-bg);}
- .sort-pill:hover:not(.active){color:var(--t2);border-color:var(--b2);}
- .feed-list{flex:1;overflow-y:auto;}
+--- accentfix/assets/css/app.css	2026-07-17 23:47:43.307503923 +0000
++++ csssplit/assets/css/app.css	2026-07-17 23:56:46.541825001 +0000
+@@ -1,5 +1,4 @@
+ /* Nexus — base styles */
+-@import "./fontawesome.css";
+ *, *::before, *::after { box-sizing: border-box; }
  
-@@ -274,7 +274,7 @@
- .thread:hover{background:rgba(255,255,255,0.02);}
- .thread--pinned{background:var(--ac-bg)!important;border-bottom-color:var(--ac-border)!important;}
- .thread--pinned .thread-title{color:var(--ac-text)!important;}
--.thread--pinned .thread-preview{color:var(--ac-text)!important;opacity:0.8!important;}
-+.thread--pinned .thread-preview{color:var(--ac-text)!important;opacity:1!important;}
- .thread-main{display:flex;align-items:stretch;}
- .thread-av-wrap{flex-shrink:0;align-self:center;margin:0 14px 0 18px;}
- .av-rs{display:block;}
+ :root {

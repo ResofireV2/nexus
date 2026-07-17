@@ -1,13 +1,16 @@
---- stage2/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 04:28:22.543587426 +0000
-+++ flashfix/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 22:58:48.056063527 +0000
-@@ -70,6 +70,10 @@
-       // favicon and theme are known on the first render even on a cold cache.
-       window.__nexusBranding = <%= Phoenix.HTML.raw(@branding_json) %>;
-       window.__nexusThemeCfg = <%= Phoenix.HTML.raw(@theme_cfg_json) %>;
-+      // Stored Layout config, so the left/right sidebars paint in the
-+      // admin-configured order on first render instead of flashing the default
-+      // order and reordering once /boot resolves.
-+      window.__nexusLayoutCfg = <%= Phoenix.HTML.raw(@layout_json) %>;
-       // Digest-resolved URL of the lazily-loaded admin bundle. app.js injects
-       // this script on demand the first time an admin opens /admin, so the
-       // ~336K admin panel tree is never downloaded by regular visitors.
+--- flashfix/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 22:58:48.056063527 +0000
++++ csssplit/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 23:56:46.543952895 +0000
+@@ -40,6 +40,13 @@
+       <%= assigns[:page_title] || "Forum" %>
+     </.live_title>
+     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
++    <%!-- FontAwesome split out of app.css and loaded non-render-blocking: the
++         core styles above paint immediately, icons swap in a beat later. The
++         print->all onload trick keeps it off the critical request chain
++         (CSP allows the inline handler via script-src 'unsafe-inline'); the
++         noscript link covers JS-disabled clients. --%>
++    <link phx-track-static rel="stylesheet" href={~p"/assets/fontawesome.css"} media="print" onload="this.media='all';this.onload=null" />
++    <noscript><link rel="stylesheet" href={~p"/assets/fontawesome.css"} /></noscript>
+ 
+     <!-- Server-computed theme variables. Rendered before any script so the very
+          first paint has the correct accent, surfaces and text colours for both
