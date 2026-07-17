@@ -1,6 +1,6 @@
---- nexus-master/lib/nexus_web/router.ex	2026-06-21 19:39:28.000000000 +0000
-+++ stage3/lib/nexus_web/router.ex	2026-07-17 04:56:45.547489486 +0000
-@@ -113,6 +113,7 @@
+--- stage1/lib/nexus_web/router.ex	2026-07-17 03:48:01.896317647 +0000
++++ stage3/lib/nexus_web/router.ex	2026-07-17 20:29:50.671902181 +0000
+@@ -114,6 +114,7 @@
    # API v1 — public read
    scope "/api/v1", NexusWeb.API.V1 do
      pipe_through :api

@@ -20,6 +20,7 @@ defmodule NexusWeb.Router do
         "base-uri 'self';"
     }
     plug NexusWeb.Plugs.PwaSettings
+    plug NexusWeb.Plugs.AppearanceSettings
     plug NexusWeb.Plugs.ExtensionBundles
   end
 
