@@ -1828,6 +1828,14 @@ function luminance([r,g,b]) {
   const ch = v => { v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); };
   return 0.2126*ch(r)+0.7152*ch(g)+0.0722*ch(b);
 }
+// Blend two rgb triples by factor t (0..1). Rounding mirrors ThemeVars.rnd.
+function _acBlend(a,b,t){return [Math.round(a[0]+(b[0]-a[0])*t),Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t)];}
+function _acContrast(a,b){const L1=luminance(a),L2=luminance(b),hi=Math.max(L1,L2),lo=Math.min(L1,L2);return (hi+0.05)/(lo+0.05);}
+// Accent text color guaranteed to clear WCAG AA 4.5:1 against `surf`: blend the
+// accent toward `toward` (white on dark, black on light) in 5% steps until it
+// passes. Mirrored exactly in Nexus.Appearance.ThemeVars (server) so SSR and
+// client agree and there's no flash.
+function _acTextFor(rgb,toward,surf){for(let i=0;i<=20;i++){const c=_acBlend(rgb,toward,i/20);if(_acContrast(c,surf)>=4.5)return `rgb(${c[0]},${c[1]},${c[2]})`;}return `rgb(${toward[0]},${toward[1]},${toward[2]})`;}
 // Given a hex accent color, derive all CSS variable variants
 function deriveAccentVars(hex) {
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
@@ -1840,11 +1848,9 @@ function deriveAccentVars(hex) {
   const acBg = `rgba(${r},${g},${b},0.12)`;
   const acBorder = `rgba(${r},${g},${b},0.30)`;
   // ac-text: for text ON dark bg WITH accent color — if accent is very light, darken it slightly
-  const acText = lum > 0.6
-    ? `rgb(${Math.round(r*0.7)},${Math.round(g*0.7)},${Math.round(b*0.7)})`
-    : lum > 0.35
-    ? hex
-    : `rgb(${Math.min(255,Math.round(r*1.3))},${Math.min(255,Math.round(g*1.3))},${Math.min(255,Math.round(b*1.3))})`;
+  // Contrast-guaranteed accent text (>=4.5:1) against the ac-bg tint it sits on.
+  const _acBgRgb = _acBlend(rgb, [17,17,17], 0.88);   // 12% accent over #111
+  const acText = _acTextFor(rgb, [255,255,255], _acBgRgb);
   return {onAccent, acBg, acBorder, acText};
 }
 
@@ -1874,11 +1880,9 @@ function deriveAccentVarsLight(hex) {
   const acBg = `rgba(${r},${g},${b},0.09)`;
   const acBorder = `rgba(${r},${g},${b},0.25)`;
   // acText must contrast against light surfaces — darken light accents
-  const acText = lum > 0.5
-    ? `rgb(${Math.round(r*0.55)},${Math.round(g*0.55)},${Math.round(b*0.55)})`
-    : lum > 0.25
-    ? hex
-    : hex; // already dark enough
+  // Contrast-guaranteed accent text (>=4.5:1) against the light ac-bg tint.
+  const _acBgRgbL = _acBlend(rgb, [255,255,255], 0.91);  // 9% accent over white
+  const acText = _acTextFor(rgb, [0,0,0], _acBgRgbL);
   return {onAccent, acBg, acBorder, acText};
 }
 
@@ -4739,7 +4743,7 @@ function CookieBanner({ config }) {
 
   const privacyLink = config?.privacy_policy_url
     ? <a href={config.privacy_policy_url} target="_blank" rel="noopener noreferrer"
-         style={{color:"var(--ac-text)",textDecoration:"none",marginLeft:4}}>Privacy policy</a>
+         style={{color:"var(--ac-text)",textDecoration:"underline",marginLeft:4}}>Privacy policy</a>
     : null;
 
   const bannerStyle = {

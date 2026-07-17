@@ -164,6 +164,33 @@ defmodule Nexus.Appearance.ThemeVars do
     end
   end
 
+  # Blend two rgb triples by factor t (0..1). Rounding via rnd mirrors JS Math.round.
+  defp ac_blend({ar, ag, ab}, {br, bg, bb}, t) do
+    {rnd(ar + (br - ar) * t), rnd(ag + (bg - ag) * t), rnd(ab + (bb - ab) * t)}
+  end
+
+  defp ac_contrast(a, b) do
+    l1 = luminance(a)
+    l2 = luminance(b)
+    hi = max(l1, l2)
+    lo = min(l1, l2)
+    (hi + 0.05) / (lo + 0.05)
+  end
+
+  # Accent text guaranteed to clear 4.5:1 against `surf`. Mirrors the JS
+  # `_acTextFor` helper exactly (same steps, rounding, luminance) so SSR and
+  # client agree and there is no flash.
+  defp ac_text_for(rgb, toward, surf), do: ac_text_for(rgb, toward, surf, 0)
+  defp ac_text_for(_rgb, {tr, tg, tb}, _surf, i) when i > 20, do: "rgb(#{tr},#{tg},#{tb})"
+
+  defp ac_text_for(rgb, toward, surf, i) do
+    {cr, cg, cb} = c = ac_blend(rgb, toward, i / 20)
+
+    if ac_contrast(c, surf) >= 4.5,
+      do: "rgb(#{cr},#{cg},#{cb})",
+      else: ac_text_for(rgb, toward, surf, i + 1)
+  end
+
   @doc "Dark-mode accent derivation. Returns a map or nil for invalid hex."
   def accent_dark(hex) do
     if valid6?(hex) do
@@ -174,12 +201,7 @@ defmodule Nexus.Appearance.ThemeVars do
         on_accent: if(lum > 0.35, do: "#111111", else: "#ffffff"),
         ac_bg: "rgba(#{r},#{g},#{b},0.12)",
         ac_border: "rgba(#{r},#{g},#{b},0.30)",
-        ac_text:
-          cond do
-            lum > 0.6 -> "rgb(#{rnd(r * 0.7)},#{rnd(g * 0.7)},#{rnd(b * 0.7)})"
-            lum > 0.35 -> hex
-            true -> "rgb(#{min(255, rnd(r * 1.3))},#{min(255, rnd(g * 1.3))},#{min(255, rnd(b * 1.3))})"
-          end
+        ac_text: ac_text_for(rgb, {255, 255, 255}, ac_blend(rgb, {17, 17, 17}, 0.88))
       }
     end
   end
@@ -194,7 +216,7 @@ defmodule Nexus.Appearance.ThemeVars do
         on_accent: if(lum > 0.35, do: "#111111", else: "#ffffff"),
         ac_bg: "rgba(#{r},#{g},#{b},0.09)",
         ac_border: "rgba(#{r},#{g},#{b},0.25)",
-        ac_text: if(lum > 0.5, do: "rgb(#{rnd(r * 0.55)},#{rnd(g * 0.55)},#{rnd(b * 0.55)})", else: hex)
+        ac_text: ac_text_for(rgb, {0, 0, 0}, ac_blend(rgb, {255, 255, 255}, 0.91))
       }
     end
   end
