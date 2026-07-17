@@ -70,6 +70,10 @@
       // favicon and theme are known on the first render even on a cold cache.
       window.__nexusBranding = <%= Phoenix.HTML.raw(@branding_json) %>;
       window.__nexusThemeCfg = <%= Phoenix.HTML.raw(@theme_cfg_json) %>;
+      // Digest-resolved URL of the lazily-loaded admin bundle. app.js injects
+      // this script on demand the first time an admin opens /admin, so the
+      // ~336K admin panel tree is never downloaded by regular visitors.
+      window.__nexusAdminBundleUrl = "<%= NexusWeb.Endpoint.static_path("/assets/admin.js") %>";
     </script>
 
     <%= if @extension_manifests != %{} do %>

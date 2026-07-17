@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom/client";
+// Namespace imports used to populate window.__nexusRuntime for the admin
+// bundle (see below). These reference the same module instances the main app
+// already uses; esbuild dedupes them with the named imports elsewhere.
+import * as _rjsx     from "react/jsx-runtime";
+import * as _api      from "./lib/api";
+import * as _utils    from "./lib/utils";
+import * as _avatar   from "./components/Avatar";
+import * as _markdown from "./components/Markdown";
+import * as _select   from "./components/Select";
+import * as _toasts   from "./components/Toasts";
+import * as _rta      from "./components/RichTextArea";
+import * as _pgp      from "./components/PermissionGatePicker";
+import * as _updates  from "./pages/UpdatesPanel";
 import DOMPurify from "dompurify";
 import { api }                                              from "./lib/api";
 window._nexusApi = api;
@@ -17,17 +30,16 @@ import { REACTIONS, ReactionsModal, ReactionButton }       from "./components/Re
 import { RichTextArea, getAllToolbarButtons,
          setActivePostToolbar, setActiveReplyToolbar, TB_BTNS } from "./components/RichTextArea";
 import { F, ColorPicker, formatUptime }                    from "./admin/FormHelpers";
-import { DragList, LayoutAdmin }                           from "./admin/AdminLayout";
 import { ReportCard, ModerationPage, AdminModerationPanel } from "./admin/AdminModeration";
-import { AdminIntegrationsPanel, AdminAntiSpamPanel,
-         AdminLogsPanel, AdminDigestPanel,
-         AdminLeaderboardPanel }                           from "./admin/AdminPanels";
 import { RARITY_COLOR, RARITY_BG, RARITY_WEIGHT,
          BadgesPageSidebar, BadgesPage,
          AdminBadgesPanel, TRIGGER_TYPE_LABELS }           from "./admin/AdminBadges";
-import { AdminExtensionsPanel }                              from "./admin/AdminExtensions";
 import { AdminPwaPanel, IosInstallPrompt }                 from "./admin/AdminPwaPanel";
-import { AdminPage, VerifyEmailPage, MagicLoginPage }      from "./admin/AdminPage";
+// AdminPage is now lazy-loaded from the separate admin.js bundle — see
+// loadAdminBundle() / LazyAdmin below. VerifyEmailPage and MagicLoginPage were
+// extracted from AdminPage.jsx into pages/AuthPages so the main bundle can serve
+// the verify-email and magic-login routes without pulling in the admin tree.
+import { VerifyEmailPage, MagicLoginPage }                 from "./pages/AuthPages";
 import { LeaderboardPageSidebar,
          LeaderboardPage }                                 from "./pages/LeaderboardPage";
 import { PostScrubber, PostPage, PostFooterSlot,
@@ -50,6 +62,83 @@ import { DraftsPage, useDraftAutosave }                    from "./pages/DraftsP
 // Expose React and ReactDOM globally so extension bundles can access them
 window.React = React;
 window.ReactDOM = ReactDOM;
+
+// Shared-runtime registry for the lazily-loaded admin bundle (admin.js).
+// The admin build (see build.js) externalizes these modules to the entries
+// below instead of bundling its own copies, so the admin panel uses the main
+// app's single instances: the same React (required for hooks), the same api
+// client (whose module-level install-prompt listeners must not run twice), and
+// the same singleton state (toast queue, user-card popover).
+window.__nexusRuntime = {
+  "react":                            React,
+  "react/jsx-runtime":                _rjsx,
+  "lib/api":                          _api,
+  "lib/utils":                        _utils,
+  "components/Avatar":                _avatar,
+  "components/Markdown":              _markdown,
+  "components/Select":                _select,
+  "components/Toasts":                _toasts,
+  "components/RichTextArea":          _rta,
+  "components/PermissionGatePicker":  _pgp,
+  "pages/UpdatesPanel":               _updates,
+};
+
+// ── Lazy admin bundle loader ──────────────────────────────────────────────────
+// Loads admin.js on demand (injecting a <script> for its digested URL, provided
+// by the server as window.__nexusAdminBundleUrl) the first time an admin opens
+// /admin. Idempotent: subsequent calls resolve immediately once NexusAdmin is
+// present.
+let _adminBundlePromise = null;
+function loadAdminBundle() {
+  if (window.NexusAdmin) return Promise.resolve(window.NexusAdmin);
+  if (_adminBundlePromise) return _adminBundlePromise;
+  _adminBundlePromise = new Promise((resolve, reject) => {
+    const url = window.__nexusAdminBundleUrl || "/assets/admin.js";
+    const s = document.createElement("script");
+    s.src = url;
+    s.async = true;
+    s.onload = () =>
+      window.NexusAdmin
+        ? resolve(window.NexusAdmin)
+        : reject(new Error("admin bundle loaded but window.NexusAdmin is missing"));
+    s.onerror = () => { _adminBundlePromise = null; reject(new Error("failed to load admin bundle")); };
+    document.head.appendChild(s);
+  });
+  return _adminBundlePromise;
+}
+
+// Optional prefetch — call to warm the cache (e.g. on admin-nav hover) so the
+// panel opens instantly. Safe to call repeatedly.
+function prefetchAdminBundle() { loadAdminBundle().catch(() => {}); }
+window._prefetchAdminBundle = prefetchAdminBundle;
+
+// Renders the admin panel from the lazily-loaded bundle, showing a lightweight
+// loading state while admin.js downloads. Drop-in replacement for <AdminPage/>.
+function LazyAdmin(props) {
+  const [Comp, setComp] = useState(() => (window.NexusAdmin ? window.NexusAdmin.AdminPage : null));
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (Comp) return;
+    let alive = true;
+    loadAdminBundle()
+      .then(m => { if (alive) setComp(() => m.AdminPage); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [Comp]);
+
+  if (failed) {
+    return (
+      <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,color:"var(--t4)"}}>
+        <div>Couldn’t load the admin panel.</div>
+        <button className="btn-ghost" style={{fontSize:13}} onClick={()=>{ _adminBundlePromise=null; setFailed(false); }}>Try again</button>
+      </div>
+    );
+  }
+  if (!Comp) {
+    return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading admin…</div>;
+  }
+  return <Comp {...props} />;
+}
 
 // ── Lightbox — powered by Fancybox 6 ─────────────────────────────────────────
 // The CSS and JS are both injected lazily to keep them off the initial page load.
@@ -4450,7 +4539,7 @@ function App() {
     // expired but the refresh cookie is still valid (the common case after
     // 15+ minutes away). The refresh runs in the background; if it fails,
     // updateCurrentUser(null) will clear the panel naturally.
-    if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
+    if(page==="admin"&&currentUser) return <><div className="app-root"><LazyAdmin currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
     return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--t5)"}}>Loading…</div>;
   }
 
@@ -4458,7 +4547,7 @@ function App() {
   if(page==="verify-email") return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><VerifyEmailPage token={pageProps?.token} navigate={navigate} onVerified={()=>updateCurrentUser(u=>u?{...u,email_verified:true}:u)}/></div><Toasts/></>;
   if(page==="magic-login")  return <><div className="app-root" style={{flex:1,display:"flex",flexDirection:"column"}}><MagicLoginPage token={pageProps?.token} onLogin={u=>{api.setToken(u.access_token);updateCurrentUser(u.user);navigate("feed",{});}} navigate={navigate}/></div><Toasts/></>;
 
-  if(page==="admin"&&currentUser) return <><div className="app-root"><AdminPage currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
+  if(page==="admin"&&currentUser) return <><div className="app-root"><LazyAdmin currentUser={currentUser} navigate={navigate} onSpacesUpdated={loadSpaces} layoutCfg={layoutCfg} setLayoutCfg={setLayoutCfg}/></div><Toasts/></>;
 
   const renderPage=()=>{
     const requireAuth = (el) => {
