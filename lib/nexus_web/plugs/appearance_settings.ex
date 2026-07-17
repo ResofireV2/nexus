@@ -31,6 +31,12 @@ defmodule NexusWeb.Plugs.AppearanceSettings do
   def call(conn, _opts) do
     app0    = Nexus.Admin.get_setting("appearance") || %{}
     general = Nexus.Admin.get_setting("general") || %{}
+    # Stored Layout config (sidebar section order, explore items, spaces order,
+    # right-widget order per page). Injected so the sidebars paint in the
+    # admin-configured order on the first byte, instead of rendering the default
+    # order and reordering once /boot resolves. Same source as GET /branding's
+    # settings.layout (Admin.get_settings()["layout"]).
+    layout  = Nexus.Admin.get_setting("layout") || %{}
 
     # Attach active themes in the same shape ThemeVars expects, mirroring the
     # serialisation used by GET /api/v1/branding.
@@ -85,6 +91,7 @@ defmodule NexusWeb.Plugs.AppearanceSettings do
     |> assign(:branding_json, branding)
     |> assign(:branding_logo_url, logo_url)
     |> assign(:branding_favicon_url, favicon_url)
+    |> assign(:layout_json, Jason.encode!(layout, escape: :html_safe))
   end
 
   # Mirror admin_controller's serialize_active/1 shape, reduced to the variable

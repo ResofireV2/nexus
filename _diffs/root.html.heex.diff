@@ -1,13 +1,13 @@
---- stage1/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 03:48:45.527535017 +0000
-+++ stage2/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 04:28:22.543587426 +0000
+--- stage2/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 04:28:22.543587426 +0000
++++ flashfix/lib/nexus_web/components/layouts/root.html.heex	2026-07-17 22:58:48.056063527 +0000
 @@ -70,6 +70,10 @@
        // favicon and theme are known on the first render even on a cold cache.
        window.__nexusBranding = <%= Phoenix.HTML.raw(@branding_json) %>;
        window.__nexusThemeCfg = <%= Phoenix.HTML.raw(@theme_cfg_json) %>;
-+      // Digest-resolved URL of the lazily-loaded admin bundle. app.js injects
-+      // this script on demand the first time an admin opens /admin, so the
-+      // ~336K admin panel tree is never downloaded by regular visitors.
-+      window.__nexusAdminBundleUrl = "<%= NexusWeb.Endpoint.static_path("/assets/admin.js") %>";
-     </script>
- 
-     <%= if @extension_manifests != %{} do %>
++      // Stored Layout config, so the left/right sidebars paint in the
++      // admin-configured order on first render instead of flashing the default
++      // order and reordering once /boot resolves.
++      window.__nexusLayoutCfg = <%= Phoenix.HTML.raw(@layout_json) %>;
+       // Digest-resolved URL of the lazily-loaded admin bundle. app.js injects
+       // this script on demand the first time an admin opens /admin, so the
+       // ~336K admin panel tree is never downloaded by regular visitors.

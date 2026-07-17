@@ -70,6 +70,10 @@
       // favicon and theme are known on the first render even on a cold cache.
       window.__nexusBranding = <%= Phoenix.HTML.raw(@branding_json) %>;
       window.__nexusThemeCfg = <%= Phoenix.HTML.raw(@theme_cfg_json) %>;
+      // Stored Layout config, so the left/right sidebars paint in the
+      // admin-configured order on first render instead of flashing the default
+      // order and reordering once /boot resolves.
+      window.__nexusLayoutCfg = <%= Phoenix.HTML.raw(@layout_json) %>;
       // Digest-resolved URL of the lazily-loaded admin bundle. app.js injects
       // this script on demand the first time an admin opens /admin, so the
       // ~336K admin panel tree is never downloaded by regular visitors.

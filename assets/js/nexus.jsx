@@ -4227,7 +4227,16 @@ function App() {
   const [msgCount,setMsgCount]=useState(0);
   const pollMsgRef = useRef(null);
   const [modReportCount,setModReportCount]=useState(0);
-  const [layoutCfg,setLayoutCfg]=useState({});
+  const [layoutCfg,setLayoutCfg]=useState(() => {
+    // Seed from the server-injected Layout config so the sidebars render in the
+    // admin-configured order on first paint (no default-order flash). /boot
+    // still updates this afterward (and adds the toolbars).
+    try {
+      const inj = window.__nexusLayoutCfg;
+      if (inj && typeof inj === "object" && !Array.isArray(inj)) return inj;
+    } catch (e) {}
+    return {};
+  });
   const [appBranding,setAppBranding]=useState({});
   const [mobLeftOpen,setMobLeftOpen]=useState(false);
   const [mobRightOpen,setMobRightOpen]=useState(false);
