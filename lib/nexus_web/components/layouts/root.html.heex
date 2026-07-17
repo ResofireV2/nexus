@@ -14,6 +14,11 @@
     <meta name="apple-mobile-web-app-title" content={@pwa_app_name} />
     <link rel="apple-touch-icon" href={@pwa_icon_path} />
 
+    <!-- Favicon (server-rendered so it never flashes the default icon) -->
+    <%= if @branding_favicon_url do %>
+    <link rel="icon" href={@branding_favicon_url} />
+    <% end %>
+
     <!-- Open Graph -->
     <meta property="og:type"        content="website" />
     <meta property="og:site_name"   content={@og_site_name} />
@@ -35,12 +40,38 @@
       <%= assigns[:page_title] || "Forum" %>
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
+
+    <!-- Server-computed theme variables. Rendered before any script so the very
+         first paint has the correct accent, surfaces and text colours for both
+         modes with no round-trip. The bare :root rule is the admin default
+         (used pre-JS / no-JS); the [data-theme] rules take over the instant the
+         inline script below sets data-theme. Values are computed by
+         Nexus.Appearance.ThemeVars and match applyTheme() in nexus.jsx exactly,
+         so no re-paint occurs when /branding later resolves. -->
+    <style id="nexus-theme-vars"><%= Phoenix.HTML.raw(@theme_vars_css) %></style>
+
     <!-- Preconnect to external origins used on every page load -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" />
+
+    <!-- Start fetching the logo during HTML parse so it is painted with the
+         first render instead of after React mounts. -->
+    <%= if @branding_logo_url do %>
+    <link rel="preload" as="image" href={@branding_logo_url} />
+    <% end %>
+
     <!-- Fancybox loaded on demand — see openFancybox() in nexus.jsx -->
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
+
+    <script>
+      // Server-injected branding + theme config. Read synchronously by the
+      // inline theme script below and by nexus.jsx at module load, so the logo,
+      // favicon and theme are known on the first render even on a cold cache.
+      window.__nexusBranding = <%= Phoenix.HTML.raw(@branding_json) %>;
+      window.__nexusThemeCfg = <%= Phoenix.HTML.raw(@theme_cfg_json) %>;
+    </script>
+
     <%= if @extension_manifests != %{} do %>
     <script>
       // Manifests for every enabled extension, keyed by slug. Each entry is the
@@ -74,27 +105,30 @@
       }
     </script>
     <script>
-      // Apply theme immediately before React loads to prevent flash.
-      // This script is intentionally synchronous and placed after app.css
-      // but before any deferred scripts so it runs at parse time.
+      // Resolve which theme to show and set data-theme BEFORE first paint.
+      // All colour variables for both themes are already in the server-rendered
+      // <style id="nexus-theme-vars"> block above, so this script no longer sets
+      // any colours itself — it only picks the mode. That removes the old
+      // localStorage-cache race that caused the accent colour to flash on a cold
+      // cache. The user's stored preference still wins; the allowed-theme config
+      // comes from the server (window.__nexusThemeCfg).
       (function() {
         try {
-          var pref   = localStorage.getItem('nexus_theme_pref') || 'auto';
-          var cfgRaw = localStorage.getItem('nexus_theme_cfg');
-          var cfg    = cfgRaw ? JSON.parse(cfgRaw) : {darkEnabled:true, lightEnabled:true, defaultTheme:'dark'};
+          var cfg = window.__nexusThemeCfg || {darkEnabled:true, lightEnabled:true, defaultTheme:'dark'};
           var darkEnabled  = cfg.darkEnabled  !== false;
           var lightEnabled = cfg.lightEnabled !== false;
           var defaultTheme = cfg.defaultTheme || 'dark';
+
+          var pref = 'auto';
+          try { pref = localStorage.getItem('nexus_theme_pref') || 'auto'; } catch(e) {}
           var osDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-          // Resolve theme respecting allowed options
           var theme;
-          if (pref === 'light' && lightEnabled)       { theme = 'light'; }
-          else if (pref === 'dark' && darkEnabled)    { theme = 'dark';  }
-          else if (pref === 'light' && !lightEnabled) { theme = darkEnabled ? 'dark' : 'dark'; }
-          else if (pref === 'dark'  && !darkEnabled)  { theme = lightEnabled ? 'light' : 'dark'; }
+          if (pref === 'light' && lightEnabled)      { theme = 'light'; }
+          else if (pref === 'dark' && darkEnabled)   { theme = 'dark';  }
+          else if (pref === 'light' && !lightEnabled){ theme = 'dark';  }
+          else if (pref === 'dark'  && !darkEnabled) { theme = lightEnabled ? 'light' : 'dark'; }
           else {
-            // auto or unset: use admin default, else OS, else dark
             if (defaultTheme === 'light' && lightEnabled)    { theme = 'light'; }
             else if (defaultTheme === 'dark' && darkEnabled) { theme = 'dark';  }
             else if (darkEnabled && lightEnabled) { theme = osDark ? 'dark' : 'light'; }
@@ -102,96 +136,30 @@
             else { theme = 'dark'; }
           }
 
-          var r = document.documentElement;
+          document.documentElement.setAttribute('data-theme', theme);
 
-          // Restore cached computed CSS vars from the last successful applyTheme call.
-          // These include custom accent colors and tint colors set in the admin panel.
-          // Falls back to hardcoded defaults if no cache exists yet (first visit).
-          var cachedVars = null;
-          try {
-            var raw = localStorage.getItem('nexus_appearance_vars');
-            if (raw) {
-              var parsed = JSON.parse(raw);
-              // Only use the cache if it matches the resolved theme —
-              // otherwise we'd flash the wrong theme's custom colors.
-              if (parsed.theme === theme) cachedVars = parsed;
+          // Restore admin custom CSS synchronously (independent of the theme
+          // variables above). Kept here so custom rules apply before first paint.
+          var appRaw = localStorage.getItem('nexus_appearance_app');
+          if (appRaw) {
+            var app = JSON.parse(appRaw);
+            if (app.custom_css) {
+              var style = document.createElement('style');
+              // Strip CSS constructs that can exfiltrate data:
+              // @import, external url(), and CSS expressions.
+              var safe = app.custom_css
+                .replace(/@import\b[^;]*(;|$)/gi, '')
+                .replace(/url\s*\(\s*(?!['"]?(data:|\/|#))[^)]+\)/gi, '')
+                .replace(/expression\s*\(/gi, '');
+              style.textContent = safe;
+              document.head.appendChild(style);
             }
-          } catch(e) {}
-
-          if (cachedVars) {
-            // Restore every cached var exactly as it was set by applyTheme
-            r.setAttribute('data-theme', theme);
-            var skip = ['theme'];
-            Object.keys(cachedVars).forEach(function(k) {
-              if (skip.indexOf(k) === -1 && cachedVars[k]) {
-                r.style.setProperty(k, cachedVars[k]);
-              }
-            });
-          } else if (theme === 'light') {
-            r.setAttribute('data-theme', 'light');
-            r.style.setProperty('--bg',        '#f5f4fb');
-            r.style.setProperty('--s1',        '#ffffff');
-            r.style.setProperty('--s2',        '#edeaf9');
-            r.style.setProperty('--s3',        '#e3dff5');
-            r.style.setProperty('--t1',        '#1a1428');
-            r.style.setProperty('--t2',        'rgba(26,20,80,0.70)');
-            r.style.setProperty('--t3',        'rgba(26,20,80,0.50)');
-            r.style.setProperty('--t4',        'rgba(26,20,80,0.30)');
-            r.style.setProperty('--t5',        'rgba(26,20,80,0.18)');
-            r.style.setProperty('--b1',        'rgba(26,20,80,0.07)');
-            r.style.setProperty('--b2',        'rgba(26,20,80,0.10)');
-            r.style.setProperty('--b3',        'rgba(26,20,80,0.14)');
-            r.style.setProperty('--ac',        '#7351db');
-            r.style.setProperty('--ac-bg',     'rgba(115,81,219,0.09)');
-            r.style.setProperty('--ac-border', 'rgba(115,81,219,0.25)');
-            r.style.setProperty('--ac-text',   '#5b3db5');
-            r.style.setProperty('--ac-on',     '#ffffff');
-          } else {
-            r.setAttribute('data-theme', 'dark');
-            r.style.setProperty('--bg',        '#0d0d14');
-            r.style.setProperty('--s1',        '#13121e');
-            r.style.setProperty('--s2',        '#18182a');
-            r.style.setProperty('--s3',        '#1e1c2e');
-            r.style.setProperty('--t1',        '#f0eeff');
-            r.style.setProperty('--t2',        'rgba(255,255,255,0.65)');
-            r.style.setProperty('--t3',        'rgba(255,255,255,0.45)');
-            r.style.setProperty('--t4',        'rgba(255,255,255,0.25)');
-            r.style.setProperty('--t5',        'rgba(255,255,255,0.15)');
-            r.style.setProperty('--b1',        'rgba(255,255,255,0.07)');
-            r.style.setProperty('--b2',        'rgba(255,255,255,0.10)');
-            r.style.setProperty('--b3',        'rgba(255,255,255,0.14)');
-            r.style.setProperty('--ac',        '#a78bfa');
-            r.style.setProperty('--ac-on',     '#0d0d14');
-            r.style.setProperty('--ac-bg',     'rgba(167,139,250,0.09)');
-            r.style.setProperty('--ac-border', 'rgba(167,139,250,0.25)');
-            r.style.setProperty('--ac-text',   '#c4b5fd');
           }
-
-          // Restore custom CSS (avatar_radius and fs_* are now in nexus_appearance_vars
-          // and already restored above, so theme css_vars overrides are preserved).
-          try {
-            var appRaw = localStorage.getItem('nexus_appearance_app');
-            if (appRaw) {
-              var app = JSON.parse(appRaw);
-              if (app.custom_css) {
-                var style = document.createElement('style');
-                // Strip CSS constructs that can exfiltrate data:
-                // @import, external url(), and CSS expressions.
-                var safe = app.custom_css
-                  .replace(/@import\b[^;]*(;|$)/gi, '')
-                  .replace(/url\s*\(\s*(?!['"]?(data:|\/|#))[^)]+\)/gi, '')
-                  .replace(/expression\s*\(/gi, '');
-                style.textContent = safe;
-                document.head.appendChild(style);
-              }
-            }
-          } catch(e) {}
-
         } catch(e) {}
       })();
     </script>
   </head>
-  <body style="background:#0d0d14;color:#f0eeff;">
+  <body style="background:var(--bg);color:var(--t1);">
     <%= @inner_content %>
   </body>
 </html>

@@ -1686,8 +1686,14 @@ function sanitizeCSS(css) {
 }
 // Initialize branding from cache immediately to avoid flash on load
 let _brandingState = (() => {
-  try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : {logo_url:null,site_name:null,favicon_url:null,hero_title:null,hero_body:null,hero_enabled:false}; }
-  catch { return {logo_url:null,site_name:null,favicon_url:null,hero_title:null,hero_body:null,hero_enabled:false}; }
+  const fallback = {logo_url:null,site_name:null,favicon_url:null,hero_title:null,hero_body:null,hero_enabled:false};
+  // Server-injected branding (window.__nexusBranding) is authoritative on first
+  // load and is present even on a cold cache, so the logo renders on the first
+  // paint instead of after the /branding fetch. Fall back to the localStorage
+  // copy, then to empty defaults.
+  try { if (window.__nexusBranding) return {...fallback, ...window.__nexusBranding}; } catch {}
+  try { const b = localStorage.getItem("nexus_branding"); return b ? JSON.parse(b) : fallback; }
+  catch { return fallback; }
 })();
 let _brandingListeners = [];
 function onBrandingChange(fn) { _brandingListeners.push(fn); }
@@ -2346,7 +2352,7 @@ function SpaceWithChildren({space, col, children, parentActive, defaultExpanded,
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
-  const [branding, setBranding] = useState({logo_url:null, site_name:null});
+  const [branding, setBranding] = useState(() => ({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name}));
   const [installPrompt, setInstallPrompt] = useState(window._installPrompt||null);
   const [installDismissed, setInstallDismissed] = useState(false);
   const [, forceExploreUpdate] = useState(0);

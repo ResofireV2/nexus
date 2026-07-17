@@ -1,0 +1,10 @@
+--- nexus-master/lib/nexus_web/router.ex	2026-06-21 19:39:28.000000000 +0000
++++ stage1/lib/nexus_web/router.ex	2026-07-17 03:48:01.896317647 +0000
+@@ -20,6 +20,7 @@
+         "base-uri 'self';"
+     }
+     plug NexusWeb.Plugs.PwaSettings
++    plug NexusWeb.Plugs.AppearanceSettings
+     plug NexusWeb.Plugs.ExtensionBundles
+   end
+ 
