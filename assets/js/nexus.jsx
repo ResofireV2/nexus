@@ -1904,20 +1904,20 @@ function deriveTintVarsLight(hex, intensity) {
 // Light-mode CSS variable overrides (text, borders)
 const LIGHT_VARS = {
   "--t1": "#1a1428",
-  "--t2": "rgba(26,20,80,0.70)",
-  "--t3": "rgba(26,20,80,0.50)",
-  "--t4": "rgba(26,20,80,0.30)",
-  "--t5": "rgba(26,20,80,0.18)",
+  "--t2": "rgba(26,20,80,0.86)",
+  "--t3": "rgba(26,20,80,0.77)",
+  "--t4": "rgba(26,20,80,0.69)",
+  "--t5": "rgba(26,20,80,0.60)",
   "--b1": "rgba(26,20,80,0.07)",
   "--b2": "rgba(26,20,80,0.10)",
   "--b3": "rgba(26,20,80,0.14)",
 };
 const DARK_VARS = {
   "--t1": "#f0eeff",
-  "--t2": "rgba(255,255,255,0.65)",
-  "--t3": "rgba(255,255,255,0.45)",
-  "--t4": "rgba(255,255,255,0.25)",
-  "--t5": "rgba(255,255,255,0.15)",
+  "--t2": "rgba(255,255,255,0.86)",
+  "--t3": "rgba(255,255,255,0.70)",
+  "--t4": "rgba(255,255,255,0.58)",
+  "--t5": "rgba(255,255,255,0.50)",
   "--b1": "rgba(255,255,255,0.07)",
   "--b2": "rgba(255,255,255,0.10)",
   "--b3": "rgba(255,255,255,0.14)",
@@ -3575,7 +3575,7 @@ function ExtensionRoutePage({ _match, currentUser, navigate, ...params }) {
   return (
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{height:48,borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",padding:"0 24px",flexShrink:0}}>
-        <button className="mob-icon-btn mob-only" onClick={()=>window.history.back()} style={{marginRight:8}}>
+        <button className="mob-icon-btn mob-only" onClick={()=>window.history.back()} aria-label="Back" style={{marginRight:8}}>
           <i className="fa-solid fa-arrow-left"/>
         </button>
         {title && <span style={{fontSize:14,fontWeight:500,color:"var(--t1)"}}>{title}</span>}
@@ -4113,7 +4113,7 @@ function MobileUserMenu({user, navigate, onLogout, open, onClose}) {
     <div className={`mob-user-overlay ${open?"open":""}`}>
       <div className="mob-overlay-head">
         <span className="mob-overlay-title">Account</span>
-        <button className="mob-icon-btn" onClick={onClose}><i className="fa-solid fa-xmark"/></button>
+        <button className="mob-icon-btn" onClick={onClose} aria-label="Close"><i className="fa-solid fa-xmark"/></button>
       </div>
       <div style={{padding:"20px 16px",borderBottom:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:14}}>
         <RsAv user={user} size={56} noCard />
@@ -4161,7 +4161,7 @@ function MobileSearchOverlay({open, onClose, navigate}) {
     <div className={`mob-overlay ${open?"open":""}`} style={{zIndex:970}}>
       <div className="mob-overlay-head">
         <span className="mob-overlay-title">Search</span>
-        <button className="mob-icon-btn" onClick={()=>{setQ("");setResults(null);onClose();}}><i className="fa-solid fa-xmark"/></button>
+        <button className="mob-icon-btn" onClick={()=>{setQ("");setResults(null);onClose();}} aria-label="Close"><i className="fa-solid fa-xmark"/></button>
       </div>
       <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)"}}>
         <div style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:24,display:"flex",alignItems:"center",gap:8,padding:"10px 14px"}}>
@@ -4625,7 +4625,7 @@ function App() {
         <div className={`mob-overlay ${mobLeftOpen?"open":""}`}>
           <div className="mob-overlay-head">
             <span className="mob-overlay-title">Menu</span>
-            <button className="mob-icon-btn" onClick={()=>setMobLeftOpen(false)}><i className="fa-solid fa-xmark"/></button>
+            <button className="mob-icon-btn" onClick={()=>setMobLeftOpen(false)} aria-label="Close menu"><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
             <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={(p,props)=>{setMobLeftOpen(false);navigate(p,props);}} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg} mobile={true}/>
@@ -4634,7 +4634,7 @@ function App() {
         <div className={`mob-overlay right ${mobRightOpen?"open":""}`}>
           <div className="mob-overlay-head">
             <span className="mob-overlay-title">Activity</span>
-            <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)}><i className="fa-solid fa-xmark"/></button>
+            <button className="mob-icon-btn" onClick={()=>setMobRightOpen(false)} aria-label="Close activity"><i className="fa-solid fa-xmark"/></button>
           </div>
           <div className="mob-overlay-body">
             <RightPanel spaces={spaces} tags={tags} liveEvents={liveEvents} layoutCfg={layoutCfg} mobile={true} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
@@ -4649,9 +4649,9 @@ function App() {
         <div className="main-area">
           <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
           {currentUser?.status==="pending_deletion"&&<PendingDeletionBanner scheduledAt={currentUser.deletion_scheduled_at} onCancel={async()=>{const d=await api.delete("/auth/schedule-deletion").catch(()=>({}));if(d.ok){setCurrentUser(u=>({...u,status:"active",deletion_scheduled_at:null}));toast("Deletion cancelled — account restored");}}} onNavigateSettings={()=>navigate("settings",{tab:"security"})}/> }
-          <div className="page-area" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <main className="page-area" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
-          </div>
+          </main>
         </div>
         <RightPanel spaces={spaces} tags={tags} liveEvents={liveEvents} layoutCfg={layoutCfg} currentUser={currentUser} navigate={navigate} page={page} pageProps={pageProps}/>
       </div>
