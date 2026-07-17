@@ -597,8 +597,17 @@ function ExtensionDetail({ext: initialExt, onBack, onToggle, onUninstall}) {
       // Update client-side active set so surfaces this extension registered
       // (explore items, toolbar buttons, right widgets, etc.) appear or
       // disappear immediately without requiring a page reload.
-      if (window.NexusExtensions && window.NexusExtensions.setExtensionActive) {
-        window.NexusExtensions.setExtensionActive(d.extension.slug, !!d.extension.enabled);
+      if (window.NexusExtensions) {
+        // On enable, inject the extension's JS bundle if it wasn't already
+        // loaded at page render, so its register* calls run and its surfaces
+        // (admin panel, explore item, widgets, …) appear live. No-op on
+        // disable or if already loaded.
+        if (d.extension.enabled && window.NexusExtensions.loadExtensionBundle) {
+          await window.NexusExtensions.loadExtensionBundle(d.extension.slug, d.extension.js_bundle_url);
+        }
+        if (window.NexusExtensions.setExtensionActive) {
+          window.NexusExtensions.setExtensionActive(d.extension.slug, !!d.extension.enabled);
+        }
       }
       // Refresh the parent admin shell's extensions list so the sidebar's
       // enabled-state indicator updates immediately after live toggle.
@@ -867,8 +876,16 @@ function ExtensionAdminPage({slug}) {
     const d = await api.post(`/admin/extensions/${slug}/toggle`);
     if (d.extension) {
       setExt(d.extension);
-      if (window.NexusExtensions && window.NexusExtensions.setExtensionActive) {
-        window.NexusExtensions.setExtensionActive(d.extension.slug, !!d.extension.enabled);
+      if (window.NexusExtensions) {
+        // On enable, inject the extension's JS bundle if it wasn't already
+        // loaded at page render, so its register* calls run and its surfaces
+        // appear live. No-op on disable or if already loaded.
+        if (d.extension.enabled && window.NexusExtensions.loadExtensionBundle) {
+          await window.NexusExtensions.loadExtensionBundle(d.extension.slug, d.extension.js_bundle_url);
+        }
+        if (window.NexusExtensions.setExtensionActive) {
+          window.NexusExtensions.setExtensionActive(d.extension.slug, !!d.extension.enabled);
+        }
       }
       if (window._nexusAdminReloadExtensions) window._nexusAdminReloadExtensions();
     }

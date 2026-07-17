@@ -737,6 +737,32 @@ window.NexusExtensions = {
     this._accountActionListeners.forEach(fn => fn());
   },
 
+  // Session set of extension slugs whose JS bundle has executed on THIS page.
+  // Seeded from the bundles the server injected at page load (the enabled +
+  // loaded extensions present in window._nexusExtensionManifests). Ensures an
+  // extension enabled from the admin panel gets its bundle injected exactly
+  // once, so its surfaces appear live without a reload.
+  _loadedBundles: null,
+
+  // Inject an extension's JS bundle into the running page if it isn't loaded
+  // yet. Resolves once the script has run (its register* calls fire the surface
+  // listeners) — or immediately if already loaded / no bundle. Fails soft so
+  // the caller's setExtensionActive still runs on error.
+  loadExtensionBundle(slug, url) {
+    if (this._loadedBundles === null) {
+      this._loadedBundles = new Set(Object.keys(window._nexusExtensionManifests || {}));
+    }
+    if (!slug || !url || this._loadedBundles.has(slug)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const s = document.createElement("script");
+      s.src = url;
+      s.defer = true;
+      s.onload  = () => { this._loadedBundles.add(slug); resolve(); };
+      s.onerror = () => resolve();
+      document.head.appendChild(s);
+    });
+  },
+
   isExtensionActive(slug) {
     return this._isExtActive(slug);
   },
