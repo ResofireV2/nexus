@@ -10,149 +10,104 @@ import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
 import { RichTextArea } from "../components/RichTextArea";
 import { useDraftAutosave } from "./DraftsPage";
-function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition}) {
-  var trackRef = useRef(null);
-  var saveTimer = useRef(null);
-  var isDragging = useRef(false);
-  var maxReadIdx = useRef(lastReadReplyId
-    ? replies.findIndex(function(r){return r.id===lastReadReplyId;})
+import { useScrubberModel, pctFromPointer, thinPips, PIP_BUDGET } from "../lib/scrubber";
+// Debounce before persisting the read position. One value for every path —
+// the old code used 500ms on jump and 1500ms on scroll for no clear reason.
+const SAVE_DEBOUNCE_MS = 1000;
+
+function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosition, scrubber}) {
+  const trackRef   = useRef(null);
+  const saveTimer  = useRef(null);
+  const maxReadIdx = useRef(lastReadReplyId
+    ? replies.findIndex(r => r.id === lastReadReplyId)
     : -1);
+  const [readIdx, setReadIdx] = useState(maxReadIdx.current);
 
-  // scrollPct: 0-100, reflects exact scroll position fluid and continuous
-  var [scrollPct, setScrollPct] = useState(0);
-  // readPct: high-water mark of how far the user has actually read
-  var [readPct, setReadPct] = useState(function(){
-    var idx = maxReadIdx.current;
-    return idx >= 0 && replies.length > 1 ? (idx/(replies.length-1))*100 : 0;
-  });
+  const { scrollPct, index: displayIdx, pips, dragStart, dragTo, dragEnd } = scrubber;
 
-  function getContainer() {
-    return document.querySelector('.post-content-wrap');
-  }
-
-  function pctFromScroll(container) {
-    var max = container.scrollHeight - container.clientHeight;
-    if(max <= 0) return 100;
-    return Math.min(100, (container.scrollTop / max) * 100);
-  }
-
-  function replyIdxFromPct(pct) {
-    return Math.round((pct/100) * (replies.length-1));
-  }
-
-  function jumpToIndex(ri) {
-    ri = Math.max(0, Math.min(ri, replies.length-1));
-    var reply = replies[ri];
-    if(!reply) return;
-    var container = getContainer();
-    var el = document.getElementById('reply-'+reply.id);
-    if(!el || !container) return;
-    container.scrollTo({top: el.offsetTop - 20, behavior:'smooth'});
-    if(ri > maxReadIdx.current) {
-      maxReadIdx.current = ri;
-      var pct = replies.length > 1 ? (ri/(replies.length-1))*100 : 100;
-      setReadPct(pct);
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(function(){
-        if(currentUser && reply){
-          api.post('/posts/'+postId+'/read-position',{last_reply_id:reply.id,reply_count:ri+1}).catch(function(){});
-          if(onSavePosition) onSavePosition(reply.id, ri+1);
-        }
-      }, 500);
-    }
-  }
-
-  useEffect(function(){
-    var container = getContainer();
-    if(!container || !replies.length) return;
-    // Set initial scroll position
-    setScrollPct(pctFromScroll(container));
-
-    function onScroll() {
-      var pct = pctFromScroll(container);
-      setScrollPct(pct);
-
-      // Advance read high-water mark
-      var ri = replyIdxFromPct(pct);
-      if(ri > maxReadIdx.current) {
-        maxReadIdx.current = ri;
-        var rPct = replies.length > 1 ? (ri/(replies.length-1))*100 : 100;
-        setReadPct(rPct);
-        clearTimeout(saveTimer.current);
-        saveTimer.current = setTimeout(function(){
-          var r = replies[ri];
-          if(currentUser && r){
-            api.post('/posts/'+postId+'/read-position',{last_reply_id:r.id,reply_count:ri+1}).catch(function(){});
-            if(onSavePosition) onSavePosition(r.id, ri+1);
-          }
-        }, 1500);
+  // Advance the read high-water mark from the measured index, so a reply is
+  // only marked read once it has actually been on screen. The old percentage
+  // math marked replies read that the user never saw.
+  useEffect(() => {
+    if (displayIdx <= maxReadIdx.current) return;
+    maxReadIdx.current = displayIdx;
+    setReadIdx(displayIdx);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const r = replies[displayIdx];
+      if (currentUser && r) {
+        api.post('/posts/' + postId + '/read-position', {last_reply_id: r.id, reply_count: displayIdx + 1}).catch(() => {});
+        if (onSavePosition) onSavePosition(r.id, displayIdx + 1);
       }
-    }
-    container.addEventListener('scroll', onScroll, {passive:true});
-    return function(){ container.removeEventListener('scroll', onScroll); clearTimeout(saveTimer.current); };
-  }, [replies.length, postId]);
+    }, SAVE_DEBOUNCE_MS);
+  }, [displayIdx, postId]);
 
-  function onTrackClick(e) {
-    if(isDragging.current || !trackRef.current) return;
-    var rect = trackRef.current.getBoundingClientRect();
-    var pct = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-    var ri = replyIdxFromPct(pct);
-    jumpToIndex(ri);
-  }
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
 
-  function onThumbMouseDown(e) {
+  // Thin the pips on very long threads so we aren't positioning hundreds of
+  // overlapping 2px divs.
+  const shownPips = useMemo(
+    () => replies.length > PIP_BUDGET ? thinPips(pips, 0.8) : pips.map((pct, i) => ({pct, i})),
+    [pips, replies.length]
+  );
+
+  // Two static pip layers. Only the clip on the lit layer changes as you
+  // scroll, so scrolling never re-renders the pips themselves.
+  const pipStyle = (pct, colour) => ({
+    position: "absolute", left: "50%", transform: "translateX(-50%)",
+    top: pct + "%", marginTop: -1, width: 6, height: 2, borderRadius: 1,
+    background: colour, pointerEvents: "none",
+  });
+  const dimPips = useMemo(() => shownPips.map(p => (
+    <div key={p.i} title={"Reply " + (p.i + 1)} style={pipStyle(p.pct, "rgba(255,255,255,0.12)")}/>
+  )), [shownPips]);
+  const litPips = useMemo(() => shownPips.map(p => (
+    <div key={p.i} style={pipStyle(p.pct, "var(--ac-text)")}/>
+  )), [shownPips]);
+
+  const readPct = pips.length && readIdx >= 0 ? pips[Math.min(readIdx, pips.length - 1)] : 0;
+
+  // Pointer events rather than mouse events: one code path covers mouse and
+  // touch, and pointer capture keeps the drag alive outside the track without
+  // document-level listeners.
+  function pointerDown(e) {
+    const el = trackRef.current;
+    if (!el) return;
     e.preventDefault();
-    e.stopPropagation();
-    isDragging.current = true;
-    function onMove(me) {
-      if(!trackRef.current) return;
-      var rect = trackRef.current.getBoundingClientRect();
-      var pct = Math.max(0, Math.min(100, ((me.clientY - rect.top) / rect.height) * 100));
-      setScrollPct(pct);
-      var ri = replyIdxFromPct(pct);
-      var reply = replies[ri];
-      if(!reply) return;
-      var container = getContainer();
-      var el = document.getElementById('reply-'+reply.id);
-      if(el && container) container.scrollTop = el.offsetTop - 20;
-    }
-    function onUp() {
-      isDragging.current = false;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    dragStart();
+    dragTo(pctFromPointer(el, e.clientY));
   }
-
-  var displayIdx = replyIdxFromPct(scrollPct);
+  function pointerMove(e) {
+    const el = trackRef.current;
+    if (!el || !el.hasPointerCapture || !el.hasPointerCapture(e.pointerId)) return;
+    dragTo(pctFromPointer(el, e.clientY));
+  }
+  function pointerUp(e) {
+    const el = trackRef.current;
+    if (el && el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) {
+      try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    dragEnd();
+  }
 
   return (
     <div className="desk-scrubber-panel" style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
       <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
-      {/* Full-width hit area — track is visual only, this div captures all clicks/drags */}
+      {/* Full-width hit area — the track is visual only, this div captures all pointer input */}
       <div ref={trackRef}
-        onClick={onTrackClick}
-        onMouseDown={onThumbMouseDown}
-        style={{flex:1,width:"100%",position:"relative",cursor:"grab",margin:"4px 0",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        onPointerDown={pointerDown} onPointerMove={pointerMove}
+        onPointerUp={pointerUp} onPointerCancel={pointerUp}
+        style={{flex:1,width:"100%",position:"relative",cursor:"grab",margin:"4px 0",display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none"}}>
         {/* Track background */}
         <div style={{position:"absolute",top:0,bottom:0,left:"50%",transform:"translateX(-50%)",width:4,background:"rgba(255,255,255,0.08)",borderRadius:2,pointerEvents:"none"}}/>
         {/* Read high-water fill */}
         <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"var(--ac-bg)",height:readPct+"%",pointerEvents:"none"}}/>
         {/* Scroll position fill */}
         <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:4,borderRadius:2,background:"var(--ac)",height:scrollPct+"%",pointerEvents:"none"}}/>
-        {/* Pip per reply */}
-        {replies.map(function(r,i){
-          var topPct = replies.length > 1 ? (i/(replies.length-1))*100 : 50;
-          return React.createElement('div',{key:r.id,title:"Reply "+(i+1),style:{
-            position:"absolute",left:"50%",transform:"translateX(-50%)",
-            top:topPct+"%",marginTop:-1,
-            width:6,height:2,borderRadius:1,
-            background:i <= displayIdx ? "var(--ac-text)" : "rgba(255,255,255,0.12)",
-            pointerEvents:"none"
-          }});
-        })}
+        {dimPips}
+        <div style={{position:"absolute",inset:0,pointerEvents:"none",clipPath:"inset(0 0 "+(100-scrollPct)+"% 0)"}}>{litPips}</div>
         {/* Thumb */}
         <div style={{
           position:"absolute",left:"50%",transform:"translate(-50%,-50%)",
@@ -380,9 +335,12 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
   const [lastReadReplyId, setLastReadReplyId] = useState(undefined);
   const [lastReadCount, setLastReadCount] = useState(0);
   const repliesContainerRef = useRef(null);
+  // One shared scrubber model for the desktop panel, the mobile pill and the
+  // jump sheet — previously each derived its own position independently, with
+  // two separate scroll listeners on the same container.
+  const scrubber = useScrubberModel(repliesContainerRef, replies);
   const [mobSheetOpen, setMobSheetOpen] = useState(false);
   const [mobReplyOpen, setMobReplyOpen] = useState(false);
-  const [mobDisplayIdx, setMobDisplayIdx] = useState(0);
   const composerRef = useRef();
   const replyBodyRef = useRef(replyBody);
   const typingTimers = useRef({});
@@ -576,20 +534,6 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
     return () => { window._replyTracker?.destroy(); window._replyTracker = null; };
   }, []);
 
-  // Track which reply is visible for the mobile pill button
-  useEffect(()=>{
-    const container = repliesContainerRef.current;
-    if(!container||!replies.length) return;
-    const onScroll = ()=>{
-      const scrollTop = container.scrollTop;
-      const scrollH   = container.scrollHeight - container.clientHeight;
-      const pct = scrollH > 0 ? scrollTop / scrollH : 0;
-      const idx = Math.round(pct * (replies.length - 1));
-      setMobDisplayIdx(Math.max(0, Math.min(idx, replies.length - 1)));
-    };
-    container.addEventListener("scroll", onScroll, {passive:true});
-    return ()=>container.removeEventListener("scroll", onScroll);
-  },[replies.length]);
 
   const submitReply=async()=>{
     if(!replyBody.trim())return; setSubmitting(true);
@@ -887,8 +831,8 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
         </div>
       )}
       <div className="post-content-wrap" ref={repliesContainerRef}>
-          {replies.length>0&&<MobileScrubberBar replies={replies} displayIdx={mobDisplayIdx} onClick={()=>setMobSheetOpen(true)}/>}
-          <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrollPct={replies.length>1?(mobDisplayIdx/(replies.length-1))*100:0} displayIdx={mobDisplayIdx} onJump={(ri)=>{var r=replies[ri];if(!r)return;var el=document.getElementById("reply-"+r.id);var c=repliesContainerRef.current;if(el&&c){c.scrollTo({top:el.offsetTop-20,behavior:"smooth"});setMobSheetOpen(false);}}}/>
+          {replies.length>0&&<MobileScrubberBar replies={replies} displayIdx={scrubber.index} onClick={()=>setMobSheetOpen(true)}/>}
+          <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrubber={scrubber}/>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
         <div className="post-header" style={{display:"flex",alignItems:"flex-start",gap:14,marginBottom:16}}>
           <div className="post-space-bar" style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
@@ -1321,6 +1265,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
         </>)}
       </div>
       <div className="desk-scrubber">{replies.length>0&&currentUser&&<PostScrubber
+        scrubber={scrubber}
         replies={replies}
         lastReadReplyId={lastReadReplyId}
         postId={postId}
@@ -1414,46 +1359,57 @@ function MobileScrubberBar({replies, displayIdx, onClick}) {
   );
 }
 
-function MobileScrubberSheet({open, onClose, replies, scrollPct: initialScrollPct, displayIdx: initialIdx, onJump}) {
-  const trackRef = React.useRef();
-  const listRef  = React.useRef();
-  const dragRef  = React.useRef({});
-  const [localPct, setLocalPct] = React.useState(initialScrollPct);
-  const [localIdx, setLocalIdx] = React.useState(initialIdx);
+function MobileScrubberSheet({open, onClose, replies, scrubber}) {
+  const trackRef = useRef(null);
+  const listRef  = useRef(null);
+  const dragRef  = useRef({});
+  const [scrubbing, setScrubbing] = useState(false);
 
-  // Sync from parent when sheet opens
-  React.useEffect(()=>{ if(open){ setLocalPct(initialScrollPct); setLocalIdx(initialIdx); } },[open,initialScrollPct,initialIdx]);
+  const { scrollPct, index, jumpTo, dragStart, dragTo, dragEnd } = scrubber;
 
-  // Scroll active item into view when idx changes
-  React.useEffect(()=>{
-    const list=listRef.current; if(!list||!open) return;
-    const active=list.querySelector("[data-active='true']");
-    if(active) active.scrollIntoView({block:"nearest",behavior:"smooth"});
-  },[localIdx,open]);
+  // Scroll the active row into view as the position changes
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !open) return;
+    const active = list.querySelector("[data-active='true']");
+    if (active) active.scrollIntoView({block: "nearest", behavior: "smooth"});
+  }, [index, open]);
 
-  // Update scrubber line as user scrolls the reply list
-  function onListScroll(e){
-    const el=e.currentTarget;
-    const maxScroll=el.scrollHeight-el.clientHeight;
-    if(maxScroll<=0) return;
-    const pct=(el.scrollTop/maxScroll)*100;
-    setLocalPct(pct);
-    setLocalIdx(Math.round((pct/100)*(replies.length-1)));
+  // The track is now a real scrubber: dragging scrolls the thread live behind
+  // the sheet. Previously it was tap-only, and scrolling the sheet's own list
+  // moved the track, which measured the wrong thing entirely.
+  function pointerDown(e) {
+    const el = trackRef.current;
+    if (!el) return;
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    setScrubbing(true);
+    dragStart();
+    dragTo(pctFromPointer(el, e.clientY));
+  }
+  function pointerMove(e) {
+    const el = trackRef.current;
+    if (!el || !el.hasPointerCapture || !el.hasPointerCapture(e.pointerId)) return;
+    dragTo(pctFromPointer(el, e.clientY));
+  }
+  function pointerUp(e) {
+    const el = trackRef.current;
+    if (el && el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) {
+      try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    setScrubbing(false);
+    dragEnd();
   }
 
-  // Click vertical track to jump
-  function handleTrack(e){
-    if(!trackRef.current) return;
-    const rect=trackRef.current.getBoundingClientRect();
-    const pct=Math.max(0,Math.min(100,((e.clientY-rect.top)/rect.height)*100));
-    const idx=Math.round((pct/100)*(replies.length-1));
-    setLocalPct(pct); setLocalIdx(idx); onJump(idx);
-  }
-
-  // Drag handle down to close
+  // Drag the handle down to close
   function onHandleTouchStart(e){ dragRef.current={startY:e.touches[0].clientY,dy:0}; }
   function onHandleTouchMove(e){ dragRef.current.dy=e.touches[0].clientY-dragRef.current.startY; }
   function onHandleTouchEnd(){ if(dragRef.current.dy>60) onClose(); dragRef.current={}; }
+
+  // Transitions are removed while scrubbing, or the fill and thumb visibly lag
+  // behind the finger.
+  const fillTransition  = scrubbing ? "none" : "height .15s";
+  const thumbTransition = scrubbing ? "none" : "top .15s";
 
   return (<>
     {open&&<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:979,background:"rgba(0,0,0,0.4)"}}/>}
@@ -1463,28 +1419,29 @@ function MobileScrubberSheet({open, onClose, replies, scrollPct: initialScrollPc
         onClick={onClose}/>
       <div style={{padding:"0 20px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>Jump to reply</span>
-        <span style={{fontSize:12,color:"var(--t4)"}}>{localIdx+1} of {replies.length}</span>
+        <span style={{fontSize:12,color:"var(--t4)"}}>{index+1} of {replies.length}</span>
       </div>
       <div style={{display:"flex",gap:16,padding:"0 20px 20px",alignItems:"stretch"}}>
-        <div ref={trackRef} onClick={handleTrack}
-          style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200}}>
+        <div ref={trackRef}
+          onPointerDown={pointerDown} onPointerMove={pointerMove}
+          onPointerUp={pointerUp} onPointerCancel={pointerUp}
+          style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200,touchAction:"none"}}>
           <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:4,transform:"translateX(-50%)",background:"rgba(255,255,255,0.08)",borderRadius:2}}/>
-          <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:localPct+"%",borderRadius:2,transition:"height .15s"}}/>
-          <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:localPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)",transition:"top .15s"}}/>
+          <div style={{position:"absolute",left:"50%",top:0,width:4,transform:"translateX(-50%)",background:"var(--ac)",height:scrollPct+"%",borderRadius:2,transition:fillTransition}}/>
+          <div style={{position:"absolute",left:"50%",transform:"translate(-50%,-50%)",top:scrollPct+"%",width:16,height:16,borderRadius:"50%",background:"var(--ac)",border:"2px solid var(--bg)",transition:thumbTransition}}/>
         </div>
-        <div ref={listRef} onScroll={onListScroll} style={{flex:1,overflow:"auto",maxHeight:260}}>
-          {replies.map(function(r,i){
-            var isActive=i===localIdx;
-            return React.createElement('div',{
-              key:r.id,
-              "data-active":isActive?"true":"false",
-              onClick:function(){const pct=replies.length>1?(i/(replies.length-1))*100:0;setLocalPct(pct);setLocalIdx(i);onJump(i);},
-              style:{padding:"10px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
-                background:isActive?"var(--ac-bg)":"rgba(255,255,255,0.03)",
-                border:"0.5px solid "+(isActive?"var(--ac-border)":"transparent")}
-            },
-              React.createElement('div',{style:{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}},r.user?.username||"?"),
-              React.createElement('div',{style:{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},r.body?.slice(0,50)||"")
+        <div ref={listRef} style={{flex:1,overflow:"auto",maxHeight:260}}>
+          {replies.map((r,i)=>{
+            const isActive = i===index;
+            return (
+              <div key={r.id} data-active={isActive?"true":"false"}
+                onClick={()=>{ jumpTo(i); onClose(); }}
+                style={{padding:"10px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
+                  background:isActive?"var(--ac-bg)":"rgba(255,255,255,0.03)",
+                  border:"0.5px solid "+(isActive?"var(--ac-border)":"transparent")}}>
+                <div style={{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}}>{r.user?.username||"?"}</div>
+                <div style={{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.body?.slice(0,50)||""}</div>
+              </div>
             );
           })}
         </div>
