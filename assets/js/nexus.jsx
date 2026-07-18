@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom/client";
 // Namespace imports used to populate window.__nexusRuntime for the admin
 // bundle (see below). These reference the same module instances the main app
@@ -446,13 +446,21 @@ function _showRefPopup(link) {
     }
   }
   const lr = link.getBoundingClientRect();
-  const spaceBelow = window.innerHeight - lr.bottom;
-  const showBelow = spaceBelow > 220;
+  // Open on whichever side has more room and hand the popup the height it can
+  // actually use, instead of clipping every quote to a fixed 220px while half
+  // the screen sits empty.
+  const GAP = 6, EDGE = 8;
+  const CHROME = 62;               // meta row + vertical padding
+  const spaceBelow = window.innerHeight - lr.bottom - GAP - EDGE;
+  const spaceAbove = lr.top - GAP - EDGE;
+  const showBelow  = spaceBelow >= spaceAbove;
+  const maxBodyH   = Math.max(140, Math.min(460, (showBelow ? spaceBelow : spaceAbove) - CHROME));
   _refPopupSetState && _refPopupSetState({
     data,
     x: Math.min(Math.max(lr.left, 8), window.innerWidth - 428),
-    y: showBelow ? lr.bottom + 6 : lr.top - 6,
-    above: !showBelow
+    y: showBelow ? lr.bottom + GAP : lr.top - GAP,
+    above: !showBelow,
+    maxBodyH
   });
   return true;
 }
@@ -558,8 +566,21 @@ function useRefPreview() {
 
 function RefPreviewPopup() {
   const popup = useRefPreview();
+  const bodyRef = useRef(null);
+  const [clipped, setClipped] = useState(false);
+  const bodyText = popup ? stripMd(popup.data.body).slice(0, 1200) : "";
+
+  // The bottom fade must only be drawn when the text is genuinely cut off.
+  // Applied unconditionally it sat on top of short quotes — a one-line reply
+  // was rendered almost unreadable under the gradient.
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) { setClipped(false); return; }
+    setClipped(el.scrollHeight > el.clientHeight + 1);
+  }, [popup, bodyText]);
+
   if (!popup) return null;
-  const { data, x, y, above } = popup;
+  const { data, x, y, above, maxBodyH } = popup;
   const col = userColor({id: data.userId, avatar_color: data.userAvatarColor});
   return (
     <div className="ref-popup" style={{
@@ -578,7 +599,9 @@ function RefPreviewPopup() {
         <button onClick={()=>_refPopupSetState&&_refPopupSetState(null)}
           style={{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:14,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
       </div>
-      <div className="ref-popup-body">{stripMd(data.body).slice(0, 600)}</div>
+      <div ref={bodyRef}
+        className={"ref-popup-body" + (clipped ? " is-clipped" : "")}
+        style={maxBodyH ? {maxHeight: maxBodyH} : undefined}>{bodyText}</div>
     </div>
   );
 }
