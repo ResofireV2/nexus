@@ -1391,7 +1391,11 @@ function ProfileSidebarSlot({username, currentUser}) {
 
 function MobileScrubberBar({replies, displayIdx, onClick}) {
   return (
-    <div style={{display:"flex",justifyContent:"center",padding:"10px 0 2px",flexShrink:0}}>
+    // mob-scrubber-bar is hidden at >=768px by app.css alongside the other
+    // mobile-only chrome (mob-topbar, mob-tabbar, mob-reply-bar, mob-sheet).
+    // Without it this pill rendered at every width and bled into the desktop
+    // post view, which has the desk-scrubber panel instead.
+    <div className="mob-scrubber-bar" style={{display:"flex",justifyContent:"center",padding:"10px 0 2px",flexShrink:0}}>
       <div onClick={onClick} style={{
         display:"flex",alignItems:"center",gap:6,
         padding:"5px 14px",borderRadius:20,
