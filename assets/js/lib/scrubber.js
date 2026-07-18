@@ -215,6 +215,28 @@ export function useScrubberModel(containerRef, replies) {
   return { scrollPct, index, pips, jumpTo, dragStart, dragTo, dragEnd, remeasure };
 }
 
+// Keyboard navigation for the scrubber, shared by the desktop panel and the
+// mobile sheet so both behave identically. Returns the target reply index, or
+// null if the key isn't one we handle (so the caller knows not to preventDefault).
+export const PAGE_STEP = 10;
+
+export function keyboardTargetIndex(key, index, count) {
+  if (!count) return null;
+  let next;
+  switch (key) {
+    case "ArrowDown":
+    case "ArrowRight": next = index + 1; break;
+    case "ArrowUp":
+    case "ArrowLeft":  next = index - 1; break;
+    case "PageDown":   next = index + PAGE_STEP; break;
+    case "PageUp":     next = index - PAGE_STEP; break;
+    case "Home":       next = 0; break;
+    case "End":        next = count - 1; break;
+    default: return null;
+  }
+  return Math.max(0, Math.min(next, count - 1));
+}
+
 // Pointer position over an element as a 0-100 percentage of its height.
 export function pctFromPointer(el, clientY) {
   if (!el) return 0;

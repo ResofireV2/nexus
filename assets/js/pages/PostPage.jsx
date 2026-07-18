@@ -10,7 +10,7 @@ import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
 import { RichTextArea } from "../components/RichTextArea";
 import { useDraftAutosave } from "./DraftsPage";
-import { useScrubberModel, pctFromPointer, thinPips, PIP_BUDGET } from "../lib/scrubber";
+import { useScrubberModel, pctFromPointer, thinPips, keyboardTargetIndex, PIP_BUDGET } from "../lib/scrubber";
 // Debounce before persisting the read position. One value for every path —
 // the old code used 500ms on jump and 1500ms on scroll for no clear reason.
 const SAVE_DEBOUNCE_MS = 1000;
@@ -23,7 +23,7 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     : -1);
   const [readIdx, setReadIdx] = useState(maxReadIdx.current);
 
-  const { scrollPct, index: displayIdx, pips, dragStart, dragTo, dragEnd } = scrubber;
+  const { scrollPct, index: displayIdx, pips, jumpTo, dragStart, dragTo, dragEnd } = scrubber;
 
   // Advance the read high-water mark from the measured index, so a reply is
   // only marked read once it has actually been on screen. The old percentage
@@ -91,12 +91,27 @@ function PostScrubber({replies, lastReadReplyId, postId, currentUser, onSavePosi
     dragEnd();
   }
 
+  function onKeyDown(e) {
+    const next = keyboardTargetIndex(e.key, displayIdx, replies.length);
+    if (next === null) return;
+    e.preventDefault();
+    jumpTo(next);
+  }
+
   return (
     <div className="desk-scrubber-panel" style={{width:44,flexShrink:0,borderLeft:"0.5px solid var(--b1)",display:"flex",flexDirection:"column",alignItems:"center",padding:"16px 0",gap:4,background:"var(--s1)",userSelect:"none"}}>
       <div style={{fontSize:10,color:"var(--t5)",marginBottom:2}}>{replies.length}</div>
       <div style={{fontSize:9,color:"var(--t5)",marginBottom:8}}>replies</div>
       {/* Full-width hit area — the track is visual only, this div captures all pointer input */}
       <div ref={trackRef}
+        className="scrubber-track"
+        role="slider" tabIndex={0}
+        aria-label="Thread position"
+        aria-orientation="vertical"
+        aria-controls="post-replies"
+        aria-valuemin={1} aria-valuemax={replies.length} aria-valuenow={displayIdx+1}
+        aria-valuetext={`Reply ${displayIdx+1} of ${replies.length}`}
+        onKeyDown={onKeyDown}
         onPointerDown={pointerDown} onPointerMove={pointerMove}
         onPointerUp={pointerUp} onPointerCancel={pointerUp}
         style={{flex:1,width:"100%",position:"relative",cursor:"grab",margin:"4px 0",display:"flex",alignItems:"center",justifyContent:"center",touchAction:"none"}}>
@@ -830,7 +845,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           </div>
         </div>
       )}
-      <div className="post-content-wrap" ref={repliesContainerRef}>
+      <div className="post-content-wrap" id="post-replies" ref={repliesContainerRef}>
           {replies.length>0&&<MobileScrubberBar replies={replies} displayIdx={scrubber.index} onClick={()=>setMobSheetOpen(true)}/>}
           <MobileScrubberSheet open={mobSheetOpen} onClose={()=>setMobSheetOpen(false)} replies={replies} scrubber={scrubber}/>
         <div className="post-back" onClick={()=>navigate("feed")}><i className="fa-solid fa-arrow-left"></i> back to feed</div>
@@ -1341,20 +1356,22 @@ function MobileScrubberBar({replies, displayIdx, onClick}) {
     // Without it this pill rendered at every width and bled into the desktop
     // post view, which has the desk-scrubber panel instead.
     <div className="mob-scrubber-bar" style={{display:"flex",justifyContent:"center",padding:"10px 0 2px",flexShrink:0}}>
-      <div onClick={onClick} style={{
+      <button type="button" onClick={onClick}
+        aria-label={`Jump to reply. Currently reply ${displayIdx+1} of ${replies.length}`}
+        style={{
         display:"flex",alignItems:"center",gap:6,
         padding:"5px 14px",borderRadius:20,
         background:"var(--s2)",border:"0.5px solid var(--b2)",
         cursor:"pointer",WebkitTapHighlightColor:"transparent",
         fontSize:12,fontWeight:500,color:"var(--t2)",
-        userSelect:"none"
+        fontFamily:"inherit",userSelect:"none"
       }}>
         <span>{displayIdx+1} of {replies.length} {replies.length===1?"reply":"replies"}</span>
         <span style={{display:"flex",flexDirection:"column",gap:1,lineHeight:1}}>
           <i className="fa-solid fa-chevron-up"   style={{fontSize:8,color:"var(--t4)",display:"block"}}/>
           <i className="fa-solid fa-chevron-down" style={{fontSize:8,color:"var(--t4)",display:"block"}}/>
         </span>
-      </div>
+      </button>
     </div>
   );
 }
@@ -1366,6 +1383,15 @@ function MobileScrubberSheet({open, onClose, replies, scrubber}) {
   const [scrubbing, setScrubbing] = useState(false);
 
   const { scrollPct, index, jumpTo, dragStart, dragTo, dragEnd } = scrubber;
+
+  // Escape closes the sheet — expected for anything modal, and the only way out
+  // for a keyboard user once focus is inside it.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onEsc = (e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } };
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
+  }, [open, onClose]);
 
   // Scroll the active row into view as the position changes
   useEffect(() => {
@@ -1401,6 +1427,13 @@ function MobileScrubberSheet({open, onClose, replies, scrubber}) {
     dragEnd();
   }
 
+  function onKeyDown(e) {
+    const next = keyboardTargetIndex(e.key, index, replies.length);
+    if (next === null) return;
+    e.preventDefault();
+    jumpTo(next);
+  }
+
   // Drag the handle down to close
   function onHandleTouchStart(e){ dragRef.current={startY:e.touches[0].clientY,dy:0}; }
   function onHandleTouchMove(e){ dragRef.current.dy=e.touches[0].clientY-dragRef.current.startY; }
@@ -1415,6 +1448,8 @@ function MobileScrubberSheet({open, onClose, replies, scrubber}) {
     {open&&<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:979,background:"rgba(0,0,0,0.4)"}}/>}
     <div className={`mob-sheet ${open?"open":""}`}>
       <div className="mob-sheet-handle" style={{cursor:"pointer"}}
+        role="button" tabIndex={open?0:-1} aria-label="Close"
+        onKeyDown={(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); onClose(); } }}
         onTouchStart={onHandleTouchStart} onTouchMove={onHandleTouchMove} onTouchEnd={onHandleTouchEnd}
         onClick={onClose}/>
       <div style={{padding:"0 20px 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1423,6 +1458,13 @@ function MobileScrubberSheet({open, onClose, replies, scrubber}) {
       </div>
       <div style={{display:"flex",gap:16,padding:"0 20px 20px",alignItems:"stretch"}}>
         <div ref={trackRef}
+          className="scrubber-track"
+          role="slider" tabIndex={open?0:-1}
+          aria-label="Thread position"
+          aria-orientation="vertical"
+          aria-valuemin={1} aria-valuemax={replies.length} aria-valuenow={index+1}
+          aria-valuetext={`Reply ${index+1} of ${replies.length}`}
+          onKeyDown={onKeyDown}
           onPointerDown={pointerDown} onPointerMove={pointerMove}
           onPointerUp={pointerUp} onPointerCancel={pointerUp}
           style={{width:44,background:"rgba(255,255,255,0.04)",border:"0.5px solid var(--b1)",borderRadius:10,position:"relative",cursor:"pointer",minHeight:200,touchAction:"none"}}>
@@ -1434,14 +1476,17 @@ function MobileScrubberSheet({open, onClose, replies, scrubber}) {
           {replies.map((r,i)=>{
             const isActive = i===index;
             return (
-              <div key={r.id} data-active={isActive?"true":"false"}
+              <button key={r.id} type="button" data-active={isActive?"true":"false"}
+                aria-current={isActive?"true":undefined}
+                tabIndex={open?0:-1}
                 onClick={()=>{ jumpTo(i); onClose(); }}
                 style={{padding:"10px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
+                  display:"block",width:"100%",textAlign:"left",fontFamily:"inherit",
                   background:isActive?"var(--ac-bg)":"rgba(255,255,255,0.03)",
                   border:"0.5px solid "+(isActive?"var(--ac-border)":"transparent")}}>
                 <div style={{fontSize:12,fontWeight:500,color:isActive?"var(--ac-text)":"var(--t2)"}}>{r.user?.username||"?"}</div>
                 <div style={{fontSize:11,color:"var(--t5)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.body?.slice(0,50)||""}</div>
-              </div>
+              </button>
             );
           })}
         </div>

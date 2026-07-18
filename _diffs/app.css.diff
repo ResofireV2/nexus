@@ -1,8 +1,13 @@
---- accentfix/assets/css/app.css	2026-07-17 23:47:43.307503923 +0000
-+++ csssplit/assets/css/app.css	2026-07-17 23:56:46.541825001 +0000
-@@ -1,5 +1,4 @@
- /* Nexus — base styles */
--@import "./fontawesome.css";
- *, *::before, *::after { box-sizing: border-box; }
- 
- :root {
+--- csssplit/assets/css/app.css	2026-07-17 23:56:46.541825001 +0000
++++ scrub2/assets/css/app.css	2026-07-18 19:39:15.017868873 +0000
+@@ -333,6 +333,10 @@
+ .post-shell{flex:1;display:flex;overflow:hidden;}
+ .desk-scrubber{display:flex;align-items:stretch;flex-shrink:0;}
+ .desk-scrubber-panel{width:44px;flex-shrink:0;border-left:0.5px solid var(--b1);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:4px;background:var(--s1);user-select:none;}
++/* Keyboard focus ring for the scrubber sliders (desktop panel + mobile sheet).
++   They are divs with role=slider, so the default ring is easy to miss on dark
++   surfaces. focus-visible keeps it off for pointer interaction. */
++.scrubber-track:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:6px;}
+ @media(max-width:767.99px){
+ /* Scrubber */
+ .desk-scrubber{display:none!important;}
