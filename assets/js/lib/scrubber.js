@@ -212,7 +212,15 @@ export function useScrubberModel(containerRef, replies) {
     schedule(true);
   }, [schedule]);
 
-  return { scrollPct, index, pips, jumpTo, dragStart, dragTo, dragEnd, remeasure };
+  // Which reply a given track position corresponds to, without moving anything.
+  // Used for the hover preview.
+  const indexAtPct = useCallback((pct) => {
+    const p = clampPct(pct);
+    const st = (p / 100) * maxScrollRef.current;
+    return indexFromScrollTop(offsetsRef.current, st, p >= 100);
+  }, []);
+
+  return { scrollPct, index, pips, jumpTo, dragStart, dragTo, dragEnd, indexAtPct, remeasure };
 }
 
 // Keyboard navigation for the scrubber, shared by the desktop panel and the

@@ -1,31 +1,19 @@
---- scrub1/assets/js/lib/scrubber.js	2026-07-18 19:23:53.996562557 +0000
-+++ scrub2/assets/js/lib/scrubber.js	2026-07-18 19:38:17.698089738 +0000
-@@ -215,6 +215,28 @@
-   return { scrollPct, index, pips, jumpTo, dragStart, dragTo, dragEnd, remeasure };
+--- scrub2/assets/js/lib/scrubber.js	2026-07-18 19:38:17.698089738 +0000
++++ scrub3/assets/js/lib/scrubber.js	2026-07-18 19:53:33.510767041 +0000
+@@ -212,7 +212,15 @@
+     schedule(true);
+   }, [schedule]);
+ 
+-  return { scrollPct, index, pips, jumpTo, dragStart, dragTo, dragEnd, remeasure };
++  // Which reply a given track position corresponds to, without moving anything.
++  // Used for the hover preview.
++  const indexAtPct = useCallback((pct) => {
++    const p = clampPct(pct);
++    const st = (p / 100) * maxScrollRef.current;
++    return indexFromScrollTop(offsetsRef.current, st, p >= 100);
++  }, []);
++
++  return { scrollPct, index, pips, jumpTo, dragStart, dragTo, dragEnd, indexAtPct, remeasure };
  }
  
-+// Keyboard navigation for the scrubber, shared by the desktop panel and the
-+// mobile sheet so both behave identically. Returns the target reply index, or
-+// null if the key isn't one we handle (so the caller knows not to preventDefault).
-+export const PAGE_STEP = 10;
-+
-+export function keyboardTargetIndex(key, index, count) {
-+  if (!count) return null;
-+  let next;
-+  switch (key) {
-+    case "ArrowDown":
-+    case "ArrowRight": next = index + 1; break;
-+    case "ArrowUp":
-+    case "ArrowLeft":  next = index - 1; break;
-+    case "PageDown":   next = index + PAGE_STEP; break;
-+    case "PageUp":     next = index - PAGE_STEP; break;
-+    case "Home":       next = 0; break;
-+    case "End":        next = count - 1; break;
-+    default: return null;
-+  }
-+  return Math.max(0, Math.min(next, count - 1));
-+}
-+
- // Pointer position over an element as a 0-100 percentage of its height.
- export function pctFromPointer(el, clientY) {
-   if (!el) return 0;
+ // Keyboard navigation for the scrubber, shared by the desktop panel and the
