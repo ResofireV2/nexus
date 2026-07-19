@@ -240,18 +240,21 @@ defmodule Nexus.Workers.DeliverNotification do
           badge      = if String.starts_with?(raw_badge, "http"), do: raw_badge, else: "#{host}#{raw_badge}"
           actor_name = actor_display(actor)
 
+          topic   = push_topic("dm", thread_id)
+
           payload = Jason.encode!(%{
             title: site_name,
             body:  "#{actor_name} sent you a message",
             icon:  icon,
             badge: badge,
-            url:   "#{host}/messages/#{thread_id}"
+            url:   "#{host}/messages/#{thread_id}",
+            tag:   topic
           })
 
           Enum.each(subscriptions, fn sub ->
             Logger.info("Push DM: sending to user #{user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
 
-            case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
+            case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload, topic) do
               :ok ->
                 Logger.info("Push DM: delivered to user #{user_id}")
               {:error, :subscription_expired} ->
@@ -344,12 +347,13 @@ defmodule Nexus.Workers.DeliverNotification do
             Logger.warning("Push: VAPID keys not configured")
             :ok
           else
-            payload = build_push_payload(notification, pwa)
+            topic   = push_topic(notification.type, notification.post_id || notification.reply_id)
+            payload = build_push_payload(notification, pwa, topic)
 
             Enum.each(subscriptions, fn sub ->
               Logger.info("Push: sending to user #{notification.user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
 
-              case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
+              case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload, topic) do
                 :ok ->
                   Logger.info("Push: delivered to user #{notification.user_id}")
 
@@ -370,7 +374,19 @@ defmodule Nexus.Workers.DeliverNotification do
     end
   end
 
-  defp build_push_payload(notification, pwa) do
+  # Collapse key for a push message. Notifications about *different* things must
+  # never share one, or they replace each other while queued. Repeat updates
+  # about the same post/thread deliberately do share one — the later message is
+  # the grouped form ("xene and 3 others replied"), which already contains
+  # everything the earlier one said.
+  #
+  # RFC 8030 limits the topic to 32 URL-safe characters, and post/reply ids are
+  # UUIDs, so the target is hashed rather than concatenated.
+  defp push_topic(type, target) do
+    "n" <> Integer.to_string(:erlang.phash2({type, target}))
+  end
+
+  defp build_push_payload(notification, pwa, topic) do
     site_name = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
 
     # Icons must be absolute URLs for the push service to fetch them on the device.
@@ -382,7 +398,9 @@ defmodule Nexus.Workers.DeliverNotification do
 
     {title, body, url} = push_content(notification, site_name)
 
-    Jason.encode!(%{title: title, body: body, icon: icon, badge: badge, url: url})
+    # tag mirrors the push topic so the service worker replaces the displayed
+    # notification for the same subject instead of stacking another one.
+    Jason.encode!(%{title: title, body: body, icon: icon, badge: badge, url: url, tag: topic})
   end
 
   # Grouped notifications carry a count; without this the push would name only

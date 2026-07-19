@@ -70,15 +70,25 @@ self.addEventListener("push", event => {
   const icon  = data.icon  || FALLBACK_ICON;
   const badge = data.badge || FALLBACK_ICON;
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Nexus", {
-      body:  data.body || "",
-      icon:  icon,
-      badge: badge,
-      data:  { url: data.url || "/" },
-      vibrate: [100, 50, 100]
-    })
-  );
+  const opts = {
+    body:  data.body || "",
+    icon:  icon,
+    badge: badge,
+    data:  { url: data.url || "/" },
+    vibrate: [100, 50, 100]
+  };
+
+  // A tag makes a later notification about the same subject replace the one
+  // already on screen instead of stacking a second entry — the display-side
+  // counterpart of the push Topic, which carries the same value. renotify makes
+  // the replacement still alert the user; the spec requires a tag alongside it,
+  // so the two are set together or not at all.
+  if (data.tag) {
+    opts.tag = data.tag;
+    opts.renotify = true;
+  }
+
+  event.waitUntil(self.registration.showNotification(data.title || "Nexus", opts));
 });
 
 // ---------------------------------------------------------------------------

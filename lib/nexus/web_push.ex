@@ -24,7 +24,7 @@ defmodule Nexus.WebPush do
   - `vapid_private`— server VAPID private key (base64url, no padding)
   - `payload`      — JSON string to send (already encoded)
   """
-  def send(endpoint, p256dh, auth, vapid_public, vapid_private, payload) do
+  def send(endpoint, p256dh, auth, vapid_public, vapid_private, payload, topic \\ nil) do
     with {:ok, encrypted, salt, server_pub} <- encrypt(payload, p256dh, auth),
          {:ok, vapid_header} <- build_vapid_header(endpoint, vapid_public, vapid_private) do
 
@@ -38,9 +38,8 @@ defmodule Nexus.WebPush do
         {"Crypto-Key", "#{crypto_key};#{vapid_header.crypto_key}"},
         {"Authorization", vapid_header.authorization},
         {"TTL", "86400"},
-        {"Urgency", "high"},
-        {"Topic", "nexus-notification"}
-      ]
+        {"Urgency", "high"}
+      ] ++ topic_header(topic)
 
       case Req.post(endpoint, body: encrypted, headers: headers) do
         {:ok, %{status: status}} when status in 200..299 -> :ok
@@ -51,6 +50,24 @@ defmodule Nexus.WebPush do
       end
     end
   end
+
+  # RFC 8030 §5.4 — Topic is a *collapse key*: a message still queued for a
+  # subscription is REPLACED by a later one sharing its topic. It must therefore
+  # identify the thing being notified about.
+  #
+  # Nexus previously sent one constant topic for every notification, so while a
+  # device was offline or dozing an undelivered reply and an unrelated DM
+  # collapsed into a single message and the rest were silently dropped.
+  #
+  # The header is omitted entirely rather than sent invalid: the spec limits it
+  # to 1..32 characters of the URL-safe base64 alphabet.
+  defp topic_header(topic) when is_binary(topic) do
+    if byte_size(topic) in 1..32 and Regex.match?(~r/\A[A-Za-z0-9_-]+\z/, topic),
+      do: [{"Topic", topic}],
+      else: []
+  end
+
+  defp topic_header(_), do: []
 
   # ---------------------------------------------------------------------------
   # RFC 8291 — Message Encryption

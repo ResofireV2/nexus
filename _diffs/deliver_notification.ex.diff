@@ -1,103 +1,74 @@
---- nexus-master/lib/nexus/workers/deliver_notification.ex	2026-06-21 19:39:28.000000000 +0000
-+++ pushfix/lib/nexus/workers/deliver_notification.ex	2026-07-19 20:30:18.198482658 +0000
-@@ -86,6 +86,17 @@
-             [:actor, :post, :reply]
-           )
-           broadcast_notification(updated)
-+
-+          # Push when the group gains a NEW actor. Repeat activity from someone
-+          # already in the group returns above and stays silent, so a busy
-+          # thread doesn't fire one notification per interaction.
-+          #
-+          # The row's own actor is whoever started the group, so push with the
-+          # actor that triggered *this* update — otherwise the notification
-+          # names the wrong person.
-+          push_actor = if actor_id, do: Nexus.Accounts.get_user(actor_id), else: updated.actor
-+          maybe_send_push(%{updated | actor_id: actor_id || updated.actor_id, actor: push_actor})
-+
-           :ok
-         end
-     end
-@@ -204,12 +215,16 @@
-   def maybe_send_push_for_dm(user_id, actor, thread_id) do
-     require Logger
+--- pushfix/lib/nexus/workers/deliver_notification.ex	2026-07-19 20:30:18.198482658 +0000
++++ topicfix/lib/nexus/workers/deliver_notification.ex	2026-07-19 21:06:36.896803581 +0000
+@@ -240,18 +240,21 @@
+           badge      = if String.starts_with?(raw_badge, "http"), do: raw_badge, else: "#{host}#{raw_badge}"
+           actor_name = actor_display(actor)
  
-+    # Every branch logs. These early returns used to be silent, so a DM that
-+    # never reached a device left no trace at all and the failure was invisible.
-     if not push_enabled_for?(Nexus.Accounts.get_user(user_id), "dm") do
-+      Logger.info("Push DM: user #{user_id} has push disabled for type dm")
-       :ok
-     else
-       subscriptions = Nexus.Accounts.get_push_subscriptions(user_id)
- 
-       if Enum.empty?(subscriptions) do
-+        Logger.info("Push DM: user #{user_id} has no push subscriptions")
-         :ok
-       else
-         pwa           = Nexus.Admin.get_setting("pwa")
-@@ -234,17 +249,23 @@
++          topic   = push_topic("dm", thread_id)
++
+           payload = Jason.encode!(%{
+             title: site_name,
+             body:  "#{actor_name} sent you a message",
+             icon:  icon,
+             badge: badge,
+-            url:   "#{host}/messages/#{thread_id}"
++            url:   "#{host}/messages/#{thread_id}",
++            tag:   topic
            })
  
            Enum.each(subscriptions, fn sub ->
-+            Logger.info("Push DM: sending to user #{user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
-+
-             case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
+             Logger.info("Push DM: sending to user #{user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
+ 
+-            case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
++            case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload, topic) do
                :ok ->
                  Logger.info("Push DM: delivered to user #{user_id}")
                {:error, :subscription_expired} ->
-+                Logger.info("Push DM: subscription expired for user #{user_id}, clearing")
-                 Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
-               {:error, :subscription_not_found} ->
-+                Logger.info("Push DM: subscription not found for user #{user_id}, clearing")
-                 Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
-               {:error, reason} ->
-                 Logger.warning("Push DM failed for user #{user_id}: #{inspect(reason)}")
-             end
-           end)
-+        else
-+          Logger.warning("Push DM: VAPID keys not configured")
-         end
-       end
+@@ -344,12 +347,13 @@
+             Logger.warning("Push: VAPID keys not configured")
+             :ok
+           else
+-            payload = build_push_payload(notification, pwa)
++            topic   = push_topic(notification.type, notification.post_id || notification.reply_id)
++            payload = build_push_payload(notification, pwa, topic)
+ 
+             Enum.each(subscriptions, fn sub ->
+               Logger.info("Push: sending to user #{notification.user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
+ 
+-              case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
++              case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload, topic) do
+                 :ok ->
+                   Logger.info("Push: delivered to user #{notification.user_id}")
+ 
+@@ -370,7 +374,19 @@
      end
-@@ -364,10 +385,16 @@
-     Jason.encode!(%{title: title, body: body, icon: icon, badge: badge, url: url})
    end
  
-+  # Grouped notifications carry a count; without this the push would name only
-+  # one person no matter how many took part.
-+  defp group_suffix(n) when is_integer(n) and n > 2, do: " and #{n - 1} others"
-+  defp group_suffix(2), do: " and 1 other"
-+  defp group_suffix(_), do: ""
+-  defp build_push_payload(notification, pwa) do
++  # Collapse key for a push message. Notifications about *different* things must
++  # never share one, or they replace each other while queued. Repeat updates
++  # about the same post/thread deliberately do share one — the later message is
++  # the grouped form ("xene and 3 others replied"), which already contains
++  # everything the earlier one said.
++  #
++  # RFC 8030 limits the topic to 32 URL-safe characters, and post/reply ids are
++  # UUIDs, so the target is hashed rather than concatenated.
++  defp push_topic(type, target) do
++    "n" <> Integer.to_string(:erlang.phash2({type, target}))
++  end
 +
-   # Map notification type to human-readable push content
--  defp push_content(%Notification{type: "reply", actor: actor, post_id: post_id}, site_name) do
-+  defp push_content(%Notification{type: "reply", actor: actor, post_id: post_id, group_count: gc}, site_name) do
-     actor_name = actor_display(actor)
--    {"#{site_name}", "#{actor_name} replied to your post", post_url(post_id)}
-+    {"#{site_name}", "#{actor_name}#{group_suffix(gc)} replied to your post", post_url(post_id)}
++  defp build_push_payload(notification, pwa, topic) do
+     site_name = (Nexus.Admin.get_setting("general"))["site_name"] || "Nexus"
+ 
+     # Icons must be absolute URLs for the push service to fetch them on the device.
+@@ -382,7 +398,9 @@
+ 
+     {title, body, url} = push_content(notification, site_name)
+ 
+-    Jason.encode!(%{title: title, body: body, icon: icon, badge: badge, url: url})
++    # tag mirrors the push topic so the service worker replaces the displayed
++    # notification for the same subject instead of stacking another one.
++    Jason.encode!(%{title: title, body: body, icon: icon, badge: badge, url: url, tag: topic})
    end
  
-   defp push_content(%Notification{type: "mention", actor: actor, post_id: post_id}, site_name) do
-@@ -375,8 +402,8 @@
-     {"#{site_name}", "#{actor_name} mentioned you", post_url(post_id)}
-   end
- 
--  defp push_content(%Notification{type: "reaction", actor: actor, post_id: post_id, reply_id: reply_id, data: data}, site_name) do
--    actor_name = actor_display(actor)
-+  defp push_content(%Notification{type: "reaction", actor: actor, post_id: post_id, reply_id: reply_id, data: data, group_count: gc}, site_name) do
-+    actor_name = actor_display(actor) <> group_suffix(gc)
-     emoji      = get_in(data, ["type"]) || "❤️"
-     {target, url} = if post_id do
-       {"your post",  post_url(post_id)}
-@@ -386,9 +413,9 @@
-     {"#{site_name}", "#{actor_name} reacted #{emoji} to #{target}", url}
-   end
- 
--  defp push_content(%Notification{type: "followed_post", actor: actor, post_id: post_id}, site_name) do
-+  defp push_content(%Notification{type: "followed_post", actor: actor, post_id: post_id, group_count: gc}, site_name) do
-     actor_name = actor_display(actor)
--    {"#{site_name}", "#{actor_name} replied to a post you follow", post_url(post_id)}
-+    {"#{site_name}", "#{actor_name}#{group_suffix(gc)} replied to a post you follow", post_url(post_id)}
-   end
- 
-   defp push_content(%Notification{type: "dm", data: data}, site_name) do
+   # Grouped notifications carry a count; without this the push would name only
