@@ -443,6 +443,14 @@ defmodule NexusWeb.Router do
     end
   end
 
+  # llms.txt is generated per-instance (see PageController.llms_txt/2), so it
+  # needs a real route. Must come before the SPA catch-all, which would
+  # otherwise answer it with the HTML shell.
+  scope "/", NexusWeb do
+    pipe_through :browser
+    get "/llms.txt", PageController, :llms_txt
+  end
+
   # Extension SPA routes — /ext/* is the dedicated prefix for all extension pages.
   # Because this is an explicit server-side scope, hard refreshes on any /ext/* path
   # are always served the HTML shell by Nexus, then React boots and the extension

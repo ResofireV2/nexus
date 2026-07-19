@@ -10,4 +10,71 @@ defmodule NexusWeb.PageController do
     |> put_format("html")
     |> render(:home, page_title: "Welcome")
   end
+
+  # GET /llms.txt — https://llmstxt.org
+  #
+  # Generated rather than a checked-in file: the site name, description, spaces
+  # and pages differ per installation, so a static file would describe
+  # nexusprism.org on every self-hosted instance. It also has to actually exist
+  # — an absent /llms.txt falls through to the SPA catch-all and returns the
+  # HTML shell, which is what made it fail validation.
+  def llms_txt(conn, _params) do
+    general = Nexus.Admin.get_setting("general") || %{}
+    name    = blank_to(general["site_name"], "Nexus")
+    desc    = blank_to(general["site_description"], "A community forum.")
+    host    = NexusWeb.Endpoint.url()
+
+    spaces =
+      Nexus.Forum.list_spaces()
+      |> Enum.map(fn s ->
+        link = "- [#{s.name}](#{host}/space/#{s.slug})"
+        case one_line(s.description) do
+          "" -> link
+          d  -> "#{link}: #{d}"
+        end
+      end)
+
+    pages =
+      Nexus.Pages.list_published_pages()
+      |> Enum.map(fn p -> "- [#{p.title}](#{host}/p/#{p.slug})" end)
+
+    body =
+      ([
+         "# #{name}",
+         "",
+         "> #{one_line(desc)}",
+         "",
+         "#{name} is a discussion forum. Threads are organised into spaces, and every thread has a permanent URL under #{host}/post/.",
+         ""
+       ] ++
+         section("Spaces", spaces) ++
+         section("Directories", [
+           "- [Members](#{host}/members): member directory and profiles",
+           "- [Tags](#{host}/tags): browse discussions by tag",
+           "- [Leaderboard](#{host}/leaderboard): most active contributors",
+           "- [Badges](#{host}/badges): badges awarded on this forum"
+         ]) ++
+         section("Pages", pages))
+      |> Enum.join("\n")
+
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, body <> "\n")
+  end
+
+  # A section with no entries is omitted rather than left as an empty heading.
+  defp section(_title, []), do: []
+  defp section(title, items), do: ["## #{title}", ""] ++ items ++ [""]
+
+  # Descriptions are free text and may contain newlines, which would break the
+  # Markdown structure.
+  defp one_line(nil), do: ""
+  defp one_line(s), do: s |> to_string() |> String.replace(~r/\s+/, " ") |> String.trim()
+
+  defp blank_to(value, fallback) do
+    case one_line(value) do
+      "" -> fallback
+      v  -> v
+    end
+  end
 end

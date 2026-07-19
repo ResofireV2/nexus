@@ -1,0 +1,30 @@
+# Nexus — https://nexusprism.org
+#
+# Public discussion content is crawlable. The paths below are either
+# authentication-gated, one-time links, or machine endpoints, so there is
+# nothing there for a crawler to index.
+
+User-agent: *
+Allow: /
+
+# Requires a signed-in account
+Disallow: /admin
+Disallow: /settings
+Disallow: /notifications
+Disallow: /messages
+Disallow: /saved
+Disallow: /drafts
+
+# Single-use authentication links
+Disallow: /verify-email
+Disallow: /magic-login
+
+# JSON endpoints, not pages
+Disallow: /api/
+
+# Extension API endpoints. Extension *pages* under /ext/ are ordinary content
+# and stay crawlable.
+Disallow: /ext/*/api/
+
+# Unbounded crawl space
+Disallow: /search

@@ -28,6 +28,11 @@ defmodule Nexus.Pages do
     Repo.all(from p in Page, order_by: [desc: p.updated_at])
   end
 
+  @doc "Returns every published page, newest first. Safe to expose publicly."
+  def list_published_pages do
+    Repo.all(from p in Page, where: p.published == true, order_by: [desc: p.updated_at])
+  end
+
   @doc "Gets any page by id regardless of published status."
   def get_page(id), do: Repo.get(Page, id)
 

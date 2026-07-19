@@ -1,10 +1,17 @@
---- stage1/lib/nexus_web/router.ex	2026-07-17 03:48:01.896317647 +0000
-+++ stage3/lib/nexus_web/router.ex	2026-07-17 20:29:50.671902181 +0000
-@@ -114,6 +114,7 @@
-   # API v1 — public read
-   scope "/api/v1", NexusWeb.API.V1 do
-     pipe_through :api
-+    get "/boot",                   BootController,   :index
-     get "/spaces",                 SpaceController,  :index
-     get "/themes",                 ThemeController,  :index
-     get "/spaces/:slug",           SpaceController,  :show
+--- stage3/lib/nexus_web/router.ex	2026-07-17 20:29:50.671902181 +0000
++++ seofix/lib/nexus_web/router.ex	2026-07-19 21:23:10.358606576 +0000
+@@ -443,6 +443,14 @@
+     end
+   end
+ 
++  # llms.txt is generated per-instance (see PageController.llms_txt/2), so it
++  # needs a real route. Must come before the SPA catch-all, which would
++  # otherwise answer it with the HTML shell.
++  scope "/", NexusWeb do
++    pipe_through :browser
++    get "/llms.txt", PageController, :llms_txt
++  end
++
+   # Extension SPA routes — /ext/* is the dedicated prefix for all extension pages.
+   # Because this is an explicit server-side scope, hard refreshes on any /ext/* path
+   # are always served the HTML shell by Nexus, then React boots and the extension
