@@ -1,17 +1,10 @@
 --- scrub2/assets/css/app.css	2026-07-18 19:39:15.017868873 +0000
-+++ refpop/assets/css/app.css	2026-07-18 20:02:29.623035401 +0000
-@@ -813,8 +813,12 @@
- .ref-popup-av{width:26px;height:26px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;object-fit:cover;}
- .ref-popup-username{font-size:12px;font-weight:500;color:var(--t2);}
- .ref-popup-time{font-size:11px;color:var(--t5);margin-left:auto;}
--.ref-popup-body{font-size:12px;color:var(--t4);line-height:1.6;max-height:220px;overflow:hidden;position:relative;}
--.ref-popup-body::after{content:"";position:absolute;bottom:0;left:0;right:0;height:32px;background:linear-gradient(transparent,var(--s2));}
-+/* Body colour was --t4 (the second-dimmest tier); under the fade it was barely
-+   legible. max-height here is only a fallback — the popup sets a real one
-+   inline from the space actually available. */
-+.ref-popup-body{font-size:12px;color:var(--t3);line-height:1.6;max-height:220px;overflow:hidden;position:relative;}
-+/* Only faded when the text is actually clipped (class set by measurement). */
-+.ref-popup-body.is-clipped::after{content:"";position:absolute;bottom:0;left:0;right:0;height:28px;background:linear-gradient(transparent,var(--s2));}
- .md-body ul,.md-body ol{padding-left:20px;margin-bottom:10px;}
- .md-body img{max-width:100%;max-height:480px;border-radius:10px;border:0.5px solid var(--b1);display:block;margin:10px 0;cursor:zoom-in;object-fit:contain;background:var(--bg2);}
- .yt-lite img,.yt-thumb{cursor:pointer!important;border:none!important;background:none!important;margin:0!important;border-radius:0!important;max-height:none!important;}
++++ subcounts/assets/css/app.css	2026-07-19 22:53:16.612851888 +0000
+@@ -196,6 +196,7 @@
+ .sb-sub-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+ .sb-sub-name{font-size:calc(var(--fs-body) - 1px);color:var(--t4);flex:1;}
+ .sb-sub-item.active .sb-sub-name{color:var(--ac-text);font-weight:500;}
++.sb-sub-item.active .sb-item-count{color:var(--ac-text);}
+ [data-theme="light"] .sb-item-inner:hover{background:rgba(0,0,0,0.04);}
+ [data-theme="light"] .sb-sub-item:hover{background:rgba(0,0,0,0.04);}
+ .sb-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}

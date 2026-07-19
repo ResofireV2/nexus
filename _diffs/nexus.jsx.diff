@@ -1,78 +1,37 @@
---- tagfilter/assets/js/nexus.jsx	2026-07-19 22:21:47.091161146 +0000
-+++ countfix/assets/js/nexus.jsx	2026-07-19 22:28:34.550137959 +0000
-@@ -2466,7 +2466,20 @@
- // ── SpaceWithChildren ─────────────────────────────────────────────────────────
- // Renders a top-level space that has sub-spaces. The name area navigates to the
- // parent space feed; the chevron button exclusively controls expand/collapse.
--function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate}) {
-+// A space's post_count only counts posts directly in it. Both the sidebar and
-+// the Spaces by Pulse widget present totals that include sub-spaces, so the
-+// rollup lives here and is shared — previously only the widget rolled up, and
-+// the same space showed two different numbers on the same screen.
-+function rollupSpaceCounts(spaces) {
-+  const totals = {};
-+  (spaces || []).forEach(s => { totals[s.id] = s.post_count || 0; });
-+  (spaces || []).filter(s => s.parent_id).forEach(s => {
-+    if (totals[s.parent_id] !== undefined) totals[s.parent_id] += s.post_count || 0;
-+  });
-+  return totals;
-+}
-+
-+function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totalCount}) {
+--- countfix/assets/js/nexus.jsx	2026-07-19 22:28:34.550137959 +0000
++++ subcounts/assets/js/nexus.jsx	2026-07-19 22:53:16.608059620 +0000
+@@ -2479,7 +2479,7 @@
+   return totals;
+ }
+ 
+-function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totalCount}) {
++function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totals={}}) {
    const [expanded, setExpanded] = React.useState(defaultExpanded);
    return (
      <div>
-@@ -2476,7 +2489,7 @@
+@@ -2489,7 +2489,7 @@
              style={{width:18,textAlign:"center",fontSize:15,flexShrink:0,
                color: parentActive ? col : "var(--t3)"}}/>
            <span className="sb-item-name">{space.name}</span>
--          {space.post_count > 0 && <span className="sb-item-count">{space.post_count}</span>}
-+          {totalCount > 0 && <span className="sb-item-count">{totalCount}</span>}
+-          {totalCount > 0 && <span className="sb-item-count">{totalCount}</span>}
++          {totals[space.id] > 0 && <span className="sb-item-count">{totals[space.id]}</span>}
          </div>
          <span className={`sb-item-toggle ${expanded ? "expanded" : "collapsed"}`}
            onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}
-@@ -2652,6 +2665,8 @@
-                   : null;
-                 const autoExpandParentId = activeSubSpace ? activeSubSpace.parent_id : null;
- 
-+                const spaceTotals = rollupSpaceCounts(orderedSpaces);
-+
-                 return topLevel.map(s => {
-                   const col      = spaceColor(s);
-                   const children = subMap[s.id] || [];
-@@ -2668,7 +2683,7 @@
-                         onClick={() => navigate("feed", {space: s.slug})}>
-                         <i className={`fa-solid ${s.icon || "fa-layer-group"}`} style={{color: parentActive ? col : undefined}}/>
-                         <span className="sb-item-name">{s.name}</span>
--                        {s.post_count > 0 && <span className="sb-item-count">{s.post_count}</span>}
-+                        {spaceTotals[s.id] > 0 && <span className="sb-item-count">{spaceTotals[s.id]}</span>}
-                       </div>
-                     );
-                   }
-@@ -2677,6 +2692,7 @@
+@@ -2504,6 +2504,7 @@
+             onClick={() => navigate("feed", {space: sub.slug})}>
+             <span className="sb-sub-dot" style={{background: col}}/>
+             <span className="sb-sub-name">{sub.name}</span>
++            {totals[sub.id] > 0 && <span className="sb-item-count">{totals[sub.id]}</span>}
+           </div>
+         );
+       })}
+@@ -2692,7 +2693,7 @@
                    return (
                      <SpaceWithChildren key={s.id}
                        space={s} col={col} children={children}
-+                      totalCount={spaceTotals[s.id]}
+-                      totalCount={spaceTotals[s.id]}
++                      totals={spaceTotals}
                        parentActive={parentActive}
                        defaultExpanded={defaultExpanded}
                        page={page} pageProps={pageProps}
-@@ -3296,16 +3312,8 @@
-     return unsub;
-   },[]);
- 
--  // Roll sub-space post counts up into their parent before sorting.
--  // post_count on a parent only reflects posts directly in that space;
--  // sub-space posts need to be added so the widget reflects total activity.
--  const spacePostCounts = {};
--  spaces.forEach(s => { spacePostCounts[s.id] = s.post_count || 0; });
--  spaces.filter(s => s.parent_id).forEach(s => {
--    if (spacePostCounts[s.parent_id] !== undefined) {
--      spacePostCounts[s.parent_id] += s.post_count || 0;
--    }
--  });
-+  // Shared with the sidebar so the two can't disagree.
-+  const spacePostCounts = rollupSpaceCounts(spaces);
-   const sorted = spaces
-     .filter(s => !s.parent_id)
-     .map(s => ({...s, post_count: spacePostCounts[s.id] || 0}))

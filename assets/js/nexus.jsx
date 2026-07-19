@@ -2479,7 +2479,7 @@ function rollupSpaceCounts(spaces) {
   return totals;
 }
 
-function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totalCount}) {
+function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totals={}}) {
   const [expanded, setExpanded] = React.useState(defaultExpanded);
   return (
     <div>
@@ -2489,7 +2489,7 @@ function SpaceWithChildren({space, col, children, parentActive, defaultExpanded,
             style={{width:18,textAlign:"center",fontSize:15,flexShrink:0,
               color: parentActive ? col : "var(--t3)"}}/>
           <span className="sb-item-name">{space.name}</span>
-          {totalCount > 0 && <span className="sb-item-count">{totalCount}</span>}
+          {totals[space.id] > 0 && <span className="sb-item-count">{totals[space.id]}</span>}
         </div>
         <span className={`sb-item-toggle ${expanded ? "expanded" : "collapsed"}`}
           onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}
@@ -2504,6 +2504,7 @@ function SpaceWithChildren({space, col, children, parentActive, defaultExpanded,
             onClick={() => navigate("feed", {space: sub.slug})}>
             <span className="sb-sub-dot" style={{background: col}}/>
             <span className="sb-sub-name">{sub.name}</span>
+            {totals[sub.id] > 0 && <span className="sb-item-count">{totals[sub.id]}</span>}
           </div>
         );
       })}
@@ -2692,7 +2693,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
                   return (
                     <SpaceWithChildren key={s.id}
                       space={s} col={col} children={children}
-                      totalCount={spaceTotals[s.id]}
+                      totals={spaceTotals}
                       parentActive={parentActive}
                       defaultExpanded={defaultExpanded}
                       page={page} pageProps={pageProps}
