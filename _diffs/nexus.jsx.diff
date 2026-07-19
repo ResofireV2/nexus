@@ -1,86 +1,78 @@
---- refpop/assets/js/nexus.jsx	2026-07-18 20:02:29.618217529 +0000
-+++ tagfilter/assets/js/nexus.jsx	2026-07-19 22:21:47.091161146 +0000
-@@ -1727,6 +1727,10 @@
-   if (profileM) return {page:"profile", props:{username: profileM[1], tab: profileM[2]||null}};
-   const spaceM   = p.match(/^\/space\/(.+)$/);
-   if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
-+  // Tag-filtered feed, mirroring /space/:slug so the view is shareable and the
-+  // back button works.
-+  const tagM     = p.match(/^\/tag\/(.+)$/);
-+  if (tagM)    return {page:"feed",   props:{tag: decodeURIComponent(tagM[1])}};
-   const dmM      = p.match(/^\/messages\/(.+)$/);
-   if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
-   // Extension SPA routes all live under /ext/* — this prefix is owned exclusively
-@@ -1757,7 +1761,9 @@
-     return "/";
-   }
-   switch(page) {
--    case "feed":          return props.space ? `/space/${props.space}` : "/";
-+    case "feed":          return props.space ? `/space/${props.space}`
-+                               : props.tag   ? `/tag/${encodeURIComponent(props.tag)}`
-+                               : "/";
-     case "post":          return props.id ? `/post/${props.id}` : "/";
-     case "profile":       return props.username ? `/profile/${props.username}${props.tab ? `/${props.tab}` : ""}` : "/";
-     case "compose":       return "/compose";
-@@ -3334,14 +3340,20 @@
-             const col=spaceColor(s);
-             const bw=Math.max(4, Math.round((s.post_count||0)/max*100));
-             return (
--              <div key={s.id} style={{padding:"5px 0"}}>
-+              // A real button, not a div with onClick — these are the only place
-+              // in the app showing a space name that didn't navigate to it.
-+              <button key={s.id} type="button"
-+                onClick={()=>navigate&&navigate("feed",{space:s.slug})}
-+                title={`Show threads in ${s.name}`}
-+                aria-label={`Show threads in ${s.name}`}
-+                style={{padding:"5px 0",display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
-                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
-                   <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
-                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
-                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
-                 </div>
-                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
--              </div>
-+              </button>
-             );
-           })}
+--- tagfilter/assets/js/nexus.jsx	2026-07-19 22:21:47.091161146 +0000
++++ countfix/assets/js/nexus.jsx	2026-07-19 22:28:34.550137959 +0000
+@@ -2466,7 +2466,20 @@
+ // ── SpaceWithChildren ─────────────────────────────────────────────────────────
+ // Renders a top-level space that has sub-spaces. The name area navigates to the
+ // parent space feed; the chevron button exclusively controls expand/collapse.
+-function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate}) {
++// A space's post_count only counts posts directly in it. Both the sidebar and
++// the Spaces by Pulse widget present totals that include sub-spaces, so the
++// rollup lives here and is shared — previously only the widget rolled up, and
++// the same space showed two different numbers on the same screen.
++function rollupSpaceCounts(spaces) {
++  const totals = {};
++  (spaces || []).forEach(s => { totals[s.id] = s.post_count || 0; });
++  (spaces || []).filter(s => s.parent_id).forEach(s => {
++    if (totals[s.parent_id] !== undefined) totals[s.parent_id] += s.post_count || 0;
++  });
++  return totals;
++}
++
++function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totalCount}) {
+   const [expanded, setExpanded] = React.useState(defaultExpanded);
+   return (
+     <div>
+@@ -2476,7 +2489,7 @@
+             style={{width:18,textAlign:"center",fontSize:15,flexShrink:0,
+               color: parentActive ? col : "var(--t3)"}}/>
+           <span className="sb-item-name">{space.name}</span>
+-          {space.post_count > 0 && <span className="sb-item-count">{space.post_count}</span>}
++          {totalCount > 0 && <span className="sb-item-count">{totalCount}</span>}
          </div>
-@@ -3358,14 +3370,18 @@
-             const col=t.color||"var(--ac)";
-             const bw=Math.max(4, Math.round((t.post_count||0)/maxTag*100));
-             return (
--              <div key={t.id} style={{padding:"5px 0"}}>
-+              <button key={t.id} type="button"
-+                onClick={()=>navigate&&navigate("feed",{tag:t.slug})}
-+                title={`Show threads tagged ${t.name}`}
-+                aria-label={`Show threads tagged ${t.name}`}
-+                style={{padding:"5px 0",display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
-                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
-                   <i className="fa-solid fa-tag" style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
-                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
-                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{t.post_count||0}</span>
-                 </div>
-                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
--              </div>
-+              </button>
-             );
-           })}
-         </div>
-@@ -4621,7 +4637,7 @@
-     };
-     switch(page) {
-       case "feed":
--        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate} onAuthRequired={m=>setAuthModal(m)}/>;
-+        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} tagFilter={pageProps?.tag||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate} onAuthRequired={m=>setAuthModal(m)}/>;
-       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
-       case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
-       case "drafts":      return requireAuth(<DraftsPage currentUser={currentUser} navigate={navigate}/>);
-@@ -4641,7 +4657,7 @@
-       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate} initialTab={pageProps.tab||null}/>;
-       case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
-       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
--      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate}/>;
-+      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} tagFilter={pageProps?.tag||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate}/>;
-     }
-   };
+         <span className={`sb-item-toggle ${expanded ? "expanded" : "collapsed"}`}
+           onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}
+@@ -2652,6 +2665,8 @@
+                   : null;
+                 const autoExpandParentId = activeSubSpace ? activeSubSpace.parent_id : null;
  
++                const spaceTotals = rollupSpaceCounts(orderedSpaces);
++
+                 return topLevel.map(s => {
+                   const col      = spaceColor(s);
+                   const children = subMap[s.id] || [];
+@@ -2668,7 +2683,7 @@
+                         onClick={() => navigate("feed", {space: s.slug})}>
+                         <i className={`fa-solid ${s.icon || "fa-layer-group"}`} style={{color: parentActive ? col : undefined}}/>
+                         <span className="sb-item-name">{s.name}</span>
+-                        {s.post_count > 0 && <span className="sb-item-count">{s.post_count}</span>}
++                        {spaceTotals[s.id] > 0 && <span className="sb-item-count">{spaceTotals[s.id]}</span>}
+                       </div>
+                     );
+                   }
+@@ -2677,6 +2692,7 @@
+                   return (
+                     <SpaceWithChildren key={s.id}
+                       space={s} col={col} children={children}
++                      totalCount={spaceTotals[s.id]}
+                       parentActive={parentActive}
+                       defaultExpanded={defaultExpanded}
+                       page={page} pageProps={pageProps}
+@@ -3296,16 +3312,8 @@
+     return unsub;
+   },[]);
+ 
+-  // Roll sub-space post counts up into their parent before sorting.
+-  // post_count on a parent only reflects posts directly in that space;
+-  // sub-space posts need to be added so the widget reflects total activity.
+-  const spacePostCounts = {};
+-  spaces.forEach(s => { spacePostCounts[s.id] = s.post_count || 0; });
+-  spaces.filter(s => s.parent_id).forEach(s => {
+-    if (spacePostCounts[s.parent_id] !== undefined) {
+-      spacePostCounts[s.parent_id] += s.post_count || 0;
+-    }
+-  });
++  // Shared with the sidebar so the two can't disagree.
++  const spacePostCounts = rollupSpaceCounts(spaces);
+   const sorted = spaces
+     .filter(s => !s.parent_id)
+     .map(s => ({...s, post_count: spacePostCounts[s.id] || 0}))
