@@ -400,7 +400,78 @@ defmodule Nexus.Admin do
     end
   end
 
+  # Setting keys that must never be written through the generic settings form,
+  # and (for the secret subset) never serialized to a client.
+  #
+  # The VAPID keys are owned by the dedicated generate endpoint. The admin
+  # settings form PATCHes an entire section back as one object, and the browser
+  # is never sent `vapid_private` — so it round-tripped a nil over the real key
+  # on the next save, leaving a public key with no private counterpart and push
+  # silently refusing to send.
+  @protected_settings %{"pwa" => ["vapid_public", "vapid_private"]}
+
+  # Secrets: redacted from API responses and from the settings audit log.
+  @secret_settings %{"pwa" => ["vapid_private"]}
+
+  defp present?(v), do: is_binary(v) and String.trim(v) != ""
+
+  defp drop_protected(key, value) when is_map(value) do
+    Map.drop(value, Map.get(@protected_settings, key, []))
+  end
+  defp drop_protected(_key, value), do: value
+
+  @doc """
+  Replaces secret values with a placeholder. Applied to API responses and to
+  audit-log entries, including historical rows written before this existed.
+  """
+  def redact_setting_value(key, value) when is_map(value) do
+    Enum.reduce(Map.get(@secret_settings, key, []), value, fn k, acc ->
+      if Map.has_key?(acc, k) and present?(Map.get(acc, k)),
+        do: Map.put(acc, k, "[redacted]"),
+        else: acc
+    end)
+  end
+  def redact_setting_value(_key, value), do: value
+
+  @doc """
+  `get_settings/0` with secrets stripped and readiness flags added. Admin API
+  responses must use this — `get_settings/0` returns raw values including
+  secrets and is for server-side use only.
+  """
+  def get_settings_for_api do
+    settings = get_settings()
+    pwa      = Map.get(settings, "pwa") || %{}
+
+    safe_pwa =
+      pwa
+      |> Map.drop(Map.get(@secret_settings, "pwa", []))
+      # Readiness is computed here from BOTH halves. The admin panel used to
+      # infer it from the public key alone, so it reported "configured and
+      # ready" while the private key was missing and push was dead.
+      |> Map.put("vapid_ready", present?(Map.get(pwa, "vapid_public")) and present?(Map.get(pwa, "vapid_private")))
+
+    Map.put(settings, "pwa", safe_pwa)
+  end
+
+  @doc """
+  Updates a setting. Protected keys are stripped from `value` before the write —
+  see `@protected_settings`. Use `put_protected_setting/3` for code that
+  legitimately owns those values.
+  """
   def update_setting(key, value, admin_id \\ nil) do
+    do_update_setting(key, drop_protected(key, value), admin_id)
+  end
+
+  @doc """
+  Updates a setting *without* stripping protected keys. Only for code that owns
+  those values — currently VAPID key generation. Never call this with
+  client-supplied input.
+  """
+  def put_protected_setting(key, value, admin_id \\ nil) do
+    do_update_setting(key, value, admin_id)
+  end
+
+  defp do_update_setting(key, value, admin_id) do
     old_value =
       case Repo.get(SiteSetting, key) do
         nil     -> %{}
@@ -430,8 +501,8 @@ defmodule Nexus.Admin do
       %SettingChangeLog{}
       |> SettingChangeLog.changeset(%{
         section:    key,
-        old_value:  old_value,
-        new_value:  value,
+        old_value:  redact_setting_value(key, old_value),
+        new_value:  redact_setting_value(key, value),
         admin_id:   admin_id,
         inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
       })
@@ -457,6 +528,12 @@ defmodule Nexus.Admin do
         admin: u.username
       }
     )
+    # Rows written before secrets were redacted still hold the plaintext value.
+    |> Enum.map(fn l ->
+      l
+      |> Map.put(:old_value, redact_setting_value(l.section, l.old_value))
+      |> Map.put(:new_value, redact_setting_value(l.section, l.new_value))
+    end)
   end
 
   def list_job_failures(limit \\ 100) do

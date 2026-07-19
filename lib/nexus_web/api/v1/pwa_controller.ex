@@ -29,7 +29,10 @@ defmodule NexusWeb.API.V1.PwaController do
 
     case generate_vapid_keys() do
       {:ok, public_key, private_key} ->
-        Admin.update_setting("pwa", %{
+        # put_protected_setting: update_setting/3 deliberately strips the VAPID
+        # keys so the settings form can never overwrite them. This endpoint owns
+        # them, so it uses the privileged writer.
+        Admin.put_protected_setting("pwa", %{
           "vapid_public"  => public_key,
           "vapid_private" => private_key
         }, admin_id)

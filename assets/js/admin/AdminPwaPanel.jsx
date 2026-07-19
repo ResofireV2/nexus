@@ -85,7 +85,10 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
     {k:"status",  icon:"fa-circle-check",  label:"Status"},
   ];
 
-  const hasVapid=!!(pwaCfg.vapid_public);
+  // Server-computed from BOTH keys. Checking vapid_public alone reported
+  // "configured and ready" while the private key was missing and push was dead;
+  // the client can no longer see the private key at all.
+  const hasVapid=pwaCfg.vapid_ready===true;
 
   // ── Icon sizes grid ──────────────────────────────────────────────────────
   const ICON_SIZES=[512,384,192,180,144,96,48];
@@ -137,7 +140,7 @@ function AdminPwaPanel({pwaCfg, setPwaCfg, saving, saveSection, general}) {
     setVapidGenerating(true); setVapidError(null);
     const d=await api.post("/admin/pwa/vapid",{});
     setVapidGenerating(false);
-    if(d.public_key) setPwaCfg(p=>({...p,vapid_public:d.public_key}));
+    if(d.public_key) setPwaCfg(p=>({...p,vapid_public:d.public_key,vapid_ready:true}));
     else setVapidError(d.error||"Failed to generate VAPID keys. Check server logs.");
   };
 

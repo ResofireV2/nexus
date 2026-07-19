@@ -189,7 +189,9 @@ defmodule NexusWeb.API.V1.AdminController do
 
   # GET /api/v1/admin/settings
   def get_settings(conn, _params) do
-    json(conn, %{settings: Admin.get_settings()})
+    # Redacted variant: strips vapid_private and adds vapid_ready. The raw
+    # get_settings/0 is server-side only.
+    json(conn, %{settings: Admin.get_settings_for_api()})
   end
 
   # GET /api/v1/branding — public, returns only safe display settings
@@ -283,7 +285,7 @@ defmodule NexusWeb.API.V1.AdminController do
   def update_settings(conn, %{"key" => key, "value" => value}) do
     admin_id = conn.assigns.current_user.id
     case Admin.update_setting(key, value, admin_id) do
-      {:ok, _}   -> json(conn, %{ok: true, settings: Admin.get_settings()})
+      {:ok, _}   -> json(conn, %{ok: true, settings: Admin.get_settings_for_api()})
       {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
     end
   end
