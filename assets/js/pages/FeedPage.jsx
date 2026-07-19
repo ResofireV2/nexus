@@ -9,7 +9,7 @@ import { RichTextArea } from "../components/RichTextArea";
 
 const _brandingState   = () => (window._getBrandingState && window._getBrandingState()) || {};
 const onBrandingChange = (fn) => window._onBrandingChange ? window._onBrandingChange(fn) : () => {};
-function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], liveReplyUpdate=null, onAuthRequired}) {
+function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0, onLogout, spaceFilter, tagFilter=null, sortOverride, followingOnly=false, livePosts=[], liveEvents=[], liveReplyUpdate=null, onAuthRequired}) {
   const [sort,setSort]=useState(sortOverride||"latest");
   useEffect(()=>{setSort(sortOverride||"latest");},[sortOverride]);
   const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true);
@@ -82,6 +82,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     }));
   },[liveReplyUpdate, currentUser]);
   const activeSpace = useMemo(() => spaces.find(s=>s.slug===spaceFilter), [spaces, spaceFilter]);
+  const activeTag   = useMemo(() => (tags||[]).find(t=>t.slug===tagFilter), [tags, tagFilter]);
 
   const hasUnread = posts.some(p => p.seen === false || p.new_reply_count > 0);
 
@@ -105,6 +106,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     try {
       let url=`/feed?sort=${sort}`;
       if(spaceFilter) url+=`&space=${spaceFilter}`;
+      if(tagFilter) url+=`&tag=${encodeURIComponent(tagFilter)}`;
       if(followingOnly) url+=`&following=true`;
       if(!reset&&cur) url+=`&cursor=${cur}`;
       const d=await api.get(url);
@@ -114,14 +116,14 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
       cursorRef.current=d.next_cursor; hasMoreRef.current=!!d.next_cursor;
       setCursor(d.next_cursor); setHasMore(!!d.next_cursor);
     } finally { setLoading(false); loadingRef.current=false; }
-  },[sort,spaceFilter,followingOnly]);
+  },[sort,spaceFilter,tagFilter,followingOnly]);
 
   useEffect(()=>{
     if(!spaceFilter) { setSubscribed(false); return; }
     api.get(`/spaces/${spaceFilter}`).then(d=>{ if(d.space) setSubscribed(d.space.subscribed||false); }).catch(()=>{});
   },[spaceFilter]);
 
-  useEffect(()=>{setPosts([]);setLiveCount(0);load(true);},[sort,spaceFilter,followingOnly]);
+  useEffect(()=>{setPosts([]);setLiveCount(0);load(true);},[sort,spaceFilter,tagFilter,followingOnly]);
 
   // Reload the feed when the user logs in so posts get their correct read status.
   // Uses a ref to track the previous user id — only fires on the null→id transition,
@@ -163,7 +165,11 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
     } finally { setSubLoading(false); }
   };
 
-  const feedTitle = followingOnly ? "following" : activeSpace ? activeSpace.name : "everything";
+  const feedTitle =
+    followingOnly ? "following"
+    : activeSpace ? activeSpace.name
+    : tagFilter   ? `#${activeTag?.name || tagFilter}`
+    : "everything";
 
   const [hero, setHero] = useState(_brandingState);
   useEffect(()=>{ return onBrandingChange(b=>setHero({...b})); },[]);

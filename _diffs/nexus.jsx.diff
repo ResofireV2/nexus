@@ -1,68 +1,86 @@
---- accentfix/assets/js/nexus.jsx	2026-07-17 23:47:21.186957296 +0000
-+++ refpop/assets/js/nexus.jsx	2026-07-18 20:02:29.618217529 +0000
-@@ -1,4 +1,4 @@
--import React, { useState, useEffect, useCallback, useRef } from "react";
-+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
- import ReactDOM from "react-dom/client";
- // Namespace imports used to populate window.__nexusRuntime for the admin
- // bundle (see below). These reference the same module instances the main app
-@@ -446,13 +446,21 @@
-     }
+--- refpop/assets/js/nexus.jsx	2026-07-18 20:02:29.618217529 +0000
++++ tagfilter/assets/js/nexus.jsx	2026-07-19 22:21:47.091161146 +0000
+@@ -1727,6 +1727,10 @@
+   if (profileM) return {page:"profile", props:{username: profileM[1], tab: profileM[2]||null}};
+   const spaceM   = p.match(/^\/space\/(.+)$/);
+   if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
++  // Tag-filtered feed, mirroring /space/:slug so the view is shareable and the
++  // back button works.
++  const tagM     = p.match(/^\/tag\/(.+)$/);
++  if (tagM)    return {page:"feed",   props:{tag: decodeURIComponent(tagM[1])}};
+   const dmM      = p.match(/^\/messages\/(.+)$/);
+   if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
+   // Extension SPA routes all live under /ext/* — this prefix is owned exclusively
+@@ -1757,7 +1761,9 @@
+     return "/";
    }
-   const lr = link.getBoundingClientRect();
--  const spaceBelow = window.innerHeight - lr.bottom;
--  const showBelow = spaceBelow > 220;
-+  // Open on whichever side has more room and hand the popup the height it can
-+  // actually use, instead of clipping every quote to a fixed 220px while half
-+  // the screen sits empty.
-+  const GAP = 6, EDGE = 8;
-+  const CHROME = 62;               // meta row + vertical padding
-+  const spaceBelow = window.innerHeight - lr.bottom - GAP - EDGE;
-+  const spaceAbove = lr.top - GAP - EDGE;
-+  const showBelow  = spaceBelow >= spaceAbove;
-+  const maxBodyH   = Math.max(140, Math.min(460, (showBelow ? spaceBelow : spaceAbove) - CHROME));
-   _refPopupSetState && _refPopupSetState({
-     data,
-     x: Math.min(Math.max(lr.left, 8), window.innerWidth - 428),
--    y: showBelow ? lr.bottom + 6 : lr.top - 6,
--    above: !showBelow
-+    y: showBelow ? lr.bottom + GAP : lr.top - GAP,
-+    above: !showBelow,
-+    maxBodyH
-   });
-   return true;
- }
-@@ -558,8 +566,21 @@
+   switch(page) {
+-    case "feed":          return props.space ? `/space/${props.space}` : "/";
++    case "feed":          return props.space ? `/space/${props.space}`
++                               : props.tag   ? `/tag/${encodeURIComponent(props.tag)}`
++                               : "/";
+     case "post":          return props.id ? `/post/${props.id}` : "/";
+     case "profile":       return props.username ? `/profile/${props.username}${props.tab ? `/${props.tab}` : ""}` : "/";
+     case "compose":       return "/compose";
+@@ -3334,14 +3340,20 @@
+             const col=spaceColor(s);
+             const bw=Math.max(4, Math.round((s.post_count||0)/max*100));
+             return (
+-              <div key={s.id} style={{padding:"5px 0"}}>
++              // A real button, not a div with onClick — these are the only place
++              // in the app showing a space name that didn't navigate to it.
++              <button key={s.id} type="button"
++                onClick={()=>navigate&&navigate("feed",{space:s.slug})}
++                title={`Show threads in ${s.name}`}
++                aria-label={`Show threads in ${s.name}`}
++                style={{padding:"5px 0",display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                   <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
+                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
+                 </div>
+                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
+-              </div>
++              </button>
+             );
+           })}
+         </div>
+@@ -3358,14 +3370,18 @@
+             const col=t.color||"var(--ac)";
+             const bw=Math.max(4, Math.round((t.post_count||0)/maxTag*100));
+             return (
+-              <div key={t.id} style={{padding:"5px 0"}}>
++              <button key={t.id} type="button"
++                onClick={()=>navigate&&navigate("feed",{tag:t.slug})}
++                title={`Show threads tagged ${t.name}`}
++                aria-label={`Show threads tagged ${t.name}`}
++                style={{padding:"5px 0",display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+                   <i className="fa-solid fa-tag" style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
+                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
+                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{t.post_count||0}</span>
+                 </div>
+                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
+-              </div>
++              </button>
+             );
+           })}
+         </div>
+@@ -4621,7 +4637,7 @@
+     };
+     switch(page) {
+       case "feed":
+-        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate} onAuthRequired={m=>setAuthModal(m)}/>;
++        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} tagFilter={pageProps?.tag||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate} onAuthRequired={m=>setAuthModal(m)}/>;
+       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
+       case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
+       case "drafts":      return requireAuth(<DraftsPage currentUser={currentUser} navigate={navigate}/>);
+@@ -4641,7 +4657,7 @@
+       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate} initialTab={pageProps.tab||null}/>;
+       case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
+       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
+-      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate}/>;
++      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} tagFilter={pageProps?.tag||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate}/>;
+     }
+   };
  
- function RefPreviewPopup() {
-   const popup = useRefPreview();
-+  const bodyRef = useRef(null);
-+  const [clipped, setClipped] = useState(false);
-+  const bodyText = popup ? stripMd(popup.data.body).slice(0, 1200) : "";
-+
-+  // The bottom fade must only be drawn when the text is genuinely cut off.
-+  // Applied unconditionally it sat on top of short quotes — a one-line reply
-+  // was rendered almost unreadable under the gradient.
-+  useLayoutEffect(() => {
-+    const el = bodyRef.current;
-+    if (!el) { setClipped(false); return; }
-+    setClipped(el.scrollHeight > el.clientHeight + 1);
-+  }, [popup, bodyText]);
-+
-   if (!popup) return null;
--  const { data, x, y, above } = popup;
-+  const { data, x, y, above, maxBodyH } = popup;
-   const col = userColor({id: data.userId, avatar_color: data.userAvatarColor});
-   return (
-     <div className="ref-popup" style={{
-@@ -578,7 +599,9 @@
-         <button onClick={()=>_refPopupSetState&&_refPopupSetState(null)}
-           style={{marginLeft:"auto",background:"none",border:"none",color:"var(--t5)",cursor:"pointer",fontSize:14,lineHeight:1,padding:"0 2px",flexShrink:0}}>×</button>
-       </div>
--      <div className="ref-popup-body">{stripMd(data.body).slice(0, 600)}</div>
-+      <div ref={bodyRef}
-+        className={"ref-popup-body" + (clipped ? " is-clipped" : "")}
-+        style={maxBodyH ? {maxHeight: maxBodyH} : undefined}>{bodyText}</div>
-     </div>
-   );
- }

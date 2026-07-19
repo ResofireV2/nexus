@@ -1727,6 +1727,10 @@ function urlToPage(pathname) {
   if (profileM) return {page:"profile", props:{username: profileM[1], tab: profileM[2]||null}};
   const spaceM   = p.match(/^\/space\/(.+)$/);
   if (spaceM)  return {page:"feed",   props:{space: spaceM[1]}};
+  // Tag-filtered feed, mirroring /space/:slug so the view is shareable and the
+  // back button works.
+  const tagM     = p.match(/^\/tag\/(.+)$/);
+  if (tagM)    return {page:"feed",   props:{tag: decodeURIComponent(tagM[1])}};
   const dmM      = p.match(/^\/messages\/(.+)$/);
   if (dmM)    return {page:"dm",     props:{threadId: dmM[1]}};
   // Extension SPA routes all live under /ext/* — this prefix is owned exclusively
@@ -1757,7 +1761,9 @@ function pageToUrl(page, props={}) {
     return "/";
   }
   switch(page) {
-    case "feed":          return props.space ? `/space/${props.space}` : "/";
+    case "feed":          return props.space ? `/space/${props.space}`
+                               : props.tag   ? `/tag/${encodeURIComponent(props.tag)}`
+                               : "/";
     case "post":          return props.id ? `/post/${props.id}` : "/";
     case "profile":       return props.username ? `/profile/${props.username}${props.tab ? `/${props.tab}` : ""}` : "/";
     case "compose":       return "/compose";
@@ -3334,14 +3340,20 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
             const col=spaceColor(s);
             const bw=Math.max(4, Math.round((s.post_count||0)/max*100));
             return (
-              <div key={s.id} style={{padding:"5px 0"}}>
+              // A real button, not a div with onClick — these are the only place
+              // in the app showing a space name that didn't navigate to it.
+              <button key={s.id} type="button"
+                onClick={()=>navigate&&navigate("feed",{space:s.slug})}
+                title={`Show threads in ${s.name}`}
+                aria-label={`Show threads in ${s.name}`}
+                style={{padding:"5px 0",display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
                   <i className={`fa-solid ${s.icon||"fa-layer-group"}`} style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{s.post_count||0}</span>
                 </div>
                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -3358,14 +3370,18 @@ function RightPanel({spaces, tags=[], liveEvents=[], layoutCfg={}, mobile=false,
             const col=t.color||"var(--ac)";
             const bw=Math.max(4, Math.round((t.post_count||0)/maxTag*100));
             return (
-              <div key={t.id} style={{padding:"5px 0"}}>
+              <button key={t.id} type="button"
+                onClick={()=>navigate&&navigate("feed",{tag:t.slug})}
+                title={`Show threads tagged ${t.name}`}
+                aria-label={`Show threads tagged ${t.name}`}
+                style={{padding:"5px 0",display:"block",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
                   <i className="fa-solid fa-tag" style={{fontSize:10,color:col,width:14,textAlign:"center",flexShrink:0}}/>
                   <span style={{fontSize:13,color:"var(--t3)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
                   <span style={{fontSize:12,color:col,fontWeight:500,flexShrink:0}}>{t.post_count||0}</span>
                 </div>
                 <div className="p-bar-wrap"><div className="p-bar" style={{width:`${bw}%`,background:col}}/></div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -4621,7 +4637,7 @@ function App() {
     };
     switch(page) {
       case "feed":
-        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate} onAuthRequired={m=>setAuthModal(m)}/>;
+        return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} spaceFilter={pageProps?.space||null} tagFilter={pageProps?.tag||null} sortOverride={pageProps?.sort||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate} onAuthRequired={m=>setAuthModal(m)}/>;
       case "following":   return requireAuth(<FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} followingOnly={true}/>);
       case "saved":       return requireAuth(<SavedPage navigate={navigate} currentUser={currentUser}/>);
       case "drafts":      return requireAuth(<DraftsPage currentUser={currentUser} navigate={navigate}/>);
@@ -4641,7 +4657,7 @@ function App() {
       case "profile":     return <ProfilePage username={pageProps.username||currentUser?.username} currentUser={currentUser} navigate={navigate} initialTab={pageProps.tab||null}/>;
       case "ext-route":   return <ExtensionRoutePage {...pageProps} currentUser={currentUser} navigate={navigate}/>;
       case "moderation":    return requireAuth(<ModerationPage currentUser={currentUser} navigate={navigate}/>);
-      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate}/>;
+      default:            return <FeedPage spaces={spaces} tags={tags} currentUser={currentUser} navigate={navigate} notifCount={notifCount} msgCount={msgCount} onLogout={logout} tagFilter={pageProps?.tag||null} livePosts={livePosts} liveEvents={liveEvents} liveReplyUpdate={liveReplyUpdate}/>;
     }
   };
 
