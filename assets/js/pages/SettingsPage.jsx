@@ -492,23 +492,63 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
   const [pushSubs, setPushSubs]             = useState([]);
   const pushSupported = "serviceWorker" in navigator && "PushManager" in window;
 
-  // Check VAPID config and current subscription state on mount
+  // Check VAPID config and current subscription state on mount, then reconcile
+  // the browser's subscription against the server's.
+  //
+  // This used to report state from the browser alone. If the server-side row
+  // was removed — regenerating VAPID keys deletes every subscription — the
+  // toggle still read "enabled" while the stale browser subscription, bound to
+  // the old application server key, could never deliver. The only way out was
+  // to notice and manually toggle off and on.
   useEffect(()=>{
     if(!pushSupported) return;
-    fetch("/api/v1/pwa/vapid-public-key")
-      .then(r=>r.ok?r.json():null)
-      .then(d=>{ if(d?.public_key) setVapidReady(true); })
-      .catch(()=>{});
-    navigator.serviceWorker.ready.then(reg=>
-      reg.pushManager.getSubscription()
-    ).then(sub=>{ setPushSubscribed(!!sub); }).catch(()=>{});
-    // Load all subscriptions for this user
-    api.get("/push/subscriptions").then(d=>{
-      if(d.subscriptions) setPushSubs(d.subscriptions);
-    }).catch(()=>{});
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const r = await fetch("/api/v1/pwa/vapid-public-key");
+        const d = r.ok ? await r.json() : null;
+        if(!cancelled && d?.public_key) setVapidReady(true);
+      } catch(_) {}
+
+      let serverSubs = [];
+      try {
+        const d = await api.get("/push/subscriptions");
+        serverSubs = d.subscriptions || [];
+        if(!cancelled) setPushSubs(serverSubs);
+      } catch(_) {}
+
+      let sub = null;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        sub = await reg.pushManager.getSubscription();
+      } catch(_) {}
+
+      if(cancelled) return;
+
+      // Browser holds a subscription the server doesn't know about — it's
+      // orphaned. Replace it transparently.
+      if(sub && !serverSubs.some(s => s.endpoint === sub.endpoint)) {
+        try {
+          await sub.unsubscribe();
+          await subscribePush({silent:true});
+          if(!cancelled) setPushError(null);
+        } catch(_) {
+          if(!cancelled) setPushSubscribed(false);
+        }
+        return;
+      }
+
+      setPushSubscribed(!!sub);
+    })();
+
+    return ()=>{ cancelled = true; };
   },[pushSupported]);
 
-  const subscribePush = async () => {
+  // opts.silent suppresses the success toast — used by the reconciliation above,
+  // which re-subscribes on page load without the user having asked.
+  const subscribePush = async (opts) => {
+    const silent = !!(opts && opts.silent === true);
     setPushLoading(true); setPushError(null);
     try {
       // Fetch VAPID public key
@@ -539,7 +579,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           Object.keys(next).forEach(k=>{ next[k]={...next[k],push:true}; });
           return next;
         });
-        toast("Push notifications enabled");
+        if(!silent) toast("Push notifications enabled");
       } else {
         setPushError(d.error||"Failed to save subscription");
         await sub.unsubscribe();

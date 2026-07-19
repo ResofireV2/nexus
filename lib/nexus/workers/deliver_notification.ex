@@ -86,6 +86,17 @@ defmodule Nexus.Workers.DeliverNotification do
             [:actor, :post, :reply]
           )
           broadcast_notification(updated)
+
+          # Push when the group gains a NEW actor. Repeat activity from someone
+          # already in the group returns above and stays silent, so a busy
+          # thread doesn't fire one notification per interaction.
+          #
+          # The row's own actor is whoever started the group, so push with the
+          # actor that triggered *this* update — otherwise the notification
+          # names the wrong person.
+          push_actor = if actor_id, do: Nexus.Accounts.get_user(actor_id), else: updated.actor
+          maybe_send_push(%{updated | actor_id: actor_id || updated.actor_id, actor: push_actor})
+
           :ok
         end
     end
@@ -204,12 +215,16 @@ defmodule Nexus.Workers.DeliverNotification do
   def maybe_send_push_for_dm(user_id, actor, thread_id) do
     require Logger
 
+    # Every branch logs. These early returns used to be silent, so a DM that
+    # never reached a device left no trace at all and the failure was invisible.
     if not push_enabled_for?(Nexus.Accounts.get_user(user_id), "dm") do
+      Logger.info("Push DM: user #{user_id} has push disabled for type dm")
       :ok
     else
       subscriptions = Nexus.Accounts.get_push_subscriptions(user_id)
 
       if Enum.empty?(subscriptions) do
+        Logger.info("Push DM: user #{user_id} has no push subscriptions")
         :ok
       else
         pwa           = Nexus.Admin.get_setting("pwa")
@@ -234,17 +249,23 @@ defmodule Nexus.Workers.DeliverNotification do
           })
 
           Enum.each(subscriptions, fn sub ->
+            Logger.info("Push DM: sending to user #{user_id} endpoint #{String.slice(sub.endpoint, 0, 50)}…")
+
             case Nexus.WebPush.send(sub.endpoint, sub.p256dh, sub.auth, vapid_public, vapid_private, payload) do
               :ok ->
                 Logger.info("Push DM: delivered to user #{user_id}")
               {:error, :subscription_expired} ->
+                Logger.info("Push DM: subscription expired for user #{user_id}, clearing")
                 Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
               {:error, :subscription_not_found} ->
+                Logger.info("Push DM: subscription not found for user #{user_id}, clearing")
                 Nexus.Accounts.clear_push_subscription_by_endpoint(sub.endpoint)
               {:error, reason} ->
                 Logger.warning("Push DM failed for user #{user_id}: #{inspect(reason)}")
             end
           end)
+        else
+          Logger.warning("Push DM: VAPID keys not configured")
         end
       end
     end
@@ -364,10 +385,16 @@ defmodule Nexus.Workers.DeliverNotification do
     Jason.encode!(%{title: title, body: body, icon: icon, badge: badge, url: url})
   end
 
+  # Grouped notifications carry a count; without this the push would name only
+  # one person no matter how many took part.
+  defp group_suffix(n) when is_integer(n) and n > 2, do: " and #{n - 1} others"
+  defp group_suffix(2), do: " and 1 other"
+  defp group_suffix(_), do: ""
+
   # Map notification type to human-readable push content
-  defp push_content(%Notification{type: "reply", actor: actor, post_id: post_id}, site_name) do
+  defp push_content(%Notification{type: "reply", actor: actor, post_id: post_id, group_count: gc}, site_name) do
     actor_name = actor_display(actor)
-    {"#{site_name}", "#{actor_name} replied to your post", post_url(post_id)}
+    {"#{site_name}", "#{actor_name}#{group_suffix(gc)} replied to your post", post_url(post_id)}
   end
 
   defp push_content(%Notification{type: "mention", actor: actor, post_id: post_id}, site_name) do
@@ -375,8 +402,8 @@ defmodule Nexus.Workers.DeliverNotification do
     {"#{site_name}", "#{actor_name} mentioned you", post_url(post_id)}
   end
 
-  defp push_content(%Notification{type: "reaction", actor: actor, post_id: post_id, reply_id: reply_id, data: data}, site_name) do
-    actor_name = actor_display(actor)
+  defp push_content(%Notification{type: "reaction", actor: actor, post_id: post_id, reply_id: reply_id, data: data, group_count: gc}, site_name) do
+    actor_name = actor_display(actor) <> group_suffix(gc)
     emoji      = get_in(data, ["type"]) || "❤️"
     {target, url} = if post_id do
       {"your post",  post_url(post_id)}
@@ -386,9 +413,9 @@ defmodule Nexus.Workers.DeliverNotification do
     {"#{site_name}", "#{actor_name} reacted #{emoji} to #{target}", url}
   end
 
-  defp push_content(%Notification{type: "followed_post", actor: actor, post_id: post_id}, site_name) do
+  defp push_content(%Notification{type: "followed_post", actor: actor, post_id: post_id, group_count: gc}, site_name) do
     actor_name = actor_display(actor)
-    {"#{site_name}", "#{actor_name} replied to a post you follow", post_url(post_id)}
+    {"#{site_name}", "#{actor_name}#{group_suffix(gc)} replied to a post you follow", post_url(post_id)}
   end
 
   defp push_content(%Notification{type: "dm", data: data}, site_name) do
