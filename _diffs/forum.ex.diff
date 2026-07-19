@@ -1,149 +1,28 @@
---- nexus-master/lib/nexus/forum/forum.ex	2026-06-21 19:39:28.000000000 +0000
-+++ countfix/lib/nexus/forum/forum.ex	2026-07-19 22:28:05.895968612 +0000
-@@ -138,6 +138,11 @@
-   end
+--- /home/claude/countfix/lib/nexus/forum/forum.ex	2026-07-19 22:28:05.895968612 +0000
++++ lib/nexus/forum/forum.ex	2026-07-19 22:33:39.336861252 +0000
+@@ -621,10 +621,22 @@
+   defp filter_pinned_for_context(query, _space_slug), do: query
  
-   def update_post(%Post{} = post, attrs, tag_ids \\ nil) do
-+    # Counter bookkeeping needs the pre-update state, so capture it first.
-+    was_hidden   = post.hidden
-+    old_space_id = post.space_id
-+    old_tag_ids  = if tag_ids, do: current_tag_ids(post), else: nil
+   defp filter_by_tag(query, nil), do: query
 +
-     changeset = Post.changeset(post, normalize_attrs(attrs))
- 
-     changeset =
-@@ -149,24 +154,82 @@
-       end
- 
-     case Repo.update(changeset) do
--      {:ok, post} -> {:ok, Repo.preload(post, [:user, :space, :tags], force: true)}
--      error -> error
-+      {:ok, updated} ->
-+        sync_counts_after_update(updated, was_hidden, old_space_id, old_tag_ids, tag_ids)
-+        {:ok, Repo.preload(updated, [:user, :space, :tags], force: true)}
-+
-+      error ->
-+        error
-+    end
-+  end
-+
-+  # Moving a post between spaces, or changing its tags, used to leave both
-+  # counters untouched — the source stayed over-counted and the destination
-+  # under-counted, permanently.
++  # Joins through the many_to_many association rather than the post_tags table
++  # by hand.
 +  #
-+  # post_count tracks *visible* posts, so a post that is hidden on both sides of
-+  # the edit contributes to nothing and needs no adjustment.
-+  defp sync_counts_after_update(updated, was_hidden, old_space_id, old_tag_ids, tag_ids) do
-+    unless was_hidden or updated.hidden do
-+      if updated.space_id != old_space_id do
-+        decrement_space_post_count(old_space_id)
-+        increment_space_post_count(updated.space_id)
-+      end
-+
-+      if tag_ids do
-+        new_ids = Enum.uniq(tag_ids)
-+        old_ids = Enum.uniq(old_tag_ids || [])
-+        increment_tag_post_counts(new_ids -- old_ids)
-+        decrement_tag_post_counts(old_ids -- new_ids)
-+      end
-     end
-+
-+    :ok
-+  end
-+
-+  defp current_tag_ids(%Post{} = post) do
-+    post |> Repo.preload(:tags) |> Map.get(:tags) |> Enum.map(& &1.id)
++  # The previous version named three positional bindings ([p, _s, pt]) for the
++  # second join, which only lined up when filter_by_space/2 had already added a
++  # spaces join. Filtering by tag alone — the only thing the UI actually does —
++  # left just two bindings and the query blew up. It went unnoticed because no
++  # caller ever passed a tag, so the branch never ran.
++  #
++  # `assoc(p, :tags)` resolves the join table itself and binds to the first
++  # source explicitly, so it cannot drift as other filters are added or removed.
+   defp filter_by_tag(query, slug) do
+-    query
+-    |> join(:inner, [p], pt in "post_tags", on: pt.post_id == p.id)
+-    |> join(:inner, [p, _s, pt], t in Tag, on: pt.tag_id == t.id and t.slug == ^slug)
++    from p in query,
++      join: t in assoc(p, :tags),
++      where: t.slug == ^slug
    end
  
-   def delete_post(%Post{} = post) do
-+    # Tags have to be read before the delete cascades the join rows away.
-+    tag_ids    = current_tag_ids(post)
-+    was_hidden = post.hidden
-+
-     case Repo.delete(post) do
-       {:ok, _} ->
--        decrement_space_post_count(post.space_id)
-+        # A hidden post was already excluded from the counters, so deleting it
-+        # must not decrement them a second time.
-+        unless was_hidden do
-+          decrement_space_post_count(post.space_id)
-+          decrement_tag_post_counts(tag_ids)
-+        end
-+
-         {:ok, :deleted}
--      error -> error
-+
-+      error ->
-+        error
-     end
-   end
- 
-   def hide_post(%Post{} = post, moderator_id) do
--    post
--    |> Post.hide_changeset(moderator_id)
--    |> Repo.update()
-+    tag_ids = current_tag_ids(post)
-+
-+    result =
-+      post
-+      |> Post.hide_changeset(moderator_id)
-+      |> Repo.update()
-+
-+    # Hiding removes the post from every feed, so it must stop counting —
-+    # otherwise a space advertises threads that nobody can see.
-+    with {:ok, hidden} <- result do
-+      unless post.hidden do
-+        decrement_space_post_count(hidden.space_id)
-+        decrement_tag_post_counts(tag_ids)
-+      end
-+    end
-+
-+    result
-   end
- 
-   def pin_post(%Post{} = post, pinned, scope \\ nil) do
-@@ -193,6 +256,44 @@
-     |> Repo.update_all(inc: [post_count: 1])
-   end
- 
-+  defp decrement_tag_post_counts([]), do: :ok
-+  defp decrement_tag_post_counts(tag_ids) do
-+    from(t in Tag, where: t.id in ^tag_ids)
-+    |> Repo.update_all(inc: [post_count: -1])
-+  end
-+
-+  @doc """
-+  Recomputes every space's post_count from the posts table.
-+
-+  The counters are maintained incrementally; this exists to repair drift and is
-+  run once by the recount migration. Counts visible posts only, matching what
-+  the feed actually shows.
-+  """
-+  def recount_space_post_counts do
-+    Repo.query!("""
-+    UPDATE spaces s
-+    SET post_count = COALESCE(
-+      (SELECT COUNT(*) FROM posts p WHERE p.space_id = s.id AND p.hidden = false), 0)
-+    """)
-+
-+    :ok
-+  end
-+
-+  @doc "Recomputes every tag's post_count from the post_tags join table."
-+  def recount_tag_post_counts do
-+    Repo.query!("""
-+    UPDATE tags t
-+    SET post_count = COALESCE((
-+      SELECT COUNT(*)
-+      FROM post_tags pt
-+      JOIN posts p ON p.id = pt.post_id
-+      WHERE pt.tag_id = t.id AND p.hidden = false
-+    ), 0)
-+    """)
-+
-+    :ok
-+  end
-+
-   # ---------------------------------------------------------------------------
-   # Replies
-   # ---------------------------------------------------------------------------
+   defp filter_by_visibility(query, nil) do

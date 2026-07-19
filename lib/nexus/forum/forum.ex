@@ -621,10 +621,22 @@ defmodule Nexus.Forum do
   defp filter_pinned_for_context(query, _space_slug), do: query
 
   defp filter_by_tag(query, nil), do: query
+
+  # Joins through the many_to_many association rather than the post_tags table
+  # by hand.
+  #
+  # The previous version named three positional bindings ([p, _s, pt]) for the
+  # second join, which only lined up when filter_by_space/2 had already added a
+  # spaces join. Filtering by tag alone — the only thing the UI actually does —
+  # left just two bindings and the query blew up. It went unnoticed because no
+  # caller ever passed a tag, so the branch never ran.
+  #
+  # `assoc(p, :tags)` resolves the join table itself and binds to the first
+  # source explicitly, so it cannot drift as other filters are added or removed.
   defp filter_by_tag(query, slug) do
-    query
-    |> join(:inner, [p], pt in "post_tags", on: pt.post_id == p.id)
-    |> join(:inner, [p, _s, pt], t in Tag, on: pt.tag_id == t.id and t.slug == ^slug)
+    from p in query,
+      join: t in assoc(p, :tags),
+      where: t.slug == ^slug
   end
 
   defp filter_by_visibility(query, nil) do
