@@ -4342,16 +4342,23 @@ function App() {
   },[]);
   useEffect(()=>{ window._nexusNavigate = navigate; },[navigate]);
 
-  // Close all mobile overlays whenever the page changes — this catches
-  // navigation via the navigate prop, window._nexusNavigate (used by
-  // extensions), and popstate (back/forward). The prop-wrapping approach
-  // alone does not work because extensions call window._nexusNavigate directly.
+  // Close all mobile overlays on any navigation — this catches the navigate
+  // prop, window._nexusNavigate (used by extensions), and popstate
+  // (back/forward). The prop-wrapping approach alone does not work because
+  // extensions call window._nexusNavigate directly.
+  //
+  // pageProps is in the dependency list, not just page: navigating within the
+  // same page still counts. Spaces by Pulse and Tags by Pulse only render on
+  // the feed, so they always go feed -> feed and page never changes — the
+  // right panel stayed open over the results the user had just asked to see.
+  // Every setPageProps call is navigation-driven and passes a fresh object, so
+  // this fires exactly once per navigation.
   useEffect(()=>{
     setMobLeftOpen(false);
     setMobRightOpen(false);
     setMobUserOpen(false);
     setMobSearchOpen(false);
-  },[page]);
+  },[page, pageProps]);
 
   // Handle browser back/forward
   useEffect(()=>{

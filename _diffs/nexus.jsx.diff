@@ -1,37 +1,31 @@
---- countfix/assets/js/nexus.jsx	2026-07-19 22:28:34.550137959 +0000
-+++ subcounts/assets/js/nexus.jsx	2026-07-19 22:53:16.608059620 +0000
-@@ -2479,7 +2479,7 @@
-   return totals;
- }
+--- subcounts/assets/js/nexus.jsx	2026-07-19 22:53:16.608059620 +0000
++++ panelfix/assets/js/nexus.jsx	2026-07-20 15:57:05.617011647 +0000
+@@ -4342,16 +4342,23 @@
+   },[]);
+   useEffect(()=>{ window._nexusNavigate = navigate; },[navigate]);
  
--function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totalCount}) {
-+function SpaceWithChildren({space, col, children, parentActive, defaultExpanded, page, pageProps, navigate, totals={}}) {
-   const [expanded, setExpanded] = React.useState(defaultExpanded);
-   return (
-     <div>
-@@ -2489,7 +2489,7 @@
-             style={{width:18,textAlign:"center",fontSize:15,flexShrink:0,
-               color: parentActive ? col : "var(--t3)"}}/>
-           <span className="sb-item-name">{space.name}</span>
--          {totalCount > 0 && <span className="sb-item-count">{totalCount}</span>}
-+          {totals[space.id] > 0 && <span className="sb-item-count">{totals[space.id]}</span>}
-         </div>
-         <span className={`sb-item-toggle ${expanded ? "expanded" : "collapsed"}`}
-           onClick={e => { e.stopPropagation(); setExpanded(p => !p); }}
-@@ -2504,6 +2504,7 @@
-             onClick={() => navigate("feed", {space: sub.slug})}>
-             <span className="sb-sub-dot" style={{background: col}}/>
-             <span className="sb-sub-name">{sub.name}</span>
-+            {totals[sub.id] > 0 && <span className="sb-item-count">{totals[sub.id]}</span>}
-           </div>
-         );
-       })}
-@@ -2692,7 +2693,7 @@
-                   return (
-                     <SpaceWithChildren key={s.id}
-                       space={s} col={col} children={children}
--                      totalCount={spaceTotals[s.id]}
-+                      totals={spaceTotals}
-                       parentActive={parentActive}
-                       defaultExpanded={defaultExpanded}
-                       page={page} pageProps={pageProps}
+-  // Close all mobile overlays whenever the page changes — this catches
+-  // navigation via the navigate prop, window._nexusNavigate (used by
+-  // extensions), and popstate (back/forward). The prop-wrapping approach
+-  // alone does not work because extensions call window._nexusNavigate directly.
++  // Close all mobile overlays on any navigation — this catches the navigate
++  // prop, window._nexusNavigate (used by extensions), and popstate
++  // (back/forward). The prop-wrapping approach alone does not work because
++  // extensions call window._nexusNavigate directly.
++  //
++  // pageProps is in the dependency list, not just page: navigating within the
++  // same page still counts. Spaces by Pulse and Tags by Pulse only render on
++  // the feed, so they always go feed -> feed and page never changes — the
++  // right panel stayed open over the results the user had just asked to see.
++  // Every setPageProps call is navigation-driven and passes a fresh object, so
++  // this fires exactly once per navigation.
+   useEffect(()=>{
+     setMobLeftOpen(false);
+     setMobRightOpen(false);
+     setMobUserOpen(false);
+     setMobSearchOpen(false);
+-  },[page]);
++  },[page, pageProps]);
+ 
+   // Handle browser back/forward
+   useEffect(()=>{
