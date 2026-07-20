@@ -62,7 +62,8 @@ defmodule Nexus.Extensions.SlotContracts do
                    "above any reply thread. One render per post; not rendered " <>
                    "on the home feed.",
       props: %{
-        post_id: "String UUID of the post being viewed. Always present."
+        post_id: "Integer id of the post being viewed (posts use a bigserial " <>
+                 "primary key, not a UUID). Always present."
       }
     },
     %{
@@ -85,13 +86,17 @@ defmodule Nexus.Extensions.SlotContracts do
                    "per registered extension component; all stacked vertically. " <>
                    "Not rendered on the reply composer.",
       props: %{
-        attachments:     "Array of all current compose attachments. Each entry " <>
-                         "is %{kind: string, data: map}. Extensions should " <>
-                         "filter to their own kind(s) and ignore the rest.",
-        set_attachments: "Function — call with an updater fn or new array to " <>
-                         "mutate the attachment list. Use this to remove an " <>
-                         "attachment the user wants to discard before posting. " <>
-                         "Signature: setAttachments(prev => newArray)."
+        attachments:    "Array of all current compose attachments. Each entry " <>
+                        "is %{kind: string, data: map}. Extensions should " <>
+                        "filter to their own kind(s) and ignore the rest.",
+        setAttachments: "Function — call with an updater fn or new array to " <>
+                        "mutate the attachment list. Use this to remove an " <>
+                        "attachment the user wants to discard before posting. " <>
+                        "Signature: setAttachments(prev => newArray). " <>
+                        "Note the camelCase: this slot's setter is passed as " <>
+                        "`setAttachments`, unlike `post_id` / `current_user` " <>
+                        "on the other slots. `propsForSlot` in nexus.jsx is " <>
+                        "the runtime authority."
       }
     }
   ]

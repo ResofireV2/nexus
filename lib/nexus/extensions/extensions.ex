@@ -334,14 +334,22 @@ defmodule Nexus.Extensions do
     module_prefix = inspect(module)
 
     try do
-      # Match any job whose worker starts with the extension's module prefix
-      # (e.g. "Gamepedia" matches "Gamepedia.Workers.FetchGame"). We delete
-      # available, scheduled, and retryable jobs; jobs already executing
-      # are left alone (they'll run to completion against the not-yet-
-      # unloaded module).
+      # Match jobs whose worker is the extension's root module itself, or a
+      # module nested beneath it (e.g. "Gamepedia.Workers.FetchGame"). We
+      # delete available, scheduled, and retryable jobs; jobs already
+      # executing are left alone (they'll run to completion against the
+      # not-yet-unloaded module).
+      #
+      # The trailing "." in the prefix pattern matters. A bare
+      # like(worker, "Gamepedia%") would also match an unrelated extension
+      # whose module name merely starts with the same characters — so
+      # uninstalling an extension with module `Game` would silently delete
+      # every queued `Gamepedia.Workers.*` job. Anchoring on the module
+      # separator confines the match to real descendants.
       import Ecto.Query
       query = from j in Oban.Job,
-              where: like(j.worker, ^"#{module_prefix}%") and
+              where: (j.worker == ^module_prefix or
+                      like(j.worker, ^"#{module_prefix}.%")) and
                      j.state in ["available", "scheduled", "retryable"]
 
       {count, _} = Repo.delete_all(query)

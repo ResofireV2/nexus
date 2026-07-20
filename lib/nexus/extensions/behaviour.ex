@@ -115,17 +115,26 @@ defmodule Nexus.Extensions.Behaviour do
   @callback child_specs() :: [Supervisor.child_spec()]
 
   @doc """
-  Returns API route definitions to mount under `/ext/:slug/` in Nexus's router.
-  Each entry is a `{path, plug, opts}` tuple.
+  Returns API route definitions to mount under `/ext/:slug/api/` in Nexus's
+  router. Each entry is a `{prefix, plug, opts}` tuple.
 
-  Routes are mounted at: `/ext/my-extension/{path}`
-  Your JS bundle should call these via `fetch("/ext/my-extension/api/items")`.
+  The host router matches `/ext/:slug/api/*path` and consumes the literal
+  `api` segment before your plug is called, so the prefix you declare here
+  must NOT include it. In almost all cases the correct prefix is `"/"`:
 
       def routes do
         [
-          {"/api", MyExtension.ApiRouter, []},
+          {"/", MyExtension.ApiRouter, []},
         ]
       end
+
+  With the above, a browser request to `/ext/my-extension/api/items` reaches
+  your plug with `path_info: ["items"]` and `request_path: "/items"`, so your
+  `Plug.Router` should define `get "/items"` — not `get "/api/items"`.
+
+  Declaring a non-root prefix adds a further path segment. `{"/admin", ...}`
+  would only match `/ext/my-extension/api/admin/*`, arriving at your plug with
+  the `admin` segment already stripped.
   """
   @callback routes() :: [{String.t(), module(), keyword()}]
 
