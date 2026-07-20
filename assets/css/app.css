@@ -172,7 +172,11 @@ select option{background:var(--s2);color:var(--t1);}
    which is the one band where .right-panel is hidden with no other route to
    it. Declared here, outside any media query, so they genuinely apply at all
    other widths. */
-.tb-right-toggle{display:none;}
+/* Compound selector, not a bare .tb-right-toggle. The element carries both
+   classes, and .icon-btn further down the sheet also sets display:flex — at
+   equal specificity the later rule wins, so a single-class rule here would be
+   overridden and the toggle would show at every width. */
+.icon-btn.tb-right-toggle{display:none;}
 .mob-overlay-backdrop{display:none;}
 .sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
@@ -584,7 +588,7 @@ select option{background:var(--s2);color:var(--t1);}
    unreachable. The base rule below keeps it hidden everywhere else, and
    .topbar is already display:none under 768px where the mobile trigger
    takes over. */
-.tb-right-toggle{display:flex;}
+.icon-btn.tb-right-toggle{display:flex;}
 }
 @media(min-width:768px) and (max-width:1080px){
 .tb-search{max-width:240px;padding:8px 14px;}

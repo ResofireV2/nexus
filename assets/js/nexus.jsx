@@ -2830,18 +2830,6 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
         )}
       </div>
       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
-        {/* Right-panel toggle. Only rendered between the mobile breakpoint and
-            the width at which .right-panel becomes visible again (see the
-            .tb-right-toggle rule in app.css). In that band the panel is
-            display:none with no other way to reach it. Placed outside the
-            currentUser branch so guests can open it too when guest browsing
-            is enabled. Same icon and label as the mobile trigger. */}
-        {onToggleRight&&(
-          <div className="icon-btn tb-right-toggle" onClick={onToggleRight}
-               title="Activity" aria-label="Open activity panel">
-            <i className="fa-solid fa-chart-simple" style={{fontSize:16}}></i>
-          </div>
-        )}
         {currentUser ? <>
           <div className="icon-btn" onClick={()=>navigate("notifications")} title="Notifications">
             <i className="fa-solid fa-bell" style={{fontSize:16}}></i>
@@ -2870,6 +2858,23 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
           <button onClick={()=>onAuthRequired?.("login")} className="write-btn" style={{background:"transparent",border:"1.5px solid var(--b2)",color:"var(--t2)"}}>Log in</button>
           {registrationOpen&&<button onClick={()=>onAuthRequired?.("register")} className="write-btn">Sign up</button>}
         </>}
+        {/* Right-panel toggle. Only rendered between the mobile breakpoint and
+            the width at which .right-panel becomes visible again (see the
+            .tb-right-toggle rule in app.css). In that band the panel is
+            display:none with no other way to reach it.
+
+            Sits after the currentUser conditional for two reasons: it is the
+            rightmost control, mirroring the activity trigger's position in
+            .mob-topbar and sitting on the same edge as the panel it opens; and
+            being outside both branches it renders for guests as well as
+            members without duplicating the markup. Same icon and label as the
+            mobile trigger. */}
+        {onToggleRight&&(
+          <div className="icon-btn tb-right-toggle" onClick={onToggleRight}
+               title="Activity" aria-label="Open activity panel">
+            <i className="fa-solid fa-chart-simple" style={{fontSize:16}}></i>
+          </div>
+        )}
       </div>
     </div>
   );
