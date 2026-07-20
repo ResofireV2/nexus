@@ -167,6 +167,13 @@ select option{background:var(--s2);color:var(--t1);}
 .app-root{display:flex;justify-content:center;height:100vh;overflow:hidden;background:var(--bg);}
 .app-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
 :root{--sidebar-width:320px;--right-panel-width:320px;}
+/* Right-panel drawer affordances. Both are off at every width by default and
+   switched on only inside the min-width:768px / max-width:1239.99px block,
+   which is the one band where .right-panel is hidden with no other route to
+   it. Declared here, outside any media query, so they genuinely apply at all
+   other widths. */
+.tb-right-toggle{display:none;}
+.mob-overlay-backdrop{display:none;}
 .sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
@@ -523,7 +530,61 @@ select option{background:var(--s2);color:var(--t1);}
 .mob-admin-close{display:none;}
 }
 @media(min-width:768px) and (max-width:1239.99px){
+/* The right panel cannot sit alongside the sidebar and a readable content
+   column below 1240px, so it stays hidden here. Previously that left its
+   widgets completely unreachable in this band: the mobile trigger lives in
+   .mob-topbar, which is already hidden from 768px up, and .right-panel itself
+   is display:none. The rules below surface the same <RightPanel mobile/> the
+   phone layout uses, as a side drawer instead of a full-screen sheet.
+
+   Note these declarations are self-contained. The base .mob-overlay rule lives
+   inside the max-width:767.99px block, so none of its positioning, transform
+   or transition applies at this width — everything the drawer needs is
+   restated here rather than inherited. */
 .right-panel{display:none!important;}
+
+/* Re-admits only the right overlay. The blanket rule in the min-width:768px
+   block above hides every .mob-overlay, and the left menu, user menu, tab bar
+   and reply bar must all stay hidden at this width, so this is deliberately
+   narrow. */
+.mob-overlay.right{
+  display:flex!important;
+  position:fixed;
+  top:0;
+  bottom:0;
+  right:0;
+  left:auto;
+  width:360px;
+  max-width:88vw;
+  flex-direction:column;
+  background:var(--bg);
+  border-left:0.5px solid var(--b1);
+  box-shadow:-8px 0 32px rgba(0,0,0,.32);
+  z-index:950;
+  transform:translateX(100%);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+}
+.mob-overlay.right.open{transform:translateX(0);}
+
+/* Backdrop is painted only in this band; on phones the overlay is a
+   full-screen sheet with nothing behind it to dim. */
+.mob-overlay-backdrop{
+  display:block;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.45);
+  z-index:940;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s cubic-bezier(.4,0,.2,1);
+}
+.mob-overlay-backdrop.open{opacity:1;pointer-events:auto;}
+
+/* Toggle is scoped to exactly the band where the panel is otherwise
+   unreachable. The base rule below keeps it hidden everywhere else, and
+   .topbar is already display:none under 768px where the mobile trigger
+   takes over. */
+.tb-right-toggle{display:flex;}
 }
 @media(min-width:768px) and (max-width:1080px){
 .tb-search{max-width:240px;padding:8px 14px;}

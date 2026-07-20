@@ -2740,7 +2740,7 @@ function PendingDeletionBanner({scheduledAt, onCancel, onNavigateSettings}) {
   );
 }
 
-function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true}) {
+function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSearch, onAuthRequired, registrationOpen=true, onToggleRight}) {
   const [q,setQ]=useState("");
   const [drop,setDrop]=useState(null); // {posts, replies} | null
   const [searching,setSearching]=useState(false);
@@ -2830,6 +2830,18 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
         )}
       </div>
       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+        {/* Right-panel toggle. Only rendered between the mobile breakpoint and
+            the width at which .right-panel becomes visible again (see the
+            .tb-right-toggle rule in app.css). In that band the panel is
+            display:none with no other way to reach it. Placed outside the
+            currentUser branch so guests can open it too when guest browsing
+            is enabled. Same icon and label as the mobile trigger. */}
+        {onToggleRight&&(
+          <div className="icon-btn tb-right-toggle" onClick={onToggleRight}
+               title="Activity" aria-label="Open activity panel">
+            <i className="fa-solid fa-chart-simple" style={{fontSize:16}}></i>
+          </div>
+        )}
         {currentUser ? <>
           <div className="icon-btn" onClick={()=>navigate("notifications")} title="Notifications">
             <i className="fa-solid fa-bell" style={{fontSize:16}}></i>
@@ -4360,6 +4372,23 @@ function App() {
     setMobSearchOpen(false);
   },[page, pageProps]);
 
+  // Escape closes the right panel drawer.
+  useEffect(()=>{
+    if(!mobRightOpen) return;
+    const onKey=e=>{ if(e.key==="Escape") setMobRightOpen(false); };
+    document.addEventListener("keydown",onKey);
+    return ()=>document.removeEventListener("keydown",onKey);
+  },[mobRightOpen]);
+
+  // Above 1240px .right-panel is visible again and .tb-right-toggle is hidden,
+  // so an open drawer would sit over a panel already showing the same widgets
+  // with no control left to dismiss it. Close it on the way past.
+  useEffect(()=>{
+    const onResize=()=>{ if(window.innerWidth>=1240) setMobRightOpen(false); };
+    window.addEventListener("resize",onResize);
+    return ()=>window.removeEventListener("resize",onResize);
+  },[]);
+
   // Handle browser back/forward
   useEffect(()=>{
     const fn = (e) => {
@@ -4690,6 +4719,13 @@ function App() {
             <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={(p,props)=>{setMobLeftOpen(false);navigate(p,props);}} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg} mobile={true}/>
           </div>
         </div>
+        {/* Drawer backdrop. Only painted in the tablet band where the right
+            overlay renders as a side drawer rather than a full-screen sheet;
+            see .mob-overlay-backdrop in app.css. onMouseDown rather than
+            onClick so a drag that starts inside the drawer and ends on the
+            backdrop does not dismiss it. */}
+        <div className={`mob-overlay-backdrop ${mobRightOpen?"open":""}`}
+             onMouseDown={()=>setMobRightOpen(false)} aria-hidden="true"/>
         <div className={`mob-overlay right ${mobRightOpen?"open":""}`}>
           <div className="mob-overlay-head">
             <span className="mob-overlay-title">Activity</span>
@@ -4706,7 +4742,7 @@ function App() {
       <div className="app-shell">
         <Sidebar currentUser={currentUser} spaces={spaces} page={page} pageProps={pageProps} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onAuthRequired={m=>setAuthModal(m)} layoutCfg={layoutCfg}/>
         <div className="main-area">
-          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen}/>
+          <TopBar currentUser={currentUser} navigate={navigate} onLogout={logout} notifCount={notifCount} msgCount={msgCount} modReportCount={modReportCount} onSearch={q=>navigate("search",{q})} onAuthRequired={m=>setAuthModal(m)} registrationOpen={registrationOpen} onToggleRight={()=>setMobRightOpen(true)}/>
           {currentUser?.status==="pending_deletion"&&<PendingDeletionBanner scheduledAt={currentUser.deletion_scheduled_at} onCancel={async()=>{const d=await api.delete("/auth/schedule-deletion").catch(()=>({}));if(d.ok){setCurrentUser(u=>({...u,status:"active",deletion_scheduled_at:null}));toast("Deletion cancelled — account restored");}}} onNavigateSettings={()=>navigate("settings",{tab:"security"})}/> }
           <main className="page-area" style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {renderPage()}
