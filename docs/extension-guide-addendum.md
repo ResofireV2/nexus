@@ -1,6 +1,6 @@
 # Extension Guide — addendum
 
-Text to fold into the Nexus Extension Development Guide. Two small edits.
+Text to fold into the Nexus Extension Development Guide.
 
 ---
 
@@ -54,7 +54,7 @@ After the table, as a closing note:
 
 ---
 
-## Why this is worth documenting
+## Why 1–2 are worth documenting
 
 Three of the official extensions (Gamepedia, Tickets and Awards) read the
 templates at bundle load time. It went unnoticed while Nexus shipped a single
@@ -66,3 +66,86 @@ panel threw when opened.
 The split was correct and matched the guide; the extensions were relying on
 behaviour the guide never promised. The rule above makes that contract explicit
 so third-party authors don't repeat it.
+
+---
+
+## 3. Correct §7.1 / §9.2 `compose_attachments` props
+
+The guide lists this slot's props as `{ attachments, set_attachments }`. The
+setter is passed as **`setAttachments`** — camelCase.
+
+`propsForSlot` in `assets/js/nexus.jsx` is the runtime authority and returns:
+
+```js
+case "compose_attachments":
+  return {
+    attachments:    ctx.attachments    ?? [],
+    setAttachments: ctx.setAttachments ?? (() => {}),
+  };
+```
+
+Destructuring `set_attachments` yields `undefined`, and the remove control
+throws the moment a user clicks it.
+
+Note this slot is deliberately inconsistent with its neighbours: `post_footer`
+passes `post_id` and `profile_sidebar` passes `current_user`, both snake_case.
+Only `compose_attachments` uses camelCase. Worth calling out explicitly rather
+than leaving authors to infer a convention that does not hold.
+
+---
+
+## 4. Correct §9.2 `post_footer` prop type
+
+The guide describes `post_id` as *"post UUID"*. Posts use a bigserial integer
+primary key — `create table(:posts)` with no `primary_key: false` and no
+`binary_id`. `propsForSlot` passes `ctx.post?.id`, an integer.
+
+Extensions storing this in their own tables should declare the column as
+`:integer`, not `:uuid` or `:string`.
+
+---
+
+## 5. Correct §8.4 `routes/0` prefix
+
+The `@callback routes` docstring in `Nexus.Extensions.Behaviour` gave this
+example:
+
+```elixir
+def routes do
+  [{"/api", MyExtension.ApiRouter, []}]
+end
+```
+
+That is wrong and does not match the host router. `NexusWeb.Router` matches
+`/ext/:slug/api/*path`, consuming the literal `api` segment before
+`ExtensionRouter.serve_api/3` runs, and `dispatch_to_routes/3` then strips
+whatever prefix the extension declared. Declaring `"/api"` therefore requires
+callers to hit `/ext/my-extension/api/api/...`.
+
+The correct prefix is almost always `"/"`:
+
+```elixir
+def routes do
+  [{"/", MyExtension.ApiRouter, []}]
+end
+```
+
+With that, a request to `/ext/my-extension/api/items` reaches the plug with
+`path_info: ["items"]`, so the `Plug.Router` should define `get "/items"`.
+
+The guide's §8.4 already states this correctly; the behaviour docstring was the
+source of the contradiction and has been corrected.
+
+---
+
+## Why 3–5 are worth documenting
+
+All three were cases where a documented contract disagreed with the running
+code. `SlotContracts` names `propsForSlot` as the runtime authority in its own
+moduledoc, then disagreed with it on the attachment setter. The UUID claim would
+lead an author to build a schema that cannot store what it receives. And the
+`routes/0` example contradicted both the guide and the router.
+
+An author following the documentation would have written broken code in each
+case, and the failures are quiet: a setter that is `undefined` until clicked, a
+column type that only bites on insert, a route that 404s with no explanation.

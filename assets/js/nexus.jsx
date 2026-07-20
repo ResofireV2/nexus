@@ -2870,7 +2870,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
             members without duplicating the markup. Same icon and label as the
             mobile trigger. */}
         {onToggleRight&&(
-          <div className="icon-btn tb-right-toggle" onClick={onToggleRight}
+          <div className="tb-right-toggle" onClick={onToggleRight}
                title="Activity" aria-label="Open activity panel">
             <i className="fa-solid fa-chart-simple" style={{fontSize:16}}></i>
           </div>

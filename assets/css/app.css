@@ -172,11 +172,10 @@ select option{background:var(--s2);color:var(--t1);}
    which is the one band where .right-panel is hidden with no other route to
    it. Declared here, outside any media query, so they genuinely apply at all
    other widths. */
-/* Compound selector, not a bare .tb-right-toggle. The element carries both
-   classes, and .icon-btn further down the sheet also sets display:flex — at
-   equal specificity the later rule wins, so a single-class rule here would be
-   overridden and the toggle would show at every width. */
-.icon-btn.tb-right-toggle{display:none;}
+/* Off at every width by default; switched on only inside the
+   min-width:768px / max-width:1239.99px block. Declared here, outside any
+   media query, so it genuinely applies everywhere else. */
+.tb-right-toggle{display:none;}
 .mob-overlay-backdrop{display:none;}
 .sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
@@ -588,7 +587,46 @@ select option{background:var(--s2);color:var(--t1);}
    unreachable. The base rule below keeps it hidden everywhere else, and
    .topbar is already display:none under 768px where the mobile trigger
    takes over. */
-.icon-btn.tb-right-toggle{display:flex;}
+/* Styled as a bare icon, matching .mob-icon-btn — the same trigger this
+   replaces on phones — rather than as a .icon-btn chrome button with a
+   background and border. .mob-icon-btn itself cannot be reused because it is
+   declared inside the max-width:767.99px block and does not apply here. */
+.tb-right-toggle{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:38px;
+  height:38px;
+  border-radius:10px;
+  background:none;
+  border:none;
+  color:var(--t2);
+  font-size:18px;
+  cursor:pointer;
+  flex-shrink:0;
+}
+
+/* .mob-overlay-head carries the "Activity" title and close button. It earns
+   its place on a full-screen phone sheet; in a 360px drawer the title is
+   redundant and the backdrop and Escape already dismiss it. */
+.mob-overlay.right .mob-overlay-head{display:none;}
+
+/* .mob-overlay-body and .mob-rightpanel-inner are both declared inside the
+   max-width:767.99px block, so neither applies at this width. Without these
+   the drawer would not scroll and its widgets would render unpadded with no
+   gap between them. */
+.mob-overlay.right .mob-overlay-body{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+}
+.mob-overlay.right .mob-rightpanel-inner{
+  width:100%;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
 }
 @media(min-width:768px) and (max-width:1080px){
 .tb-search{max-width:240px;padding:8px 14px;}
