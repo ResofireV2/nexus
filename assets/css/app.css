@@ -167,16 +167,6 @@ select option{background:var(--s2);color:var(--t1);}
 .app-root{display:flex;justify-content:center;height:100vh;overflow:hidden;background:var(--bg);}
 .app-shell{display:flex;width:100%;max-width:1600px;height:100vh;overflow:hidden;}
 :root{--sidebar-width:320px;--right-panel-width:320px;}
-/* Right-panel drawer affordances. Both are off at every width by default and
-   switched on only inside the min-width:768px / max-width:1239.99px block,
-   which is the one band where .right-panel is hidden with no other route to
-   it. Declared here, outside any media query, so they genuinely apply at all
-   other widths. */
-/* Off at every width by default; switched on only inside the
-   min-width:768px / max-width:1239.99px block. Declared here, outside any
-   media query, so it genuinely applies everywhere else. */
-.tb-right-toggle{display:none;}
-.mob-overlay-backdrop{display:none;}
 .sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--bg);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;height:100vh;flex-shrink:0;overflow:hidden;}
 .sb-logo{height:64px;display:flex;align-items:center;padding:0 18px;border-bottom:0.5px solid var(--b1);flex-shrink:0;}
 .sb-scroll{flex:1;overflow-y:auto;padding:10px 0;}
@@ -533,100 +523,7 @@ select option{background:var(--s2);color:var(--t1);}
 .mob-admin-close{display:none;}
 }
 @media(min-width:768px) and (max-width:1239.99px){
-/* The right panel cannot sit alongside the sidebar and a readable content
-   column below 1240px, so it stays hidden here. Previously that left its
-   widgets completely unreachable in this band: the mobile trigger lives in
-   .mob-topbar, which is already hidden from 768px up, and .right-panel itself
-   is display:none. The rules below surface the same <RightPanel mobile/> the
-   phone layout uses, as a side drawer instead of a full-screen sheet.
-
-   Note these declarations are self-contained. The base .mob-overlay rule lives
-   inside the max-width:767.99px block, so none of its positioning, transform
-   or transition applies at this width — everything the drawer needs is
-   restated here rather than inherited. */
 .right-panel{display:none!important;}
-
-/* Re-admits only the right overlay. The blanket rule in the min-width:768px
-   block above hides every .mob-overlay, and the left menu, user menu, tab bar
-   and reply bar must all stay hidden at this width, so this is deliberately
-   narrow. */
-.mob-overlay.right{
-  display:flex!important;
-  position:fixed;
-  top:0;
-  bottom:0;
-  right:0;
-  left:auto;
-  width:360px;
-  max-width:88vw;
-  flex-direction:column;
-  background:var(--bg);
-  border-left:0.5px solid var(--b1);
-  box-shadow:-8px 0 32px rgba(0,0,0,.32);
-  z-index:950;
-  transform:translateX(100%);
-  transition:transform .25s cubic-bezier(.4,0,.2,1);
-}
-.mob-overlay.right.open{transform:translateX(0);}
-
-/* Backdrop is painted only in this band; on phones the overlay is a
-   full-screen sheet with nothing behind it to dim. */
-.mob-overlay-backdrop{
-  display:block;
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,.45);
-  z-index:940;
-  opacity:0;
-  pointer-events:none;
-  transition:opacity .25s cubic-bezier(.4,0,.2,1);
-}
-.mob-overlay-backdrop.open{opacity:1;pointer-events:auto;}
-
-/* Toggle is scoped to exactly the band where the panel is otherwise
-   unreachable. The base rule below keeps it hidden everywhere else, and
-   .topbar is already display:none under 768px where the mobile trigger
-   takes over. */
-/* Styled as a bare icon, matching .mob-icon-btn — the same trigger this
-   replaces on phones — rather than as a .icon-btn chrome button with a
-   background and border. .mob-icon-btn itself cannot be reused because it is
-   declared inside the max-width:767.99px block and does not apply here. */
-.tb-right-toggle{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  width:38px;
-  height:38px;
-  border-radius:10px;
-  background:none;
-  border:none;
-  color:var(--t2);
-  font-size:18px;
-  cursor:pointer;
-  flex-shrink:0;
-}
-
-/* .mob-overlay-head carries the "Activity" title and close button. It earns
-   its place on a full-screen phone sheet; in a 360px drawer the title is
-   redundant and the backdrop and Escape already dismiss it. */
-.mob-overlay.right .mob-overlay-head{display:none;}
-
-/* .mob-overlay-body and .mob-rightpanel-inner are both declared inside the
-   max-width:767.99px block, so neither applies at this width. Without these
-   the drawer would not scroll and its widgets would render unpadded with no
-   gap between them. */
-.mob-overlay.right .mob-overlay-body{
-  flex:1;
-  min-height:0;
-  overflow-y:auto;
-}
-.mob-overlay.right .mob-rightpanel-inner{
-  width:100%;
-  padding:16px;
-  display:flex;
-  flex-direction:column;
-  gap:16px;
-}
 }
 @media(min-width:768px) and (max-width:1080px){
 .tb-search{max-width:240px;padding:8px 14px;}
@@ -905,8 +802,12 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .md-body blockquote{border-left:3px solid var(--ac);padding:8px 14px;color:var(--t3);margin:10px 0;background:rgba(74,144,226,0.06);border-radius:0 8px 8px 0;}
 .md-body blockquote p{margin-bottom:0;}
 .md-body strong{color:var(--t1);font-weight:600;}
-.md-body a{color:var(--blue);}
-.post-body .md-body a,.reply-text .md-body a{color:var(--link-color,var(--blue));}
+/* All rendered markdown honours the admin's accent link colour. This lives on
+   the base .md-body rule so DMs (.bubble) and custom Pages get it too — it was
+   previously scoped to .post-body/.reply-text only, so those two fell through
+   to the fixed --blue. --link-color is set by applyTheme; --blue is the
+   fallback when no accent link colour is configured. */
+.md-body a{color:var(--link-color,var(--blue));}
 .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
 .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 6px 1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;display:inline-flex;align-items:center;gap:3px;}
 .reply-ref-link::before{content:"\f3e5";font-family:"Font Awesome 7 Free";font-weight:900;font-size:9px;color:var(--ac-text);}

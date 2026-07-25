@@ -1,10 +1,17 @@
---- scrub2/assets/css/app.css	2026-07-18 19:39:15.017868873 +0000
-+++ subcounts/assets/css/app.css	2026-07-19 22:53:16.612851888 +0000
-@@ -196,6 +196,7 @@
- .sb-sub-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
- .sb-sub-name{font-size:calc(var(--fs-body) - 1px);color:var(--t4);flex:1;}
- .sb-sub-item.active .sb-sub-name{color:var(--ac-text);font-weight:500;}
-+.sb-sub-item.active .sb-item-count{color:var(--ac-text);}
- [data-theme="light"] .sb-item-inner:hover{background:rgba(0,0,0,0.04);}
- [data-theme="light"] .sb-sub-item:hover{background:rgba(0,0,0,0.04);}
- .sb-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}
+--- subcounts/assets/css/app.css	2026-07-19 22:53:16.612851888 +0000
++++ linkfix/assets/css/app.css	2026-07-25 04:49:45.552838925 +0000
+@@ -802,8 +802,12 @@
+ .md-body blockquote{border-left:3px solid var(--ac);padding:8px 14px;color:var(--t3);margin:10px 0;background:rgba(74,144,226,0.06);border-radius:0 8px 8px 0;}
+ .md-body blockquote p{margin-bottom:0;}
+ .md-body strong{color:var(--t1);font-weight:600;}
+-.md-body a{color:var(--blue);}
+-.post-body .md-body a,.reply-text .md-body a{color:var(--link-color,var(--blue));}
++/* All rendered markdown honours the admin's accent link colour. This lives on
++   the base .md-body rule so DMs (.bubble) and custom Pages get it too — it was
++   previously scoped to .post-body/.reply-text only, so those two fell through
++   to the fixed --blue. --link-color is set by applyTheme; --blue is the
++   fallback when no accent link colour is configured. */
++.md-body a{color:var(--link-color,var(--blue));}
+ .mention-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 4px;text-decoration:none!important;font-weight:500;}
+ .reply-ref-link{color:var(--ac-text)!important;background:var(--ac-bg);border-radius:4px;padding:1px 6px 1px 4px;text-decoration:none!important;font-weight:500;font-size:11px;display:inline-flex;align-items:center;gap:3px;}
+ .reply-ref-link::before{content:"\f3e5";font-family:"Font Awesome 7 Free";font-weight:900;font-size:9px;color:var(--ac-text);}
