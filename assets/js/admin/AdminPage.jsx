@@ -21,6 +21,108 @@ import { AdminGroupsPanel } from "./AdminGroups";
 import { PermissionGatePicker, normaliseGate, serialiseGate } from "../components/PermissionGatePicker";
 import { UpdatesPanel } from "../pages/UpdatesPanel";
 
+// ── Email colour helpers ──────────────────────────────────────────────────────
+// These mirror Nexus.Mailer exactly so the preview below matches what actually
+// gets sent. The 0.35 luminance threshold is the same one applyTheme() uses for
+// --ac-on, so button text in email agrees with button text in the forum.
+const emHex = v => {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(v||"").trim());
+  return m ? "#"+m[1].toLowerCase() : null;
+};
+const emRgb = hex => { const n=parseInt(hex.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; };
+const emRgba = (hex,a) => { const [r,g,b]=emRgb(hex); return `rgba(${r},${g},${b},${a})`; };
+const emLum = hex => {
+  const ch = v => { const x=v/255; return x<=0.03928 ? x/12.92 : Math.pow((x+0.055)/1.055,2.4); };
+  const [r,g,b] = emRgb(hex);
+  return 0.2126*ch(r) + 0.7152*ch(g) + 0.0722*ch(b);
+};
+const emOnAccent = accent => emLum(accent) > 0.35 ? "#111111" : "#ffffff";
+
+// ── EmailAppearance ───────────────────────────────────────────────────────────
+// Colours baked into outgoing mail. Deliberately separate from the app theme —
+// mail clients strip CSS variables and mangle dark mode — except for the accent,
+// which follows the appearance panel unless explicitly overridden.
+function EmailAppearance({emailCfg, setEmailCfg, branding}) {
+  const set = (k,v) => setEmailCfg(p=>({...p, [k]:v}));
+
+  const bg     = emHex(emailCfg.email_bg)      || "#0d0d14";
+  const cardBg = emHex(emailCfg.email_card_bg) || "#13121e";
+  const text   = emHex(emailCfg.email_text)    || "#f0eeff";
+
+  // Same fallback chain as branding_context/0: explicit → forum accent → purple.
+  const followAccent = !emailCfg.email_accent;
+  const forumAccent  = emHex(branding.accent_color) || "#a78bfa";
+  const accent       = emHex(emailCfg.email_accent) || forumAccent;
+
+  // Anything that isn't a valid hex — "auto", blank, half-typed — derives.
+  const btnOverride = emHex(emailCfg.email_button_text);
+  const onAccent    = btnOverride || emOnAccent(accent);
+
+  return (<>
+    <div className="fgt" style={{marginTop:16}}>Email appearance</div>
+    <div style={{fontSize:11,color:"var(--t5)",marginBottom:14,lineHeight:1.55}}>
+      Mail clients strip CSS variables, so these are written into every outgoing email as literal colours.
+      They apply to transactional mail and the digest alike, and do not follow the forum's light/dark theme.
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <F label="Background" hint="Outer area behind the card">
+        <ColorPicker value={emailCfg.email_bg||"#0d0d14"} onChange={v=>set("email_bg",v)}/>
+      </F>
+      <F label="Card background" hint="The content panel itself">
+        <ColorPicker value={emailCfg.email_card_bg||"#13121e"} onChange={v=>set("email_card_bg",v)}/>
+      </F>
+    </div>
+
+    <F label="Text" hint="Headings and body copy. Sublabels, dividers, borders and footer text derive from this at lower opacity.">
+      <ColorPicker value={emailCfg.email_text||"#f0eeff"} onChange={v=>set("email_text",v)}/>
+    </F>
+
+    <Toggle
+      label="Follow forum accent"
+      hint="Use the accent colour from Appearance for buttons, digest badges and bar fills. Turn off to give email its own accent."
+      value={followAccent}
+      onChange={v=>set("email_accent", v ? "" : forumAccent)}/>
+    {!followAccent&&
+      <F label="Email accent" hint="Buttons, digest badges and bar fills">
+        <ColorPicker value={emailCfg.email_accent||""} onChange={v=>set("email_accent",v)}/>
+      </F>}
+
+    <Toggle
+      label="Derive button text automatically"
+      hint="Picks black or white for text on the accent button, whichever reads better. Turn off to set it yourself."
+      value={!btnOverride}
+      onChange={v=>set("email_button_text", v ? "auto" : emOnAccent(accent))}/>
+    {btnOverride
+      ? <F label="Button text">
+          <ColorPicker value={emailCfg.email_button_text||""} onChange={v=>set("email_button_text",v)}/>
+        </F>
+      : <div style={{display:"flex",alignItems:"center",gap:8,margin:"-4px 0 14px"}}>
+          <div style={{width:16,height:16,borderRadius:4,background:onAccent,border:"0.5px solid var(--b2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"var(--t5)",fontFamily:"monospace"}}>{onAccent}</span>
+          <span style={{fontSize:11,color:"var(--t5)"}}>derived from the accent</span>
+        </div>}
+
+    <div className="f-label" style={{marginBottom:6}}>Preview</div>
+    <div style={{background:bg,borderRadius:12,padding:18,marginBottom:4}}>
+      <div style={{background:cardBg,border:`0.5px solid ${emRgba(text,0.08)}`,borderRadius:10,padding:18}}>
+        <div style={{color:text,fontSize:15,fontWeight:600,letterSpacing:"-0.3px",marginBottom:6}}>Verify your email address</div>
+        <div style={{color:emRgba(text,0.6),fontSize:12,lineHeight:1.55,marginBottom:14}}>
+          Click the button below to verify your email address and activate your account.
+        </div>
+        <span style={{display:"inline-block",background:accent,color:onAccent,fontSize:12,fontWeight:500,padding:"9px 20px",borderRadius:8}}>
+          Verify email address
+        </span>
+        <div style={{height:"0.5px",background:emRgba(text,0.08),margin:"16px 0 10px"}}/>
+        <div style={{color:emRgba(text,0.25),fontSize:10.5}}>If you didn't create an account, you can safely ignore this email.</div>
+      </div>
+    </div>
+    <div style={{fontSize:11,color:"var(--t5)",marginBottom:4}}>
+      An approximation — send a test email to confirm how your mail client renders it.
+    </div>
+  </>);
+}
+
 // ── TagsAdmin ─────────────────────────────────────────────────────────────────
 function TagsAdmin({tags, onRefresh}) {
   const [editing,setEditing]=useState(null);
@@ -1172,6 +1274,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               <F label="API key"><input className="fi" value={emailCfg.api_key||""} onChange={e=>setEmailCfg(p=>({...p,api_key:e.target.value}))} placeholder="key-xxxxxxxxxxxx"/></F>
               <F label="Domain"><input className="fi" value={emailCfg.mailgun_domain||""} onChange={e=>setEmailCfg(p=>({...p,mailgun_domain:e.target.value}))} placeholder="mg.yourdomain.com"/></F>
             </>}
+            <EmailAppearance emailCfg={emailCfg} setEmailCfg={setEmailCfg} branding={branding}/>
             <div style={{marginTop:20,paddingTop:16,borderTop:"0.5px solid var(--b1)",display:"flex",alignItems:"center",gap:10}}>
               <button className="btn-ghost" style={{fontSize:12}} onClick={async()=>{
                 const d=await api.post("/admin/test-email",{});

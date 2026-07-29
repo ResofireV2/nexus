@@ -284,7 +284,21 @@ defmodule Nexus.Admin do
       "smtp_username"    => "",
       "smtp_password"    => "",
       "smtp_encryption"  => "tls",
-      "provider"         => "smtp"
+      "provider"         => "smtp",
+      # Email appearance. Colours are deliberately separate from the app theme:
+      # mail clients strip CSS variables and mangle dark mode, so email needs
+      # literal hex values baked into the markup.
+      #
+      # "email_accent" is the exception — blank means "follow the appearance
+      # panel's accent_color", so buttons and digest badges stay in step with
+      # the forum by default. Set an explicit hex to decouple them.
+      "email_bg"          => "#0d0d14",
+      "email_card_bg"     => "#13121e",
+      "email_text"        => "#f0eeff",
+      "email_accent"      => "",
+      # "auto" derives button text from the accent's luminance. An explicit
+      # hex overrides the derivation.
+      "email_button_text" => "auto"
     },
     "leaderboard" => %{
       "enabled"                   => true,

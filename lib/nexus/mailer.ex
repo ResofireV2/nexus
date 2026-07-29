@@ -90,22 +90,100 @@ defmodule Nexus.Mailer do
     end
   end
 
-  # Returns a branding context map used by all digest section renderers.
+  # Returns a branding context map used by the shared layout, the button
+  # helpers, and all digest section renderers.
   # Extensions receive this so their HTML matches the forum's configured colours.
+  #
+  # Colours come from the "email" settings section rather than the live app
+  # theme — mail clients strip CSS variables and mangle dark mode, so email
+  # needs literal hex baked into the markup.
+  #
+  # `accent` is the exception: a blank `email_accent` falls through to the
+  # appearance panel's `accent_color`, so buttons and digest badges track the
+  # forum by default. An explicit hex decouples them.
+  #
+  # Every value falls back rather than failing, so a malformed hex typed into
+  # the admin panel degrades to the default instead of emitting broken CSS.
   def branding_context do
-    app = appearance_settings()
-    accent = Map.get(app, "accent_color", "#a78bfa")
+    app   = appearance_settings()
+    email = email_settings()
+
+    accent  = hex(email["email_accent"]) || hex(app["accent_color"]) || "#a78bfa"
+    bg      = hex(email["email_bg"])      || "#0d0d14"
+    card_bg = hex(email["email_card_bg"]) || "#13121e"
+    text_1  = hex(email["email_text"])    || "#f0eeff"
+
+    # "auto" is not valid hex, so it falls through to the derivation — as does
+    # any garbage the admin might type.
+    on_accent = hex(email["email_button_text"]) || on_accent_for(accent)
+
     %{
       accent:      accent,
-      bg:          "#0d0d14",
-      card_bg:     "#13121e",
-      text_1:      "#f0eeff",
-      text_2:      "rgba(255,255,255,0.75)",
-      text_3:      "rgba(255,255,255,0.55)",
-      text_4:      "rgba(255,255,255,0.35)",
-      border:      "rgba(255,255,255,0.08)",
-      divider:     "rgba(255,255,255,0.08)",
+      on_accent:   on_accent,
+      bg:          bg,
+      card_bg:     card_bg,
+      text_1:      text_1,
+      # Dimmer tiers derive from text_1 so a light `email_text` on a light card
+      # stays legible. Previously these were hardcoded white alphas, which went
+      # invisible the moment the card background changed.
+      text_2:      rgba(text_1, "0.75"),
+      text_3:      rgba(text_1, "0.55"),
+      text_4:      rgba(text_1, "0.35"),
+      footer_text: rgba(text_1, "0.25"),
+      footer_link: rgba(text_1, "0.4"),
+      border:      rgba(text_1, "0.08"),
+      divider:     rgba(text_1, "0.08"),
     }
+  end
+
+  # ---------------------------------------------------------------------------
+  # Colour helpers
+  #
+  # Deliberately self-contained. `Nexus.Appearance.ThemeVars` has equivalents,
+  # but the mailer must not hard-depend on it: a missing-module reference here
+  # would crash every outgoing email, including password resets.
+  #
+  # Hex parsing uses div/rem rather than Bitwise so no import is needed.
+  # ---------------------------------------------------------------------------
+
+  # Normalises "#RRGGBB" / "RRGGBB" to lowercase "#rrggbb". Returns nil for
+  # anything else — blank, "auto", shorthand, or malformed.
+  defp hex(value) when is_binary(value) do
+    candidate = value |> String.trim() |> String.trim_leading("#")
+
+    if candidate =~ ~r/^[0-9a-fA-F]{6}$/ do
+      "#" <> String.downcase(candidate)
+    else
+      nil
+    end
+  end
+
+  defp hex(_), do: nil
+
+  # Expects a normalised "#rrggbb" from hex/1.
+  defp hex_rgb("#" <> digits) do
+    n = String.to_integer(digits, 16)
+    {div(n, 65536), div(rem(n, 65536), 256), rem(n, 256)}
+  end
+
+  defp rgba(hex_color, alpha) do
+    {r, g, b} = hex_rgb(hex_color)
+    "rgba(#{r},#{g},#{b},#{alpha})"
+  end
+
+  # WCAG relative luminance. Matches the 0.35 threshold the app uses for
+  # --ac-on, so button text in email agrees with button text in the forum.
+  defp luminance({r, g, b}) do
+    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+  end
+
+  defp channel(v) do
+    x = v / 255
+    if x <= 0.03928, do: x / 12.92, else: :math.pow((x + 0.055) / 1.055, 2.4)
+  end
+
+  defp on_accent_for(accent) do
+    if luminance(hex_rgb(accent)) > 0.35, do: "#111111", else: "#ffffff"
   end
 
   # ---------------------------------------------------------------------------
@@ -120,6 +198,7 @@ defmodule Nexus.Mailer do
     logo_url     = Map.get(gen, "logo_url")
     preview_text = Keyword.get(opts, :preview, "")
     url          = base_url()
+    branding     = Keyword.get(opts, :branding) || branding_context()
 
     # Email clients cannot resolve relative URLs — make absolute.
     # If already starts with http it's a CDN/external URL, leave as-is.
@@ -136,7 +215,7 @@ defmodule Nexus.Mailer do
       """
     else
       """
-      <span style="font-size:22px;font-weight:600;color:#f0eeff;letter-spacing:-0.5px;">#{site_name}</span>
+      <span style="font-size:22px;font-weight:600;color:#{branding.text_1};letter-spacing:-0.5px;">#{site_name}</span>
       """
     end
 
@@ -149,8 +228,8 @@ defmodule Nexus.Mailer do
       <meta name="x-apple-disable-message-reformatting"/>
       #{if preview_text != "", do: "<div style=\"display:none;max-height:0;overflow:hidden;\">#{preview_text}&nbsp;&#847;&nbsp;</div>", else: ""}
     </head>
-    <body style="margin:0;padding:0;background:#0d0d14;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#0d0d14;min-height:100vh;">
+    <body style="margin:0;padding:0;background:#{branding.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#{branding.bg};min-height:100vh;">
         <tr><td align="center" style="padding:40px 16px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
 
@@ -160,15 +239,15 @@ defmodule Nexus.Mailer do
             </td></tr>
 
             <!-- Card -->
-            <tr><td style="background:#13121e;border:0.5px solid rgba(255,255,255,0.08);border-radius:16px;padding:36px 40px;">
+            <tr><td style="background:#{branding.card_bg};border:0.5px solid #{branding.border};border-radius:16px;padding:36px 40px;">
               #{content_html}
             </td></tr>
 
             <!-- Footer -->
             <tr><td style="padding-top:24px;text-align:center;">
-              <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.25);line-height:1.6;">
+              <p style="margin:0;font-size:12px;color:#{branding.footer_text};line-height:1.6;">
                 You're receiving this because you have an account at
-                <a href="#{url}" style="color:rgba(255,255,255,0.4);text-decoration:none;">#{site_name}</a>.
+                <a href="#{url}" style="color:#{branding.footer_link};text-decoration:none;">#{site_name}</a>.
               </p>
             </td></tr>
 
@@ -180,37 +259,50 @@ defmodule Nexus.Mailer do
     """
   end
 
-  defp button_html(label, url) do
+  # Callers that already hold a branding context (the digest builder) pass it
+  # in; the rest let it default so they don't each need their own lookup.
+  # Settings reads are ETS-cached, so the extra call is cheap.
+  defp button_html(label, url, branding \\ nil) do
+    b = branding || branding_context()
+
     """
     <table cellpadding="0" cellspacing="0" style="margin:28px 0;">
-      <tr><td style="background:#a78bfa;border-radius:10px;">
-        <a href="#{url}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:500;color:#0d0d14;text-decoration:none;border-radius:10px;letter-spacing:-0.1px;">#{label}</a>
+      <tr><td style="background:#{b.accent};border-radius:10px;">
+        <a href="#{url}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:500;color:#{b.on_accent};text-decoration:none;border-radius:10px;letter-spacing:-0.1px;">#{label}</a>
       </td></tr>
     </table>
     """
   end
 
-  defp h1(text) do
+  defp h1(text, branding \\ nil) do
+    b = branding || branding_context()
+
     """
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:600;color:#f0eeff;letter-spacing:-0.4px;line-height:1.2;">#{text}</h1>
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:600;color:#{b.text_1};letter-spacing:-0.4px;line-height:1.2;">#{text}</h1>
     """
   end
 
-  defp p(text) do
+  defp p(text, branding \\ nil) do
+    b = branding || branding_context()
+
     """
-    <p style="margin:0 0 16px;font-size:15px;color:rgba(255,255,255,0.6);line-height:1.65;">#{text}</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#{rgba(b.text_1, "0.6")};line-height:1.65;">#{text}</p>
     """
   end
 
-  defp small(text) do
+  defp small(text, branding \\ nil) do
+    b = branding || branding_context()
+
     """
-    <p style="margin:20px 0 0;font-size:12px;color:rgba(255,255,255,0.25);line-height:1.6;">#{text}</p>
+    <p style="margin:20px 0 0;font-size:12px;color:#{b.footer_text};line-height:1.6;">#{text}</p>
     """
   end
 
-  defp divider do
+  defp divider(branding \\ nil) do
+    b = branding || branding_context()
+
     """
-    <div style="height:0.5px;background:rgba(255,255,255,0.08);margin:24px 0;"></div>
+    <div style="height:0.5px;background:#{b.divider};margin:24px 0;"></div>
     """
   end
 
@@ -255,13 +347,14 @@ defmodule Nexus.Mailer do
     url       = "#{base_url()}/magic-login?token=#{token}"
     gen       = general_settings()
     site_name = Map.get(gen, "site_name", "Nexus")
+    branding  = branding_context()
 
-    content = h1("Sign in to #{site_name}") <>
-              p("Hi #{user.username}, click the button below to sign in. This link expires in 15 minutes.") <>
-              button_html("Sign in to #{site_name}", url) <>
-              divider() <>
-              small("Or copy this link into your browser: <a href=\"#{url}\" style=\"color:rgba(255,255,255,0.35);word-break:break-all;\">#{url}</a>") <>
-              small("If you didn't request this, you can safely ignore this email.")
+    content = h1("Sign in to #{site_name}", branding) <>
+              p("Hi #{user.username}, click the button below to sign in. This link expires in 15 minutes.", branding) <>
+              button_html("Sign in to #{site_name}", url, branding) <>
+              divider(branding) <>
+              small("Or copy this link into your browser: <a href=\"#{url}\" style=\"color:#{branding.text_4};word-break:break-all;\">#{url}</a>", branding) <>
+              small("If you didn't request this, you can safely ignore this email.", branding)
 
     text = """
     Hi #{user.username},
@@ -276,7 +369,7 @@ defmodule Nexus.Mailer do
     |> from(from_addr())
     |> to({user.username, user.email})
     |> subject("Sign in to #{site_name}")
-    |> html_body(html_layout(content, preview: "Your sign-in link for #{site_name}"))
+    |> html_body(html_layout(content, preview: "Your sign-in link for #{site_name}", branding: branding))
     |> text_body(text)
     |> deliver_dynamic()
   end
@@ -289,13 +382,14 @@ defmodule Nexus.Mailer do
     url       = "#{base_url()}/verify-email?token=#{token}"
     gen       = general_settings()
     site_name = Map.get(gen, "site_name", "Nexus")
+    branding  = branding_context()
 
-    content = h1("Verify your email address") <>
-              p("Hi #{user.username}, thanks for joining #{site_name}. Click the button below to verify your email address and activate your account.") <>
-              button_html("Verify email address", url) <>
-              divider() <>
-              small("Or copy this link into your browser: <a href=\"#{url}\" style=\"color:rgba(255,255,255,0.35);word-break:break-all;\">#{url}</a>") <>
-              small("If you didn't create an account on #{site_name}, you can safely ignore this email.")
+    content = h1("Verify your email address", branding) <>
+              p("Hi #{user.username}, thanks for joining #{site_name}. Click the button below to verify your email address and activate your account.", branding) <>
+              button_html("Verify email address", url, branding) <>
+              divider(branding) <>
+              small("Or copy this link into your browser: <a href=\"#{url}\" style=\"color:#{branding.text_4};word-break:break-all;\">#{url}</a>", branding) <>
+              small("If you didn't create an account on #{site_name}, you can safely ignore this email.", branding)
 
     text = """
     Hi #{user.username},
@@ -310,7 +404,7 @@ defmodule Nexus.Mailer do
     |> from(from_addr())
     |> to({user.username, user.email})
     |> subject("Verify your email address")
-    |> html_body(html_layout(content, preview: "Confirm your #{site_name} account"))
+    |> html_body(html_layout(content, preview: "Confirm your #{site_name} account", branding: branding))
     |> text_body(text)
     |> deliver_dynamic()
   end
@@ -323,6 +417,7 @@ defmodule Nexus.Mailer do
     s         = Nexus.Admin.get_setting("general") || %{}
     site_name = Map.get(s, "site_name", "Nexus")
     base      = base_url()
+    branding  = branding_context()
 
     content_desc =
       cond do
@@ -335,14 +430,14 @@ defmodule Nexus.Mailer do
       <p>A new report has been submitted on #{site_name}.</p>
       <p><strong>Content:</strong> #{content_desc}</p>
       <p><strong>Reason:</strong> #{report.reason}</p>
-      <p><a href="#{base}/admin#moderation" style="background:#7c3aed;color:#fff;padding:8px 18px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:8px;">Review in moderation panel</a></p>
+      <p><a href="#{base}/admin#moderation" style="background:#{branding.accent};color:#{branding.on_accent};padding:8px 18px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:8px;">Review in moderation panel</a></p>
     """
 
     new()
     |> to({mod.username, mod.email})
     |> from(from_addr())
     |> subject("[#{site_name}] New content report")
-    |> html_body(html_layout(body, preview: "New content report on #{site_name}"))
+    |> html_body(html_layout(body, preview: "New content report on #{site_name}", branding: branding))
     |> deliver_dynamic()
   end
 
@@ -350,6 +445,7 @@ defmodule Nexus.Mailer do
     gen       = general_settings()
     site_name = Map.get(gen, "site_name", "Nexus")
     url       = base_url()
+    branding  = branding_context()
 
     {subject_line, heading, body_text} = case type do
       "reply"    -> {"#{actor} replied to your post",     "New reply",          "#{actor} replied to one of your posts on #{site_name}."}
@@ -360,9 +456,9 @@ defmodule Nexus.Mailer do
       _          -> {"New notification on #{site_name}",  "New notification",   "You have a new notification on #{site_name}."}
     end
 
-    content = h1(heading) <>
-              p(body_text) <>
-              button_html("View on #{site_name}", url)
+    content = h1(heading, branding) <>
+              p(body_text, branding) <>
+              button_html("View on #{site_name}", url, branding)
 
     text = """
     Hi #{user.username},
@@ -376,7 +472,7 @@ defmodule Nexus.Mailer do
     |> from(from_addr())
     |> to({user.username, user.email})
     |> subject(subject_line)
-    |> html_body(html_layout(content, preview: body_text))
+    |> html_body(html_layout(content, preview: body_text, branding: branding))
     |> text_body(text)
     |> deliver_dynamic()
   end
@@ -412,11 +508,11 @@ defmodule Nexus.Mailer do
       |> Enum.join("\n")
 
     intro_html =
-      h1("#{site_name} digest") <>
-      p("Here's what happened in the community #{period}.") <>
-      divider()
+      h1("#{site_name} digest", branding) <>
+      p("Here's what happened in the community #{period}.", branding) <>
+      divider(branding)
 
-    content = intro_html <> sections_html <> button_html("View #{site_name}", url)
+    content = intro_html <> sections_html <> button_html("View #{site_name}", url, branding)
 
     text = build_digest_text(user, digest, site_name, url)
 
@@ -424,7 +520,7 @@ defmodule Nexus.Mailer do
     |> from(from_addr())
     |> to({user.username, user.email})
     |> subject(subject_line)
-    |> html_body(html_layout(content, preview: "Your #{site_name} digest for #{period}"))
+    |> html_body(html_layout(content, preview: "Your #{site_name} digest for #{period}", branding: branding))
     |> text_body(text)
     |> deliver_dynamic()
   end
@@ -536,7 +632,7 @@ defmodule Nexus.Mailer do
       |> Enum.with_index()
       |> Enum.map(fn {item, i} ->
         medal = Enum.at(medals, i, "")
-        label_color = item["label_color"] || "rgba(255,255,255,0.75)"
+        label_color = item["label_color"] || rgba(branding.text_1, "0.75")
         label = item_label_with_url(item, label_color, url, branding)
         value = item["value"]
         avatar = item["avatar"]
@@ -548,7 +644,7 @@ defmodule Nexus.Mailer do
           end
         """
         <tr>
-          <td style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+          <td style="padding:8px 0;border-bottom:0.5px solid #{rgba(branding.text_1, "0.06")};">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:28px;font-size:16px;vertical-align:middle;">#{medal}</td>
               #{avatar_cell}
@@ -581,7 +677,7 @@ defmodule Nexus.Mailer do
         n = numeric_value(item)
         pct = max(4, round(n / max_val * 100))
         color = item["badge_color"] || branding.accent
-        label_color = item["label_color"] || "rgba(255,255,255,0.5)"
+        label_color = item["label_color"] || rgba(branding.text_1, "0.5")
         label = item_label_with_url(item, label_color, url, branding)
         value_display = item["value"] || n
         """
@@ -590,7 +686,7 @@ defmodule Nexus.Mailer do
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:120px;font-size:12px;color:#{label_color};">#{label}</td>
               <td>
-                <div style="height:4px;border-radius:2px;background:rgba(255,255,255,0.06);">
+                <div style="height:4px;border-radius:2px;background:#{rgba(branding.text_1, "0.06")};">
                   <div style="height:4px;border-radius:2px;background:#{color};width:#{pct}%;"></div>
                 </div>
               </td>
@@ -648,26 +744,26 @@ defmodule Nexus.Mailer do
     rows =
       Enum.map(items, fn item ->
         image = item["image_url"]
-        label_color = item["label_color"] || "#f0eeff"
+        label_color = item["label_color"] || branding.text_1
         label = item_label_with_url(item, label_color, url, branding)
         sublabel = item["sublabel"]
         badge_html = badge_pill(item, branding)
         value = item["value"]
         thumb =
           if is_binary(image) and image != "" do
-            ~s|<img src="#{absolute_url(image, url)}" width="64" height="64" alt="" style="display:block;width:64px;height:64px;border-radius:8px;object-fit:cover;background:rgba(255,255,255,0.04);"/>|
+            ~s|<img src="#{absolute_url(image, url)}" width="64" height="64" alt="" style="display:block;width:64px;height:64px;border-radius:8px;object-fit:cover;background:#{rgba(branding.text_1, "0.04")};"/>|
           else
-            ~s|<div style="width:64px;height:64px;border-radius:8px;background:rgba(255,255,255,0.04);"></div>|
+            ~s|<div style="width:64px;height:64px;border-radius:8px;background:#{rgba(branding.text_1, "0.04")};"></div>|
           end
 
         """
         <tr>
-          <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+          <td style="padding:10px 0;border-bottom:0.5px solid #{rgba(branding.text_1, "0.06")};">
             <table cellpadding="0" cellspacing="0" width="100%"><tr>
               <td style="width:64px;vertical-align:top;padding-right:12px;">#{thumb}</td>
               <td style="vertical-align:top;">
                 <div style="font-size:14px;font-weight:500;color:#{label_color};margin-bottom:4px;">#{label}#{if badge_html != "", do: " " <> badge_html, else: ""}</div>
-                #{if sublabel, do: ~s|<div style="font-size:12px;color:rgba(255,255,255,0.45);">#{escape(to_string(sublabel))}</div>|, else: ""}
+                #{if sublabel, do: ~s|<div style="font-size:12px;color:#{rgba(branding.text_1, "0.45")};">#{escape(to_string(sublabel))}</div>|, else: ""}
                 #{if value, do: ~s|<div style="font-size:11px;color:#{branding.accent};margin-top:4px;">#{escape(to_string(value))}</div>|, else: ""}
               </td>
             </tr></table>
@@ -708,10 +804,10 @@ defmodule Nexus.Mailer do
       end
 
     """
-    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.8px;">#{escape(title)}</p>
+    <p style="margin:0 0 12px;font-size:11px;font-weight:500;color:#{rgba(branding.text_1, "0.3")};text-transform:uppercase;letter-spacing:0.8px;">#{escape(title)}</p>
     <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:#{if cta_html == "", do: 24, else: 8}px;">#{rows_html}</table>
     #{cta_html}
-    #{divider()}
+    #{divider(branding)}
     """
   end
 
@@ -727,7 +823,7 @@ defmodule Nexus.Mailer do
   #                         (matches "members" / "leaderboard": avatar next
   #                         to the username on the same row)
   defp render_list_item(item, index, numbered, base_url, branding) do
-    label_color = item["label_color"] || "#f0eeff"
+    label_color = item["label_color"] || branding.text_1
     label = item_label_with_url(item, label_color, base_url, branding)
     sublabel = item["sublabel"]
     badge_html = badge_pill(item, branding)
@@ -751,24 +847,24 @@ defmodule Nexus.Mailer do
           # Avatar with sublabel — matches the posts section's visual idiom.
           ~s|<table cellpadding="0" cellspacing="0"><tr>| <>
           ~s|<td style="vertical-align:middle;padding-right:6px;">#{avatar_html(normalize_avatar(avatar))}</td>| <>
-          ~s|<td style="vertical-align:middle;font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</td>| <>
+          ~s|<td style="vertical-align:middle;font-size:11px;color:#{rgba(branding.text_1, "0.3")};">#{escape(to_string(sublabel))}</td>| <>
           ~s|</tr></table>|
         sublabel ->
-          ~s|<div style="font-size:11px;color:rgba(255,255,255,0.3);">#{escape(to_string(sublabel))}</div>|
+          ~s|<div style="font-size:11px;color:#{rgba(branding.text_1, "0.3")};">#{escape(to_string(sublabel))}</div>|
         true ->
           ""
       end
 
     index_cell =
       if numbered do
-        ~s|<td style="width:24px;font-size:13px;color:rgba(255,255,255,0.2);font-weight:500;vertical-align:top;padding-top:2px;">#{index}.</td>|
+        ~s|<td style="width:24px;font-size:13px;color:#{rgba(branding.text_1, "0.2")};font-weight:500;vertical-align:top;padding-top:2px;">#{index}.</td>|
       else
         ""
       end
 
     """
     <tr>
-      <td style="padding:10px 0;border-bottom:0.5px solid rgba(255,255,255,0.06);">
+      <td style="padding:10px 0;border-bottom:0.5px solid #{rgba(branding.text_1, "0.06")};">
         <table cellpadding="0" cellspacing="0" width="100%">
           <tr>
             #{index_cell}
