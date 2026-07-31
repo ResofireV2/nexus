@@ -1048,15 +1048,26 @@ defmodule Nexus.Forum do
 
   alias Nexus.Forum.PostEdit
 
+  # Reads the already-preloaded association rather than hitting the DB.
+  # record_post_edit/2 now runs *after* update_post succeeds, so a fresh query
+  # here would return the tags the post has now, not the ones it had before the
+  # edit — silently recording the new set as the old one. get_post!/1 preloads
+  # tags, so the loaded clause is the real path; the fallback records nil rather
+  # than guessing, because a wrong snapshot is worse than a missing one.
+  defp snapshot_tag_ids(%Post{tags: tags}) when is_list(tags), do: Enum.map(tags, & &1.id)
+  defp snapshot_tag_ids(_post), do: nil
+
   def record_post_edit(post, editor_id) do
     result =
       %PostEdit{}
       |> PostEdit.changeset(%{
-        post_id:   post.id,
-        user_id:   editor_id,
-        old_title: post.title,
-        old_body:  post.body,
-        edited_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        post_id:      post.id,
+        user_id:      editor_id,
+        old_title:    post.title,
+        old_body:     post.body,
+        old_space_id: post.space_id,
+        old_tag_ids:  snapshot_tag_ids(post),
+        edited_at:    DateTime.utc_now() |> DateTime.truncate(:second)
       })
       |> Repo.insert()
 
@@ -1093,6 +1104,20 @@ defmodule Nexus.Forum do
 
   def reply_edit_count(reply_id) do
     Repo.aggregate(from(e in PostEdit, where: e.reply_id == ^reply_id), :count)
+  end
+
+  # Batch lookups for resolving the id snapshots stored on post_edits back into
+  # displayable records. Ids that no longer exist simply won't appear in the map
+  # — a Space or tag deleted since the edit leaves a gap rather than breaking the
+  # history entry.
+  def spaces_by_ids([]), do: %{}
+  def spaces_by_ids(ids) do
+    Repo.all(from s in Space, where: s.id in ^ids) |> Map.new(&{&1.id, &1})
+  end
+
+  def tags_by_ids([]), do: %{}
+  def tags_by_ids(ids) do
+    Repo.all(from t in Tag, where: t.id in ^ids) |> Map.new(&{&1.id, &1})
   end
 
   # Batch: returns %{post_id => count} for a list of post_ids

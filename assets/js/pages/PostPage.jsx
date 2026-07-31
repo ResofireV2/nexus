@@ -317,6 +317,48 @@ function EditHistoryModal({postId, replyId, editCount, onClose}) {
   );
 }
 
+// Renders the Space / tags rows in an edit history entry. Only shown when the
+// value actually changed, so a text-only edit looks exactly as it does today.
+//
+// A null snapshot means "not recorded" — rows written before post_edits gained
+// the old_space_id / old_tag_ids columns — and is deliberately distinct from an
+// empty array, which means the post genuinely had no tags. Reporting the first
+// as a removal would invent history, so nulls render nothing.
+function sameTagSet(a, b) {
+  if (!a || !b) return true;
+  const ia = a.map(t=>t.id).sort().join(","), ib = b.map(t=>t.id).sort().join(",");
+  return ia === ib;
+}
+
+function MetaChips({items, empty}) {
+  if (!items || items.length===0) return <span style={{fontSize:13,color:"var(--t5)"}}>{empty}</span>;
+  return (
+    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+      {items.map(t=>(
+        <span key={t.id} className="post-tag" style={{background:`${t.color||"#5B4EF5"}20`,color:t.color||"#5B4EF5"}}>#{t.name}</span>
+      ))}
+    </div>
+  );
+}
+
+function MetaDiffRow({label, before, after}) {
+  return (
+    <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",background:"var(--bg)"}}>
+      <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>{label}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div>
+          <div style={{fontSize:12,color:"var(--red)",marginBottom:6,fontWeight:500}}>Before</div>
+          <div style={{background:"rgba(248,113,113,0.08)",padding:"8px 12px",borderRadius:8}}>{before}</div>
+        </div>
+        <div>
+          <div style={{fontSize:12,color:"var(--green)",marginBottom:6,fontWeight:500}}>After</div>
+          <div style={{background:"rgba(52,211,153,0.08)",padding:"8px 12px",borderRadius:8}}>{after}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditHistoryPairs({edits, postId, replyId}) {
   // Fetch current content once
   const [current, setCurrent] = useState(null);
@@ -327,12 +369,21 @@ function EditHistoryPairs({edits, postId, replyId}) {
   const currentBody  = current?.body  || "";
   const currentTitle = current?.title || null;
 
+  const currentSpace = current?.space || null;
+  const currentTags  = current?.tags  || [];
+
   const pairs = edits.map((e,i)=>({
     edit:         e,
     before_title: e.old_title,
     before_body:  e.old_body,
     after_title:  i===0 ? currentTitle        : edits[i-1].old_title,
     after_body:   i===0 ? currentBody         : edits[i-1].old_body,
+    // Same newest-first chain as the text: the state after this edit is the
+    // state before the next-newer one, or the live post for the most recent.
+    before_space: e.old_space,
+    after_space:  i===0 ? currentSpace        : edits[i-1].old_space,
+    before_tags:  e.old_tags,
+    after_tags:   i===0 ? currentTags         : edits[i-1].old_tags,
     label:        i===0 ? "Current version"   : `After edit ${edits.length - i}`,
   }));
 
@@ -363,6 +414,18 @@ function EditHistoryPairs({edits, postId, replyId}) {
                 </div>
               </div>
             </div>
+          )}
+          {/* Space change */}
+          {pair.before_space&&pair.after_space&&pair.before_space.id!==pair.after_space.id&&(
+            <MetaDiffRow label="Space"
+              before={<span className="thread-tag" style={{background:`${pair.before_space.color}20`,color:pair.before_space.color}}>{pair.before_space.name}</span>}
+              after={<span className="thread-tag" style={{background:`${pair.after_space.color}20`,color:pair.after_space.color}}>{pair.after_space.name}</span>}/>
+          )}
+          {/* Tag change */}
+          {!sameTagSet(pair.before_tags,pair.after_tags)&&(
+            <MetaDiffRow label="Tags"
+              before={<MetaChips items={pair.before_tags} empty="No tags"/>}
+              after={<MetaChips items={pair.after_tags} empty="No tags"/>}/>
           )}
           {/* Body diff */}
           <div style={{padding:"16px",background:"var(--bg)"}}>

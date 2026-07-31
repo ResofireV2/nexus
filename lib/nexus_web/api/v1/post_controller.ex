@@ -126,9 +126,14 @@ defmodule NexusWeb.API.V1.PostController do
       post ->
         if can_edit?(user, post) do
           tag_ids = Map.get(params, "tag_ids")
-          Forum.record_post_edit(post, user.id)
           case Forum.update_post(post, params, tag_ids) do
             {:ok, updated} ->
+              # Recorded only after the update succeeds, and using the
+              # pre-update `post` struct still in scope. Previously this ran
+              # before update_post, so a rejected edit — a failed changeset, or
+              # now a tag-limit rejection — still wrote a history row and
+              # incremented edit_count for a change that never landed.
+              Forum.record_post_edit(post, user.id)
               {:ok, payload} = Nexus.Extensions.HookContracts.build_payload(
                 "post_updated", %{user_id: user.id, post_id: updated.id}
               )
@@ -266,6 +271,11 @@ defmodule NexusWeb.API.V1.PostController do
 
   defp tag_json(t), do: %{id: t.id, name: t.name, slug: t.slug, color: t.color}
 
+  defp old_tags_json(nil, _lookup), do: nil
+  defp old_tags_json(ids, lookup) do
+    ids |> Enum.map(&lookup[&1]) |> Enum.reject(&is_nil/1) |> Enum.map(&tag_json/1)
+  end
+
   defp user_json(nil), do: nil
   defp user_json(u), do: %{id: u.id, username: u.username, avatar_url: u.avatar_url}
 
@@ -280,9 +290,26 @@ defmodule NexusWeb.API.V1.PostController do
     case Integer.parse(id) do
       {post_id_int, ""} ->
         edits = Forum.list_post_edits(post_id_int)
+
+        # Resolve the snapshotted ids server-side so EditHistoryModal doesn't
+        # need the full Space and tag lists threaded down as props. Two batch
+        # queries regardless of how many edits there are.
+        space_lookup =
+          edits |> Enum.map(& &1.old_space_id) |> Enum.reject(&is_nil/1)
+                |> Enum.uniq() |> Forum.spaces_by_ids()
+
+        tag_lookup =
+          edits |> Enum.flat_map(&(&1.old_tag_ids || [])) |> Enum.uniq()
+                |> Forum.tags_by_ids()
+
         json(conn, %{edits: Enum.map(edits, fn e ->
           %{id: e.id, old_title: e.old_title, old_body: e.old_body,
-            edited_at: e.edited_at, editor: e.editor}
+            edited_at: e.edited_at, editor: e.editor,
+            old_space: space_json(space_lookup[e.old_space_id]),
+            # nil, not [], when the snapshot predates the old_tag_ids column.
+            # The two mean different things: "not recorded" versus "had no
+            # tags", and the modal must not report the first as a removal.
+            old_tags: old_tags_json(e.old_tag_ids, tag_lookup)}
         end)})
       _ -> conn |> put_status(:bad_request) |> json(%{error: "Invalid id"})
     end

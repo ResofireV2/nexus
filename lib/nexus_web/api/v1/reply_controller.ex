@@ -150,9 +150,13 @@ defmodule NexusWeb.API.V1.ReplyController do
       nil   -> conn |> put_status(:not_found) |> json(%{error: "Reply not found"})
       reply ->
         if can_edit?(user, reply) do
-          Forum.record_reply_edit(reply, user.id)
           case Forum.update_reply(reply, params) do
             {:ok, updated} ->
+              # Same ordering fix as post_controller: record only once the
+              # update has succeeded, using the pre-update `reply` still in
+              # scope. Recording first meant a rejected edit left a history row
+              # and a bumped edit_count for a change that never landed.
+              Forum.record_reply_edit(reply, user.id)
               Nexus.LinkPreviews.extract_urls(updated.body)
               |> Enum.each(fn url ->
                 %{"url" => url} |> Nexus.Workers.FetchLinkPreview.new() |> Oban.insert()
