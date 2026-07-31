@@ -6,6 +6,7 @@ import { RsAv, Av } from "../components/Avatar";
 import { Md } from "../components/Markdown";
 import { Select } from "../components/Select";
 import { RichTextArea } from "../components/RichTextArea";
+import { TagPills } from "../components/TagPill";
 
 const _brandingState   = () => (window._getBrandingState && window._getBrandingState()) || {};
 const onBrandingChange = (fn) => window._onBrandingChange ? window._onBrandingChange(fn) : () => {};
@@ -348,6 +349,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                           {p.new_reply_count > 0 && (
                             <span style={{fontSize:11,fontWeight:600,color:"var(--ac-text)",background:"var(--ac-bg)",border:"0.5px solid var(--ac-border)",borderRadius:20,padding:"1px 7px",marginLeft:6,flexShrink:0}}>+{p.new_reply_count}</span>
                           )}
+                          <TagPills tags={p.tags}/>
                         </div>
                       </div>
                       {/* Tags column — centered vertically, desktop only */}

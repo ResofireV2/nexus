@@ -295,6 +295,17 @@ select option{background:var(--s2);color:var(--t1);}
 .thread-title{font-size:var(--fs-feed-title);font-weight:500;color:#e8e4ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
 [data-theme="light"] .thread-title{color:var(--t1);}
 .thread-tag{font-size:var(--fs-ui);font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px;}
+/* Post tags. Same pill geometry as .thread-tag but deliberately NOT uppercase
+   and without letter-spacing: the Space chip is uppercase and right-aligned,
+   post tags are lowercase and "#"-prefixed on the left, so the two taxonomies
+   stay distinguishable even when a user picks a tag colour close to a Space
+   colour. Both are free-form hex, so colour alone cannot be relied on. */
+.post-tag{font-size:var(--fs-ui);font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.post-tag-more{background:rgba(255,255,255,0.06);color:var(--t4);}
+/* Sits on the existing .participants-row, which was empty to the right of the
+   reply count. nowrap + overflow:hidden keeps row height unchanged rather than
+   letting a long tag wrap the line. */
+.thread-post-tags{display:flex;align-items:center;gap:5px;margin-left:12px;min-width:0;overflow:hidden;flex-wrap:nowrap;}
 .thread-tags-row{display:none;}
 .thread-top-tags{display:none;}
 .thread-tags-col{display:flex;flex-direction:column;gap:4px;align-items:flex-end;justify-content:center;padding:0 14px 0 0;flex-shrink:0;}

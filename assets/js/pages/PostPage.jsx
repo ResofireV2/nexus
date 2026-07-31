@@ -5,6 +5,7 @@ import { toast } from "../components/Toasts";
 import { RsAv, Av, openUserCard } from "../components/Avatar";
 
 
+import { TagPill } from "../components/TagPill";
 import { Select } from "../components/Select";
 import { Md } from "../components/Markdown";
 import { ReactionsModal, ReactionButton } from "../components/Reactions";
@@ -927,7 +928,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
               <RsAv user={post.user} size={56} color={userColor(post.user)}/>
               <div className="post-meta" style={{marginBottom:0,flex:1}}>
                 {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
-                {post.tags?.map(t=><div key={t.id} className="thread-tag" style={{background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{t.name}</div>)}
+                {post.tags?.map(t=><TagPill key={t.id} tag={t}/>)}
                 <span style={{fontSize:16,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
                 <span style={{fontSize:14,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
               </div>
