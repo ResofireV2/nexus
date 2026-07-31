@@ -14,10 +14,12 @@
     <meta name="apple-mobile-web-app-title" content={@pwa_app_name} />
     <link rel="apple-touch-icon" href={@pwa_icon_path} />
 
-    <!-- Favicon (server-rendered so it never flashes the default icon) -->
-    <%= if @branding_favicon_url do %>
-    <link rel="icon" href={@branding_favicon_url} />
-    <% end %>
+    <!-- Favicon (server-rendered so it never flashes the default icon).
+         Emitted unconditionally: with no rel="icon" the browser falls back to
+         requesting /favicon.ico, which has no file and no route, so it lands on
+         the SPA catch-all and answers a 9KB HTML shell with a 200. Keep the
+         fallback rather than reinstating an `if` around this. -->
+    <link rel="icon" href={@branding_favicon_url || "/favicon.svg"} />
 
     <!-- Open Graph -->
     <meta property="og:type"        content="website" />
