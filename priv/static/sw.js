@@ -1,4 +1,37 @@
-// Nexus Service Worker — offline screen + push notifications, no caching
+// Nexus Service Worker — offline screen + push notifications, no runtime caching
+
+// ---------------------------------------------------------------------------
+// Precache
+// The fetch handler below falls back to caches.match("/offline.html"), which
+// reads Cache Storage, not the network. Nothing else writes to that cache, so
+// it has to be primed at install time — without this the lookup always misses
+// and every offline visitor gets the minimal inline fallback instead.
+// cache.add rejects on a non-2xx response and a rejected install aborts the
+// whole worker, taking push notifications with it, so failures are swallowed.
+// ---------------------------------------------------------------------------
+
+const OFFLINE_CACHE = "nexus-offline-v1";
+
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE)
+      .then(cache => cache.add("/offline.html"))
+      .catch(() => {})
+  );
+});
+
+// Drop caches from earlier OFFLINE_CACHE versions so a bumped cache name
+// doesn't leave the old copy behind indefinitely.
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k.startsWith("nexus-offline-") && k !== OFFLINE_CACHE)
+            .map(k => caches.delete(k))
+      ))
+      .catch(() => {})
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Offline fallback

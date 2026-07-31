@@ -1,5 +1,5 @@
 defmodule NexusWeb do
-  def static_paths, do: ~w(assets fonts images favicon.svg robots.txt sw.js manifest_schema.json)
+  def static_paths, do: ~w(assets fonts images favicon.svg offline.html robots.txt sw.js manifest_schema.json)
 
   def router do
     quote do
@@ -62,7 +62,6 @@ defmodule NexusWeb do
       import Phoenix.HTML
       import Phoenix.HTML.Form
       import Phoenix.LiveView.Helpers
-      import NexusWeb.CoreComponents
       use Gettext, backend: NexusWeb.Gettext
 
       unquote(verified_routes())
