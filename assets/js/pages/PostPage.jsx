@@ -221,24 +221,33 @@ function wordDiff(before, after) {
   const bLines = (after||"").split("\n");
   const lineOps = lcs(aLines, bLines);
   const result = [];
-  lineOps.forEach((op, li) => {
-    if(op.t === 'eq') {
-      result.push({t:'eq', v: op.v + (li < lineOps.length-1 ? "\n" : "")});
-    } else if(op.t === 'add') {
-      result.push({t:'add', v: op.v + (li < lineOps.length-1 ? "\n" : "")});
+  // Indexed rather than forEach: when a deleted line is paired with the
+  // following added line for a word-level diff, both ops are consumed. forEach
+  // would still visit the added one on its own next turn and push the whole
+  // line a second time, printing the new text twice.
+  let i = 0;
+  while(i < lineOps.length) {
+    const op = lineOps[i];
+    if(op.t === 'eq' || op.t === 'add') {
+      result.push({t:op.t, v: op.v + (i < lineOps.length-1 ? "\n" : "")});
+      i += 1;
     } else {
       // For deleted lines, do word-level diff against the next added line if adjacent
-      const nextOp = lineOps[li+1];
+      const nextOp = lineOps[i+1];
       if(nextOp && nextOp.t === 'add') {
-        // word-level diff between this deleted line and the paired added line
-        const wordOps = lcs(op.v.split(" "), nextOp.v.split(" "));
+        // Capturing split: whitespace runs come back as their own tokens rather
+        // than being discarded, so the ops concatenate back into readable text.
+        // Splitting on " " alone loses every space between words.
+        const wordOps = lcs(op.v.split(/(\s+)/), nextOp.v.split(/(\s+)/));
         wordOps.forEach(wo => result.push(wo));
-        result.push({t:'eq', v:"\n"});
+        result.push({t:'eq', v: (i+1 < lineOps.length-1 ? "\n" : "")});
+        i += 2;
       } else {
-        result.push({t:'del', v: op.v + "\n"});
+        result.push({t:'del', v: op.v + (i < lineOps.length-1 ? "\n" : "")});
+        i += 1;
       }
     }
-  });
+  }
   return result;
 }
 
