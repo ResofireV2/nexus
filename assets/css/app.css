@@ -420,7 +420,16 @@ select option{background:var(--s2);color:var(--t1);}
 .post-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;}
 .post-space-bar{width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;min-height:60px;}
 .post-title{font-size:var(--fs-title);font-weight:600;color:var(--t1);letter-spacing:-.3px;line-height:1.35;margin-bottom:0;}
-.post-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+/* Two stacked rows: username + timestamp on top, Space chip + tags beneath.
+   Previously one wrapping row, which pushed the username away from the avatar
+   as soon as a post carried a Space and a couple of tags. */
+.post-meta{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px;}
+.post-meta-who{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.post-meta-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+/* On its own full-width row a tag has room to render in full, so the feed's
+   truncation is lifted here — the feed keeps it because .thread-post-tags is a
+   fixed-height nowrap line. */
+.post-meta-tags .post-tag{max-width:none;}
 .post-body{font-size:var(--fs-content);color:var(--t3);line-height:1.75;padding-bottom:18px;border-bottom:0.5px solid var(--b1);}
 .reaction-row{display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;}
 /* React button */

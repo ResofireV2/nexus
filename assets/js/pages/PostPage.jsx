@@ -927,10 +927,16 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
               <RsAv user={post.user} size={56} color={userColor(post.user)}/>
               <div className="post-meta" style={{marginBottom:0,flex:1}}>
-                {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
-                {post.tags?.map(t=><TagPill key={t.id} tag={t}/>)}
-                <span style={{fontSize:16,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
-                <span style={{fontSize:14,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
+                <div className="post-meta-who">
+                  <span style={{fontSize:16,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
+                  <span style={{fontSize:14,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
+                </div>
+                {(post.space||post.tags?.length>0)&&(
+                  <div className="post-meta-tags">
+                    {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
+                    {post.tags?.map(t=><TagPill key={t.id} tag={t}/>)}
+                  </div>
+                )}
               </div>
               {currentUser&&<button title={postFollowed?"Unfollow":"Follow"}
                 onClick={toggleFollowPost}
