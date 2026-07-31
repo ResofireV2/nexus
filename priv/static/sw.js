@@ -10,7 +10,12 @@
 // whole worker, taking push notifications with it, so failures are swallowed.
 // ---------------------------------------------------------------------------
 
-const OFFLINE_CACHE = "nexus-offline-v1";
+// Bump this whenever offline.html changes. A service worker only reinstalls
+// when sw.js itself differs byte-wise, and cache.add only re-runs on install —
+// so editing offline.html alone leaves every existing visitor on the copy
+// cached under the previous name. Changing the version does both jobs: it makes
+// this file differ, and the activate handler below then evicts the old entry.
+const OFFLINE_CACHE = "nexus-offline-v2";
 
 self.addEventListener("install", event => {
   event.waitUntil(
