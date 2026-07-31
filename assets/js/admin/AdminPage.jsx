@@ -1290,32 +1290,10 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             <div className="fgt">Cookie consent banner</div>
 
             {/* Enable toggle */}
-            <div className="toggle-row">
-              <div>
-                <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>Enable cookie consent banner</div>
-                <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>Show a consent banner to visitors before any optional cookies are set. Required in many jurisdictions.</div>
-              </div>
-              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginLeft:24,flexShrink:0}}>
-                <div className={`tgl-track ${cookieCfg.enabled?"on":""}`} onClick={()=>setCookieCfg(p=>({...p,enabled:!p.enabled}))} style={{width:36,height:20,borderRadius:10,background:cookieCfg.enabled?"var(--ac)":"var(--tgl-off)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
-                  <div style={{position:"absolute",top:3,left:cookieCfg.enabled?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
-                </div>
-                <span style={{fontSize:12,color:"var(--t3)"}}>{cookieCfg.enabled?"Enabled":"Disabled"}</span>
-              </label>
-            </div>
+            <Toggle label="Enable cookie consent banner" hint="Show a consent banner to visitors before any optional cookies are set. Required in many jurisdictions." value={!!cookieCfg.enabled} onChange={v=>setCookieCfg(p=>({...p,enabled:v}))}/>
 
             {/* Show to logged-in members toggle */}
-            <div className="toggle-row">
-              <div>
-                <div style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>Show to logged-in members</div>
-                <div style={{fontSize:12,color:"var(--t4)",marginTop:2}}>If off, the banner only appears for guests. Members are assumed to have consented at registration.</div>
-              </div>
-              <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginLeft:24,flexShrink:0}}>
-                <div className={`tgl-track ${cookieCfg.show_to_members?"on":""}`} onClick={()=>setCookieCfg(p=>({...p,show_to_members:!p.show_to_members}))} style={{width:36,height:20,borderRadius:10,background:cookieCfg.show_to_members?"var(--ac)":"var(--tgl-off)",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
-                  <div style={{position:"absolute",top:3,left:cookieCfg.show_to_members?18:3,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
-                </div>
-                <span style={{fontSize:12,color:"var(--t3)"}}>{cookieCfg.show_to_members?"Enabled":"Disabled"}</span>
-              </label>
-            </div>
+            <Toggle label="Show to logged-in members" hint="If off, the banner only appears for guests. Members are assumed to have consented at registration." value={!!cookieCfg.show_to_members} onChange={v=>setCookieCfg(p=>({...p,show_to_members:v}))}/>
 
             {/* Privacy policy URL */}
             <F label="Privacy policy URL" hint="Linked from the banner as 'Privacy policy'. Leave blank to omit the link.">
