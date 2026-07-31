@@ -116,7 +116,30 @@ defmodule Nexus.Forum do
     end
   end
 
+  # Admin-configurable ceiling on how many tags a post may carry. Enforced here
+  # rather than only in the composer so the API can't be used to bypass it.
+  # 0 means unlimited, matching max_posts_per_hour. Applied on write only —
+  # posts that already exceed a newly-lowered limit are left alone until edited.
+  defp tag_limit_error(max) do
+    %Post{}
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.add_error(:tags, "cannot have more than #{max} tags")
+  end
+
+  defp within_tag_limit?(tag_ids) do
+    max = Nexus.Permissions.max_tags_per_post()
+    max <= 0 or length(tag_ids) <= max
+  end
+
   def create_post(attrs, user, tag_ids \\ []) do
+    if within_tag_limit?(tag_ids) do
+      do_create_post(attrs, user, tag_ids)
+    else
+      {:error, tag_limit_error(Nexus.Permissions.max_tags_per_post())}
+    end
+  end
+
+  defp do_create_post(attrs, user, tag_ids) do
     tags = Repo.all(from t in Tag, where: t.id in ^tag_ids)
 
     result =
@@ -138,6 +161,14 @@ defmodule Nexus.Forum do
   end
 
   def update_post(%Post{} = post, attrs, tag_ids \\ nil) do
+    if is_nil(tag_ids) or within_tag_limit?(tag_ids) do
+      do_update_post(post, attrs, tag_ids)
+    else
+      {:error, tag_limit_error(Nexus.Permissions.max_tags_per_post())}
+    end
+  end
+
+  defp do_update_post(%Post{} = post, attrs, tag_ids) do
     # Counter bookkeeping needs the pre-update state, so capture it first.
     was_hidden   = post.hidden
     old_space_id = post.space_id

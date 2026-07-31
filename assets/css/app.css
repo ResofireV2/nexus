@@ -302,6 +302,9 @@ select option{background:var(--s2);color:var(--t1);}
    colour. Both are free-form hex, so colour alone cannot be relied on. */
 .post-tag{font-size:var(--fs-ui);font-weight:500;padding:2px 7px;border-radius:20px;flex-shrink:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .post-tag-more{background:rgba(255,255,255,0.06);color:var(--t4);}
+/* The post-page overflow chip is a <button> so it can be tapped to reveal the
+   hidden tags. These reset the UA chrome a button brings that a span does not. */
+button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:pointer;}
 /* Sits on the existing .participants-row, which was empty to the right of the
    reply count. nowrap + overflow:hidden keeps row height unchanged rather than
    letting a long tag wrap the line. */
@@ -453,12 +456,12 @@ select option{background:var(--s2);color:var(--t1);}
 /* Tags run edge to edge instead of starting past the avatar — reclaiming those
    66px is the whole point of the change at this width. */
 .post-meta-tags{padding-left:0;}
-/* Cap at 3. Children of .post-meta-tags are one div (the Space chip) followed
-   by spans, so :nth-of-type counts the tag pills only — span 4 onward is tag 4
-   onward. The overflow chip is a span too and would be caught by the same rule,
-   hence the :not(). Doing it in CSS avoids a resize listener and keeps a single
-   DOM for both breakpoints. */
-.post-meta-tags .post-tag:nth-of-type(n+4):not(.post-tag-more-mob){display:none;}
+/* Cap at 3. The tag pills are the only <span> children here — the Space chip is
+   a div and the overflow chip is a button — so :nth-of-type(n+4) on spans picks
+   out tag 4 onward and nothing else. Doing this in CSS avoids a resize listener
+   and keeps one DOM for both breakpoints. .tags-open lifts the cap when the
+   reader taps "+N". */
+.post-meta-tags:not(.tags-open) span.post-tag:nth-of-type(n+4){display:none;}
 .post-tag-more-mob{display:inline-block;}
 }
 .post-body{font-size:var(--fs-content);color:var(--t3);line-height:1.75;padding-bottom:18px;border-bottom:0.5px solid var(--b1);}

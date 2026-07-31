@@ -241,7 +241,8 @@ defmodule Nexus.Admin do
       "max_posts_per_hour"         => 0,
       "who_can_create_spaces"      => "admin",
       "who_can_upload"             => "member",
-      "media_public"               => false
+      "media_public"               => false,
+      "max_tags_per_post"          => 5
     },
     "reactions" => %{
       "enabled" => true,

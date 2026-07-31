@@ -795,6 +795,12 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
   // Mod/admin only — space and tag editing
   const [editSpaceId, setEditSpaceId] = useState("");
   const [editTagIds, setEditTagIds] = useState([]);
+  // Mobile caps the header at 3 tags via CSS; this opens it up when the reader
+  // taps the "+N" chip, so the hidden tags aren't a dead end on the one device
+  // where the cap applies.
+  const [tagsOpen, setTagsOpen] = useState(false);
+  // Same source and 0-means-unlimited convention as the composer.
+  const maxTags = window._postCfg?.max_tags_per_post || 0;
   const [showEditTagModal, setShowEditTagModal] = useState(false);
   const [editTagModalSel, setEditTagModalSel] = useState([]);
   const col = spaceColor(post?.space||{id:postId});
@@ -951,11 +957,14 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
                 </button>
               )}
               {(post.space||post.tags?.length>0)&&(
-                <div className="post-meta-tags">
+                <div className={`post-meta-tags${tagsOpen?" tags-open":""}`}>
                   {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
                   {post.tags?.map(t=><TagPill key={t.id} tag={t}/>)}
-                  {post.tags?.length>3&&(
-                    <span className="post-tag post-tag-more post-tag-more-mob">+{post.tags.length-3}</span>
+                  {post.tags?.length>3&&!tagsOpen&&(
+                    <button type="button" className="post-tag post-tag-more post-tag-more-mob"
+                      onClick={()=>setTagsOpen(true)} aria-label={`Show ${post.tags.length-3} more tags`}>
+                      +{post.tags.length-3}
+                    </button>
                   )}
                 </div>
               )}
@@ -1042,16 +1051,18 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
                   <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
                     <div style={{background:"var(--s1)",border:"0.5px solid var(--b2)",borderRadius:16,width:"100%",maxWidth:560,boxShadow:"0 8px 48px rgba(0,0,0,.6)"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 24px",borderBottom:"0.5px solid var(--b1)"}}>
-                        <span style={{fontSize:16,fontWeight:500,color:"var(--t1)"}}>Select tags</span>
+                        <span style={{fontSize:16,fontWeight:500,color:"var(--t1)"}}>Select tags{maxTags>0?` (${editTagModalSel.length}/${maxTags})`:""}</span>
                         <button onClick={()=>setShowEditTagModal(false)} style={{background:"none",border:"none",color:"var(--t4)",fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
                       </div>
                       <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,maxHeight:360,overflowY:"auto"}}>
                         {tags.map(t=>{
                           const sel=editTagModalSel.includes(t.id);
                           const tc=t.color||"var(--ac)";
+                          const atLimit = !sel && maxTags>0 && editTagModalSel.length>=maxTags;
                           return (
-                            <div key={t.id} onClick={()=>setEditTagModalSel(p=>sel?p.filter(x=>x!==t.id):[...p,t.id])}
-                              style={{padding:"10px 14px",borderRadius:10,cursor:"pointer",
+                            <div key={t.id} onClick={()=>{ if(atLimit) return; setEditTagModalSel(p=>sel?p.filter(x=>x!==t.id):[...p,t.id]); }}
+                              title={atLimit?`Up to ${maxTags} tags`:undefined}
+                              style={{padding:"10px 14px",borderRadius:10,cursor:atLimit?"not-allowed":"pointer",opacity:atLimit?0.4:1,
                                 border:`1.5px solid ${sel?tc:"var(--b1)"}`,
                                 background:sel?`${tc}18`:"var(--s2)",color:sel?tc:"var(--t3)",
                                 transition:"all .1s",display:"flex",alignItems:"center",gap:8,

@@ -34,6 +34,14 @@ defmodule Nexus.Permissions do
     Admin.get_setting("posting")["who_can_create_spaces"] || "admin"
   end
 
+  @doc """
+  Maximum tags a post may carry. 0 means unlimited, matching the convention
+  max_posts_per_hour already uses.
+  """
+  def max_tags_per_post do
+    Admin.get_setting("posting")["max_tags_per_post"] || 0
+  end
+
   def who_can_upload do
     Admin.get_setting("posting")["who_can_upload"] || "member"
   end

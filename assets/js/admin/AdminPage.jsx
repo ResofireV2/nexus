@@ -1387,6 +1387,12 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <span style={{fontSize:13,color:"var(--t4)"}}>per hour</span>
               </div>
             </F>
+            <F label="Max tags per post" hint="How many tags a post may carry. 0 = unlimited. Applies when a post is created or edited; existing posts are not changed.">
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="fi" type="number" min="0" max="20" style={{width:80}} value={postCfg.max_tags_per_post||0} onChange={e=>setPostCfg(p=>({...p,max_tags_per_post:parseInt(e.target.value)||0}))}/>
+                <span style={{fontSize:13,color:"var(--t4)"}}>tags</span>
+              </div>
+            </F>
             <F label="Who can create spaces">
               <Select value={postCfg.who_can_create_spaces||"admin"} onChange={v=>setPostCfg(p=>({...p,who_can_create_spaces:v}))}>
                 <option value="admin">Admins only</option>
