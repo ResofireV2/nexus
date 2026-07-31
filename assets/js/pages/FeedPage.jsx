@@ -192,9 +192,9 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
             </div>
           )}
           {!spaceFilter&&!followingOnly&&hero.hero_enabled&&(hero.hero_title||hero.hero_body)&&(
-            <div className="feed-hero" style={{padding:"32px 28px",borderBottom:"0.5px solid var(--b1)",background:"linear-gradient(180deg, var(--s2) 0%, transparent 100%)",flexShrink:0}}>
-              {hero.hero_title&&<div style={{fontSize:22,fontWeight:600,color:"var(--t1)",letterSpacing:-0.4,marginBottom:hero.hero_body?8:0,lineHeight:1.3}}>{hero.hero_title}</div>}
-              {hero.hero_body&&<div style={{fontSize:14,color:"var(--t3)",lineHeight:1.7,maxWidth:600}}>{hero.hero_body}</div>}
+            <div className="feed-hero">
+              {hero.hero_title&&<div className="feed-hero-title">{hero.hero_title}</div>}
+              {hero.hero_body&&<div className="feed-hero-body">{hero.hero_body}</div>}
             </div>
           )}
 
