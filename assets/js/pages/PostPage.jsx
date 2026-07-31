@@ -1018,7 +1018,14 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           <div className="post-space-bar" style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
           <div style={{flex:1}}>
             {/* Avatar + meta row */}
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap",rowGap:6}}>
+            {/* marginBottom is 22 to match the gap above the Space/tags row.
+                That gap is not a chosen value: the row wraps below a 56px
+                avatar whose band is centred against ~24px of username text,
+                leaving (56-24)/2 = 16px of avatar underhang, plus the 6px
+                rowGap. Equal spacing keeps the chips reading as part of the
+                byline rather than the title. If the avatar size or the 16px
+                username font changes, recompute this. */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:22,flexWrap:"wrap",rowGap:6}}>
               <RsAv user={post.user} size={56} color={userColor(post.user)}/>
               <div className="post-meta" style={{marginBottom:0,flex:1}}>
                 <div className="post-meta-who">
