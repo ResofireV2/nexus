@@ -606,10 +606,40 @@ select option{background:var(--s2);color:var(--t1);}
   flex-shrink:0;
 }
 
-/* .mob-overlay-head carries the "Activity" title and close button. It earns
-   its place on a full-screen phone sheet; in a 360px drawer the title is
-   redundant and the backdrop and Escape already dismiss it. */
-.mob-overlay.right .mob-overlay-head{display:none;}
+/* .mob-overlay-head carries the "Activity" title and close button. It is
+   declared inside the max-width:767.99px block along with .mob-overlay-title
+   and .mob-icon-btn, so none of the three apply at this width and all are
+   restated here. Values mirror the mobile definitions exactly so the drawer
+   header is identical on phone and tablet. */
+.mob-overlay.right .mob-overlay-head{
+  height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 16px;
+  border-bottom:0.5px solid var(--b1);
+  flex-shrink:0;
+}
+.mob-overlay.right .mob-overlay-title{
+  font-size:15px;
+  font-weight:600;
+  color:var(--t1);
+}
+/* The close button is a <button>, so the background and border resets are
+   load-bearing here, not decoration. */
+.mob-overlay.right .mob-icon-btn{
+  width:38px;
+  height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  cursor:pointer;
+  background:none;
+  border:none;
+  color:var(--t2);
+  font-size:18px;
+}
 
 /* .mob-overlay-body and .mob-rightpanel-inner are both declared inside the
    max-width:767.99px block, so neither applies at this width. Without these
