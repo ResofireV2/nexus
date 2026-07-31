@@ -500,11 +500,19 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
     // Advance saved cursor past inserted emoji (native emoji can be multi-codepoint)
     const newPos = s + native.length;
     savedSelRef.current = { s: newPos, e: newPos };
-    // Restore focus + cursor in textarea without closing picker
-    requestAnimationFrame(() => {
+    // Restore focus + cursor in textarea without closing picker.
+    //
+    // setTimeout(0) rather than requestAnimationFrame: this is a controlled
+    // <textarea value={value}>, and React's commit of the new value collapses
+    // the caret to the end of the content. rAF fires before the next paint and
+    // can run ahead of that commit, so the restored position gets wiped a
+    // moment later. A macrotask runs after the commit has flushed. Every other
+    // insertion path in this file (applyFormat, applyList, applyGrid,
+    // insertImageMarkdown, ...) already uses setTimeout(0) for the same reason.
+    setTimeout(() => {
       ta.focus();
       ta.setSelectionRange(newPos, newPos);
-    });
+    }, 0);
   };
   // Keep onSelectRef pointed at the current insertEmoji on every render so the
   // portal (which only mounts once) always calls the up-to-date closure.
@@ -901,7 +909,7 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onFocus={()=>setIsFocused(true)}
-        onBlur={e=>{saveCursor();handleBlur(e);setIsFocused(false);}}
+        onBlur={e=>{handleBlur(e);setIsFocused(false);}}
         autoFocus={autoFocus}
         className="comp-ta"
         style={{minHeight, paddingTop:12, paddingBottom:12}}
