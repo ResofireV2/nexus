@@ -169,14 +169,17 @@
   </div>
 
   <script>
-    // This page is served from Cache Storage with no network, so branding is
-    // read from the same localStorage entry the app writes on every load
+    // This page is served from Cache Storage with no network, so branding comes
+    // from the same localStorage entry the app writes on every load
     // ("nexus_branding"). Same origin, so it is readable here.
     //
-    // The image itself is a different matter: uploads are not precached, so it
-    // only appears if the browser still has it in its HTTP cache from a prior
-    // visit. Every step therefore degrades: configured logo, then favicon, then
-    // the site name's initial, then the built-in "N".
+    // The image is fetched from Cache Storage rather than the network: the
+    // service worker precaches the configured logo at install time, and the
+    // worker's fetch handler only intercepts navigations, so a plain network
+    // request for it would fail while offline.
+    //
+    // Every step degrades: cached logo, then the network copy, then the site
+    // name's initial, then the built-in "N".
     (function () {
       var el = document.getElementById("brand-logo");
       if (!el) return;
@@ -184,27 +187,39 @@
       var b = {};
       try { b = JSON.parse(localStorage.getItem("nexus_branding") || "{}") || {}; } catch (e) {}
 
-      var letter = (b.site_name || "N").trim().charAt(0).toUpperCase() || "N";
-      el.textContent = letter;
-
-      if (b.site_name) document.title = "You're offline \u00b7 " + b.site_name;
+      var name = (b.site_name || "").trim();
+      if (name) {
+        el.textContent = name.charAt(0).toUpperCase();
+        document.title = "You're offline \u00b7 " + name;
+      }
 
       var src = b.logo_url || b.favicon_url;
       if (!src) return;
 
-      var img = new Image();
-      img.onload = function () {
-        el.textContent = "";
-        img.alt = b.site_name || "";
-        img.style.width = "100%";
-        img.style.height = "100%";
-        img.style.objectFit = "contain";
-        img.style.borderRadius = "13px";
-        el.appendChild(img);
-      };
-      // Image unavailable offline: the letter set above is already in place.
-      img.onerror = function () {};
-      img.src = src;
+      function apply(url) {
+        var img = new Image();
+        img.onload = function () {
+          el.textContent = "";
+          img.alt = name;
+          img.style.width = "100%";
+          img.style.height = "100%";
+          img.style.objectFit = "contain";
+          img.style.borderRadius = "13px";
+          el.appendChild(img);
+        };
+        // Leave whatever letter is already in place.
+        img.onerror = function () {};
+        img.src = url;
+      }
+
+      if (window.caches && caches.match) {
+        caches.match(src).then(function (res) {
+          if (!res) { apply(src); return; }
+          return res.blob().then(function (blob) { apply(URL.createObjectURL(blob)); });
+        }).catch(function () { apply(src); });
+      } else {
+        apply(src);
+      }
     })();
   </script>
 </body>

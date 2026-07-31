@@ -15,13 +15,32 @@
 // so editing offline.html alone leaves every existing visitor on the copy
 // cached under the previous name. Changing the version does both jobs: it makes
 // this file differ, and the activate handler below then evicts the old entry.
-const OFFLINE_CACHE = "nexus-offline-v2";
+const OFFLINE_CACHE = "nexus-offline-v3";
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(OFFLINE_CACHE)
-      .then(cache => cache.add("/offline.html"))
-      .catch(() => {})
+    caches.open(OFFLINE_CACHE).then(async cache => {
+      await cache.add("/offline.html").catch(() => {});
+
+      // Also cache the admin-configured logo. Uploads live under /uploads and
+      // are not otherwise cached, so without this the offline page can only
+      // fall back to a letter. Install runs while the network is up, which is
+      // the one moment this is fetchable.
+      try {
+        const res  = await fetch("/api/v1/branding");
+        const data = await res.json();
+        const gen  = (data && data.settings && data.settings.general) || {};
+        const src  = gen.logo_url || gen.favicon_url;
+        if (src) await cache.add(src).catch(() => {});
+      } catch (e) {}
+    })
+    // Replace the previous worker on the next load rather than sitting idle
+    // until every tab for the origin is closed. This worker caches no
+    // application assets — only the offline page and the logo — so there is no
+    // old-asset/new-worker mismatch to guard against. Without it, a changed
+    // offline.html never reaches anyone who already has the site open.
+    .then(() => self.skipWaiting())
+    .catch(() => {})
   );
 });
 
@@ -35,6 +54,9 @@ self.addEventListener("activate", event => {
             .map(k => caches.delete(k))
       ))
       .catch(() => {})
+      // Take control of pages that are already open, so the first load after an
+      // update is served by the new worker rather than the one it replaced.
+      .then(() => self.clients.claim())
   );
 });
 
