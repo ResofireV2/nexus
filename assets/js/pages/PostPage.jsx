@@ -213,6 +213,25 @@ function lcs(a, b) {
   return ops;
 }
 
+// Splits into word tokens that each carry their own trailing whitespace, so
+// joining the tokens reproduces the input exactly.
+//
+// The obvious alternatives are both wrong. split(" ") discards the separators,
+// so the diff output concatenates into one unbroken run of letters. A capturing
+// split(/(\s+)/) keeps them but makes each whitespace run an independent token —
+// and since every space equals every other space, the LCS matches them all as
+// unchanged, interleaving a wholesale rewrite into alternating del/add pairs
+// with an "unchanged" space wedged between each. Binding the space to the word
+// before it means only real words can match.
+function tokenizeWords(s) {
+  if(!s) return [];
+  const toks = s.match(/\S+\s*/g);
+  const lead = s.match(/^\s+/);
+  if(!toks) return [s];
+  if(lead) toks[0] = lead[0] + toks[0];
+  return toks;
+}
+
 function wordDiff(before, after) {
   // Diff line by line first, then word-level within changed lines.
   // This prevents words that exist in both versions from being matched
@@ -235,10 +254,7 @@ function wordDiff(before, after) {
       // For deleted lines, do word-level diff against the next added line if adjacent
       const nextOp = lineOps[i+1];
       if(nextOp && nextOp.t === 'add') {
-        // Capturing split: whitespace runs come back as their own tokens rather
-        // than being discarded, so the ops concatenate back into readable text.
-        // Splitting on " " alone loses every space between words.
-        const wordOps = lcs(op.v.split(/(\s+)/), nextOp.v.split(/(\s+)/));
+        const wordOps = lcs(tokenizeWords(op.v), tokenizeWords(nextOp.v));
         wordOps.forEach(wo => result.push(wo));
         result.push({t:'eq', v: (i+1 < lineOps.length-1 ? "\n" : "")});
         i += 2;
