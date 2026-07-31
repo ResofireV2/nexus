@@ -1148,7 +1148,12 @@ defmodule Nexus.Forum do
         where: e.post_id == ^post_id,
         join: u in Nexus.Accounts.User, on: u.id == e.user_id,
         order_by: [desc: e.edited_at],
+        # Explicit select, so any field the caller needs has to be listed here.
+        # old_space_id / old_tag_ids are projected because the edits endpoint
+        # resolves them into Space and tag records; without them the result is a
+        # plain map with no such key and the read raises KeyError.
         select: %{id: e.id, old_title: e.old_title, old_body: e.old_body,
+                  old_space_id: e.old_space_id, old_tag_ids: e.old_tag_ids,
                   edited_at: e.edited_at, editor: %{id: u.id, username: u.username}}
     )
   end
