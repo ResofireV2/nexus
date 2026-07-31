@@ -5,14 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>You're offline · Nexus</title>
   <style>
+    /* Defaults are the values this page previously hardcoded, so a visitor with
+       no cached appearance sees exactly what they saw before. The head script
+       below overrides them from the forum's own theme when it is available. */
+    :root {
+      --bg: #030712;
+      --s2: #0d0d14;
+      --b1: #1e293b;
+      --t1: #f1f5f9;
+      --t5: #64748b;
+      --ac: #5B4EF5;
+      --ac-on: #ffffff;
+      --ac-bg: rgba(91, 78, 245, 0.12);
+      --ac-border: rgba(91, 78, 245, 0.25);
+      --ac-text: #a78bfa;
+    }
+
     *, *::before, *::after { box-sizing: border-box; }
 
     html, body {
       margin: 0;
       padding: 0;
       min-height: 100vh;
-      background: #030712;
-      color: #f1f5f9;
+      background: var(--bg);
+      color: var(--t1);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 15px;
       line-height: 1.6;
@@ -32,8 +48,8 @@
     .logo {
       width: 56px;
       height: 56px;
-      background: #0d0d14;
-      border: 0.5px solid #1e293b;
+      background: var(--s2);
+      border: 0.5px solid var(--b1);
       border-radius: 14px;
       display: flex;
       align-items: center;
@@ -41,7 +57,7 @@
       margin-bottom: 32px;
       font-size: 26px;
       font-weight: 600;
-      color: #a78bfa;
+      color: var(--ac-text);
       font-family: Inter, sans-serif;
       flex-shrink: 0;
     }
@@ -50,8 +66,8 @@
       width: 64px;
       height: 64px;
       border-radius: 50%;
-      background: rgba(91, 78, 245, 0.12);
-      border: 0.5px solid rgba(91, 78, 245, 0.25);
+      background: var(--ac-bg);
+      border: 0.5px solid var(--ac-border);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -61,7 +77,8 @@
     .icon-wrap svg {
       width: 28px;
       height: 28px;
-      stroke: #7B6EFF;
+      stroke: var(--ac-text);
+      color: var(--ac-text);
       stroke-width: 1.5;
       fill: none;
       stroke-linecap: round;
@@ -71,14 +88,14 @@
     h1 {
       font-size: 22px;
       font-weight: 600;
-      color: #f1f5f9;
+      color: var(--t1);
       margin: 0 0 10px;
       letter-spacing: -0.3px;
     }
 
     p {
       font-size: 15px;
-      color: #64748b;
+      color: var(--t5);
       margin: 0 0 32px;
       max-width: 300px;
     }
@@ -87,8 +104,8 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: #5B4EF5;
-      color: #fff;
+      background: var(--ac);
+      color: var(--ac-on);
       border: none;
       border-radius: 10px;
       padding: 11px 24px;
@@ -100,12 +117,12 @@
       text-decoration: none;
     }
 
-    .btn:hover { background: #4c41d4; }
+    .btn:hover { filter: brightness(0.88); }
 
     .btn svg {
       width: 16px;
       height: 16px;
-      stroke: #fff;
+      stroke: var(--ac-on);
       stroke-width: 2;
       fill: none;
       stroke-linecap: round;
@@ -134,6 +151,21 @@
       flex-shrink: 0;
     }
   </style>
+  <script>
+    // Runs in <head>, before first paint, so the page never flashes the default
+    // palette before switching to the forum's own. Reads the same
+    // "nexus_appearance_vars" entry the app writes on every load, which already
+    // holds the resolved values for the active theme.
+    (function () {
+      try {
+        var v = JSON.parse(localStorage.getItem("nexus_appearance_vars") || "{}") || {};
+        var root = document.documentElement;
+        ["--bg","--s2","--b1","--t1","--t5","--ac","--ac-on","--ac-bg","--ac-border","--ac-text"]
+          .forEach(function (k) { if (v[k]) root.style.setProperty(k, v[k]); });
+        if (v.theme) root.setAttribute("data-theme", v.theme);
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div class="page">
@@ -147,7 +179,7 @@
         <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
         <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
         <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-        <circle cx="12" cy="20" r="1" fill="#7B6EFF" stroke="none"/>
+        <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
       </svg>
     </div>
 
@@ -193,7 +225,9 @@
         document.title = "You're offline \u00b7 " + name;
       }
 
-      var src = b.logo_url || b.favicon_url;
+      // Favicon before logo: this is a 56px square, which suits a square
+      // mark better than a wide wordmark.
+      var src = b.favicon_url || b.logo_url;
       if (!src) return;
 
       function apply(url) {

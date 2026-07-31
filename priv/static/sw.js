@@ -15,7 +15,7 @@
 // so editing offline.html alone leaves every existing visitor on the copy
 // cached under the previous name. Changing the version does both jobs: it makes
 // this file differ, and the activate handler below then evicts the old entry.
-const OFFLINE_CACHE = "nexus-offline-v3";
+const OFFLINE_CACHE = "nexus-offline-v4";
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -30,7 +30,9 @@ self.addEventListener("install", event => {
         const res  = await fetch("/api/v1/branding");
         const data = await res.json();
         const gen  = (data && data.settings && data.settings.general) || {};
-        const src  = gen.logo_url || gen.favicon_url;
+        // Favicon first: the offline page renders it in a 56px square tile,
+        // which suits a square mark better than a wide wordmark.
+        const src  = gen.favicon_url || gen.logo_url;
         if (src) await cache.add(src).catch(() => {});
       } catch (e) {}
     })
