@@ -370,7 +370,7 @@ function MetaDiffRow({label, before, after}) {
   return (
     <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",background:"var(--bg)"}}>
       <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>{label}</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div className="edit-diff-cols">
         <div>
           <div style={{fontSize:12,color:"var(--red)",marginBottom:6,fontWeight:500}}>Before</div>
           <div style={{background:"rgba(248,113,113,0.08)",padding:"8px 12px",borderRadius:8}}>{before}</div>
@@ -428,7 +428,7 @@ function EditHistoryPairs({edits, postId, replyId}) {
           {pair.before_title&&pair.after_title&&pair.before_title!==pair.after_title&&(
             <div style={{padding:"12px 16px",borderBottom:"0.5px solid var(--b1)",background:"var(--bg)"}}>
               <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Title</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div className="edit-diff-cols">
                 <div>
                   <div style={{fontSize:12,color:"var(--red)",marginBottom:6,fontWeight:500}}>Before</div>
                   <div style={{fontSize:"var(--fs-body)",color:"var(--t2)",fontWeight:500,background:"rgba(248,113,113,0.08)",padding:"8px 12px",borderRadius:8}}>{pair.before_title}</div>
@@ -455,7 +455,7 @@ function EditHistoryPairs({edits, postId, replyId}) {
           {/* Body diff */}
           <div style={{padding:"16px",background:"var(--bg)"}}>
             <div style={{fontSize:12,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:12}}>Content</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div className="edit-diff-cols edit-diff-cols--wide">
               <div>
                 <div style={{fontSize:13,color:"var(--t4)",marginBottom:8,fontWeight:500}}>Before</div>
                 <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:"14px 16px"}}>

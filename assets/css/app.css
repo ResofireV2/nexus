@@ -449,6 +449,14 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
    fixed-height nowrap line. */
 .post-meta-tags .post-tag{max-width:none;}
 .post-tag-more-mob{display:none;}
+
+/* Edit history before/after panes. Side by side on desktop, stacked on mobile:
+   at ~180px per column the Space chip wrapped mid-word and the content diff
+   became a narrow ribbon. Declared as a class rather than inline styles so the
+   breakpoint can reach it — the three call sites in EditHistoryModal previously
+   hardcoded grid-template-columns. */
+.edit-diff-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.edit-diff-cols--wide{gap:16px;}
 /* Mobile. Declared after the base rules above, not up in the earlier mobile
    block: a media query adds no specificity, so an override with the same
    selector only wins if it comes later in the file. */
@@ -463,6 +471,9 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
    reader taps "+N". */
 .post-meta-tags:not(.tags-open) span.post-tag:nth-of-type(n+4){display:none;}
 .post-tag-more-mob{display:inline-block;}
+/* One column. The "Before" and "After" labels already sit above each pane, so
+   stacking stays legible without extra chrome. */
+.edit-diff-cols,.edit-diff-cols--wide{grid-template-columns:1fr;gap:14px;}
 }
 .post-body{font-size:var(--fs-content);color:var(--t3);line-height:1.75;padding-bottom:18px;border-bottom:0.5px solid var(--b1);}
 .reaction-row{display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;}
