@@ -924,19 +924,13 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           <div className="post-space-bar" style={{width:4,alignSelf:"stretch",background:col,borderRadius:2,flexShrink:0,minHeight:60}}/>
           <div style={{flex:1}}>
             {/* Avatar + meta row */}
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap",rowGap:6}}>
               <RsAv user={post.user} size={56} color={userColor(post.user)}/>
               <div className="post-meta" style={{marginBottom:0,flex:1}}>
                 <div className="post-meta-who">
                   <span style={{fontSize:16,color:"var(--t4)",cursor:"pointer"}} onClick={()=>navigate("profile",{username:post.user?.username})}>{post.user?.username}</span>
                   <span style={{fontSize:14,color:"var(--t5)"}}>{ago(post.inserted_at)}</span>
                 </div>
-                {(post.space||post.tags?.length>0)&&(
-                  <div className="post-meta-tags">
-                    {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
-                    {post.tags?.map(t=><TagPill key={t.id} tag={t}/>)}
-                  </div>
-                )}
               </div>
               {currentUser&&<button title={postFollowed?"Unfollow":"Follow"}
                 onClick={toggleFollowPost}
@@ -955,6 +949,15 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
                   <i className="fa-solid fa-clock-rotate-left" style={{fontSize:14}}/>
                   <span style={{fontSize:12,color:"var(--t5)"}}>{post.edit_count}</span>
                 </button>
+              )}
+              {(post.space||post.tags?.length>0)&&(
+                <div className="post-meta-tags">
+                  {post.space&&<div className="thread-tag" style={{background:`${col}20`,color:col}}>{post.space.name}</div>}
+                  {post.tags?.map(t=><TagPill key={t.id} tag={t}/>)}
+                  {post.tags?.length>3&&(
+                    <span className="post-tag post-tag-more post-tag-more-mob">+{post.tags.length-3}</span>
+                  )}
+                </div>
               )}
             </div>
             {/* Title full-width */}
