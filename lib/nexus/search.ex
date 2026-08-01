@@ -120,9 +120,12 @@ defmodule Nexus.Search do
 
     trigram_query =
       from p in query,
-        where: fragment("similarity(title, ?) > 0.1 OR similarity(body, ?) > 0.1", ^query_string, ^query_string),
+        # Qualified through the p binding for the same reason as the reply
+        # trigram below: any join to a table with a title or body column makes
+        # a bare reference ambiguous.
+        where: fragment("similarity(?, ?) > 0.1 OR similarity(?, ?) > 0.1", p.title, ^query_string, p.body, ^query_string),
         order_by: [
-          desc: fragment("GREATEST(similarity(title, ?), similarity(body, ?))", ^query_string, ^query_string),
+          desc: fragment("GREATEST(similarity(?, ?), similarity(?, ?))", p.title, ^query_string, p.body, ^query_string),
           desc: p.inserted_at
         ]
 
@@ -364,11 +367,17 @@ defmodule Nexus.Search do
           end
       end
 
+    # `body` is qualified through the r binding rather than written bare. The
+    # space filter above joins `posts`, which also has a body column, so an
+    # unqualified reference is ambiguous the moment a space filter is applied —
+    # Postgres raises "column reference \"body\" is ambiguous" and the whole
+    # search 500s. Since kind defaults to "all", reply search runs on every
+    # query, so this took down search for every space, not just sub-spaces.
     trigram_reply_query =
       from r in query,
-        where: fragment("similarity(body, ?) > 0.1", ^query_string),
+        where: fragment("similarity(?, ?) > 0.1", r.body, ^query_string),
         order_by: [
-          desc: fragment("similarity(body, ?)", ^query_string),
+          desc: fragment("similarity(?, ?)", r.body, ^query_string),
           desc: r.inserted_at
         ]
 

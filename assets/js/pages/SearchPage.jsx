@@ -13,13 +13,19 @@ function stripMd(text="") {
     .trim();
 }
 
-// Renders a highlight string from ts_headline — wraps <b> tags in accent color spans
+// Renders a highlight string from ts_headline — wraps <b> tags in accent color spans.
+//
+// Deliberately sets no font-size, colour or line-height: this renders inside
+// both the result title and the result excerpt, which are styled differently.
+// Hardcoding excerpt typography here made a title shrink from .thread-title
+// size down to 12px the moment the search term matched the title, so the same
+// result changed size as you typed.
 function Highlight({text}) {
   if (!text) return null;
   // ts_headline wraps matches in <b>...</b>
   const parts = text.split(/(<b>[^<]*<\/b>)/g);
   return (
-    <span style={{fontSize:12, color:"var(--t4)", lineHeight:1.6}}>
+    <span>
       {parts.map((part, i) => {
         if (part.startsWith("<b>") && part.endsWith("</b>")) {
           return <mark key={i} style={{background:"transparent", color:"var(--ac-text)", fontWeight:500}}>
