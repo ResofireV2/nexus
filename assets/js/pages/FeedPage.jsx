@@ -306,7 +306,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                     </button>
                     <div className="thread-main">
                       <div className="thread-accent" style={{background:p.pinned?"var(--ac)":col}}/>
-                      <div className="thread-av-wrap" style={{margin:"0 14px 0 18px",flexShrink:0,alignSelf:"center"}}><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
+                      <div className="thread-av-wrap"><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                       <div className="thread-body">
                         <div className="thread-top">
                           {(p.seen === false || p.new_reply_count > 0) && (

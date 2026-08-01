@@ -251,7 +251,11 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                 <div key={p.id} className="thread" onClick={() => navigate("post", {id:p.id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={p.user} size={34} color={userColor(p.user)}/>
+                    {/* .thread-av-wrap supplies the gutter and vertical centring
+                        the feed's rows use. Without it the avatar is a bare flex
+                        child of .thread-main, which is align-items:stretch — so
+                        it sat flush against the accent bar and top-aligned. */}
+                    <div className="thread-av-wrap"><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title">
@@ -295,7 +299,7 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                 <div key={r.id} className="thread" onClick={() => navigate("post", {id:r.post_id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <RsAv user={r.user} size={34} color={userColor(r.user)}/>
+                    <div className="thread-av-wrap"><RsAv user={r.user} size={34} color={userColor(r.user)}/></div>
                     <div className="thread-body">
                       <div className="thread-top">
                         {r.post && (
