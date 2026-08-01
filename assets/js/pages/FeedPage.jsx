@@ -194,7 +194,11 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
           {!spaceFilter&&!followingOnly&&hero.hero_enabled&&(hero.hero_title||hero.hero_body)&&(
             <div className="feed-hero">
               {hero.hero_title&&<div className="feed-hero-title">{hero.hero_title}</div>}
-              {hero.hero_body&&<div className="feed-hero-body">{hero.hero_body}</div>}
+              {/* Markdown so admins can link to guidelines, terms, or spaces from
+                  the welcome copy. Md sanitises through DOMPurify, and the title
+                  stays plain text — markdown in a 27px heading invites a heading
+                  inside a heading. */}
+              {hero.hero_body&&<div className="feed-hero-body"><Md text={hero.hero_body}/></div>}
             </div>
           )}
 

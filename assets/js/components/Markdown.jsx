@@ -151,10 +151,33 @@ mdRenderer.paragraph = function(text) {
   return isEmojiOnly ? `<p class="md-emoji-block">${text}</p>` : `<p>${text}</p>`;
 };
 
-// Link override — lightbox for image links, external for regular links
+// Link override — lightbox for image links, new tab for external links,
+// same tab for links back into this forum.
+//
+// A link to /space/colony-sims or any other internal route should not spawn a
+// tab: it is navigation within the site, not a departure from it. Relative
+// hrefs and absolute ones matching the current origin are treated the same,
+// since both land on this forum. Anything that fails to parse is treated as
+// external, which is the safer default.
+function isSameOrigin(href) {
+  if (!href) return false;
+  // Protocol-relative ("//evil.com") is external despite the leading slash.
+  if (href.startsWith("//")) return false;
+  // Root-relative or same-document.
+  if (href.startsWith("/") || href.startsWith("?")) return true;
+  // Bare "mailto:", "tel:", etc. are not navigation within the site.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+    try { return new URL(href).origin === window.location.origin; }
+    catch (e) { return false; }
+  }
+  // Anything else is a relative path like "pages/rules".
+  return true;
+}
+
 mdRenderer.link = function(href, title, text) {
   if (text && text.includes('<img ')) return text.replace('<img ', `<img data-original="${href}" `);
   if (href && href.startsWith('#'))   return `<a class="reply-ref-link" href="${href}">${text}</a>`;
+  if (isSameOrigin(href))             return `<a href="${href}">${text}</a>`;
   return `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 };
 

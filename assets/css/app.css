@@ -294,6 +294,14 @@ select option{background:var(--s2);color:var(--t1);}
 /* margin:0 auto matters now the text is centred: without it the max-width does
    nothing and long lines run the full column width. */
 .feed-hero-body{font-size:15px;color:var(--t3);line-height:1.7;max-width:600px;margin:0 auto;}
+/* The body renders through <Md>, which wraps its output in .md-body. That class
+   carries its own font-size (--fs-content), colour and line-height, so they are
+   restored here — otherwise the hero body silently inherits post-content sizing
+   and the mobile override below has nothing to act on. */
+.feed-hero-body .md-body{font-size:inherit;color:inherit;line-height:inherit;}
+/* Trailing margin on the last paragraph would add unbalanced space under the
+   text inside the hero's own padding. */
+.feed-hero-body .md-body p:last-child{margin-bottom:0;}
 .feed-space-desc{padding:8px 18px;border-bottom:0.5px solid var(--b1);font-size:12px;color:var(--t4);line-height:1.5;}
 .feed-title{font-size:var(--fs-body);font-weight:500;color:var(--t2);}
 .sort-pills{display:flex;gap:4px;}

@@ -911,7 +911,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             <F label="Hero headline" hint="Large text displayed prominently in the banner">
               <input className="fi" value={general.hero_title||""} onChange={e=>setGeneral(p=>({...p,hero_title:e.target.value}))} placeholder="Welcome to our community"/>
             </F>
-            <F label="Hero body text" hint="Supporting text below the headline">
+            <F label="Hero body text" hint="Supporting text below the headline. Markdown is supported, so you can link to pages or spaces, for example [Community guidelines](/pages/guidelines).">
               <textarea className="fi" value={general.hero_body||""} onChange={e=>setGeneral(p=>({...p,hero_body:e.target.value}))} placeholder="A place to discuss ideas, share knowledge, and connect." style={{resize:"vertical",minHeight:72,lineHeight:1.6}}/>
             </F>
 
