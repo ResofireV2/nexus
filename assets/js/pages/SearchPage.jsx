@@ -255,7 +255,7 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                         the feed's rows use. Without it the avatar is a bare flex
                         child of .thread-main, which is align-items:stretch — so
                         it sat flush against the accent bar and top-aligned. */}
-                    <div className="thread-av-wrap"><RsAv user={p.user} size={34} color={userColor(p.user)}/></div>
+                    <div className="thread-av-wrap"><RsAv user={p.user} size={44} color={userColor(p.user)}/></div>
                     <div className="thread-body">
                       <div className="thread-top">
                         <div className="thread-title">
@@ -270,8 +270,7 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                         )}
                       </div>
                       {excerpt && (
-                        <div style={{margin:"3px 0 4px", overflow:"hidden", display:"-webkit-box",
-                          WebkitLineClamp:2, WebkitBoxOrient:"vertical"}}>
+                        <div className="search-excerpt">
                           <Highlight text={excerpt}/>
                         </div>
                       )}
@@ -299,7 +298,7 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                 <div key={r.id} className="thread" onClick={() => navigate("post", {id:r.post_id})}>
                   <div className="thread-main">
                     <div className="thread-accent" style={{background:col}}/>
-                    <div className="thread-av-wrap"><RsAv user={r.user} size={34} color={userColor(r.user)}/></div>
+                    <div className="thread-av-wrap"><RsAv user={r.user} size={44} color={userColor(r.user)}/></div>
                     <div className="thread-body">
                       <div className="thread-top">
                         {r.post && (
@@ -309,8 +308,7 @@ function SearchPage({navigate, tags=[], spaces=[], initialQ=""}) {
                         )}
                       </div>
                       {excerpt && (
-                        <div style={{margin:"3px 0 4px", overflow:"hidden", display:"-webkit-box",
-                          WebkitLineClamp:2, WebkitBoxOrient:"vertical"}}>
+                        <div className="search-excerpt">
                           <Highlight text={excerpt}/>
                         </div>
                       )}
