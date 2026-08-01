@@ -169,23 +169,41 @@ defmodule Nexus.Search do
   end
 
   defp filter_posts_by_space(query, nil), do: query
+  defp filter_posts_by_space(query, ""), do: query
   defp filter_posts_by_space(query, slug) do
-    # Matches Forum.filter_by_space/2: selecting a parent space includes posts
-    # from its sub-spaces, selecting a sub-space returns only that sub-space.
-    # Search matched the slug exactly, so a post in a sub-space was invisible
-    # under its parent — and sub-spaces postdate this filter.
-    join(query, :inner, [p], s in Space,
-      on: p.space_id == s.id and (s.slug == ^slug or s.parent_id == fragment(
-        "(SELECT id FROM spaces WHERE slug = ?)", ^slug
-      ))
-    )
+    # Resolves the slug to ids up front and filters with a plain `where` rather
+    # than adding a join. Two reasons:
+    #
+    # 1. Selecting a parent space must also match its sub-spaces, matching
+    #    Forum.filter_by_space/2. Sub-spaces postdate this filter, so search
+    #    matched the slug exactly and a post in Announcements was invisible
+    #    under Meta.
+    # 2. The join made every later filter's positional bindings depend on
+    #    whether a space filter was present — see filter_posts_by_tag/2, which
+    #    hardcoded [p, _s, pt] and only lined up when this join existed.
+    #    A `where` adds no binding, so downstream filters are stable.
+    #
+    # An unknown slug yields no rows rather than silently ignoring the filter.
+    case Repo.one(from s in Space, where: s.slug == ^slug, select: s.id) do
+      nil ->
+        where(query, [p], false)
+
+      space_id ->
+        child_ids = Repo.all(from s in Space, where: s.parent_id == ^space_id, select: s.id)
+        ids = [space_id | child_ids]
+        where(query, [p], p.space_id in ^ids)
+    end
   end
 
   defp filter_posts_by_tag(query, nil), do: query
   defp filter_posts_by_tag(query, slug) do
+    # [p, pt] rather than [p, _s, pt]: the old form assumed a space join sat at
+    # position 2, so a tag filter used *without* a space filter had too few
+    # bindings and raised. filter_posts_by_space/2 no longer joins at all, so
+    # post_tags is always position 2 here.
     query
     |> join(:inner, [p], pt in "post_tags", on: pt.post_id == p.id)
-    |> join(:inner, [p, _s, pt], t in Tag, on: pt.tag_id == t.id and t.slug == ^slug)
+    |> join(:inner, [p, pt], t in Tag, on: pt.tag_id == t.id and t.slug == ^slug)
   end
 
   defp filter_posts_by_visibility(query, nil) do
@@ -324,17 +342,26 @@ defmodule Nexus.Search do
     query = filter_by_author(query, author, :reply)
     query = filter_by_date(query, date_from, date_to, :reply)
 
-    # Space filter for replies — join through post to space.
+    # Space filter for replies — join through post, then match resolved ids.
+    # Same approach as filter_posts_by_space/2: ids resolved in Elixir so a
+    # parent space also matches its sub-spaces, and no fragment subquery.
     query =
       case space_slug do
-        nil  -> query
+        nil -> query
+        ""  -> query
         slug ->
-          query
-          |> join(:inner, [r], p in Post,  on: r.post_id == p.id)
-          |> join(:inner, [r, p], s in Space,
-               on: p.space_id == s.id and (s.slug == ^slug or s.parent_id == fragment(
-                 "(SELECT id FROM spaces WHERE slug = ?)", ^slug
-               )))
+          case Repo.one(from s in Space, where: s.slug == ^slug, select: s.id) do
+            nil ->
+              where(query, [r], false)
+
+            space_id ->
+              child_ids = Repo.all(from s in Space, where: s.parent_id == ^space_id, select: s.id)
+              ids = [space_id | child_ids]
+
+              query
+              |> join(:inner, [r], p in Post, on: r.post_id == p.id)
+              |> where([r, p], p.space_id in ^ids)
+          end
       end
 
     trigram_reply_query =
