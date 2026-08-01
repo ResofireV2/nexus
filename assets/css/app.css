@@ -293,7 +293,13 @@ select option{background:var(--s2);color:var(--t1);}
 .feed-hero-title + .feed-hero-body{margin-top:10px;}
 /* margin:0 auto matters now the text is centred: without it the max-width does
    nothing and long lines run the full column width. */
-.feed-hero-body{font-size:15px;color:var(--t3);line-height:1.7;max-width:600px;margin:0 auto;}
+/* 760px rather than the 600 this inherited from the old left-aligned layout.
+   At 600 the copy wrapped to four lines in a column roughly twice that wide,
+   which made the banner unnecessarily tall. 760 is around 95 characters at this
+   size — wide enough to cut a line or two, still short of the point where the
+   eye loses the start of the next line. Deliberately not 100%: full-width
+   centred text is hard to read. */
+.feed-hero-body{font-size:15px;color:var(--t3);line-height:1.7;max-width:760px;margin:0 auto;}
 /* The body renders through <Md>, which wraps its output in .md-body. That class
    carries its own font-size (--fs-content), colour and line-height, so they are
    restored here — otherwise the hero body silently inherits post-content sizing
