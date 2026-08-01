@@ -170,7 +170,15 @@ defmodule Nexus.Search do
 
   defp filter_posts_by_space(query, nil), do: query
   defp filter_posts_by_space(query, slug) do
-    join(query, :inner, [p], s in Space, on: p.space_id == s.id and s.slug == ^slug)
+    # Matches Forum.filter_by_space/2: selecting a parent space includes posts
+    # from its sub-spaces, selecting a sub-space returns only that sub-space.
+    # Search matched the slug exactly, so a post in a sub-space was invisible
+    # under its parent — and sub-spaces postdate this filter.
+    join(query, :inner, [p], s in Space,
+      on: p.space_id == s.id and (s.slug == ^slug or s.parent_id == fragment(
+        "(SELECT id FROM spaces WHERE slug = ?)", ^slug
+      ))
+    )
   end
 
   defp filter_posts_by_tag(query, nil), do: query
@@ -323,7 +331,10 @@ defmodule Nexus.Search do
         slug ->
           query
           |> join(:inner, [r], p in Post,  on: r.post_id == p.id)
-          |> join(:inner, [r, p], s in Space, on: p.space_id == s.id and s.slug == ^slug)
+          |> join(:inner, [r, p], s in Space,
+               on: p.space_id == s.id and (s.slug == ^slug or s.parent_id == fragment(
+                 "(SELECT id FROM spaces WHERE slug = ?)", ^slug
+               )))
       end
 
     trigram_reply_query =
