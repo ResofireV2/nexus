@@ -333,10 +333,16 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
                 <div style={{fontSize:11,color:"var(--t5)",fontWeight:500,whiteSpace:"nowrap"}}>{fmtDaySep(m.inserted_at)}</div>
                 <div style={{flex:1,height:"0.5px",background:"var(--b1)"}}></div>
               </div>}
-              <div className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:4,alignItems:mine?"flex-end":"flex-start"}}>
+              {/* Hover lives on this full-width row, not on the bubble wrapper
+                  below. The delete button is positioned outside that wrapper
+                  with a 6px gap, and that gap belongs to no hovered element —
+                  moving toward the button fired mouseleave and unmounted it
+                  before the cursor arrived. This row spans the full width, so
+                  the whole path stays inside it. */}
+              <div className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:4,alignItems:mine?"flex-end":"flex-start"}}
+                onMouseEnter={()=>{ if(mine&&!m.deleted) setMenuMsgId(m.id); }}
+                onMouseLeave={()=>setMenuMsgId(c=>c===m.id?null:c)}>
                 <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row",maxWidth:"72vw",position:"relative"}}
-                  onMouseEnter={()=>{ if(mine&&!m.deleted) setMenuMsgId(m.id); }}
-                  onMouseLeave={()=>setMenuMsgId(c=>c===m.id?null:c)}
                   onTouchStart={()=>{ if(mine&&!m.deleted) startLongPress(m.id); }}
                   onTouchMove={cancelLongPress}
                   onTouchEnd={cancelLongPress}>
