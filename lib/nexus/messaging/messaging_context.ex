@@ -413,32 +413,36 @@ defmodule Nexus.Messaging do
   end
 
   @doc """
-  True when either user has blocked the other.
+  True when a block is in force between two users, in either direction.
 
-  Staff are exempt at *send* time rather than at block time, so a block created
-  against someone who later becomes a moderator stops applying automatically
-  instead of leaving them uncontactable.
+  The staff exemption is asymmetric, and deliberately so. It exists to stop a
+  member cutting themselves off from moderation contact, which is about the
+  *blocked* party being staff — not either party. So:
+
+    - a member blocking a moderator has no effect (and is refused outright at
+      creation by block_user/2; this clause covers the stale case where someone
+      was blocked before being promoted)
+    - a moderator blocking a member *is* enforced, in both directions. Staff
+      choosing not to correspond with someone is their prerogative, and that
+      member can still reach any other moderator.
+
+  Checking the blocked party's role here rather than in Elixir keeps it a single
+  query and means a promotion or demotion takes effect immediately.
   """
-  def blocked_between?(%User{} = a, %User{} = b) do
-    cond do
-      User.moderator?(a) or User.moderator?(b) -> false
-      true -> block_exists?(a.id, b.id)
-    end
-  end
+  def blocked_between?(%User{} = a, %User{} = b), do: block_in_force?(a.id, b.id)
 
-  def blocked_between?(a_id, b_id) when is_integer(a_id) and is_integer(b_id) do
-    case {Repo.get(User, a_id), Repo.get(User, b_id)} do
-      {%User{} = a, %User{} = b} -> blocked_between?(a, b)
-      _ -> false
-    end
-  end
+  def blocked_between?(a_id, b_id) when is_integer(a_id) and is_integer(b_id),
+    do: block_in_force?(a_id, b_id)
 
-  defp block_exists?(a_id, b_id) do
+  defp block_in_force?(a_id, b_id) do
     Repo.exists?(
-      from b in UserBlock,
+      from bl in UserBlock,
+        join: u in User,
+        on: u.id == bl.blocked_id,
         where:
-          (b.blocker_id == ^a_id and b.blocked_id == ^b_id) or
-            (b.blocker_id == ^b_id and b.blocked_id == ^a_id)
+          ((bl.blocker_id == ^a_id and bl.blocked_id == ^b_id) or
+             (bl.blocker_id == ^b_id and bl.blocked_id == ^a_id)) and
+            u.role not in ["admin", "moderator"]
     )
   end
 
