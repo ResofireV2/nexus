@@ -292,6 +292,24 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
                   <i className="fa-solid fa-right-from-bracket" style={{fontSize:12}}/>Leave group
                 </div>
               )}
+              {thread?.kind!=="group"&&(
+                <div style={{padding:"8px 12px",fontSize:13,color:"var(--red)",cursor:"pointer",borderRadius:7,display:"flex",alignItems:"center",gap:8}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.08)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  onClick={async()=>{
+                    setShowThreadMenu(false);
+                    const name=thread?.members?.find(m=>m.user_id!==currentUser?.id)?.user?.username;
+                    if(!name) return;
+                    if(!confirm(`Block ${name}? Neither of you will be able to message the other, and this conversation will be removed from your list.`)) return;
+                    const r=await api.post(`/blocks`,{username:name}).catch(e=>e);
+                    // Staff cannot be blocked; the server says so explicitly
+                    // rather than pretending it worked.
+                    if(r?.error){ alert(r.error); return; }
+                    navigate("messages");
+                  }}>
+                  <i className="fa-solid fa-ban" style={{fontSize:12}}/>Block user
+                </div>
+              )}
               <div style={{padding:"8px 12px",fontSize:13,color:"var(--red)",cursor:"pointer",borderRadius:7,display:"flex",alignItems:"center",gap:8}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.08)"}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}

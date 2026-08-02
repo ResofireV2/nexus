@@ -122,6 +122,52 @@ defmodule NexusWeb.API.V1.ThreadController do
   end
 
   # POST /api/v1/threads/direct
+  # GET /api/v1/blocks
+  def list_blocks(conn, _params) do
+    json(conn, %{blocks: Messaging.list_blocked(conn.assigns.current_user.id)})
+  end
+
+  # POST /api/v1/blocks  {"username": "..."}
+  def block(conn, %{"username" => username}) do
+    me = conn.assigns.current_user
+
+    case Accounts.get_user_by_username(username) do
+      nil ->
+        conn |> put_status(:not_found) |> json(%{error: "User not found"})
+
+      target ->
+        case Messaging.block_user(me, target) do
+          :ok ->
+            json(conn, %{ok: true})
+
+          {:error, :cannot_block_self} ->
+            conn |> put_status(:bad_request) |> json(%{error: "You can't block yourself."})
+
+          {:error, :cannot_block_staff} ->
+            # Explicit refusal rather than a block that quietly does nothing, so
+            # the member is not left believing they are protected.
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "Moderators and admins can't be blocked."})
+
+          {:error, _} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: "Could not block user"})
+        end
+    end
+  end
+
+  # DELETE /api/v1/blocks/:username
+  def unblock(conn, %{"username" => username}) do
+    me = conn.assigns.current_user
+
+    case Accounts.get_user_by_username(username) do
+      nil   -> conn |> put_status(:not_found) |> json(%{error: "User not found"})
+      target ->
+        Messaging.unblock_user(me.id, target.id)
+        json(conn, %{ok: true})
+    end
+  end
+
   def create_direct(conn, %{"username" => username}) do
     me = conn.assigns.current_user
 
@@ -130,9 +176,18 @@ defmodule NexusWeb.API.V1.ThreadController do
         conn |> put_status(:not_found) |> json(%{error: "User not found"})
 
       target ->
-        if target.id == me.id do
-          conn |> put_status(:bad_request) |> json(%{error: "Cannot DM yourself"})
-        else
+        cond do
+          target.id == me.id ->
+            conn |> put_status(:bad_request) |> json(%{error: "Cannot DM yourself"})
+
+          # Second enforcement point. Without this a blocked user could open a
+          # fresh conversation and only discover the block when sending failed.
+          Messaging.blocked_between?(me.id, target.id) ->
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "You can't start a conversation with this user.", blocked: true})
+
+          true ->
           case Messaging.create_direct_thread(me.id, target.id) do
             {:ok, thread} ->
               conn |> put_status(:created) |> json(%{thread: thread_json(thread)})

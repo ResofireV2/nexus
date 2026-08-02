@@ -5,7 +5,8 @@ defmodule Nexus.Messaging do
 
   import Ecto.Query
   alias Nexus.Repo
-  alias Nexus.Messaging.{Thread, ThreadMember, Message}
+  alias Nexus.Messaging.{Thread, ThreadMember, Message, UserBlock}
+  alias Nexus.Accounts.User
   alias Nexus.Accounts
 
   # ---------------------------------------------------------------------------
@@ -360,6 +361,96 @@ defmodule Nexus.Messaging do
 
       error -> error
     end
+  end
+
+  # ── Blocking ────────────────────────────────────────────────────────────────
+
+  @doc """
+  Blocks a user from direct messages.
+
+  Refuses outright when the target is a moderator or admin rather than
+  recording a block that would have no effect. A silent no-op would leave the
+  member believing they were protected when they were not.
+
+  Also hides any existing conversation for the blocker, reusing the per-member
+  hide from thread deletion — the thread survives for the other party but stops
+  cluttering the blocker's list.
+  """
+  def block_user(%User{} = blocker, %User{} = target) do
+    cond do
+      blocker.id == target.id ->
+        {:error, :cannot_block_self}
+
+      User.moderator?(target) ->
+        {:error, :cannot_block_staff}
+
+      true ->
+        result =
+          %UserBlock{}
+          |> UserBlock.changeset(%{blocker_id: blocker.id, blocked_id: target.id})
+          # Re-blocking someone is success, not a constraint error.
+          |> Repo.insert(on_conflict: :nothing)
+
+        case result do
+          {:ok, _} ->
+            if thread = find_direct_thread(blocker.id, target.id) do
+              hide_thread_for_user(thread.id, blocker.id)
+            end
+
+            :ok
+
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+    end
+  end
+
+  def unblock_user(blocker_id, blocked_id) do
+    from(b in UserBlock, where: b.blocker_id == ^blocker_id and b.blocked_id == ^blocked_id)
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @doc """
+  True when either user has blocked the other.
+
+  Staff are exempt at *send* time rather than at block time, so a block created
+  against someone who later becomes a moderator stops applying automatically
+  instead of leaving them uncontactable.
+  """
+  def blocked_between?(%User{} = a, %User{} = b) do
+    cond do
+      User.moderator?(a) or User.moderator?(b) -> false
+      true -> block_exists?(a.id, b.id)
+    end
+  end
+
+  def blocked_between?(a_id, b_id) when is_integer(a_id) and is_integer(b_id) do
+    case {Repo.get(User, a_id), Repo.get(User, b_id)} do
+      {%User{} = a, %User{} = b} -> blocked_between?(a, b)
+      _ -> false
+    end
+  end
+
+  defp block_exists?(a_id, b_id) do
+    Repo.exists?(
+      from b in UserBlock,
+        where:
+          (b.blocker_id == ^a_id and b.blocked_id == ^b_id) or
+            (b.blocker_id == ^b_id and b.blocked_id == ^a_id)
+    )
+  end
+
+  @doc "Blocked users with their profile, for the settings list."
+  def list_blocked(user_id) do
+    from(b in UserBlock,
+      where: b.blocker_id == ^user_id,
+      join: u in User, on: u.id == b.blocked_id,
+      order_by: [asc: u.username],
+      select: %{id: u.id, username: u.username, avatar_url: u.avatar_url, blocked_at: b.inserted_at}
+    )
+    |> Repo.all()
   end
 
   @doc """

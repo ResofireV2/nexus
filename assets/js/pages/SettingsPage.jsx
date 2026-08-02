@@ -415,6 +415,41 @@ function SecurityTab({currentUser, onLogout, onUserUpdate}) {
 }
 
 
+// Blocked users list. Lives under Security rather than Notifications because a
+// block is an account-level boundary, not a delivery preference.
+function BlockedUsersPanel() {
+  const [blocks,setBlocks]=useState(null);
+
+  const load=()=>api.get("/blocks").then(d=>setBlocks(d.blocks||[])).catch(()=>setBlocks([]));
+  useEffect(()=>{ load(); },[]);
+
+  const unblock=async username=>{
+    if(!confirm(`Unblock ${username}? You will both be able to message each other again.`)) return;
+    await api.delete(`/blocks/${encodeURIComponent(username)}`).catch(()=>{});
+    load();
+  };
+
+  if(blocks===null) return null;
+
+  return (
+    <div style={{marginTop:28}}>
+      <div className="fgt">Blocked users</div>
+      <div style={{fontSize:13,color:"var(--t4)",marginBottom:12}}>
+        Blocked members can't send you direct messages, and you can't message them.
+        Blocking does not hide their posts or replies.
+      </div>
+      {blocks.length===0
+        ? <div style={{fontSize:13,color:"var(--t5)"}}>You haven't blocked anyone.</div>
+        : blocks.map(b=>(
+            <div key={b.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"0.5px solid var(--b1)"}}>
+              <span style={{flex:1,fontSize:14,color:"var(--t1)"}}>{b.username}</span>
+              <button className="btn btn-ghost" style={{fontSize:12,padding:"5px 12px"}} onClick={()=>unblock(b.username)}>Unblock</button>
+            </div>
+          ))}
+    </div>
+  );
+}
+
 function SettingsPage({currentUser, onUpdate, navigate}) {
   const [tab,setTab]=useState("profile");
   const [profile,setProfile]=useState({username:currentUser?.username||"",bio:currentUser?.bio||""});
@@ -751,7 +786,7 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
           </>}
 
           {tab==="appearance"&&<AppearanceTab/>}
-          {tab==="security"&&<SecurityTab currentUser={currentUser} onLogout={()=>{api.post("/auth/global-logout",{});api.setToken(null);window.dispatchEvent(new Event("nexus:logout"));}} onUserUpdate={onUpdate}/>}
+          {tab==="security"&&<><SecurityTab currentUser={currentUser} onLogout={()=>{api.post("/auth/global-logout",{});api.setToken(null);window.dispatchEvent(new Event("nexus:logout"));}} onUserUpdate={onUpdate}/><BlockedUsersPanel/></>}
           {tab==="notifications"&&<>
             <div style={{fontSize:15,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Notification preferences</div>
             <div style={{fontSize:13,color:"var(--t4)",marginBottom:20}}>Choose how you want to be notified for each activity.</div>

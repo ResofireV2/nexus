@@ -52,7 +52,23 @@ defmodule NexusWeb.API.V1.MessageController do
           conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
 
         {:ok, thread} ->
-          case Messaging.send_message(thread, user.id, params) do
+          # Blocks apply to direct threads only. A group is a shared space whose
+          # owner controls membership, so one member blocking another should not
+          # silently mute them for everyone else in it.
+          blocked? =
+            thread.kind != "group" and
+              Enum.any?(thread.members, fn m ->
+                m.user_id != user.id and Messaging.blocked_between?(user.id, m.user_id)
+              end)
+
+          if blocked? do
+            # Deliberately does not say who blocked whom — the wording is the
+            # same whether the sender blocked them or the reverse.
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "You can no longer send messages in this conversation.", blocked: true})
+          else
+            case Messaging.send_message(thread, user.id, params) do
             {:ok, message} ->
               payload = message_json(message)
 
@@ -88,6 +104,7 @@ defmodule NexusWeb.API.V1.MessageController do
               conn
               |> put_status(:unprocessable_entity)
               |> json(%{errors: format_errors(changeset)})
+            end
           end
       end
     end
