@@ -97,6 +97,11 @@ function NotificationsPage({navigate, onCountChange}) {
     }
     const count = n.group_count || 1;
     if (count > 1) {
+      // A grouped DM is one person sending several messages, not several people
+      // doing the same thing to one post — "and N others" would misreport it.
+      if (n.type === "dm") {
+        return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>sent you {count} messages</span></>;
+      }
       const others = count - 1;
       return <><strong style={{color:"var(--t1)"}}>{n.actor?.username||"Someone"}</strong> <span style={{color:"var(--t3)"}}>and </span><strong style={{color:"var(--t1)"}}>{others} other{others===1?"":"s"}</strong> <span style={{color:"var(--t3)"}}>{TYPE[n.type]||n.type}</span></>;
     }

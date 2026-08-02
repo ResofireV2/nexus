@@ -24,7 +24,10 @@ defmodule Nexus.Workers.DeliverDmNotification do
     max_attempts: 3,
     unique: [period: 5, fields: [:args], states: [:available, :scheduled, :executing]]
 
-  alias Nexus.{Accounts, Notifications}
+  import Ecto.Query, only: [from: 2]
+
+  alias Nexus.{Accounts, Notifications, Repo}
+  alias Nexus.Notifications.Notification
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id, "actor_id" => actor_id, "thread_id" => thread_id}}) do
@@ -37,12 +40,13 @@ defmodule Nexus.Workers.DeliverDmNotification do
         :ok
 
       actor ->
-        case Notifications.create_notification(%{
-               type: "dm",
-               user_id: user_id,
-               actor_id: actor_id,
-               data: %{thread_id: thread_id}
-             }) do
+        result =
+          case existing_unread(user_id, thread_id) do
+            nil  -> create_notification(user_id, actor_id, thread_id)
+            notif -> bump_notification(notif)
+          end
+
+        case result do
           {:ok, notification} ->
             Phoenix.PubSub.broadcast(
               Nexus.PubSub,
@@ -52,11 +56,18 @@ defmodule Nexus.Workers.DeliverDmNotification do
                  id: notification.id,
                  type: "dm",
                  read: false,
+                 group_count: notification.group_count,
                  actor: %{id: actor_id, username: actor.username},
                  inserted_at: notification.inserted_at
                }}
             )
 
+            # Pushed on every message, including grouped ones. This is a
+            # deliberate difference from DeliverNotification's grouping, which
+            # goes silent on repeat activity from the same actor: a second
+            # reaction is noise, but a second message is new content the
+            # recipient is waiting on. Grouping here is about the notification
+            # list, not about suppressing delivery.
             Nexus.Workers.DeliverNotification.maybe_send_push_for_dm(user_id, actor, thread_id)
             :ok
 
@@ -65,5 +76,50 @@ defmodule Nexus.Workers.DeliverDmNotification do
             {:error, changeset}
         end
     end
+  end
+
+  # An unread DM notification already showing for this thread, if any.
+  #
+  # DeliverNotification's @groupable_types handles reactions and replies, but it
+  # groups by post_id and skips when the actor is already in the group — correct
+  # when one person can only react once, wrong here, where the same person
+  # sending three messages is exactly the case that needs collapsing. So DMs
+  # group on thread_id and count repeats from the same actor.
+  defp existing_unread(user_id, thread_id) do
+    thread_str = to_string(thread_id)
+
+    Repo.one(
+      from n in Notification,
+        where:
+          n.user_id == ^user_id and
+            n.type == "dm" and
+            n.read == false and
+            fragment("(?->>'thread_id') = ?", n.data, ^thread_str),
+        order_by: [desc: n.inserted_at],
+        limit: 1
+    )
+  end
+
+  defp create_notification(user_id, actor_id, thread_id) do
+    Notifications.create_notification(%{
+      type: "dm",
+      user_id: user_id,
+      actor_id: actor_id,
+      data: %{thread_id: thread_id}
+    })
+  end
+
+  # inserted_at is touched as well as the count so the thread floats back to the
+  # top of the list on each new message rather than staying where the first one
+  # landed.
+  defp bump_notification(%Notification{} = notif) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    notif
+    |> Ecto.Changeset.change(%{
+      group_count: (notif.group_count || 1) + 1,
+      inserted_at: now
+    })
+    |> Repo.update()
   end
 end
