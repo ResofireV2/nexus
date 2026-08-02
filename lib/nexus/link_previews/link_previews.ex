@@ -76,20 +76,32 @@ defmodule Nexus.LinkPreviews do
       case fetch_html(url) do
         {:ok, html} ->
           try do
-            parsed       = parse_meta(html, url, domain)
-            image_path   = maybe_download_image(parsed.image_url, "linkpreviews")
-            favicon_path = maybe_download_favicon(parsed.favicon_url, domain)
+            parsed = parse_meta(html, url, domain)
 
-            %{
-              url:          url,
-              domain:       domain,
-              title:        parsed.title,
-              description:  parsed.description,
-              site_name:    parsed.site_name,
-              image_path:   image_path,
-              favicon_path: favicon_path,
-              fetched_at:   NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-            }
+            if blocked_interstitial?(parsed) do
+              # Amazon, Cloudflare and similar answer bots with a 200 and a real
+              # HTML page whose title is something like "JavaScript is disabled"
+              # or "Just a moment...". Stored as-is that becomes a preview card
+              # advertising the block page. Fall back to the domain-only shape,
+              # which the client already recognises as "no real content" and
+              # renders as a plain link instead.
+              %{url: url, domain: domain, title: domain,
+                fetched_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
+            else
+              image_path   = maybe_download_image(parsed.image_url, "linkpreviews")
+              favicon_path = maybe_download_favicon(parsed.favicon_url, domain)
+
+              %{
+                url:          url,
+                domain:       domain,
+                title:        parsed.title,
+                description:  parsed.description,
+                site_name:    parsed.site_name,
+                image_path:   image_path,
+                favicon_path: favicon_path,
+                fetched_at:   NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+              }
+            end
           rescue
             _ ->
               %{url: url, domain: domain, title: domain,
@@ -166,6 +178,54 @@ defmodule Nexus.LinkPreviews do
       favicon_url: extract_favicon_url(doc, url)
     }
   end
+
+  # Titles that mean "you have been blocked", not "this is the page".
+  # Matched as substrings against a downcased title, so "Just a moment..." and
+  # "Attention Required! | Cloudflare" both hit. Kept deliberately narrow —
+  # every entry is a phrase no real article would use as its whole title.
+  @interstitial_titles [
+    "javascript is disabled",
+    "enable javascript",
+    "javascript is required",
+    "just a moment",
+    "attention required",
+    "checking your browser",
+    "one moment, please",
+    "are you a robot",
+    "are you a human",
+    "verify you are human",
+    "human verification",
+    "security check",
+    "access denied",
+    "access to this page has been denied",
+    "request blocked",
+    "unusual traffic",
+    "bot detection",
+    "captcha",
+    "403 forbidden",
+    "429 too many requests",
+    "rate limit"
+  ]
+
+  defp blocked_interstitial?(%{title: title} = parsed) do
+    case title do
+      nil ->
+        false
+
+      t ->
+        down = String.downcase(t)
+        matches? = Enum.any?(@interstitial_titles, &String.contains?(down, &1))
+
+        # Require the page to be otherwise empty as well. These phrases can
+        # legitimately appear in a real title — "Introducing our new CAPTCHA
+        # library" — but such a page carries a description or an og:image,
+        # which block pages do not. Title match alone is too blunt and would
+        # suppress genuine previews.
+        matches? and is_nil(parsed.image_url) and is_nil(parsed.description)
+    end
+  end
+
+  defp blocked_interstitial?(_), do: false
 
   defp extract_title(doc, fallback) do
     og    = meta_content(doc, "og:title")

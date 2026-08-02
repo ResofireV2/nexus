@@ -40,6 +40,29 @@ function lpCacheSet(url, data) {
   } catch {}
 }
 
+// Titles that mean "you have been blocked", not "this is the page". Mirrors
+// @interstitial_titles in lib/nexus/link_previews/link_previews.ex — the server
+// now rejects these at scrape time, but rows stored before that still carry
+// them, so the check runs here too rather than requiring a DB cleanup.
+const INTERSTITIAL_TITLES = [
+  "javascript is disabled", "enable javascript", "javascript is required",
+  "just a moment", "attention required", "checking your browser",
+  "one moment, please", "are you a robot", "are you a human",
+  "verify you are human", "human verification", "security check",
+  "access denied", "access to this page has been denied", "request blocked",
+  "unusual traffic", "bot detection", "captcha", "403 forbidden",
+  "429 too many requests", "rate limit",
+];
+
+// Requires the page to be otherwise empty too: these phrases can legitimately
+// appear in a real title ("Introducing our new CAPTCHA library"), but such a
+// page carries a description or an image, which block pages do not.
+function isInterstitialTitle(title, imageUrl, description) {
+  if (!title || imageUrl || description) return false;
+  const t = title.toLowerCase();
+  return INTERSTITIAL_TITLES.some(p => t.includes(p));
+}
+
 function renderLinkPreviewCard(node, data) {
   // If the scrape produced no real content — no description, no image, and
   // the title is just the domain or site name (or absent entirely) — fall
@@ -47,11 +70,12 @@ function renderLinkPreviewCard(node, data) {
   // instead of an empty-looking card. Covers sites like GitHub that block
   // scrapers and return no useful OG tags.
   const hasRealContent =
-    data.description ||
-    data.image_url   ||
-    (data.title &&
-     data.title !== data.domain &&
-     data.title !== data.site_name);
+    !isInterstitialTitle(data.title, data.image_url, data.description) &&
+    (data.description ||
+     data.image_url   ||
+     (data.title &&
+      data.title !== data.domain &&
+      data.title !== data.site_name));
 
   if (!hasRealContent) {
     renderLinkPreviewError(node, data.url);
