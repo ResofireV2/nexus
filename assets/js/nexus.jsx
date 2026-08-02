@@ -2295,7 +2295,7 @@ function AuthPage({onLogin}) {
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-logo">
-          <div style={{width:40,height:40,borderRadius:"50%",background:"var(--ac)",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"#fff",fontWeight:500}}>N</div>
+          <div style={{width:40,height:40,borderRadius:"50%",background:"var(--ac)",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"var(--ac-on)",fontWeight:500}}>N</div>
           <div className="auth-title">{mode==="login"?"Welcome back":"Create account"}</div>
           <div className="auth-sub">{mode==="login"?"Sign in to continue":"Join the community"}</div>
         </div>
@@ -4793,7 +4793,7 @@ function App() {
                   ? <img src={appBranding.logo_url} style={{maxHeight:48,maxWidth:160,objectFit:"contain"}} alt={appBranding.site_name||"logo"}/>
                   : appBranding?.favicon_url
                     ? <img src={appBranding.favicon_url} style={{width:48,height:48,objectFit:"contain",borderRadius:12}} alt={appBranding.site_name||"logo"}/>
-                    : <div style={{width:48,height:48,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"#fff",fontWeight:500}}>
+                    : <div style={{width:48,height:48,borderRadius:"50%",background:"var(--ac)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,color:"var(--ac-on)",fontWeight:500}}>
                         {(appBranding?.site_name||"N").slice(0,1).toUpperCase()}
                       </div>
                 }

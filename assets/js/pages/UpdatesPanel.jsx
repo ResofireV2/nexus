@@ -55,7 +55,7 @@ function UpdatesPanel() {
     fontSize:12, padding:"7px 16px", borderRadius:8, cursor:"pointer",
     fontFamily:"inherit", fontWeight:500, display:"flex", alignItems:"center", gap:6,
     ...(variant==="primary"
-      ? {background:"var(--ac)", border:"none", color:"#fff"}
+      ? {background:"var(--ac)", border:"none", color:"var(--ac-on)"}
       : {background:"var(--s3)", border:"0.5px solid var(--b1)", color:"var(--t2)"}),
   });
 

@@ -618,7 +618,7 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
 .mob-tab.active{color:var(--ac);}
 .mob-tab i{font-size:20px;}
 .mob-tab-label{font-size:9px;letter-spacing:.2px;}
-.mob-tab-compose{width:46px;height:46px;border-radius:14px;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;border:none;cursor:pointer;box-shadow:0 2px 12px rgba(74,144,226,.4);}
+.mob-tab-compose{width:46px;height:46px;border-radius:14px;background:var(--ac);color:var(--ac-on);display:flex;align-items:center;justify-content:center;font-size:24px;border:none;cursor:pointer;box-shadow:0 2px 12px rgba(74,144,226,.4);}
 .mob-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg);}
 .mob-overlay{position:fixed;inset:0;background:var(--bg);z-index:950;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
 .mob-overlay.right{transform:translateX(100%);}
@@ -923,7 +923,10 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .thr-av{width:38px;height:38px;border-radius:var(--av-radius);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#fff;}
 .thr-name{font-size:var(--fs-body);font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thr-preview{font-size:12px;color:var(--t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
+/* --ac-on, not #fff: the accent is admin-chosen and can be light. White on a
+   pale teal fails contrast, while every other control on the accent (see
+   .write-btn) already uses the computed contrast colour. */
+.thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:var(--ac-on);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
 .bubble{max-width:100%;padding:9px 13px;font-size:var(--fs-body);line-height:1.5;border-radius:18px;word-break:break-word;}
 .mine .bubble{background:var(--ac);color:var(--ac-on);font-weight:500;border-bottom-right-radius:4px;}
 .mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}.bubble .md-body p:last-child{margin-bottom:0;}

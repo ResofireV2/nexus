@@ -1703,7 +1703,7 @@ function AdminExtensionsPanel() {
                           onClick={e=>{e.stopPropagation(); installFromStore(item);}}
                           disabled={isBusy||!item.manifest_url}
                           style={{fontSize:12,padding:"6px 16px",borderRadius:8,
-                            background:"var(--ac)",border:"none",color:"#fff",
+                            background:"var(--ac)",border:"none",color:"var(--ac-on)",
                             cursor:item.manifest_url?"pointer":"default",
                             fontFamily:"inherit",fontWeight:500,
                             opacity:(isBusy||!item.manifest_url)?0.6:1}}>
