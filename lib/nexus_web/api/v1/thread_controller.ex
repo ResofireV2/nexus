@@ -189,6 +189,17 @@ defmodule NexusWeb.API.V1.ThreadController do
 
       {:ok, _thread} ->
         Messaging.mark_read(id, user_id)
+
+        # Push the corrected total so the sidebar badge clears the moment a
+        # thread is opened, matching how mark_read_by_thread handles the
+        # notification badge. Without it the badge kept its old value until the
+        # next message or a page load.
+        Phoenix.PubSub.broadcast(
+          Nexus.PubSub,
+          "notifications:#{user_id}",
+          {:dm_unread_count, Messaging.unread_count(user_id)}
+        )
+
         json(conn, %{ok: true})
     end
   end

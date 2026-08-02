@@ -19,8 +19,11 @@ defmodule NexusWeb.NotificationChannel do
 
   @impl true
   def handle_info(:after_join, socket) do
-    count = Notifications.unread_count(socket.assigns.current_user_id)
-    push(socket, "unread_count", %{count: count})
+    user_id = socket.assigns.current_user_id
+    push(socket, "unread_count", %{count: Notifications.unread_count(user_id)})
+    # Hydrate the Messages badge on connect too, so a reconnect does not leave
+    # it stale until the next message arrives.
+    push(socket, "dm_unread_count", %{count: Nexus.Messaging.unread_count(user_id)})
     {:noreply, socket}
   end
 
@@ -37,6 +40,14 @@ defmodule NexusWeb.NotificationChannel do
   # Real-time DM message delivery via the stable per-user notification channel
   def handle_info({:new_dm_message, payload}, socket) do
     push(socket, "new_message", payload)
+    {:noreply, socket}
+  end
+
+  # Unread *message* total, distinct from the unread_count above which is the
+  # notification total. Sent so the Messages badge is driven by a pushed number
+  # like the Notifications badge, rather than by the client re-fetching.
+  def handle_info({:dm_unread_count, count}, socket) do
+    push(socket, "dm_unread_count", %{count: count})
     {:noreply, socket}
   end
 

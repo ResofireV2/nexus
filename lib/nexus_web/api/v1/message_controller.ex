@@ -59,11 +59,26 @@ defmodule NexusWeb.API.V1.MessageController do
               # Deliver to every thread member's always-on notification channel.
               # This is more reliable than the dm: channel which may not be subscribed.
               thread_with_members = Nexus.Repo.preload(thread, :members)
+
               Enum.each(thread_with_members.members, fn member ->
                 Phoenix.PubSub.broadcast(
                   Nexus.PubSub,
                   "notifications:#{member.user_id}",
                   {:new_dm_message, payload}
+                )
+
+                # Push the recipient's real unread total alongside the message.
+                #
+                # The client used to derive this itself: on new_message it fired
+                # a GET /threads/unread and set the badge from the response.
+                # That left the Messages badge stale until a page refresh while
+                # the Notifications badge — which receives a count directly —
+                # updated immediately. Sending the number the same way removes
+                # the round-trip and the discrepancy.
+                Phoenix.PubSub.broadcast(
+                  Nexus.PubSub,
+                  "notifications:#{member.user_id}",
+                  {:dm_unread_count, Messaging.unread_count(member.user_id)}
                 )
               end)
 

@@ -3766,6 +3766,10 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
             // DM badge is handled separately by the new_message event below.
           }
           if (event === "unread_count" && topic === `notifications:${userId}`) onUnreadCountRef.current?.(payload?.count||0);
+          // Unread *messages*, pushed by the server alongside each DM so the
+          // Messages badge is driven by a number the way the Notifications
+          // badge is, rather than by the client re-fetching.
+          if (event === "dm_unread_count" && topic === `notifications:${userId}`) onNewMsgRef.current?.(payload?.count||0);
           // Retry failed channel joins (rejected at join time)
           if (event === "phx_reply" && payload?.status === "error") {
             joinedTopics.current.delete(topic);
@@ -3785,9 +3789,16 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
             const threadId = payload?.thread_id ?? topic.split(":")[1];
             window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: String(threadId), message: payload}}));
 
-            // Poll the real unread thread count rather than blind-incrementing
+            // onNewMsgRef, not setMsgCount: this runs inside useSocket, which has
+            // no access to the app component's state setter. Referencing it here
+            // threw a ReferenceError inside the .then, which the trailing
+            // .catch swallowed — so the message rendered (the dispatch above had
+            // already run) while the badge silently never moved. onNewMsgRef was
+            // declared and kept in sync but never called.
             const refreshMsgCount = () =>
-              api.get("/threads/unread").then(d=>setMsgCount(d.unread||0)).catch(()=>{});
+              api.get("/threads/unread")
+                 .then(d => onNewMsgRef.current?.(d.unread || 0))
+                 .catch(()=>{});
 
             // If this message belongs to the thread the user is reading right
             // now, it has already been seen — mark it read before refreshing so
@@ -4454,7 +4465,10 @@ function App() {
       setLiveEvents(p=>[{username:post.user?.username,userId:post.user?.id,avatarColor:post.user?.avatar_color,avatarUrl:post.user?.avatar_url,action:`posted in ${post.space?.name||"general"}`,at:new Date().toISOString()},...p].slice(0,10));
     },[]),
     useCallback(()=>setNotifCount(c=>c+1),[]),
-    useCallback(()=>setMsgCount(c=>c+1),[]),
+    // Takes the real count rather than blind-incrementing: the socket handler
+    // supplies either the number the server pushed or the value from
+    // /threads/unread, both of which are the actual DB state.
+    useCallback(count=>setMsgCount(count||0),[]),
     useCallback(count=>setNotifCount(count),[]),
     useCallback(update=>{
       replyUpdateSeq.current += 1;
