@@ -3784,8 +3784,32 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           if (event === "new_message" && (topic.startsWith("dm:") || topic === `notifications:${userId}`)) {
             const threadId = payload?.thread_id ?? topic.split(":")[1];
             window.dispatchEvent(new CustomEvent("nexus:dm_message", {detail: {threadId: String(threadId), message: payload}}));
+
             // Poll the real unread thread count rather than blind-incrementing
-            api.get("/threads/unread").then(d=>setMsgCount(d.unread||0)).catch(()=>{});
+            const refreshMsgCount = () =>
+              api.get("/threads/unread").then(d=>setMsgCount(d.unread||0)).catch(()=>{});
+
+            // If this message belongs to the thread the user is reading right
+            // now, it has already been seen — mark it read before refreshing so
+            // the Messages and Notifications badges don't light up for a
+            // conversation that is open on screen. Marking read was previously
+            // done only when the thread was opened, so every message after that
+            // left both badges showing. The visibility check keeps the badge
+            // when the tab is in the background.
+            const isReadingThisThread =
+              String(threadId) === String(window.__nexusActiveThread) &&
+              document.visibilityState === "visible";
+
+            if (isReadingThisThread) {
+              Promise.all([
+                api.post(`/threads/${threadId}/read`, {}).catch(()=>{}),
+                // Clears the "dm" notifications for this thread; the server
+                // broadcasts a corrected unread_count, which fixes that badge.
+                api.post("/notifications/mark-read-by-thread", {thread_id: threadId}).catch(()=>{}),
+              ]).then(refreshMsgCount);
+            } else {
+              refreshMsgCount();
+            }
           }
           // DM typing
           if ((event === "typing_start" || event === "typing_stop") && topic.startsWith("dm:")) {

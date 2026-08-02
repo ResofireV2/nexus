@@ -94,6 +94,19 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
   const [thread,setThread]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [showThreadMenu,setShowThreadMenu]=useState(false);
+  // Published so the socket handler in nexus.jsx can tell whether an incoming
+  // DM belongs to the thread the user is currently reading. Without it the
+  // handler polls the unread count on every message and both sidebar badges
+  // light up for a conversation that is open on screen.
+  useEffect(()=>{
+    window.__nexusActiveThread = String(threadId);
+    return ()=>{
+      if (String(window.__nexusActiveThread) === String(threadId)) {
+        window.__nexusActiveThread = null;
+      }
+    };
+  },[threadId]);
+
   useEffect(()=>{
     wasTypingRef.current = false;
     api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
