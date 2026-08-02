@@ -23,6 +23,73 @@ defmodule Nexus.Messaging do
 
   def get_thread(id), do: Repo.get(Thread, id) |> Repo.preload(members: :user)
 
+  @preview_max_length 90
+
+  @doc """
+  Most recent message for each of the given thread ids, as
+  `%{thread_id => %{body: preview, user_id: id}}`.
+
+  One query for the whole list rather than a preload per thread: `DISTINCT ON`
+  with a matching leading ORDER BY gives Postgres the newest row per thread
+  directly. Threads with no messages are simply absent from the map.
+
+  The body is reduced to a plain-text preview here rather than in the client so
+  every consumer gets the same treatment and no markdown reaches a single-line
+  row.
+  """
+  def last_messages_for_threads([]), do: %{}
+
+  def last_messages_for_threads(thread_ids) do
+    from(m in Message,
+      where: m.thread_id in ^thread_ids,
+      distinct: m.thread_id,
+      order_by: [asc: m.thread_id, desc: m.inserted_at, desc: m.id],
+      select: %{thread_id: m.thread_id, body: m.body, user_id: m.user_id}
+    )
+    |> Repo.all()
+    |> Map.new(fn m -> {m.thread_id, %{body: preview_text(m.body), user_id: m.user_id}} end)
+  end
+
+  @doc """
+  Collapses a message body to a single line of plain text for list previews.
+
+  Image-only messages are the case worth special handling: the composer sends
+  them as `[![image](thumb)](full)`, which would otherwise render as a row of
+  raw markdown. Those become a short label instead.
+  """
+  def preview_text(nil), do: ""
+
+  def preview_text(body) do
+    text =
+      body
+      # Linked image — the composer's image format. Must run before the plain
+      # image and link rules, which would each match half of it.
+      |> String.replace(~r/\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/, " ")
+      # Bare image
+      |> String.replace(~r/!\[[^\]]*\]\([^)]*\)/, " ")
+      # Link — keep the visible text, drop the target
+      |> String.replace(~r/\[([^\]]*)\]\([^)]*\)/, "\\1")
+      # Inline markdown punctuation
+      |> String.replace(~r/[*_`~>#]/, "")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+
+    cond do
+      text != "" -> truncate(text, @preview_max_length)
+      # Nothing left after stripping means the message was only an image.
+      Regex.match?(~r/!\[/, body) -> "Photo"
+      true -> ""
+    end
+  end
+
+  defp truncate(text, max) do
+    if String.length(text) > max do
+      String.slice(text, 0, max) |> String.trim_trailing() |> Kernel.<>("…")
+    else
+      text
+    end
+  end
+
   def get_thread_for_user(thread_id, user_id) do
     result =
       from(t in Thread,

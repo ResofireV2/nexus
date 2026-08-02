@@ -87,7 +87,13 @@ defmodule NexusWeb.API.V1.ThreadController do
   def index(conn, _params) do
     user_id = conn.assigns.current_user.id
     threads = Messaging.list_threads(user_id)
-    json(conn, %{threads: Enum.map(threads, &thread_json(&1, user_id))})
+
+    # One extra query for the whole list, not one per thread. The client has
+    # always rendered t.last_message; nothing ever sent it, so every row read
+    # "Start a conversation…" regardless of activity.
+    previews = Messaging.last_messages_for_threads(Enum.map(threads, & &1.id))
+
+    json(conn, %{threads: Enum.map(threads, &thread_json(&1, user_id, previews[&1.id]))})
   end
 
   # POST /api/v1/threads/direct
@@ -168,7 +174,7 @@ defmodule NexusWeb.API.V1.ThreadController do
     json(conn, %{unread: count})
   end
 
-  defp thread_json(thread, user_id \\ nil) do
+  defp thread_json(thread, user_id \\ nil, preview \\ nil) do
     member = user_id && Enum.find(thread.members, &(&1.user_id == user_id))
     last_read = member && member.last_read_at
     unread_count = if last_read && thread.last_message_at do
@@ -185,6 +191,10 @@ defmodule NexusWeb.API.V1.ThreadController do
       creator_id: thread.creator_id,
       last_message_at: thread.last_message_at,
       unread_count: unread_count,
+      # nil for the single-thread endpoints, which do not need a list preview.
+      # The client falls back to its placeholder in that case.
+      last_message: preview && preview.body,
+      last_message_user_id: preview && preview.user_id,
       members: Enum.map(thread.members, &member_json/1)
     }
   end

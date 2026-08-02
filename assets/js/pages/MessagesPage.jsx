@@ -27,6 +27,18 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
   const ThreadRow=({t})=>{
     const otherMember = t.kind!=="group" ? t.members?.find(m=>m.user_id!==currentUser?.id) : null;
     const otherUser = otherMember?.user;
+    // Prefix the preview with who sent it. "You:" for your own messages, and
+    // the sender's name in groups where it is otherwise ambiguous. Direct
+    // threads need no prefix for the other person — the row is already theirs.
+    let preview = t.last_message || "Start a conversation…";
+    if (t.last_message) {
+      if (t.last_message_user_id === currentUser?.id) {
+        preview = `You: ${t.last_message}`;
+      } else if (t.kind === "group") {
+        const sender = t.members?.find(m=>m.user_id===t.last_message_user_id)?.user;
+        if (sender?.username) preview = `${sender.username}: ${t.last_message}`;
+      }
+    }
     return (
     <div className="thread-row" onClick={()=>openThread(t)}>
       {t.kind==="group"&&t.image_url
@@ -40,7 +52,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
           <div className="thr-name" style={{fontWeight:t.unread_count&&!readIds.has(t.id)?500:400}}>{tname(t)}</div>
           <div style={{fontSize:11,color:"var(--t5)",whiteSpace:"nowrap",marginLeft:8}}>{ago(t.last_message_at||t.inserted_at)}</div>
         </div>
-        <div className="thr-preview">{t.last_message||"Start a conversation…"}</div>
+        <div className="thr-preview">{preview}</div>
       </div>
       {t.unread_count>0&&!readIds.has(t.id)&&<div className="thr-unread">{t.unread_count}</div>}
     </div>
