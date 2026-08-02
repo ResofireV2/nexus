@@ -94,6 +94,13 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
   const [thread,setThread]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [showThreadMenu,setShowThreadMenu]=useState(false);
+  // Older-message pagination. list_messages has always returned next_cursor;
+  // nothing ever asked for the second page, so any conversation longer than
+  // one page had unreachable history.
+  const [nextCursor,setNextCursor]=useState(null);
+  const [loadingOlder,setLoadingOlder]=useState(false);
+  const scrollRef=useRef();
+  const loadingOlderRef=useRef(false);
   // Published so the socket handler in nexus.jsx can tell whether an incoming
   // DM belongs to the thread the user is currently reading. Without it the
   // handler polls the unread count on every message and both sidebar badges
@@ -109,7 +116,12 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
 
   useEffect(()=>{
     wasTypingRef.current = false;
-    api.get(`/threads/${threadId}/messages`).then(d=>{setMessages(d.messages||[]);setTimeout(()=>endRef.current?.scrollIntoView(),50)});
+    setNextCursor(null);
+    api.get(`/threads/${threadId}/messages`).then(d=>{
+      setMessages(d.messages||[]);
+      setNextCursor(d.next_cursor||null);
+      setTimeout(()=>endRef.current?.scrollIntoView(),50);
+    });
     api.post(`/threads/${threadId}/read`,{}).then(()=>{ onRead?.(); }).catch(()=>{});
     api.post(`/notifications/mark-read-by-thread`, {thread_id: threadId}).catch(()=>{});
     // Fetch thread metadata to get name and image_url (covers refresh case where props are missing)
@@ -135,12 +147,18 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
     const fn = e => {
       if(String(e.detail.threadId)===String(threadId) && e.detail.message) {
         const msg = e.detail.message;
+        // Only follow the conversation if the reader is already at the bottom.
+        // Now that older messages can be loaded, unconditionally scrolling would
+        // yank someone out of the history they scrolled up to read every time a
+        // new message arrived.
+        const el=scrollRef.current;
+        const atBottom = !el || (el.scrollHeight - el.scrollTop - el.clientHeight) < 120;
         setMessages(p=>{
           // Deduplicate by id (compare as strings to handle int/string mismatch)
           if(p.some(m=>String(m.id)===String(msg.id))) return p;
           return [...p, msg];
         });
-        setTimeout(()=>endRef.current?.scrollIntoView(),50);
+        if(atBottom) setTimeout(()=>endRef.current?.scrollIntoView(),50);
       }
     };
     const typingFn = e => {
@@ -165,6 +183,39 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
       sendEvent?.(`dm:${threadId}`, "typing_stop", {});
     }
   };
+  // Fetches the next page of older messages and prepends it.
+  //
+  // Scroll position has to be restored by hand: prepending grows the container
+  // upward, so without this the view would jump by exactly the height of the
+  // newly inserted messages. Recording scrollHeight before the insert and
+  // adding the difference afterwards keeps the message under the reader's eye
+  // exactly where it was.
+  const loadOlder=async()=>{
+    if(loadingOlderRef.current || !nextCursor) return;
+    loadingOlderRef.current=true;
+    setLoadingOlder(true);
+    const el=scrollRef.current;
+    const prevHeight=el?el.scrollHeight:0;
+    const prevTop=el?el.scrollTop:0;
+    try{
+      const d=await api.get(`/threads/${threadId}/messages?cursor=${encodeURIComponent(nextCursor)}`);
+      const older=d.messages||[];
+      setNextCursor(d.next_cursor||null);
+      if(older.length){
+        setMessages(p=>{
+          // The socket can deliver a message that also appears in this page.
+          const seen=new Set(p.map(m=>String(m.id)));
+          return [...older.filter(m=>!seen.has(String(m.id))), ...p];
+        });
+        requestAnimationFrame(()=>{
+          if(!scrollRef.current) return;
+          scrollRef.current.scrollTop = prevTop + (scrollRef.current.scrollHeight - prevHeight);
+        });
+      }
+    }catch{}
+    finally{ loadingOlderRef.current=false; setLoadingOlder(false); }
+  };
+
   const send=async e=>{e.preventDefault();if(!text.trim())return;setSending(true);const body=text;setText("");wasTypingRef.current=false;sendEvent?.(`dm:${threadId}`,"typing_stop",{});try{const d=await api.post(`/threads/${threadId}/messages`,{body});if(d?.dm_lockout){setDmError(d);setText(body);}else{setDmError(null);setTimeout(()=>endRef.current?.scrollIntoView(),50);}}catch{setText(body);}finally{setSending(false);}};
   const sendImage=async file=>{
     if(!file)return;
@@ -233,7 +284,12 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
           </>}
         </div>}
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
+      <div ref={scrollRef}
+        onScroll={e=>{ if(e.currentTarget.scrollTop < 120) loadOlder(); }}
+        style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:2}}>
+        {loadingOlder&&(
+          <div style={{textAlign:"center",padding:"8px 0",fontSize:12,color:"var(--t5)",flexShrink:0}}>Loading earlier messages…</div>
+        )}
         {messages.map((m,i)=>{
           const mine=m.user?.id===currentUser?.id;
           const prev=messages[i-1];
