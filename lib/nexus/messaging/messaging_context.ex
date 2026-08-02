@@ -297,20 +297,24 @@ defmodule Nexus.Messaging do
 
         message = Repo.preload(message, :user)
 
-        # Notify all other members in real-time
+        # Queue a notification for every other member. Oban rather than
+        # Task.start: an unsupervised task links nothing and logs nothing, so a
+        # failure here delivered the message while the recipient's notification
+        # and push disappeared silently. A group thread also spawned one bare
+        # task per member on every message.
+        #
+        # Recipients who muted the thread are skipped at queue time rather than
+        # inside the job — no point creating work that will be discarded.
         thread_with_members = Repo.preload(thread, :members)
-        sender = message.user
-        Enum.each(thread_with_members.members, fn member ->
-          if member.user_id != user_id do
-            Task.start(fn ->
-              Nexus.Notifications.enqueue_dm_notification(%{
-                user_id: member.user_id,
-                actor_id: user_id,
-                actor: sender,
-                thread_id: thread.id
-              })
-            end)
-          end
+
+        thread_with_members.members
+        |> Enum.reject(&(&1.user_id == user_id or &1.muted))
+        |> Enum.each(fn member ->
+          Nexus.Notifications.enqueue_dm_notification(%{
+            user_id: member.user_id,
+            actor_id: user_id,
+            thread_id: thread.id
+          })
         end)
 
         {:ok, message}

@@ -73,31 +73,21 @@ defmodule Nexus.Notifications do
     |> Repo.insert()
   end
 
-  def enqueue_dm_notification(%{user_id: user_id, actor_id: actor_id, actor: actor, thread_id: thread_id}) do
-    # Create the notification record
-    case create_notification(%{
-      type: "dm",
-      user_id: user_id,
-      actor_id: actor_id,
-      data: %{thread_id: thread_id}
-    }) do
-      {:ok, notification} ->
-        # Broadcast instantly to the user's notification channel
-        Phoenix.PubSub.broadcast(Nexus.PubSub, "notifications:#{user_id}", {:new_notification, %{
-          id: notification.id,
-          type: "dm",
-          read: false,
-          actor: %{id: actor_id, username: actor.username},
-          inserted_at: notification.inserted_at
-        }})
+  @doc """
+  Queues DM notification delivery for one recipient.
 
-        # Also send a web push — DMs bypass the Oban worker so we handle push here
-        Task.start(fn ->
-          Nexus.Workers.DeliverNotification.maybe_send_push_for_dm(user_id, actor, thread_id)
-        end)
+  The work itself lives in `Nexus.Workers.DeliverDmNotification`. This function
+  previously did it inline and fired the web push from a bare `Task.start`,
+  which meant a push failure vanished without a log or a retry — the comment on
+  that call even noted DMs bypassed the Oban worker.
 
-      _ -> :ok
-    end
+  Kept as a thin wrapper so `Messaging` and any extension calling it keep a
+  stable entry point rather than reaching for the worker module directly.
+  """
+  def enqueue_dm_notification(%{user_id: user_id, actor_id: actor_id, thread_id: thread_id}) do
+    %{user_id: user_id, actor_id: actor_id, thread_id: thread_id}
+    |> Nexus.Workers.DeliverDmNotification.new()
+    |> Oban.insert()
   end
 
   def notify_reply(post, reply, actor) do
