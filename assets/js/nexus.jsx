@@ -2540,7 +2540,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
       <div className={`sb-item ${active?"active":""}`} onClick={()=>navigate(targetPage,targetProps)}>
         <i className={`fa-solid ${icon}`}></i>
         <span className="sb-item-name">{label}</span>
-        {badge>0 && <span className="sb-badge">{badge}</span>}
+        {badge>0 && <span className="sb-badge">{badge>99?"99+":badge}</span>}
         {count!=null && !badge && <span className="sb-item-count">{count}</span>}
       </div>
     );

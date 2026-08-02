@@ -111,9 +111,14 @@ defmodule NexusWeb.API.V1.ThreadController do
     # One extra query for the whole list, not one per thread. The client has
     # always rendered t.last_message; nothing ever sent it, so every row read
     # "Start a conversation…" regardless of activity.
-    previews = Messaging.last_messages_for_threads(Enum.map(threads, & &1.id))
+    thread_ids = Enum.map(threads, & &1.id)
+    previews   = Messaging.last_messages_for_threads(thread_ids)
+    unread     = Messaging.unread_counts_for_threads(user_id, thread_ids)
 
-    json(conn, %{threads: Enum.map(threads, &thread_json(&1, user_id, previews[&1.id]))})
+    json(conn, %{
+      threads:
+        Enum.map(threads, &thread_json(&1, user_id, previews[&1.id], unread[&1.id] || 0))
+    })
   end
 
   # POST /api/v1/threads/direct
@@ -194,14 +199,27 @@ defmodule NexusWeb.API.V1.ThreadController do
     json(conn, %{unread: count})
   end
 
-  defp thread_json(thread, user_id \\ nil, preview \\ nil) do
+  # unread_count is supplied by the caller for the list endpoint, where it is
+  # counted in one batched query. The single-thread endpoints pass nil and fall
+  # back to the cheap has-anything-new comparison rather than running a count
+  # for one row — the client does not render a badge on those responses.
+  defp thread_json(thread, user_id \\ nil, preview \\ nil, unread_count \\ nil) do
     member = user_id && Enum.find(thread.members, &(&1.user_id == user_id))
     last_read = member && member.last_read_at
-    unread_count = if last_read && thread.last_message_at do
-      if DateTime.compare(thread.last_message_at, last_read) == :gt, do: 1, else: 0
-    else
-      if thread.last_message_at && is_nil(last_read), do: 1, else: 0
-    end
+
+    unread_count =
+      unread_count ||
+        cond do
+          last_read && thread.last_message_at ->
+            if DateTime.compare(thread.last_message_at, last_read) == :gt, do: 1, else: 0
+
+          thread.last_message_at && is_nil(last_read) ->
+            1
+
+          true ->
+            0
+        end
+
     %{
       id: thread.id,
       kind: thread.kind,

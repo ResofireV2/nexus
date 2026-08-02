@@ -48,6 +48,38 @@ defmodule Nexus.Messaging do
   @preview_max_length 90
 
   @doc """
+  Unread message count per thread for one user, as `%{thread_id => count}`.
+
+  Counts actual messages, not "is there anything new". The previous per-thread
+  figure was derived by comparing `last_message_at` against `last_read_at` and
+  could only ever be 1 or 0, so a thread with forty unread messages reported 1.
+
+  Threads with nothing unread are absent from the map rather than present with
+  a zero, so callers should default to 0.
+
+  Excluded from the count:
+  - the user's own messages, which are never unread to them
+  - anything at or before `hidden_at`, matching what `list_messages/2` returns
+    for a thread the user has deleted for themselves
+  """
+  def unread_counts_for_threads(_user_id, []), do: %{}
+
+  def unread_counts_for_threads(user_id, thread_ids) do
+    from(m in Message,
+      join: tm in ThreadMember,
+      on: tm.thread_id == m.thread_id and tm.user_id == ^user_id,
+      where: m.thread_id in ^thread_ids,
+      where: m.user_id != ^user_id,
+      where: is_nil(tm.last_read_at) or m.inserted_at > tm.last_read_at,
+      where: is_nil(tm.hidden_at) or m.inserted_at > tm.hidden_at,
+      group_by: m.thread_id,
+      select: {m.thread_id, count(m.id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Most recent message for each of the given thread ids, as
   `%{thread_id => %{body: preview, user_id: id}}`.
 
@@ -334,15 +366,25 @@ defmodule Nexus.Messaging do
     {:ok, :marked}
   end
 
+  @doc """
+  Total unread messages across every thread — the number behind the Messages
+  badge in the sidebar.
+
+  Counts messages rather than threads. It previously counted threads containing
+  anything unread, which contradicted the per-thread figures now shown on each
+  row: two threads showing 5 each would have produced a badge of 2.
+
+  The same exclusions apply as `unread_counts_for_threads/2` — own messages, and
+  anything at or before a hide.
+  """
   def unread_count(user_id) do
-    from(m in ThreadMember,
-      where: m.user_id == ^user_id,
-      join: t in Thread, on: t.id == m.thread_id,
-      where: is_nil(m.last_read_at) or t.last_message_at > m.last_read_at,
-      # Mirrors list_threads: a hidden thread must not drive the badge while it
-      # is absent from the list, or the count points at nothing the user can see.
-      where: is_nil(m.hidden_at) or t.last_message_at > m.hidden_at,
-      select: count(m.thread_id)
+    from(m in Message,
+      join: tm in ThreadMember,
+      on: tm.thread_id == m.thread_id and tm.user_id == ^user_id,
+      where: m.user_id != ^user_id,
+      where: is_nil(tm.last_read_at) or m.inserted_at > tm.last_read_at,
+      where: is_nil(tm.hidden_at) or m.inserted_at > tm.hidden_at,
+      select: count(m.id)
     )
     |> Repo.one() || 0
   end

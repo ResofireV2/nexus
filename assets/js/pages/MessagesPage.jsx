@@ -54,7 +54,7 @@ function DMInboxPage({currentUser, navigate, onOpen}) {
         </div>
         <div className="thr-preview">{preview}</div>
       </div>
-      {t.unread_count>0&&!readIds.has(t.id)&&<div className="thr-unread">{t.unread_count}</div>}
+      {t.unread_count>0&&!readIds.has(t.id)&&<div className="thr-unread">{t.unread_count>99?"99+":t.unread_count}</div>}
     </div>
   );};
   return (
