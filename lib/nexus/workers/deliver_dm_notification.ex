@@ -62,6 +62,17 @@ defmodule Nexus.Workers.DeliverDmNotification do
                }}
             )
 
+            # The badge is driven by this, not by the event above. The client
+            # deliberately does not increment on new_notification — it waits for
+            # a real count from the DB. DeliverNotification broadcasts one after
+            # every notification it creates; the DM path never did, so the
+            # notifications badge only moved on a page refresh.
+            Phoenix.PubSub.broadcast(
+              Nexus.PubSub,
+              "notifications:#{user_id}",
+              {:unread_count, Notifications.unread_count(user_id)}
+            )
+
             # Pushed on every message, including grouped ones. This is a
             # deliberate difference from DeliverNotification's grouping, which
             # goes silent on repeat activity from the same actor: a second
