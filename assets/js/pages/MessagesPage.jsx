@@ -203,7 +203,12 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                 onClick={async()=>{
                   setShowThreadMenu(false);
-                  const label=thread?.kind==="group"?"Delete this group and all messages?":"Delete this conversation?";
+                  // Direct threads are hidden for you only — the other person
+                  // keeps their copy — so the wording says so rather than
+                  // implying the conversation is destroyed for both.
+                  const label=thread?.kind==="group"
+                    ?"Delete this group and all messages?"
+                    :"Delete this conversation? It will be removed for you only.";
                   if(!confirm(label)) return;
                   await api.delete(`/threads/${thread.id}`).catch(()=>{});
                   navigate("messages");

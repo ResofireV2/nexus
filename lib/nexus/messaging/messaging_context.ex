@@ -15,11 +15,33 @@ defmodule Nexus.Messaging do
   def list_threads(user_id) do
     from(t in Thread,
       join: m in ThreadMember, on: m.thread_id == t.id and m.user_id == ^user_id,
+      # A thread this member has hidden stays out of the list until something
+      # newer arrives. Comparing against last_message_at means a new message
+      # unhides it with no extra write.
+      where: is_nil(m.hidden_at) or t.last_message_at > m.hidden_at,
       order_by: [desc_nulls_last: t.last_message_at, desc: t.inserted_at],
       preload: [members: :user]
     )
     |> Repo.all()
   end
+
+  @doc """
+  Hides a thread for one member. Used instead of deletion for direct threads,
+  where the conversation belongs to both people and one should not be able to
+  destroy the other's copy.
+  """
+  def hide_thread_for_user(thread_id, user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {count, _} =
+      from(m in ThreadMember,
+        where: m.thread_id == ^thread_id and m.user_id == ^user_id
+      )
+      |> Repo.update_all(set: [hidden_at: now])
+
+    if count > 0, do: {:ok, :hidden}, else: {:error, :not_found}
+  end
+
 
   def get_thread(id), do: Repo.get(Thread, id) |> Repo.preload(members: :user)
 
@@ -211,6 +233,10 @@ defmodule Nexus.Messaging do
 
   def list_messages(thread_id, opts \\ []) do
     cursor = Keyword.get(opts, :cursor)
+    # Messages at or before the caller's hidden_at are not returned. Without
+    # this a thread that reappears after being deleted would bring back the
+    # history the member had cleared.
+    since  = Keyword.get(opts, :since)
     limit  = @page_size
 
     query =
@@ -219,6 +245,8 @@ defmodule Nexus.Messaging do
         order_by: [desc: m.inserted_at, desc: m.id],
         limit: ^(limit + 1),
         preload: [:user]
+
+    query = if since, do: where(query, [m], m.inserted_at > ^since), else: query
 
     query =
       if cursor do
@@ -307,6 +335,9 @@ defmodule Nexus.Messaging do
       where: m.user_id == ^user_id,
       join: t in Thread, on: t.id == m.thread_id,
       where: is_nil(m.last_read_at) or t.last_message_at > m.last_read_at,
+      # Mirrors list_threads: a hidden thread must not drive the badge while it
+      # is absent from the list, or the count points at nothing the user can see.
+      where: is_nil(m.hidden_at) or t.last_message_at > m.hidden_at,
       select: count(m.thread_id)
     )
     |> Repo.one() || 0

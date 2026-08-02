@@ -44,12 +44,15 @@ defmodule Nexus.Messaging.ThreadMember do
     belongs_to :user,   Nexus.Accounts.User
     field :muted,        :boolean, default: false
     field :last_read_at, :utc_datetime
+    # Set when this member deletes the conversation for themselves. The thread
+    # and its messages stay intact for everyone else.
+    field :hidden_at,    :utc_datetime
     field :inserted_at,  :utc_datetime
   end
 
   def changeset(member, attrs) do
     member
-    |> cast(attrs, [:thread_id, :user_id, :muted, :last_read_at])
+    |> cast(attrs, [:thread_id, :user_id, :muted, :last_read_at, :hidden_at])
     |> validate_required([:thread_id, :user_id])
     |> unique_constraint([:thread_id, :user_id])
   end

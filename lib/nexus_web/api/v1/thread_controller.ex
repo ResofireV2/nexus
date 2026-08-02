@@ -38,11 +38,20 @@ defmodule NexusWeb.API.V1.ThreadController do
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
       {:ok, thread} ->
-        if thread.creator_id != user_id do
-          conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can remove members"})
-        else
+        # Removing yourself is leaving, and any member may do that. Only the
+        # owner may remove someone else. The "Leave group" button posts here
+        # with the caller's own id and used to 403 for every non-owner — the
+        # client swallowed the error and navigated away, so the member believed
+        # they had left while still being in the group.
+        leaving_self? = to_string(target_user_id) == to_string(user_id)
+
+        if leaving_self? or thread.creator_id == user_id do
           Nexus.Messaging.remove_member(thread.id, target_user_id)
           json(conn, %{ok: true})
+        else
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Only the group owner can remove members"})
         end
     end
   end
@@ -74,12 +83,23 @@ defmodule NexusWeb.API.V1.ThreadController do
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
       {:ok, thread} ->
-        is_creator = is_nil(thread.creator_id) || thread.creator_id == user_id
-        if thread.kind == "group" && !is_creator do
-          conn |> put_status(:forbidden) |> json(%{error: "Only the group owner can delete this group"})
-        else
-          Nexus.Messaging.delete_thread(thread)
-          json(conn, %{ok: true})
+        cond do
+          # A direct thread belongs to both people. Deleting it outright removed
+          # the conversation and its messages for the other party too, which one
+          # participant should not be able to do. Hide it for the caller only;
+          # it returns on its own if the other person writes again.
+          thread.kind != "group" ->
+            Nexus.Messaging.hide_thread_for_user(thread.id, user_id)
+            json(conn, %{ok: true})
+
+          thread.creator_id == user_id ->
+            Nexus.Messaging.delete_thread(thread)
+            json(conn, %{ok: true})
+
+          true ->
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "Only the group owner can delete this group"})
         end
     end
   end

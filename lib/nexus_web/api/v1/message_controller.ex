@@ -12,8 +12,16 @@ defmodule NexusWeb.API.V1.MessageController do
         conn |> put_status(:not_found) |> json(%{error: "Thread not found"})
 
       {:ok, thread} ->
+        # Messages predating a hide are not returned — a thread that reappears
+        # after the caller deleted it starts from the new activity, not the
+        # history they cleared.
+        member = Enum.find(thread.members, &(&1.user_id == user_id))
+
         %{messages: messages, next_cursor: next_cursor} =
-          Messaging.list_messages(thread.id, cursor: params["cursor"])
+          Messaging.list_messages(thread.id,
+            cursor: params["cursor"],
+            since: member && member.hidden_at
+          )
 
         json(conn, %{
           messages: Enum.map(messages, &message_json/1),
