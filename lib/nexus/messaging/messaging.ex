@@ -70,6 +70,10 @@ defmodule Nexus.Messaging.Message do
     field :body,        :string
     field :body_format, :string, default: "markdown"
     field :read_at,     :utc_datetime
+    # Set when the author deletes the message. The body is cleared at the same
+    # time; the row survives so the conversation still reads coherently and the
+    # other person can see that something was removed rather than finding a gap.
+    field :deleted_at,  :utc_datetime
 
     belongs_to :thread, Nexus.Messaging.Thread
     belongs_to :user,   Nexus.Accounts.User

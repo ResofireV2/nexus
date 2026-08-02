@@ -69,6 +69,7 @@ defmodule Nexus.Messaging do
       join: tm in ThreadMember,
       on: tm.thread_id == m.thread_id and tm.user_id == ^user_id,
       where: m.thread_id in ^thread_ids,
+      where: is_nil(m.deleted_at),
       where: m.user_id != ^user_id,
       where: is_nil(tm.last_read_at) or m.inserted_at > tm.last_read_at,
       where: is_nil(tm.hidden_at) or m.inserted_at > tm.hidden_at,
@@ -98,10 +99,16 @@ defmodule Nexus.Messaging do
       where: m.thread_id in ^thread_ids,
       distinct: m.thread_id,
       order_by: [asc: m.thread_id, desc: m.inserted_at, desc: m.id],
-      select: %{thread_id: m.thread_id, body: m.body, user_id: m.user_id}
+      select: %{thread_id: m.thread_id, body: m.body, user_id: m.user_id, deleted_at: m.deleted_at}
     )
     |> Repo.all()
-    |> Map.new(fn m -> {m.thread_id, %{body: preview_text(m.body), user_id: m.user_id}} end)
+    |> Map.new(fn m ->
+      # A deleted message stays the most recent one, so the row would otherwise
+      # show an empty preview. Deleted messages are not skipped in favour of the
+      # one before — the conversation genuinely ended with a withdrawal.
+      body = if m.deleted_at, do: "Message deleted", else: preview_text(m.body)
+      {m.thread_id, %{body: body, user_id: m.user_id, deleted: !is_nil(m.deleted_at)}}
+    end)
   end
 
   @doc """
@@ -355,6 +362,43 @@ defmodule Nexus.Messaging do
     end
   end
 
+  @doc """
+  Soft-deletes a message. Author only.
+
+  Moderators are deliberately not permitted: they cannot read DMs, and granting
+  delete would imply a read capability that does not exist.
+
+  There is no time limit. The usual reason for one is preserving evidence for
+  moderation, which does not apply — reports target posts, replies and users,
+  never messages, so there is nothing here for a window to protect. The
+  placeholder left behind keeps the deletion visible either way.
+
+  The body is cleared rather than kept, so a deleted message leaves no content
+  in the database.
+  """
+  def delete_message(message_id, user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    query =
+      from(m in Message,
+        where: m.id == ^message_id and m.user_id == ^user_id and is_nil(m.deleted_at)
+      )
+
+    case Repo.update_all(query, set: [body: "", deleted_at: now]) do
+      {1, _} ->
+        case Repo.get(Message, message_id) |> Repo.preload(:user) do
+          nil     -> {:error, :not_found}
+          message -> {:ok, message}
+        end
+
+      {0, _} ->
+        # Either it does not exist, belongs to someone else, or was already
+        # deleted. All three are "nothing to do" from the caller's side, and
+        # collapsing them avoids revealing whether a given id exists.
+        {:error, :not_found}
+    end
+  end
+
   def mark_read(thread_id, user_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -381,6 +425,7 @@ defmodule Nexus.Messaging do
     from(m in Message,
       join: tm in ThreadMember,
       on: tm.thread_id == m.thread_id and tm.user_id == ^user_id,
+      where: is_nil(m.deleted_at),
       where: m.user_id != ^user_id,
       where: is_nil(tm.last_read_at) or m.inserted_at > tm.last_read_at,
       where: is_nil(tm.hidden_at) or m.inserted_at > tm.hidden_at,

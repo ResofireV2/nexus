@@ -245,6 +245,7 @@ defmodule NexusWeb.Router do
 
     get  "/threads/:thread_id/messages", MessageController, :index
     post "/threads/:thread_id/messages", MessageController, :create
+    delete "/messages/:id",              MessageController, :delete
 
     # Saved items (bookmarks)
     get    "/saved",                               SaveController, :index

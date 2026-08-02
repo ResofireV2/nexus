@@ -43,6 +43,11 @@ defmodule NexusWeb.NotificationChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:dm_message_deleted, payload}, socket) do
+    push(socket, "dm_message_deleted", payload)
+    {:noreply, socket}
+  end
+
   # Unread *message* total, distinct from the unread_count above which is the
   # notification total. Sent so the Messages badge is driven by a pushed number
   # like the Notifications badge, rather than by the client re-fetching.

@@ -94,6 +94,35 @@ defmodule NexusWeb.API.V1.MessageController do
     end # status check
   end
 
+  # DELETE /api/v1/messages/:id
+  def delete(conn, %{"id" => id}) do
+    user_id = conn.assigns.current_user.id
+
+    case Messaging.delete_message(id, user_id) do
+      {:ok, message} ->
+        payload = message_json(message)
+
+        # Tell every member so open windows replace the text with the
+        # placeholder instead of showing it until reload.
+        thread = Messaging.get_thread(message.thread_id)
+
+        Enum.each(thread.members, fn member ->
+          Phoenix.PubSub.broadcast(
+            Nexus.PubSub,
+            "notifications:#{member.user_id}",
+            {:dm_message_deleted, payload}
+          )
+        end)
+
+        json(conn, %{message: payload})
+
+      {:error, :not_found} ->
+        # Covers "does not exist", "not yours" and "already deleted" alike, so
+        # the response reveals nothing about ids the caller cannot touch.
+        conn |> put_status(:not_found) |> json(%{error: "Message not found"})
+    end
+  end
+
   defp message_json(message) do
     %{
       id: message.id,
@@ -101,6 +130,9 @@ defmodule NexusWeb.API.V1.MessageController do
       body_format: message.body_format,
       thread_id: message.thread_id,
       inserted_at: message.inserted_at,
+      # The client renders a placeholder from this rather than from an empty
+      # body, so it can style it distinctly and never run it through markdown.
+      deleted: !is_nil(Map.get(message, :deleted_at)),
       user: user_json(message.user)
     }
   end

@@ -97,6 +97,9 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
   // Older-message pagination. list_messages has always returned next_cursor;
   // nothing ever asked for the second page, so any conversation longer than
   // one page had unreachable history.
+  // id of the message whose delete affordance is showing. One at a time.
+  const [menuMsgId,setMenuMsgId]=useState(null);
+  const longPressRef=useRef();
   const [nextCursor,setNextCursor]=useState(null);
   const [loadingOlder,setLoadingOlder]=useState(false);
   const scrollRef=useRef();
@@ -166,9 +169,17 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
         setTyping(e.detail.started === true);
       }
     };
+    const delFn = e => {
+      const msg = e.detail;
+      if(!msg || String(msg.thread_id)!==String(threadId)) return;
+      // Replace in place rather than removing, so surrounding messages keep
+      // their position and the gap stays visible.
+      setMessages(p=>p.map(m=>String(m.id)===String(msg.id)?{...m,body:"",deleted:true}:m));
+    };
+    window.addEventListener("nexus:dm_message_deleted", delFn);
     window.addEventListener("nexus:dm_message", fn);
     window.addEventListener("nexus:typing", typingFn);
-    return ()=>{ window.removeEventListener("nexus:dm_message", fn); window.removeEventListener("nexus:typing", typingFn); };
+    return ()=>{ window.removeEventListener("nexus:dm_message", fn); window.removeEventListener("nexus:dm_message_deleted", delFn); window.removeEventListener("nexus:typing", typingFn); };
   },[threadId,currentUser]);
 
   const wasTypingRef = useRef(false);
@@ -183,6 +194,25 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
       sendEvent?.(`dm:${threadId}`, "typing_stop", {});
     }
   };
+  const deleteMessage=async id=>{
+    setMenuMsgId(null);
+    if(!confirm("Delete this message? It will be removed for everyone in this conversation.")) return;
+    // Optimistic: the socket event also arrives, and both converge on the same
+    // shape, so a slow round-trip never leaves the sender staring at text they
+    // just deleted.
+    setMessages(p=>p.map(m=>String(m.id)===String(id)?{...m,body:"",deleted:true}:m));
+    await api.delete(`/messages/${id}`).catch(()=>{});
+  };
+
+  // Long press opens the same menu on touch devices, where there is no hover.
+  // 450ms is long enough not to fire while scrolling; touchmove cancels it so a
+  // scroll that begins on a bubble never triggers the menu.
+  const startLongPress=(id)=>{
+    clearTimeout(longPressRef.current);
+    longPressRef.current=setTimeout(()=>setMenuMsgId(id),450);
+  };
+  const cancelLongPress=()=>clearTimeout(longPressRef.current);
+
   // Fetches the next page of older messages and prepends it.
   //
   // Scroll position has to be restored by hand: prepending grows the container
@@ -304,8 +334,22 @@ function DMPage({threadId, threadName, threadImage, currentUser, navigate, joinT
                 <div style={{flex:1,height:"0.5px",background:"var(--b1)"}}></div>
               </div>}
               <div className={mine?"mine":"theirs"} style={{display:"flex",flexDirection:"column",gap:2,marginBottom:4,alignItems:mine?"flex-end":"flex-start"}}>
-                <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row",maxWidth:"72vw"}}>
-                  <div className="bubble"><Md text={m.body}/></div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:6,flexDirection:mine?"row-reverse":"row",maxWidth:"72vw",position:"relative"}}
+                  onMouseEnter={()=>{ if(mine&&!m.deleted) setMenuMsgId(m.id); }}
+                  onMouseLeave={()=>setMenuMsgId(c=>c===m.id?null:c)}
+                  onTouchStart={()=>{ if(mine&&!m.deleted) startLongPress(m.id); }}
+                  onTouchMove={cancelLongPress}
+                  onTouchEnd={cancelLongPress}>
+                  {m.deleted
+                    ? <div className="bubble bubble-deleted"><i className="fa-solid fa-ban" style={{fontSize:11,marginRight:6,opacity:.7}}/>Message deleted</div>
+                    : <div className="bubble"><Md text={m.body}/></div>}
+                  {mine&&!m.deleted&&menuMsgId===m.id&&(
+                    <button type="button" className="msg-del-btn" title="Delete message"
+                      aria-label="Delete message"
+                      onClick={()=>deleteMessage(m.id)}>
+                      <i className="fa-solid fa-trash" style={{fontSize:11}}/>
+                    </button>
+                  )}
                 </div>
                 <div style={{fontSize:10,color:"var(--t5)",paddingLeft:mine?0:4,paddingRight:mine?4:0}}>{fmtMsgTime(m.inserted_at)}</div>
               </div>

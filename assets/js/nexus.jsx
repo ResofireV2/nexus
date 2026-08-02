@@ -3770,6 +3770,11 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           // Messages badge is driven by a number the way the Notifications
           // badge is, rather than by the client re-fetching.
           if (event === "dm_unread_count" && topic === `notifications:${userId}`) onNewMsgRef.current?.(payload?.count||0);
+          // Message withdrawn by its author — open windows swap in the
+          // placeholder rather than showing the text until the next reload.
+          if (event === "dm_message_deleted" && topic === `notifications:${userId}`) {
+            window.dispatchEvent(new CustomEvent("nexus:dm_message_deleted", {detail: payload}));
+          }
           // Retry failed channel joins (rejected at join time)
           if (event === "phx_reply" && payload?.status === "error") {
             joinedTopics.current.delete(topic);

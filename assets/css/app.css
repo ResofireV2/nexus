@@ -928,6 +928,17 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
    .write-btn) already uses the computed contrast colour. */
 .thr-unread{min-width:18px;height:18px;border-radius:20px;background:var(--ac);color:var(--ac-on);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;flex-shrink:0;}
 .bubble{max-width:100%;padding:9px 13px;font-size:var(--fs-body);line-height:1.5;border-radius:18px;word-break:break-word;}
+/* Withdrawn message. Deliberately muted and italic so it reads as an absence
+   rather than as content, and given a dashed outline so the gap in the
+   conversation is visible without drawing the eye. */
+.bubble-deleted{background:transparent!important;border:1px dashed var(--b2);color:var(--t5)!important;font-style:italic;display:flex;align-items:center;}
+/* Delete affordance: revealed on hover at desktop widths and by long press on
+   touch. Positioned outside the bubble so it never overlaps the text. */
+.msg-del-btn{position:absolute;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--s2);border:0.5px solid var(--b2);color:var(--t4);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;}
+.msg-del-btn:hover{color:var(--red);border-color:var(--red);}
+/* .mine reverses the row, so the button sits on the outer edge either way. */
+.mine .msg-del-btn{right:100%;margin-right:6px;}
+.theirs .msg-del-btn{left:100%;margin-left:6px;}
 .mine .bubble{background:var(--ac);color:var(--ac-on);font-weight:500;border-bottom-right-radius:4px;}
 .mine .bubble .md-body,.mine .bubble .md-body p,.mine .bubble .md-body *{color:inherit!important;}.bubble .md-body p:last-child{margin-bottom:0;}
 .theirs .bubble{background:rgba(255,255,255,0.07);color:var(--t2);border:0.5px solid var(--b1);border-bottom-left-radius:4px;}
