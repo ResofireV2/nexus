@@ -4,6 +4,7 @@ import { toast } from "../components/Toasts";
 import { spaceColor } from "../lib/utils";
 import { Toggle } from "../components/Select";
 import { TB_BTNS, getAllToolbarButtons, setActivePostToolbar, setActiveReplyToolbar } from "../components/RichTextArea";
+import { useSortable } from "../lib/sortable";
 
 const EXPLORE_ITEMS = [
   {id:"everything",    label:"Everything",    icon:"fa-border-all"},
@@ -78,37 +79,19 @@ function labelForExtension(slug) {
 
 // ── DragList ──────────────────────────────────────────────────────────────────
 function DragList({items, renderItem, onChange}) {
-  var [dragging, setDragging] = React.useState(null);
-  var [dragOver, setDragOver] = React.useState(null);
-
-  function move(from, to) {
-    if(from === to) return;
-    var next = items.slice();
-    var item = next.splice(from, 1)[0];
-    next.splice(to, 0, item);
-    onChange(next);
-  }
+  var sortable = useSortable(items, onChange);
 
   return React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:4}},
     items.map(function(item, idx) {
-      var isOver = dragOver === idx;
-      var isDragging = dragging === idx;
       return React.createElement('div', {
         key: item.id || idx,
-        draggable: true,
-        onDragStart: function(e){e.dataTransfer.effectAllowed="move"; setDragging(idx);},
-        onDragOver:  function(e){e.preventDefault(); setDragOver(idx);},
-        onDragLeave: function(){setDragOver(null);},
-        onDrop:      function(e){e.preventDefault(); if(dragging!==null) move(dragging,idx); setDragging(null); setDragOver(null);},
-        onDragEnd:   function(){setDragging(null); setDragOver(null);},
-        style:{
+        ...sortable.itemProps(idx),
+        style: sortable.itemStyle(idx, {
           display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
-          borderRadius:10, cursor:"grab",
-          border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
-          background: isDragging?"rgba(255,255,255,0.01)": isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
-          opacity: isDragging ? 0.5 : 1,
-          transition:"border-color .1s, background .1s"
-        }
+          borderRadius:10,
+          border:"0.5px solid var(--b1)",
+          background:"rgba(255,255,255,0.03)"
+        })
       },
         React.createElement('i',{className:"fa-solid fa-grip-vertical",style:{fontSize:11,color:"var(--t5)",flexShrink:0}}),
         renderItem(item, idx)
@@ -119,16 +102,7 @@ function DragList({items, renderItem, onChange}) {
 
 // ── WidgetDragList — drag-reorder + toggle for right sidebar widgets ───────────
 function WidgetDragList({items, onChange}) {
-  var [dragging, setDragging] = React.useState(null);
-  var [dragOver, setDragOver] = React.useState(null);
-
-  function move(from, to) {
-    if(from === to) return;
-    var next = items.slice();
-    var item = next.splice(from, 1)[0];
-    next.splice(to, 0, item);
-    onChange(next);
-  }
+  var sortable = useSortable(items, onChange);
 
   function toggle(idx) {
     var next = items.map(function(x){return Object.assign({},x);});
@@ -138,24 +112,15 @@ function WidgetDragList({items, onChange}) {
 
   return React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:4}},
     items.map(function(item, idx) {
-      var isOver = dragOver === idx;
-      var isDragging = dragging === idx;
       return React.createElement('div', {
         key: item.id,
-        draggable: true,
-        onDragStart: function(e){e.dataTransfer.effectAllowed="move"; setDragging(idx);},
-        onDragOver:  function(e){e.preventDefault(); setDragOver(idx);},
-        onDragLeave: function(){setDragOver(null);},
-        onDrop:      function(e){e.preventDefault(); if(dragging!==null) move(dragging,idx); setDragging(null); setDragOver(null);},
-        onDragEnd:   function(){setDragging(null); setDragOver(null);},
-        style:{
+        ...sortable.itemProps(idx),
+        style: sortable.itemStyle(idx, {
           display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
-          borderRadius:10, cursor:"grab",
-          border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
-          background: isDragging?"rgba(255,255,255,0.01)": isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
-          opacity: isDragging ? 0.5 : 1,
-          transition:"border-color .1s, background .1s"
-        }
+          borderRadius:10,
+          border:"0.5px solid var(--b1)",
+          background:"rgba(255,255,255,0.03)"
+        })
       },
         React.createElement('i',{className:"fa-solid fa-grip-vertical",style:{fontSize:11,color:"var(--t5)",flexShrink:0}}),
         React.createElement('span',{style:{flex:1,fontSize:13,color:item.hidden?"var(--t5)":"var(--t2)",fontWeight:500}}, item.label),
@@ -174,16 +139,7 @@ const LOCKED_EXPLORE_ITEMS = new Set(["everything", "members", "notifications", 
 
 // ── ExploreDragList — drag-reorder + toggle for explore sidebar items ──────────
 function ExploreDragList({items, onChange}) {
-  var [dragging, setDragging] = React.useState(null);
-  var [dragOver, setDragOver] = React.useState(null);
-
-  function move(from, to) {
-    if(from === to) return;
-    var next = items.slice();
-    var item = next.splice(from, 1)[0];
-    next.splice(to, 0, item);
-    onChange(next);
-  }
+  var sortable = useSortable(items, onChange);
 
   function toggle(idx) {
     var next = items.map(function(x){return Object.assign({},x);});
@@ -193,25 +149,16 @@ function ExploreDragList({items, onChange}) {
 
   return React.createElement('div', {style:{display:"flex",flexDirection:"column",gap:4}},
     items.map(function(item, idx) {
-      var isOver = dragOver === idx;
-      var isDragging = dragging === idx;
       var locked = LOCKED_EXPLORE_ITEMS.has(item.id);
       return React.createElement('div', {
         key: item.id || idx,
-        draggable: true,
-        onDragStart: function(e){e.dataTransfer.effectAllowed="move"; setDragging(idx);},
-        onDragOver:  function(e){e.preventDefault(); setDragOver(idx);},
-        onDragLeave: function(){setDragOver(null);},
-        onDrop:      function(e){e.preventDefault(); if(dragging!==null) move(dragging,idx); setDragging(null); setDragOver(null);},
-        onDragEnd:   function(){setDragging(null); setDragOver(null);},
-        style:{
+        ...sortable.itemProps(idx),
+        style: sortable.itemStyle(idx, {
           display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
-          borderRadius:10, cursor:"grab",
-          border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
-          background: isDragging?"rgba(255,255,255,0.01)": isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
-          opacity: isDragging ? 0.5 : 1,
-          transition:"border-color .1s, background .1s"
-        }
+          borderRadius:10,
+          border:"0.5px solid var(--b1)",
+          background:"rgba(255,255,255,0.03)"
+        })
       },
         React.createElement('i',{className:"fa-solid fa-grip-vertical",style:{fontSize:11,color:"var(--t5)",flexShrink:0}}),
         item.icon && React.createElement('i',{className:"fa-solid "+item.icon,style:{fontSize:13,color:"var(--t4)",width:16,textAlign:"center",flexShrink:0}}),
@@ -585,19 +532,15 @@ function LayoutAdmin({layoutCfg, setLayoutCfg}) {
 
 // ── ToolbarEditor ─────────────────────────────────────────────────────────────
 function ToolbarEditor({items, onChange, onReset}) {
-  var [dragging, setDragging] = React.useState(null);
-  var [dragOver, setDragOver] = React.useState(null);
   var list = items.map(function(item, i) {
     return Object.assign({}, item, {_id: item.type || ('sep-'+i)});
   });
 
-  function move(fromIdx, toIdx) {
-    if(fromIdx === toIdx) return;
-    var next = list.slice();
-    var item = next.splice(fromIdx, 1)[0];
-    next.splice(toIdx, 0, item);
+  // _id is a render-only key added above; it must not reach onChange, so the
+  // hook's callback is wrapped rather than passed straight through.
+  var sortable = useSortable(list, function(next){
     onChange(next.map(function(x){var c=Object.assign({},x);delete c._id;return c;}));
-  }
+  });
 
   function toggle(idx) {
     var next = list.map(function(x){return Object.assign({},x);});
@@ -624,22 +567,17 @@ function ToolbarEditor({items, onChange, onReset}) {
       <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
         {list.map(function(item, idx){
           var isSep = !!item.sep;
-          var isDraggingThis = dragging === idx;
-          var isOver = dragOver === idx;
           return (
             <div key={item._id+idx}
-              draggable={true}
-              onDragStart={function(e){e.dataTransfer.effectAllowed="move";setDragging(idx);}}
-              onDragOver={function(e){e.preventDefault();e.dataTransfer.dropEffect="move";setDragOver(idx);}}
-              onDragLeave={function(){setDragOver(null);}}
-              onDrop={function(e){e.preventDefault();if(dragging!==null)move(dragging,idx);setDragging(null);setDragOver(null);}}
-              onDragEnd={function(){setDragging(null);setDragOver(null);}}
-              style={{
+              {...sortable.itemProps(idx)}
+              style={sortable.itemStyle(idx, {
                 display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
-                borderRadius:10,border:"0.5px solid "+(isOver?"var(--ac-border)":"var(--b1)"),
-                background:isDraggingThis?"rgba(255,255,255,0.02)":isOver?"var(--ac-bg)":"rgba(255,255,255,0.03)",
-                cursor:"grab",opacity:item.hidden?0.45:1,transition:"border-color .1s,background .1s"
-              }}>
+                borderRadius:10,border:"0.5px solid var(--b1)",
+                background:"rgba(255,255,255,0.03)",
+                // Hidden buttons stay dimmed; the hook only overrides opacity
+                // for the row actually being dragged.
+                opacity:item.hidden?0.45:1
+              })}>
               <i className="fa-solid fa-grip-vertical" style={{fontSize:11,color:"var(--t5)",flexShrink:0}}/>
               {isSep
                 ? <div style={{flex:1,display:"flex",alignItems:"center",gap:10}}>

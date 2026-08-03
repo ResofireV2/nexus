@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import { toast } from "../components/Toasts";
 import { Toggle } from "../components/Select";
+import { useSortable } from "../lib/sortable";
 
 const MAX_REACTIONS = 8;
 const MIN_REACTIONS = 1;
@@ -72,7 +73,6 @@ export function AdminReactionsPanel({ reactionsCfg, setReactionsCfg, setIsDirty 
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const addBtnRef  = useRef(null);
-  const dragIdx    = useRef(null);
 
   const update = (patch) => {
     setReactionsCfg(p => ({ ...p, ...patch }));
@@ -84,22 +84,10 @@ export function AdminReactionsPanel({ reactionsCfg, setReactionsCfg, setIsDirty 
   };
 
   // ── Drag and drop ────────────────────────────────────────────────────────────
-  const onDragStart = (e, i) => {
-    dragIdx.current = i;
-    e.dataTransfer.effectAllowed = "move";
-  };
-  const onDragOver  = (e) => { e.preventDefault(); };
-  const onDrop      = (e, i) => {
-    e.preventDefault();
-    const from = dragIdx.current;
-    if (from === null || from === i) return;
-    const next = list.slice();
-    const [item] = next.splice(from, 1);
-    next.splice(i, 0, item);
-    dragIdx.current = null;
-    setList(next);
-  };
-  const onDragEnd   = () => { dragIdx.current = null; };
+  // Shared with the layout editors and with extensions via
+  // window.NexusComponents.useSortable, so reorder behaves the same everywhere.
+  const sortable = useSortable(list, setList);
+;
 
   // ── Label editing ────────────────────────────────────────────────────────────
   const updateLabel = (i, label) => {
@@ -168,17 +156,12 @@ export function AdminReactionsPanel({ reactionsCfg, setReactionsCfg, setIsDirty 
             {list.map((r, i) => (
               <div
                 key={r.emoji + i}
-                draggable
-                onDragStart={e => onDragStart(e, i)}
-                onDragOver={onDragOver}
-                onDrop={e => onDrop(e, i)}
-                onDragEnd={onDragEnd}
-                style={{
+                {...sortable.itemProps(i)}
+                style={sortable.itemStyle(i, {
                   display: "flex", alignItems: "center", gap: 14,
                   padding: "12px 16px",
                   borderBottom: i < list.length - 1 ? "0.5px solid var(--b1)" : "none",
-                  cursor: "grab",
-                }}>
+                })}>
                 {/* Drag handle */}
                 <i className="fa-solid fa-grip-vertical" style={{ fontSize: 11, color: "var(--t5)", flexShrink: 0 }}/>
                 {/* Emoji */}

@@ -6,6 +6,7 @@ import ReactDOM from "react-dom/client";
 import * as _rjsx     from "react/jsx-runtime";
 import * as _api      from "./lib/api";
 import * as _utils    from "./lib/utils";
+import * as _sortable from "./lib/sortable";
 import * as _avatar   from "./components/Avatar";
 import * as _markdown from "./components/Markdown";
 import * as _select   from "./components/Select";
@@ -23,6 +24,7 @@ import { RsAv, Av, openUserCard, useUserCard,
 import { Select, Toggle }                                  from "./components/Select";
 import { toast, Toasts }                                   from "./components/Toasts";
 import { Md, renderMd }                                    from "./components/Markdown";
+import { useSortable }                                     from "./lib/sortable";
 import "./components/LinkPreviewCard";
 import { onLinkPreviewReady, registerFreshUrls } from "./components/LinkPreviewCard";
 window._lpRegisterFresh = registerFreshUrls;
@@ -74,6 +76,7 @@ window.__nexusRuntime = {
   "react/jsx-runtime":                _rjsx,
   "lib/api":                          _api,
   "lib/utils":                        _utils,
+  "lib/sortable":                     _sortable,
   "components/Avatar":                _avatar,
   "components/Markdown":              _markdown,
   "components/Select":                _select,
@@ -5001,6 +5004,24 @@ function CookieBanner({ config }) {
 //     { text: string }  — renders Nexus's markdown flavor including
 //     mention links, post embeds, and other Nexus-specific syntax.
 //
+//   NexusComponents.useSortable
+//     useSortable(items, onChange) => { itemProps(i), itemStyle(i, baseStyle) }
+//     Drag-to-reorder for a flat list. Spread itemProps onto each row and pass
+//     your row's static style through itemStyle; the hook supplies the grab
+//     cursor, the drag opacity, and the insertion line showing exactly where
+//     the item will land. onChange receives the reordered array.
+//
+//     Uses HTML5 drag events, which work on touch via long press. Rows are
+//     draggable in full — a separate handle is not required, though a
+//     fa-grip-vertical icon is the convention in core for signalling it.
+//
+//       const s = NexusComponents.useSortable(rows, setRows);
+//       rows.map((r, i) =>
+//         React.createElement("div",
+//           Object.assign({ key: r.id, style: s.itemStyle(i, { padding: 10 }) },
+//                         s.itemProps(i)),
+//           r.label));
+//
 //   NexusComponents.toast
 //     toast(message: string, type?: "ok" | "err" | "warn") — fire-and-forget,
 //     a single <Toasts/> mount at the app root displays them. Already mounted;
@@ -5030,6 +5051,7 @@ window.NexusComponents = {
   Select,
   Av,
   Md,
+  useSortable,
   toast,
 };
 

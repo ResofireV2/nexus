@@ -27,6 +27,7 @@ const SHARED = {
   "react/jsx-runtime":               "react/jsx-runtime",
   "lib/api":                         "lib/api",
   "lib/utils":                       "lib/utils",
+  "lib/sortable":                    "lib/sortable",
   "components/Avatar":               "components/Avatar",
   "components/Markdown":             "components/Markdown",
   "components/Select":               "components/Select",
