@@ -78,27 +78,32 @@ defmodule Nexus.Appearance.ThemeVars do
   `"active_theme_dark"` / `"active_theme_light"` maps with `"variables"`,
   `"dark_variables"` and `"light_variables"` sub-maps.
   """
+  # Single source of truth for an unset colour: the same map a fresh install is
+  # seeded with. Previously each site carried its own literal, so the value an
+  # unset field resolved to depended on which code path asked.
+  defp default_appearance(field), do: Nexus.Admin.default_setting("appearance")[field]
+
   def vars("dark", app) do
-    accent = present(app["accent_color"], "#4A90E2")
+    accent = present(app["accent_color"], default_appearance("accent_color"))
 
     @dark_static
     |> Kernel.++([{"--ac", accent}])
     |> Kernel.++(accent_pairs(accent_dark(accent)))
     |> Kernel.++(surface_pairs(app["tint_color"], &tint_dark(&1, app["tint_intensity"]), @dark_surface_default))
-    |> Kernel.++([{"--link-color", present(app["link_color"], "#60a5fa")}])
+    |> Kernel.++([{"--link-color", present(app["link_color"], default_appearance("link_color"))}])
     |> Kernel.++([{"--av-radius", "#{radius(app["avatar_radius"])}%"}])
     |> Kernel.++(fs_pairs(app))
     |> Kernel.++(theme_override_pairs(app["active_theme_dark"], "dark_variables"))
   end
 
   def vars("light", app) do
-    accent = normalize_hash(present(app["light_accent_color"], "#2563eb"))
+    accent = normalize_hash(present(app["light_accent_color"], default_appearance("light_accent_color")))
 
     @light_static
     |> Kernel.++([{"--ac", accent}])
     |> Kernel.++(accent_pairs(accent_light(accent)))
     |> Kernel.++(surface_pairs(app["light_tint_color"], &tint_light(&1, app["light_tint_intensity"]), @light_surface_default))
-    |> Kernel.++([{"--link-color", present(app["light_link_color"], "#2563eb")}])
+    |> Kernel.++([{"--link-color", present(app["light_link_color"], default_appearance("light_link_color"))}])
     |> Kernel.++([{"--av-radius", "#{radius(app["avatar_radius"])}%"}])
     |> Kernel.++(fs_pairs(app))
     |> Kernel.++(theme_override_pairs(app["active_theme_light"], "light_variables"))

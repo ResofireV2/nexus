@@ -260,6 +260,12 @@ defmodule Nexus.Admin do
     "appearance" => %{
       "accent_color"       => "#4A90E2",
       "light_accent_color" => "#2563eb",
+      # Seeded here rather than left to a literal in the render path. These were
+      # previously only expressed as fallbacks inside ThemeVars and applyTheme,
+      # which meant an unset value resolved differently depending on which one
+      # ran first.
+      "link_color"         => "#60a5fa",
+      "light_link_color"   => "#2563eb",
       "dark_mode_default"  => true,
       "avatar_radius"      => 22
     },
@@ -394,6 +400,16 @@ defmodule Nexus.Admin do
       end
     end)
   end
+
+  @doc """
+  The shipped default map for a settings section.
+
+  Exposed so render paths can fall back to the same values a fresh install is
+  seeded with, instead of each one carrying its own literal. Duplicated
+  literals were how an unset field could produce a different colour depending
+  on which code path resolved it.
+  """
+  def default_setting(key), do: Map.get(@defaults, key, %{})
 
   def get_setting(key) do
     Nexus.SettingsCache.get(key, fn -> fetch_setting(key) end)

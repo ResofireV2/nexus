@@ -1965,40 +1965,60 @@ function applyTheme(mode, app={}) {
   _currentTheme = mode;
   r.setAttribute("data-theme", mode);
 
+  // No hardcoded colour fallbacks below this line.
+  //
+  // The server renders every variable for both themes into
+  // <style id="nexus-theme-vars"> from the admin's saved settings, and
+  // Nexus.Admin's @defaults guarantee those settings always carry a value. So
+  // there is exactly one source of truth for a colour, and this function's job
+  // is only to override it once real appearance data has arrived.
+  //
+  // Previously each branch substituted a literal when a field was absent —
+  // "#4A90E2" for the dark accent, "#2563eb" for light. Both callers of this
+  // function pass `window._appBrandingForTheme || {}`, and that global is not
+  // set until appearance data loads (see below). An OS theme change or a manual
+  // toggle before that point therefore called this with `{}` and wrote the
+  // literal *inline on documentElement*, where it beats the server stylesheet
+  // and stays for the rest of the session. That is the intermittent wrong
+  // accent on first load.
+  //
+  // Now an absent field means "leave it alone" and the server-rendered value
+  // stands.
   if (mode === "light") {
     // 1. Base text + border vars
     Object.entries(LIGHT_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
     // 2. Admin accent
-    const ac = app.light_accent_color || "#2563eb";
-    r.style.setProperty("--ac", ac.startsWith("#") ? ac : `#${ac}`);
-    const acVars = deriveAccentVarsLight(ac.startsWith("#") ? ac : `#${ac}`);
-    if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
-    // 3. Admin surface tint or fallback
+    if (app.light_accent_color) {
+      const raw = app.light_accent_color;
+      const ac = raw.startsWith("#") ? raw : `#${raw}`;
+      r.style.setProperty("--ac", ac);
+      const acVars = deriveAccentVarsLight(ac);
+      if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
+    }
+    // 3. Admin surface tint
     if (app.light_tint_color) {
       const tint = deriveTintVarsLight(app.light_tint_color, app.light_tint_intensity);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-    } else {
-      r.style.setProperty("--bg","#f4f4f5"); r.style.setProperty("--s1","#ffffff"); r.style.setProperty("--s2","#e4e4e7"); r.style.setProperty("--s3","#d4d4d8");
     }
     // 4. Content link color (post/reply body hyperlinks only)
-    r.style.setProperty("--link-color", app.light_link_color || "#2563eb");
+    if (app.light_link_color) r.style.setProperty("--link-color", app.light_link_color);
   } else {
     // 1. Base text + border vars
     Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
     // 2. Admin accent
-    const ac = app.accent_color || "#4A90E2";
-    r.style.setProperty("--ac", ac);
-    const acVars = deriveAccentVars(ac);
-    if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
-    // 3. Admin surface tint or fallback
+    if (app.accent_color) {
+      const ac = app.accent_color;
+      r.style.setProperty("--ac", ac);
+      const acVars = deriveAccentVars(ac);
+      if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
+    }
+    // 3. Admin surface tint
     if (app.tint_color) {
       const tint = deriveTintVars(app.tint_color, app.tint_intensity);
       if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
-    } else {
-      r.style.setProperty("--bg","#111111"); r.style.setProperty("--s1","#1a1a1a"); r.style.setProperty("--s2","#222222"); r.style.setProperty("--s3","#2a2a2a");
     }
     // 4. Content link color (post/reply body hyperlinks only)
-    r.style.setProperty("--link-color", app.link_color || "#60a5fa");
+    if (app.link_color) r.style.setProperty("--link-color", app.link_color);
   }
   // Apply admin non-colour vars (avatar radius, font sizes).
   // Placed here so they are set before css_vars can override them, and so
