@@ -18,7 +18,7 @@ defmodule NexusWeb.Plugs.PwaSettings do
     |> assign(:pwa_theme_color,      pwa["theme_color"]      || "#5B4EF5")
     |> assign(:pwa_app_name,         pwa["app_name"] || general["site_name"] || "Nexus")
     |> assign(:pwa_icon_path,        pwa["icon_180_path"] || pwa["icon_192_path"] || "/images/icon-192.png")
-    |> assign(:og_site_name,         general["site_name"] || "Nexus")
+    |> assign(:og_site_name,         general["site_name"] || Nexus.Admin.default_setting("general")["site_name"])
     |> assign(:og_description,       general["site_description"] || "")
     |> assign(:og_image_url,         case general["og_image_url"] do
          nil -> nil

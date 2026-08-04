@@ -38,9 +38,13 @@
     <meta name="twitter:card" content="summary" />
     <% end %>
 
-    <.live_title suffix=" · Nexus">
-      <%= assigns[:page_title] || "Forum" %>
-    </.live_title>
+    <%!-- The suffix was hardcoded to " · Nexus", so the first paint — and the
+         PWA app switcher, and the tab on a slow connection — showed the product
+         name rather than the forum's. React overwrote it with site_name once
+         branding resolved, which is why it looked like a flash rather than a
+         wrong value. @og_site_name is already the admin's forum name and is
+         assigned on the same request. --%>
+    <title><%= if assigns[:page_title], do: assigns[:page_title] <> " · " <> @og_site_name, else: @og_site_name %></title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <%!-- FontAwesome split out of app.css and loaded non-render-blocking: the
          core styles above paint immediately, icons swap in a beat later. The

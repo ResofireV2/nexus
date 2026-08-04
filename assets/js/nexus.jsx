@@ -2572,8 +2572,8 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
     <div className={mobile?"mob-sidebar-inner":"sidebar"}>
       <div className="sb-logo" style={{cursor:"pointer"}} onClick={()=>navigate("feed",{})}>
         {branding.logo_url
-          ?<img src={branding.logo_url} style={{height:32,maxWidth:140,objectFit:"contain"}} alt={branding.site_name||"nexus"}/>
-          :<span className="logo-text">{branding.site_name||<>nexus<em>.</em></>}</span>}
+          ?<img src={branding.logo_url} style={{height:32,maxWidth:140,objectFit:"contain"}} alt={branding.site_name||""}/>
+          :<span className="logo-text">{branding.site_name}</span>}
       </div>
       <div className="sb-scroll">
         {installPrompt&&isMobileDevice&&!installDismissed&&(
@@ -4187,7 +4187,7 @@ function MobileTopBar({onHamburger, onRight, branding, onNavigateHome}) {
       <div className="mob-topbar-logo" onClick={onNavigateHome} style={{cursor:"pointer"}}>
         {branding?.logo_url
           ? <img src={branding.logo_url} style={{height:28,objectFit:"contain"}} alt="logo"/>
-          : <>{branding?.site_name||"nexus"}<em>.</em></>}
+          : <>{branding?.site_name}</>}
       </div>
       <button className="mob-icon-btn" onClick={onRight} aria-label="Activity">
         <i className="fa-solid fa-chart-simple"/>
