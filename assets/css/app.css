@@ -209,7 +209,14 @@ select option{background:var(--s2);color:var(--t1);}
 .sb-sub-item.active .sb-item-count{color:var(--ac-text);}
 [data-theme="light"] .sb-item-inner:hover{background:rgba(0,0,0,0.04);}
 [data-theme="light"] .sb-sub-item:hover{background:rgba(0,0,0,0.04);}
-.sb-badge{font-size:10px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:1px 7px;font-weight:500;}
+/* Unread badges. Accent rather than red across the board: red reads as an
+   error or a warning, and an unread message is neither. --ac-bg gives the
+   tinted pill and --ac-text the readable foreground on it, the same pairing
+   the active sidebar item uses.
+
+   The rgba() literal this replaced was a hardcoded copy of --red, so it also
+   ignored any light-mode adjustment. */
+.sb-badge{font-size:10px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);border-radius:20px;padding:1px 7px;font-weight:600;}
 .sb-divider{height:0.5px;background:var(--b1);margin:8px 0;}
 .sb-user{border-top:0.5px solid var(--b1);padding:10px 12px;display:flex;align-items:center;gap:9px;flex-shrink:0;}
 .sb-user-info{flex:1;min-width:0;}
@@ -240,8 +247,10 @@ select option{background:var(--s2);color:var(--t1);}
 .tb-search-all:hover{background:rgba(255,255,255,0.04);}
 .icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.09);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;transition:background .1s;color:rgba(255,255,255,0.55);}
 .icon-btn:hover{background:rgba(255,255,255,0.09);}
-.icon-badge{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:1.5px solid var(--bg);}
-.icon-badge.green{background:var(--green);}
+/* Topbar icon badge. Now carries a count like the others rather than being a
+   bare dot, and drops the green variant: the bell and message icons already
+   distinguish the two, so colour was not carrying that information. */
+.icon-badge{position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:20px;background:var(--ac);color:var(--ac-on);border:1.5px solid var(--bg);font-size:9px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;box-sizing:border-box;}
 .write-btn{font-size:15px;color:var(--ac-on);background:var(--ac);border:none;border-radius:24px;padding:10px 24px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity .1s;}
 .write-btn:hover{opacity:.9;}
 .space-follow-btn{font-size:13px;padding:6px 16px;border-radius:20px;cursor:pointer;font-family:inherit;transition:all .15s;font-weight:500;border:none;}
@@ -619,7 +628,12 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
 .mob-tab i{font-size:20px;}
 .mob-tab-label{font-size:9px;letter-spacing:.2px;}
 .mob-tab-compose{width:46px;height:46px;border-radius:14px;background:var(--ac);color:var(--ac-on);display:flex;align-items:center;justify-content:center;font-size:24px;border:none;cursor:pointer;box-shadow:0 2px 12px rgba(74,144,226,.4);}
-.mob-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg);}
+/* Mobile tab bar count badge. Was a 7px red dot with no number.
+   min-width with horizontal padding lets it grow from a single digit to "99+"
+   without the tab reflowing — the tab is 52px wide and the badge is anchored to
+   the icon, so even the widest form stays clear of its neighbour.
+   --ac-on, not #fff: the accent is admin-chosen and can be light. */
+.mob-badge{position:absolute;top:1px;right:6px;min-width:16px;height:16px;padding:0 4px;border-radius:20px;background:var(--ac);color:var(--ac-on);border:1.5px solid var(--bg);font-size:9px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;box-sizing:border-box;}
 .mob-overlay{position:fixed;inset:0;background:var(--bg);z-index:950;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
 .mob-overlay.right{transform:translateX(100%);}
 .mob-overlay.open{transform:translateX(0);}

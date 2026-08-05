@@ -2536,6 +2536,10 @@ function SpaceWithChildren({space, col, children, parentActive, defaultExpanded,
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
+// Shared so the sidebar, topbar and mobile tab bar cap identically. Past 99 the
+// exact number stops being useful and a 3+ digit badge starts pushing layout.
+function badgeCount(n) { return n > 99 ? "99+" : String(n); }
+
 function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, notifCount=0, msgCount=0, modReportCount=0, onAuthRequired, layoutCfg={}, mobile=false}) {
   const [branding, setBranding] = useState(() => ({logo_url:_brandingState.logo_url, site_name:_brandingState.site_name}));
   const [installPrompt, setInstallPrompt] = useState(window._installPrompt||null);
@@ -2563,7 +2567,7 @@ function Sidebar({currentUser, spaces, page, pageProps, navigate, onLogout, noti
       <div className={`sb-item ${active?"active":""}`} onClick={()=>navigate(targetPage,targetProps)}>
         <i className={`fa-solid ${icon}`}></i>
         <span className="sb-item-name">{label}</span>
-        {badge>0 && <span className="sb-badge">{badge>99?"99+":badge}</span>}
+        {badge>0 && <span className="sb-badge">{badgeCount(badge)}</span>}
         {count!=null && !badge && <span className="sb-item-count">{count}</span>}
       </div>
     );
@@ -2856,11 +2860,11 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
         {currentUser ? <>
           <div className="icon-btn" onClick={()=>navigate("notifications")} title="Notifications">
             <i className="fa-solid fa-bell" style={{fontSize:16}}></i>
-            {notifCount>0&&<div className="icon-badge"/>}
+            {notifCount>0&&<div className="icon-badge">{badgeCount(notifCount)}</div>}
           </div>
           <div className="icon-btn" onClick={()=>navigate("messages")} title="Messages">
             <i className="fa-solid fa-message" style={{fontSize:16}}></i>
-            {msgCount>0&&<div className="icon-badge green"/>}
+            {msgCount>0&&<div className="icon-badge">{badgeCount(msgCount)}</div>}
           </div>
           <div className="icon-btn" onClick={()=>navigate("drafts")} title="Drafts">
             <i className="fa-solid fa-file-pen" style={{fontSize:16}}></i>
@@ -4202,12 +4206,12 @@ function MobileTabBar({currentUser, navigate, page, notifCount, msgCount, onComp
       <div className="mob-tabbar">
         <button className="mob-tab" onClick={()=>navigate("notifications")}>
           <i className="fa-solid fa-bell"/>
-          {notifCount>0&&<div className="mob-badge"/>}
+          {notifCount>0&&<div className="mob-badge">{badgeCount(notifCount)}</div>}
           <span className="mob-tab-label">Alerts</span>
         </button>
         <button className="mob-tab" onClick={()=>navigate("messages")}>
           <i className="fa-solid fa-message"/>
-          {msgCount>0&&<div className="mob-badge"/>}
+          {msgCount>0&&<div className="mob-badge">{badgeCount(msgCount)}</div>}
           <span className="mob-tab-label">Messages</span>
         </button>
         <button className="mob-tab-compose" onClick={onCompose} aria-label="Write">+</button>
