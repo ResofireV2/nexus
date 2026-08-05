@@ -426,6 +426,123 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
 
 
 // ── AdminPage ─────────────────────────────────────────────────────────────────
+// ── Typography editor ─────────────────────────────────────────────────────────
+//
+// Replaces six range sliders. Sliders were the wrong control here for two
+// reasons: the ranges differ (fs_ui spans 9-14, fs_title spans 16-28), so equal
+// drag distances meant different things, and a slider cannot be typed into.
+//
+// The specimen beside each field and the preview below use the real classes, so
+// they inherit the CSS variable this writes to documentElement rather than
+// restating any sizing. They are the live interface, not an approximation.
+const FS_FIELDS = [
+  {key:"fs_ui",         label:"UI labels",         hint:"Section headers, tags, sort pills, timestamps", min:9,  max:14},
+  {key:"fs_body",       label:"Interface text",    hint:"Sidebar items, feed text, messages, buttons",   min:11, max:16},
+  {key:"fs_feed_title", label:"Feed post titles",  hint:"Post title size on the feed and search pages",  min:11, max:20},
+  {key:"fs_title",      label:"Post titles",       hint:"Thread title on the post page",                 min:16, max:28},
+  {key:"fs_content",    label:"Post & reply body", hint:"Written content inside posts and replies",      min:12, max:18},
+  {key:"fs_code",       label:"Code blocks",       hint:"Inline code and code block text",               min:10, max:15},
+];
+
+// Default matches the seeded values in Nexus.Admin @defaults. The others move
+// content sizes more than UI chrome — someone choosing "Large" wants bigger
+// reading text, not a bigger timestamp.
+const FS_PRESETS = {
+  compact:     {fs_ui:10, fs_body:12, fs_feed_title:13, fs_title:18, fs_content:13, fs_code:11},
+  default:     {fs_ui:11, fs_body:13, fs_feed_title:14, fs_title:20, fs_content:14, fs_code:12},
+  comfortable: {fs_ui:12, fs_body:14, fs_feed_title:16, fs_title:23, fs_content:16, fs_code:13},
+  large:       {fs_ui:13, fs_body:15, fs_feed_title:18, fs_title:26, fs_content:18, fs_code:14},
+};
+
+function TypographyEditor({branding, setBranding}) {
+  const val = k => branding[k] ?? FS_PRESETS.default[k];
+
+  const apply = (k, v) => {
+    setBranding(p => ({...p, [k]: v}));
+    // Same write the old slider did. Every specimen and the preview below read
+    // these variables, so they update without being told.
+    document.documentElement.style.setProperty(`--${k.replaceAll("_","-")}`, `${v}px`);
+  };
+
+  const applyPreset = name => {
+    const preset = FS_PRESETS[name];
+    setBranding(p => ({...p, ...preset}));
+    Object.entries(preset).forEach(([k,v]) =>
+      document.documentElement.style.setProperty(`--${k.replaceAll("_","-")}`, `${v}px`));
+  };
+
+  // A preset is "active" only while every value still matches it; editing any
+  // field silently deselects, because the set is no longer that preset.
+  const activePreset = Object.keys(FS_PRESETS).find(name =>
+    FS_FIELDS.every(f => val(f.key) === FS_PRESETS[name][f.key]));
+
+  const specimen = key => {
+    if (key === "fs_ui")   return <span className="post-tag" style={{background:"var(--ac-bg)",color:"var(--ac-text)"}}>#tag</span>;
+    if (key === "fs_code") return <span style={{fontFamily:"monospace",fontSize:"var(--fs-code)",color:"var(--t3)"}}>Aa</span>;
+    const sizeVar = `var(--${key.replaceAll("_","-")})`;
+    const bold = key === "fs_title" || key === "fs_feed_title";
+    return <span style={{fontSize:sizeVar,fontWeight:bold?600:400,color:bold?"var(--t1)":"var(--t3)"}}>Aa</span>;
+  };
+
+  return (
+    <>
+      <div className="pill-row" style={{marginBottom:6}}>
+        {Object.keys(FS_PRESETS).map(name => (
+          <button key={name} type="button" onClick={()=>applyPreset(name)}
+            className={`pill${activePreset===name?" active":""}`}
+            style={{textTransform:"capitalize"}}>{name}</button>
+        ))}
+      </div>
+      <div style={{fontSize:12,color:"var(--t5)",marginBottom:18}}>
+        Presets set all six values together. Adjust any field below to fine-tune.
+      </div>
+
+      {FS_FIELDS.map(({key,label,hint,min,max}) => (
+        <F key={key} label={label} hint={hint}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <input className="fi" type="number" min={min} max={max} style={{width:72}}
+              value={val(key)}
+              onChange={e=>{
+                const v = parseInt(e.target.value, 10);
+                // Ignore a half-typed or out-of-range value rather than writing
+                // NaN into the CSS variable, which would blank the interface.
+                if (Number.isNaN(v) || v < min || v > max) return;
+                apply(key, v);
+              }}/>
+            <span style={{fontSize:11,color:"var(--t5)",whiteSpace:"nowrap"}}>{min}–{max}px</span>
+            <span style={{marginLeft:"auto"}}>{specimen(key)}</span>
+          </div>
+        </F>
+      ))}
+
+      <div className="fgt" style={{marginTop:20}}>Live preview</div>
+      <div style={{border:"0.5px solid var(--b1)",borderRadius:12,padding:"14px 16px",background:"var(--s1)"}}>
+        <div style={{display:"flex",gap:12}}>
+          <div style={{width:40,height:40,borderRadius:8,background:"var(--ac-bg)",color:"var(--ac-text)",
+                       display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>SG</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div className="thread-title" style={{marginBottom:3}}>Third winter wiped my whole colony</div>
+            <div className="thread-preview" style={{marginBottom:7}}>Fifteen colonists, two of them my starting pair, and I still don't know whether the heater failed first.</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span className="part-label" style={{marginLeft:0}}>6 replies</span>
+              <span className="post-tag" style={{background:"var(--ac-bg)",color:"var(--ac-text)"}}>#story</span>
+              <span className="part-label" style={{marginLeft:0}}>4h</span>
+            </div>
+          </div>
+          <div className="thread-tag" style={{background:"var(--ac-bg)",color:"var(--ac-text)",alignSelf:"flex-start"}}>Colony Sims</div>
+        </div>
+        <div style={{borderTop:"0.5px solid var(--b1)",marginTop:12,paddingTop:12}}>
+          <div className="post-title" style={{marginBottom:6}}>Third winter wiped my whole colony</div>
+          <div className="md-body">
+            The heater failed on day 41. I had two spare components and no way to reach the
+            trade caravan, so I made the call to <code>rebuild</code> the whole power grid.
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={}, setLayoutCfg}) {
   const [sec,setSec_raw]=useState("overview");
   const setSec = (s) => { setSec_raw(s); setMemberSearch(""); };
@@ -1155,27 +1272,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               </div>
             </F>
             <div className="fgt" style={{marginTop:16}}>Typography</div>
-            {[
-              {key:"fs_ui",      label:"UI labels",          hint:"Section headers, tags, sort pills, timestamps",  min:9,  max:14, def:11},
-              {key:"fs_body",    label:"Interface text",     hint:"Sidebar items, feed text, messages, buttons",    min:11, max:16, def:13},
-              {key:"fs_feed_title", label:"Feed post titles",   hint:"Post title size on the feed and search pages",  min:11, max:20, def:14},
-              {key:"fs_title",   label:"Post titles",        hint:"Thread title on the post page",                  min:16, max:28, def:20},
-              {key:"fs_content", label:"Post & reply body",  hint:"Written content inside posts and replies",       min:12, max:18, def:14},
-              {key:"fs_code",    label:"Code blocks",        hint:"Inline code and code block text",                min:10, max:15, def:12},
-            ].map(({key,label,hint,min,max,def})=>(
-              <F key={key} label={label} hint={hint}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <input type="range" min={min} max={max} value={branding[key]??def}
-                    style={{flex:1,accentColor:"var(--ac)"}}
-                    onChange={e=>{
-                      const v=parseInt(e.target.value);
-                      setBranding(p=>({...p,[key]:v}));
-                      document.documentElement.style.setProperty(`--${key.replaceAll("_","-")}`,`${v}px`);
-                    }}/>
-                  <span style={{fontSize:12,color:"var(--t4)",minWidth:32,textAlign:"right"}}>{branding[key]??def}px</span>
-                </div>
-              </F>
-            ))}
+            <TypographyEditor branding={branding} setBranding={setBranding}/>
             <div className="fgt" style={{marginTop:16}}>Custom CSS</div>
             <textarea className="fi" style={{fontFamily:"monospace",fontSize:12,minHeight:100,resize:"vertical",lineHeight:1.6,color:"var(--ac-text)"}} value={branding.custom_css||""} onChange={e=>setBranding(p=>({...p,custom_css:e.target.value}))} placeholder="/* Additional styles */"/>
           </>}

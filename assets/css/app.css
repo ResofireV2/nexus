@@ -41,7 +41,7 @@ i.fa-brands[style*="display: block"] {
 :root{
   --tgl-off:rgba(255,255,255,0.12);
   --tgl-knob-off:rgba(255,255,255,0.75);
-  --fs-ui:16px;
+  --fs-ui:11px;
   --fs-body:13px;
   --fs-title:20px;
   --fs-content:14px;

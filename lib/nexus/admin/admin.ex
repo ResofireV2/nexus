@@ -267,7 +267,19 @@ defmodule Nexus.Admin do
       "link_color"         => "#60a5fa",
       "light_link_color"   => "#2563eb",
       "dark_mode_default"  => true,
-      "avatar_radius"      => 22
+      "avatar_radius"      => 22,
+      # Seeded so ThemeVars always emits them. Previously these existed only as
+      # :root values in app.css and as `def:` literals in the admin panel, and
+      # the two disagreed — app.css shipped --fs-ui at 16px while the panel
+      # showed a default of 11. On an untouched install the control therefore
+      # displayed a number that had nothing to do with what rendered, and
+      # nudging it one step made text smaller rather than larger.
+      "fs_ui"              => 11,
+      "fs_body"            => 13,
+      "fs_feed_title"      => 14,
+      "fs_title"           => 20,
+      "fs_content"         => 14,
+      "fs_code"            => 12
     },
     "uploads" => %{
       "max_size_mb"          => 5,
