@@ -19,7 +19,7 @@ import { Md } from "./Markdown";
 
 // Slash command menu items
 const SLASH_ITEMS = [
-  {type:"image",   icon:"🖼",  label:"Image",       desc:"Upload or embed"},
+  {type:"image",   icon:'<i class="fa-solid fa-image"></i>', label:"Image", desc:"Upload or embed"},
   {type:"grid",    icon:"⊞",   label:"Image grid",  desc:"Mosaic image layout"},
   {type:"code",    icon:"</>", label:"Code block",  desc:"Syntax highlighted"},
   {type:"quote",   icon:'"',   label:"Blockquote",  desc:"Highlight a quote"},
@@ -40,15 +40,15 @@ export const TB_BTNS = [
   {sep:true},
   {type:"incode",  label:"</>", tip:"Inline code",   style:{fontFamily:"monospace",fontSize:11},wrap:["`","`"]},
   {type:"code",    label:"≡",   tip:"Code block",    style:{fontFamily:"monospace"},            wrap:["```\n","\n```"]},
-  {type:"link",    label:"🔗",  tip:"Link",          style:{},                                 wrap:["[","](url)"]},
+  {type:"link",    label:"fa-solid fa-link", tip:"Link",          style:{},                                 wrap:["[","](url)"]},
   {type:"quote",   label:"❝",   tip:"Blockquote",    style:{},                                 wrap:["> ",""]},
   {type:"divider", label:"—",   tip:"Divider",       style:{},                                 wrap:["\n---\n",""]},
   {sep:true},
-  {type:"spoiler", label:"👁",  tip:"Spoiler",       style:{},                                 wrap:["||","||"]},
+  {type:"spoiler", label:"fa-solid fa-eye-slash", tip:"Spoiler",       style:{},                                 wrap:["||","||"]},
   {sep:true},
   {type:"emoji",   label:"fa-solid fa-face-smile", tip:"Emoji", style:{},                     wrap:null},
   {sep:true},
-  {type:"image",   label:"🖼",  tip:"Upload image",  style:{},                                 wrap:null},
+  {type:"image",   label:"fa-solid fa-image", tip:"Upload image",  style:{},                                 wrap:null},
   {type:"grid",    label:"fa-solid fa-table-cells", tip:"Image grid", style:{}, wrap:null, grid:true},
   {sep:true},
 ];
