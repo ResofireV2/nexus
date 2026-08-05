@@ -186,7 +186,7 @@ select option{background:var(--s2);color:var(--t1);}
 .sb-item:hover{background:rgba(255,255,255,0.04);}
 .sb-item.active{background:var(--ac-bg);}
 .sb-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
-.sb-item i{width:18px;text-align:center;font-size:15px;flex-shrink:0;color:var(--t3);}
+.sb-item i{width:18px;text-align:center;font-size:calc(var(--fs-body) + 2px);flex-shrink:0;color:var(--t3);}
 .sb-item.active i{color:var(--ac);}
 .sb-item-name{font-size:var(--fs-body);color:var(--t3);flex:1;}
 .sb-item.active .sb-item-name{color:var(--ac-text);font-weight:500;}
@@ -928,17 +928,25 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .admin-badge{font-size:12px;font-weight:500;background:rgba(251,191,36,.15);color:var(--amber);border:0.5px solid rgba(251,191,36,.3);border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:6px;}
 .admin-sidenav{width:320px;min-width:320px;border-right:0.5px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;}
 .admin-sidenav-scroll{flex:1;overflow-y:auto;padding:12px 0;}
-.admin-sn-label{font-size:12px;font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 18px;margin-bottom:4px;margin-top:16px;}
+/* Mirrors the forum sidebar (.sb-label / .sb-item-name / .sb-badge) rather than
+   hardcoding a scale. These were 12px and 16px against the forum's --fs-ui and
+   --fs-body, so the admin nav read noticeably heavier than the sidebar it sits
+   beside — and it ignored the typography settings entirely.
+
+   Padding and gap stay larger than the forum's: the admin nav is a wider column
+   with longer labels, and matching the type scale is what removes the jarring
+   part, not matching the density. */
+.admin-sn-label{font-size:var(--fs-ui);font-weight:500;color:var(--t5);letter-spacing:.8px;text-transform:uppercase;padding:0 18px;margin-bottom:4px;margin-top:16px;}
 .admin-sn-label:first-child{margin-top:2px;}
 .admin-sn-item{display:flex;align-items:center;gap:14px;padding:12px 20px;cursor:pointer;position:relative;transition:background .1s;}
 .admin-sn-item:hover{background:rgba(255,255,255,0.04);}
 .admin-sn-item.active{background:var(--ac-bg);}
 .admin-sn-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2.5px;background:var(--ac);border-radius:0 2px 2px 0;}
-.admin-sn-item i{width:20px;text-align:center;font-size:17px;flex-shrink:0;color:var(--t4);}
+.admin-sn-item i{width:20px;text-align:center;font-size:calc(var(--fs-body) + 2px);flex-shrink:0;color:var(--t4);}
 .admin-sn-item.active i{color:var(--ac);}
-.admin-sn-item-name{font-size:16px;color:var(--t3);flex:1;}
+.admin-sn-item-name{font-size:var(--fs-body);color:var(--t3);flex:1;}
 .admin-sn-item.active .admin-sn-item-name{color:var(--ac-text);font-weight:500;}
-.admin-sn-badge{font-size:12px;background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:3px 9px;font-weight:500;}
+.admin-sn-badge{font-size:var(--fs-ui);background:rgba(248,113,113,0.2);color:var(--red);border-radius:20px;padding:2px 8px;font-weight:600;}
 .admin-content-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .admin-content-header{padding:0 36px;height:64px;border-bottom:0.5px solid var(--b1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .admin-content-title{font-size:20px;font-weight:600;color:var(--t1);letter-spacing:-.2px;}
