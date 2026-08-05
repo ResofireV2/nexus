@@ -531,6 +531,28 @@ function TypographyEditor({branding, setBranding}) {
           </div>
           <div className="thread-tag" style={{background:"var(--ac-bg)",color:"var(--ac-text)",alignSelf:"flex-start"}}>Colony Sims</div>
         </div>
+        <div style={{borderTop:"0.5px solid var(--b1)",marginTop:12,paddingTop:12,display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap"}}>
+          <div style={{minWidth:150}}>
+            <div className="sb-label" style={{marginTop:0,padding:0}}>Explore</div>
+            <div className="sb-item" style={{padding:"6px 0"}}>
+              <i className="fa-solid fa-table-cells-large"/>
+              <span className="sb-item-name">Everything</span>
+            </div>
+            <div className="sb-item active" style={{padding:"6px 0"}}>
+              <i className="fa-solid fa-bell"/>
+              <span className="sb-item-name">Notifications</span>
+              <span className="sb-badge">3</span>
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:190}}>
+            <div className="bubble" style={{background:"var(--s2)",display:"inline-block",marginBottom:6}}>Did the heater hold?</div>
+            <div className="bubble" style={{background:"var(--ac)",color:"var(--ac-on)",display:"inline-block",marginLeft:"auto"}}>Not even close.</div>
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <button type="button" className="btn-primary">Reply</button>
+              <button type="button" className="btn-ghost">Cancel</button>
+            </div>
+          </div>
+        </div>
         <div style={{borderTop:"0.5px solid var(--b1)",marginTop:12,paddingTop:12}}>
           <div className="post-title" style={{marginBottom:6}}>Third winter wiped my whole colony</div>
           <div className="md-body">

@@ -216,7 +216,7 @@ select option{background:var(--s2);color:var(--t1);}
 
    The rgba() literal this replaced was a hardcoded copy of --red, so it also
    ignored any light-mode adjustment. */
-.sb-badge{font-size:10px;background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);border-radius:20px;padding:1px 7px;font-weight:600;}
+.sb-badge{font-size:var(--fs-ui);background:var(--ac-bg);color:var(--ac-text);border:0.5px solid var(--ac-border);border-radius:20px;padding:1px 7px;font-weight:600;}
 .sb-divider{height:0.5px;background:var(--b1);margin:8px 0;}
 .sb-user{border-top:0.5px solid var(--b1);padding:10px 12px;display:flex;align-items:center;gap:9px;flex-shrink:0;}
 .sb-user-info{flex:1;min-width:0;}
@@ -656,10 +656,10 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
 .comp-char{font-size:14px;color:var(--t5);}
 
 /* Buttons */
-.btn-primary{font-size:14px;padding:9px 22px;border-radius:22px;background:var(--ac);color:var(--ac-on);border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
+.btn-primary{font-size:var(--fs-body);padding:9px 22px;border-radius:22px;background:var(--ac);color:var(--ac-on);border:none;cursor:pointer;font-family:inherit;font-weight:500;transition:opacity .1s;}
 .btn-primary:hover{opacity:.9;}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed;}
-.btn-ghost{font-size:13px;padding:7px 18px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
+.btn-ghost{font-size:var(--fs-body);padding:7px 18px;border-radius:20px;background:transparent;border:0.5px solid rgba(255,255,255,0.12);color:var(--t3);cursor:pointer;font-family:inherit;transition:all .1s;}
 .btn-ghost:hover{color:var(--t1);border-color:var(--b2);}
 
 /* Tags / space pills */
