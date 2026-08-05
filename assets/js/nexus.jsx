@@ -2005,6 +2005,7 @@ function applyTheme(mode, app={}) {
     }
     // 4. Content link color (post/reply body hyperlinks only)
     if (app.light_link_color) r.style.setProperty("--link-color", app.light_link_color);
+    else if (app.light_accent_color) r.style.setProperty("--link-color", app.light_accent_color);
   } else {
     // 1. Base text + border vars
     Object.entries(DARK_VARS).forEach(([k,v]) => r.style.setProperty(k,v));
@@ -2022,6 +2023,7 @@ function applyTheme(mode, app={}) {
     }
     // 4. Content link color (post/reply body hyperlinks only)
     if (app.link_color) r.style.setProperty("--link-color", app.link_color);
+    else if (app.accent_color) r.style.setProperty("--link-color", app.accent_color);
   }
   // Apply admin non-colour vars (avatar radius, font sizes).
   // Placed here so they are set before css_vars can override them, and so

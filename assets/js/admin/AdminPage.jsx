@@ -1140,50 +1140,80 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               const onlyOne = (darkOn && !lightOn) || (!darkOn && lightOn);
               const [appTab, setAppTab] = [branding._appTab||"dark", v=>setBranding(p=>({...p,_appTab:v}))];
               return (<>
-                {/* Enable/disable toggles */}
-                <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-                  {[{key:"dark_enabled",label:"Dark mode",def:true,color:"#4A90E2"},{key:"light_enabled",label:"Light mode",def:true,color:"#2563eb"}].map(({key,label,def,color})=>{
-                    const isOn = key==="dark_enabled" ? darkOn : lightOn;
-                    const locked = onlyOne && isOn;
-                    return (
-                      <div key={key} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10}}>
-                        <div style={{width:10,height:10,borderRadius:"50%",background:color,flexShrink:0}}/>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:500,color:"var(--t2)"}}>{label}</div>
-                          {locked&&<div style={{fontSize:11,color:"var(--t5)",marginTop:2}}>At least one theme must be enabled</div>}
-                        </div>
-                        <div style={{position:"relative",width:40,height:22,borderRadius:11,background:isOn?"var(--ac)":"var(--tgl-off)",cursor:locked?"not-allowed":"pointer",transition:"background .15s",flexShrink:0,opacity:locked?0.5:1}}
-                          onClick={()=>{if(locked)return;setBranding(p=>({...p,[key]:!isOn}));}}>
-                          <div style={{position:"absolute",top:2,left:isOn?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* ── Availability ──────────────────────────────────────────
+                    One question instead of two toggles. "Dark" and "Light"
+                    previously appeared three times on this screen meaning three
+                    different things — available to readers, default for new
+                    visitors, and which one you are editing — stacked with
+                    nothing to distinguish them.
 
-                {/* Default theme selector — only when both enabled */}
-                {darkOn && lightOn && (
-                  <div style={{marginBottom:20}}>
-                    <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:8}}>Default theme</div>
-                    <div style={{display:"inline-flex",background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:10,padding:3,gap:2}}>
-                      {[{v:"auto",icon:"fa-circle-half-stroke",label:"Auto"},{v:"dark",icon:"fa-moon",label:"Dark"},{v:"light",icon:"fa-sun",label:"Light"}].map(({v,icon,label})=>{
-                        const active = (branding.default_theme||"dark")===v;
-                        return (
-                          <button key={v} onClick={()=>setBranding(p=>({...p,default_theme:v}))}
-                            style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:"none",background:active?"var(--s3)":"transparent",fontSize:12,fontWeight:active?500:400,color:active?"var(--t1)":"var(--t4)",cursor:"pointer",fontFamily:"inherit",transition:"all .1s"}}>
-                            <i className={`fa-solid ${icon}`} style={{fontSize:11}}/>
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    A three-way choice also makes "at least one theme must be
+                    enabled" unrepresentable rather than something to guard
+                    against, so the warning state disappears with it. The stored
+                    settings are unchanged; they are derived here. */}
+                <F label="Available themes" hint="Which themes readers can choose between">
+                  <div className="pill-row">
+                    {[
+                      {v:"dark",  label:"Dark only",  icon:"fa-moon"},
+                      {v:"light", label:"Light only", icon:"fa-sun"},
+                      {v:"both",  label:"Both",       icon:"fa-circle-half-stroke"},
+                    ].map(({v,label,icon})=>{
+                      const current = darkOn && lightOn ? "both" : (darkOn ? "dark" : "light");
+                      return (
+                        <button key={v} type="button"
+                          className={`pill${current===v?" active":""}`}
+                          onClick={()=>setBranding(p=>{
+                            const next = {...p, dark_enabled: v!=="light", light_enabled: v!=="dark"};
+                            // A default of "auto" or of a theme that is no
+                            // longer available would be unreachable, so it is
+                            // corrected here rather than left to fail silently.
+                            if (v!=="both") next.default_theme = v;
+                            // Editing a tab that just disappeared would leave a
+                            // blank panel.
+                            if (v!=="both") next._appTab = v;
+                            return next;
+                          })}>
+                          <i className={`fa-solid ${icon}`}/>{label}
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
+                </F>
+
+                {/* Always rendered. Previously this vanished when only one
+                    theme was enabled, so the page reflowed with no explanation
+                    of where the control went. */}
+                <F label="Default theme" hint={darkOn&&lightOn
+                  ? "What new visitors see before they pick one. Auto follows their device setting."
+                  : "Only one theme is available, so it is always the default."}>
+                  <div className="pill-row">
+                    {[{v:"auto",icon:"fa-circle-half-stroke",label:"Auto"},
+                      {v:"dark",icon:"fa-moon",label:"Dark"},
+                      {v:"light",icon:"fa-sun",label:"Light"}].map(({v,icon,label})=>{
+                      const both = darkOn && lightOn;
+                      const active = (branding.default_theme||"dark")===v;
+                      const disabled = !both;
+                      return (
+                        <button key={v} type="button" disabled={disabled}
+                          className={`pill${active?" active":""}`}
+                          style={disabled?{opacity:.4,cursor:"not-allowed"}:undefined}
+                          onClick={()=>{ if(!disabled) setBranding(p=>({...p,default_theme:v})); }}>
+                          <i className={`fa-solid ${icon}`}/>{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </F>
+
+                <div className="fgt" style={{marginTop:24}}>Theme colours</div>
+                <div style={{fontSize:12,color:"var(--t5)",marginBottom:12,marginTop:-4}}>
+                  Pick a theme to edit. These change how the forum looks, not which themes are available.
+                </div>
 
                 {/* Per-theme color tabs */}
                 <div style={{marginBottom:16}}>
                   <div className="admin-tabs-underline" style={{marginBottom:20}}>
-                    {[darkOn&&{id:"dark",label:"Dark theme",icon:"fa-moon"},lightOn&&{id:"light",label:"Light theme",icon:"fa-sun"}].filter(Boolean).map(t=>(
+                    {[darkOn&&{id:"dark",label:"Dark",icon:"fa-moon"},lightOn&&{id:"light",label:"Light",icon:"fa-sun"}].filter(Boolean).map(t=>(
                       <button key={t.id} type="button" onClick={()=>setAppTab(t.id)}
                         className={`admin-tab-underline${appTab===t.id?" active":""}`}>
                         <i className={`fa-solid ${t.icon}`}/>{t.label}
@@ -1212,24 +1242,41 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     </F>
                     <F label="Tint intensity" hint="How strongly the tint colour is applied to dark surfaces">
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        <input type="range" min="0" max="50" value={branding.tint_intensity??10}
-                          style={{flex:1,accentColor:"var(--ac)"}}
+                        <input className="fi" type="number" min="0" max="50" style={{width:72}} value={branding.tint_intensity??10}
                           onChange={e=>{
                             const v=parseInt(e.target.value);
                             setBranding(p=>({...p,tint_intensity:v}));
                             if(document.documentElement.getAttribute("data-theme")==="dark"&&branding.tint_color){const tint=window._deriveTintVars(branding.tint_color,v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
                           }}/>
-                        <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.tint_intensity??10}%</span>
+                        <span style={{fontSize:11,color:"var(--t5)"}}>% · 0–50</span>
                       </div>
                     </F>
-                    <F label="Content link color" hint="Color of hyperlinks inside post and reply bodies on dark backgrounds">
-                      <ColorPicker
-                        value={branding.link_color||"#60a5fa"}
-                        onChange={v=>{
-                          setBranding(p=>({...p,link_color:v}));
-                          if(document.documentElement.getAttribute("data-theme")==="dark"){document.documentElement.style.setProperty("--link-color",v);}
-                        }}
-                      />
+                    {/* Most forums want links in the accent colour, and the two
+                        fields sitting side by side with the same value invited
+                        them to drift the moment one changed. Matching is the
+                        default; the picker only appears when it is turned off. */}
+                    <F label="Content link colour" hint="Hyperlinks inside post and reply bodies on dark backgrounds">
+                      <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--t3)",cursor:"pointer",marginBottom:(branding.link_color?8:0)}}>
+                        <input type="checkbox" checked={!branding.link_color}
+                          onChange={e=>{
+                            const match = e.target.checked;
+                            setBranding(p=>({...p, link_color: match ? null : (p.accent_color||"#60a5fa")}));
+                            if(document.documentElement.getAttribute("data-theme")==="dark"){
+                              document.documentElement.style.setProperty("--link-color",
+                                match ? (branding.accent_color||"#60a5fa") : (branding.accent_color||"#60a5fa"));
+                            }
+                          }}/>
+                        Match accent colour
+                      </label>
+                      {branding.link_color && (
+                        <ColorPicker
+                          value={branding.link_color||"#60a5fa"}
+                          onChange={v=>{
+                            setBranding(p=>({...p,link_color:v}));
+                            if(document.documentElement.getAttribute("data-theme")==="dark"){document.documentElement.style.setProperty("--link-color",v);}
+                          }}
+                        />
+                      )}
                     </F>
                   </>}
 
@@ -1254,24 +1301,41 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     </F>
                     <F label="Tint intensity" hint="How strongly the tint colour is applied to light surfaces">
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        <input type="range" min="0" max="50" value={branding.light_tint_intensity??22}
-                          style={{flex:1,accentColor:"var(--ac)"}}
+                        <input className="fi" type="number" min="0" max="50" style={{width:72}} value={branding.light_tint_intensity??22}
                           onChange={e=>{
                             const v=parseInt(e.target.value);
                             setBranding(p=>({...p,light_tint_intensity:v}));
                             if(document.documentElement.getAttribute("data-theme")==="light"&&branding.light_tint_color){const tint=window._deriveTintVarsLight(branding.light_tint_color,v);if(tint){const r=document.documentElement;r.style.setProperty("--bg",tint.bg);r.style.setProperty("--s1",tint.s1);r.style.setProperty("--s2",tint.s2);r.style.setProperty("--s3",tint.s3);}}
                           }}/>
-                        <span style={{fontSize:12,color:"var(--t4)",minWidth:36,textAlign:"right"}}>{branding.light_tint_intensity??22}%</span>
+                        <span style={{fontSize:11,color:"var(--t5)"}}>% · 0–50</span>
                       </div>
                     </F>
-                    <F label="Content link color" hint="Color of hyperlinks inside post and reply bodies on light backgrounds">
-                      <ColorPicker
-                        value={branding.light_link_color||"#2563eb"}
-                        onChange={v=>{
-                          setBranding(p=>({...p,light_link_color:v}));
-                          if(document.documentElement.getAttribute("data-theme")==="light"){document.documentElement.style.setProperty("--link-color",v);}
-                        }}
-                      />
+                    {/* Most forums want links in the accent colour, and the two
+                        fields sitting side by side with the same value invited
+                        them to drift the moment one changed. Matching is the
+                        default; the picker only appears when it is turned off. */}
+                    <F label="Content link colour" hint="Hyperlinks inside post and reply bodies on light backgrounds">
+                      <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--t3)",cursor:"pointer",marginBottom:(branding.light_link_color?8:0)}}>
+                        <input type="checkbox" checked={!branding.light_link_color}
+                          onChange={e=>{
+                            const match = e.target.checked;
+                            setBranding(p=>({...p, light_link_color: match ? null : (p.light_accent_color||"#2563eb")}));
+                            if(document.documentElement.getAttribute("data-theme")==="light"){
+                              document.documentElement.style.setProperty("--link-color",
+                                match ? (branding.light_accent_color||"#2563eb") : (branding.light_accent_color||"#2563eb"));
+                            }
+                          }}/>
+                        Match accent colour
+                      </label>
+                      {branding.light_link_color && (
+                        <ColorPicker
+                          value={branding.light_link_color||"#2563eb"}
+                          onChange={v=>{
+                            setBranding(p=>({...p,light_link_color:v}));
+                            if(document.documentElement.getAttribute("data-theme")==="light"){document.documentElement.style.setProperty("--link-color",v);}
+                          }}
+                        />
+                      )}
                     </F>
                   </>}
                 </div>

@@ -260,12 +260,10 @@ defmodule Nexus.Admin do
     "appearance" => %{
       "accent_color"       => "#4A90E2",
       "light_accent_color" => "#2563eb",
-      # Seeded here rather than left to a literal in the render path. These were
-      # previously only expressed as fallbacks inside ThemeVars and applyTheme,
-      # which meant an unset value resolved differently depending on which one
-      # ran first.
-      "link_color"         => "#60a5fa",
-      "light_link_color"   => "#2563eb",
+      # link_color / light_link_color are deliberately absent. Unset now means
+      # "match the accent" — see ThemeVars.vars/2 and the "Match accent colour"
+      # checkbox in the appearance panel — so a seeded value here would be a
+      # second source of truth that only ever disagreed with the accent.
       "dark_mode_default"  => true,
       "avatar_radius"      => 22,
       # Seeded so ThemeVars always emits them. Previously these existed only as
