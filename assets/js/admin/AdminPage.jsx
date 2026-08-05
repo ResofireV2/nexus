@@ -536,6 +536,7 @@ function TypographyEditor({branding, setBranding}) {
           <div className="md-body">
             The heater failed on day 41. I had two spare components and no way to reach the
             trade caravan, so I made the call to <code>rebuild</code> the whole power grid.
+            <pre><code>{`def rebuild(grid) do\n  Enum.map(grid, &restore/1)\nend`}</code></pre>
           </div>
         </div>
       </div>
