@@ -521,6 +521,11 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
 .tgl{flex-shrink:0;}
 
 /* Members admin table — collapse to card-like rows */
+/* Actions drop to their own line rather than squeezing the identity column. */
+.arow{flex-wrap:wrap;gap:8px;}
+.arow-meta{text-align:left;flex-direction:row;align-items:baseline;gap:6px;}
+.arow-actions{width:100%;}
+
 .atbl.members-tbl thead{display:none;}
 .atbl.members-tbl tr{display:block;padding:12px 14px;border-bottom:0.5px solid rgba(255,255,255,0.06);}
 .atbl.members-tbl td{display:block;padding:2px 0;border:none;}
@@ -972,6 +977,38 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .toggle-row:last-child{border-bottom:none;}
 .tgl{width:46px;height:26px;border-radius:20px;position:relative;cursor:pointer;transition:background .2s;}
 .tgl-knob{position:absolute;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s;}
+/* ── Admin record rows ───────────────────────────────────────────────────────
+   Replaces <table class="atbl"> for admin lists.
+
+   Tables needed a horizontal scroll container on phones, and the one table that
+   tried to avoid it (.members-tbl) did so by hiding <thead> — which left the
+   values stacked with nothing saying which was which. Flex rows reflow natively
+   and each value can carry its own label when it needs one.
+
+   Structure (the surrounding bordered container is supplied by the panel):
+     .arow                   one record
+         .arow-main          identity — grows, truncates
+           .arow-title
+           .arow-sub         slug, email, secondary identifier
+         .arow-meta          a labelled value (counts, dates, status)
+         .arow-actions       buttons, pinned right
+
+   Below 768px .arow wraps and .arow-actions takes a full line, so buttons never
+   compress the identity column. */
+.arow{display:flex;align-items:center;gap:14px;padding:12px 14px;border-bottom:0.5px solid var(--b1);transition:background .1s;}
+.arow:last-child{border-bottom:none;}
+.arow:hover{background:rgba(255,255,255,0.02);}
+[data-theme="light"] .arow:hover{background:rgba(0,0,0,0.02);}
+.arow-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.arow-title{font-size:var(--fs-body);font-weight:500;color:var(--t1);display:flex;align-items:center;gap:8px;min-width:0;}
+.arow-title>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.arow-sub{font-size:var(--fs-ui);color:var(--t5);font-family:'SF Mono','Fira Code',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.arow-meta{display:flex;flex-direction:column;gap:2px;flex-shrink:0;text-align:right;}
+.arow-meta-label{font-size:var(--fs-ui);color:var(--t5);text-transform:uppercase;letter-spacing:.4px;}
+.arow-meta-value{font-size:var(--fs-body);color:var(--t3);}
+.arow-actions{display:flex;gap:6px;flex-shrink:0;}
+.arow-empty{padding:16px 14px;color:var(--t5);font-size:var(--fs-body);}
+
 .atbl{width:100%;border-collapse:collapse;}
 .atbl th{text-align:left;font-size:var(--fs-ui);color:var(--t5);padding:10px 14px;letter-spacing:.05em;text-transform:uppercase;border-bottom:0.5px solid var(--b1);}
 .atbl td{padding:13px 14px;font-size:14px;color:var(--t3);border-bottom:0.5px solid rgba(255,255,255,0.04);}

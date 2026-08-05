@@ -162,22 +162,26 @@ function TagsAdmin({tags, onRefresh}) {
       <button className="btn-primary" style={{fontSize:12,padding:"5px 14px"}} onClick={openNew}>+ New tag</button>
     </div>
     <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:editing?"16px":"0"}}>
-      {tags.length===0?<div style={{padding:"16px 14px",color:"var(--t5)",fontSize:13}}>No tags yet</div>
-        :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl"><thead><tr><th>Name</th><th>Slug</th><th>Posts</th><th></th></tr></thead>
-          <tbody>{tags.map(t=>(
-            <tr key={t.id}>
-              <td><div style={{display:"flex",alignItems:"center",gap:8}}>
+      {tags.length===0?<div className="arow-empty">No tags yet</div>
+        :tags.map(t=>(
+          <div key={t.id} className="arow">
+            <div className="arow-main">
+              <div className="arow-title">
                 <span style={{width:8,height:8,borderRadius:"50%",background:t.color||"var(--ac)",flexShrink:0}}></span>
-                <span style={{fontWeight:500,color:"var(--t1)"}}>#{t.name}</span>
-              </div></td>
-              <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{t.slug}</td>
-              <td>{t.post_count||0}</td>
-              <td style={{textAlign:"right"}}>
-                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(t)} className="pill pill-info">edit</button><button onClick={()=>del(t)} className="pill pill-danger">delete</button></div>
-              </td>
-            </tr>
-          ))}</tbody>
-        </table></div>}
+                <span>#{t.name}</span>
+              </div>
+              <div className="arow-sub">{t.slug}</div>
+            </div>
+            <div className="arow-meta">
+              <span className="arow-meta-label">Posts</span>
+              <span className="arow-meta-value">{t.post_count||0}</span>
+            </div>
+            <div className="arow-actions">
+              <button type="button" onClick={()=>openEdit(t)} className="pill pill-info">edit</button>
+              <button type="button" onClick={()=>del(t)} className="pill pill-danger">delete</button>
+            </div>
+          </div>
+        ))}
     </div>
     {editing&&<div style={{background:"rgba(255,255,255,0.02)",border:"0.5px solid var(--b2)",borderRadius:12,padding:20}}>
       <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:16}}>{editing==="new"?"New tag":"Edit tag"}</div>
@@ -270,62 +274,62 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
       <button className="btn-primary" style={{fontSize:12,padding:"5px 14px"}} onClick={openNew}>+ New space</button>
     </div>
     <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden",marginBottom:editing?"16px":"0"}}>
-      {spaces.length===0?<div style={{padding:"16px 14px",color:"var(--t5)",fontSize:13}}>No spaces yet</div>
-        :<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl"><thead><tr><th>Name</th><th>Slug</th><th>Visibility</th><th>Posts</th><th></th></tr></thead>
-          <caption style={{captionSide:"top",textAlign:"left",paddingBottom:8}}>
-            <div className="fgt" style={{marginBottom:6}}>Sidebar order</div>
-            <div style={{fontSize:12,color:"var(--t4)",marginBottom:10}}>Drag to reorder how spaces appear in the left sidebar.</div>
-            <DragList
-              items={orderedForEditor}
-              onChange={saveSpacesOrder}
-              renderItem={function(s){
-                var col=s.color||spaceColor(s);
-                return React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,flex:1}},
-                  React.createElement('i',{className:"fa-solid "+(s.icon||"fa-layer-group"),style:{fontSize:13,color:col,width:16,textAlign:"center"}}),
-                  React.createElement('span',{style:{fontSize:13,color:"var(--t2)",fontWeight:500}},s.name)
-                );
-              }}
-            />
-            <div className="fgt" style={{marginTop:20,marginBottom:6}}>All spaces</div>
-          </caption>
-          <tbody>{(()=>{
-            const topLevel = spaces.filter(s=>!s.parent_id);
-            const subMap   = {};
-            spaces.filter(s=>s.parent_id).forEach(s=>{
-              if(!subMap[s.parent_id]) subMap[s.parent_id]=[];
-              subMap[s.parent_id].push(s);
-            });
-            const rows = [];
-            topLevel.forEach(s=>{
-              const col=s.color||spaceColor(s);
-              rows.push(
-                <tr key={s.id}>
-                  <td><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0}}></span><span style={{fontWeight:500,color:"var(--t1)"}}>{s.name}</span></div></td>
-                  <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{s.slug}</td>
-                  <td><span className="pill pill-sm pill-static">{s.visibility}</span></td>
-                  <td>{s.post_count||0}</td>
-                  <td style={{textAlign:"right"}}>
-                    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(s)} className="pill pill-info">edit</button><button onClick={()=>del(s)} className="pill pill-danger">delete</button></div>
-                  </td>
-                </tr>
-              );
-              (subMap[s.id]||[]).forEach(sub=>{
-                rows.push(
-                  <tr key={sub.id} style={{background:"rgba(255,255,255,0.02)"}}>
-                    <td><div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:20}}><span style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0,opacity:0.7}}></span><span style={{color:"var(--t3)"}}>{sub.name}</span></div></td>
-                    <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{sub.slug}</td>
-                    <td><span className="pill pill-sm pill-static">{sub.visibility}</span></td>
-                    <td>{sub.post_count||0}</td>
-                    <td style={{textAlign:"right"}}>
-                      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(sub)} className="pill pill-info">edit</button><button onClick={()=>del(sub)} className="pill pill-danger">delete</button></div>
-                    </td>
-                  </tr>
-                );
-              });
-            });
-            return rows;
-          })()}</tbody>
-        </table></div>}
+      {/* The reorder editor was inside a <caption>, which existed only because
+          the list was a table. It is a sibling now. */}
+      <div style={{padding:"14px 14px 0"}}>
+        <div className="fgt" style={{marginBottom:6}}>Sidebar order</div>
+        <div style={{fontSize:12,color:"var(--t4)",marginBottom:10}}>Drag to reorder how spaces appear in the left sidebar.</div>
+        <DragList
+          items={orderedForEditor}
+          onChange={saveSpacesOrder}
+          renderItem={function(sp){
+            var col=sp.color||spaceColor(sp);
+            return React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,flex:1}},
+              React.createElement('i',{className:"fa-solid "+(sp.icon||"fa-layer-group"),style:{fontSize:13,color:col,width:16,textAlign:"center"}}),
+              React.createElement('span',{style:{fontSize:13,color:"var(--t2)",fontWeight:500}},sp.name)
+            );
+          }}
+        />
+        <div className="fgt" style={{marginTop:20,marginBottom:0}}>All spaces</div>
+      </div>
+      {spaces.length===0?<div className="arow-empty">No spaces yet</div>
+        :(()=>{
+          const topLevel = spaces.filter(x=>!x.parent_id);
+          const subMap   = {};
+          spaces.filter(x=>x.parent_id).forEach(x=>{
+            if(!subMap[x.parent_id]) subMap[x.parent_id]=[];
+            subMap[x.parent_id].push(x);
+          });
+          // One renderer for both levels — a sub-space is the same row indented
+          // and dimmed, which is what the nested <tr> did.
+          const renderRow = (sp, col, isSub) => (
+            <div key={sp.id} className="arow" style={isSub?{background:"rgba(255,255,255,0.02)"}:undefined}>
+              <div className="arow-main" style={isSub?{paddingLeft:20}:undefined}>
+                <div className="arow-title">
+                  <span style={{width:isSub?6:8,height:isSub?6:8,borderRadius:"50%",background:col,flexShrink:0,opacity:isSub?0.7:1}}></span>
+                  <span>{sp.name}</span>
+                  <span className="pill pill-sm pill-static">{sp.visibility}</span>
+                </div>
+                <div className="arow-sub">{sp.slug}</div>
+              </div>
+              <div className="arow-meta">
+                <span className="arow-meta-label">Posts</span>
+                <span className="arow-meta-value">{sp.post_count||0}</span>
+              </div>
+              <div className="arow-actions">
+                <button type="button" onClick={()=>openEdit(sp)} className="pill pill-info">edit</button>
+                <button type="button" onClick={()=>del(sp)} className="pill pill-danger">delete</button>
+              </div>
+            </div>
+          );
+          const out = [];
+          topLevel.forEach(sp=>{
+            const col = sp.color||spaceColor(sp);
+            out.push(renderRow(sp, col, false));
+            (subMap[sp.id]||[]).forEach(sub => out.push(renderRow(sub, col, true)));
+          });
+          return out;
+        })()}
     </div>
     {editing&&<div style={{background:"rgba(255,255,255,0.02)",border:"0.5px solid var(--b2)",borderRadius:12,padding:20}}>
       <div style={{fontSize:13,fontWeight:500,color:"var(--t1)",marginBottom:16}}>{editing==="new"?"New space":"Edit space"}</div>
@@ -1386,14 +1390,29 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
               {memberSearch&&<button onClick={()=>setMemberSearch("")} style={{background:"none",border:"none",color:"var(--t5)",cursor:"pointer",padding:0,fontSize:12,lineHeight:1,flexShrink:0}}><i className="fa-solid fa-xmark"/></button>}
             </div>
             <div style={{border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
-              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="atbl members-tbl"><thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>{(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
-                  <tr key={u.id}>
-                    <td style={{fontWeight:500,color:"var(--t1)"}}>{u.username}<div style={{fontSize:11,color:"var(--t5)"}}>{u.email}</div></td>
-                    <td><Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{await api.patch(`/admin/users/${u.id}/role`,{role:v});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select></td>
-                    <td style={{color:"var(--t5)",fontSize:11}}>{fmtDate(u.inserted_at)}</td>
-                    <td><span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12}}><span style={{width:6,height:6,borderRadius:"50%",background:u.status==="active"?"var(--green)":"var(--red)"}}></span>{u.status}</span></td>
-                    <td style={{textAlign:"right"}}>
+              <>
+                {(memberSearch ? users.filter(u=>u.username?.toLowerCase().includes(memberSearch.toLowerCase())||u.email?.toLowerCase().includes(memberSearch.toLowerCase())) : users).map(u=>(
+                  <div key={u.id} className="arow" style={{alignItems:"flex-start",flexWrap:"wrap"}}>
+                    <div className="arow-main">
+                      <div className="arow-title"><span>{u.username}</span></div>
+                      <div className="arow-sub">{u.email}</div>
+                    </div>
+                    {/* Every value keeps its label. The table hid <thead> below
+                        768px, so role, joined and status stacked as bare values
+                        with nothing saying which was which. */}
+                    <div className="arow-meta">
+                      <span className="arow-meta-label">Role</span>
+                      <Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{await api.patch(`/admin/users/${u.id}/role`,{role:v});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select>
+                    </div>
+                    <div className="arow-meta">
+                      <span className="arow-meta-label">Joined</span>
+                      <span className="arow-meta-value">{fmtDate(u.inserted_at)}</span>
+                    </div>
+                    <div className="arow-meta">
+                      <span className="arow-meta-label">Status</span>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:12}}><span style={{width:6,height:6,borderRadius:"50%",background:u.status==="active"?"var(--green)":"var(--red)"}}></span>{u.status}</span>
+                    </div>
+                    <div className="arow-actions" style={{flexWrap:"wrap",alignItems:"center"}}>
                       {u.id!==currentUser.id&&<>
                         <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap",alignItems:"center"}}>
                           {!u.email_verified&&<button onClick={async()=>{const d=await api.patch(`/admin/users/${u.id}/verify-email`,{});if(d.ok){setUsers(p=>p.map(x=>x.id===u.id?{...x,email_verified:true}:x));toast("Email verified");}else toast(d.error||"Failed","err");}} className="pill pill-info">verify email</button>}
@@ -1408,10 +1427,10 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                           <button onClick={async()=>{if(!confirm(`Mark ${u.username} as spammer? This will ban them and delete all their posts and DMs.`))return;const d=await api.post(`/admin/users/${u.id}/mark-spammer`,{});if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("Marked as spammer");}else toast(d.error||"Failed","err");}} className="pill pill-warn">mark spammer</button>
                         </div>
                       </>}
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table></div>
+                    </div>
+                  </div>
+                ))}
+              </>
             </div>
           </>}
 
