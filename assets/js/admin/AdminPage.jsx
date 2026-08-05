@@ -1402,7 +1402,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         with nothing saying which was which. */}
                     <div className="arow-meta">
                       <span className="arow-meta-label">Role</span>
-                      <Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:11,color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{await api.patch(`/admin/users/${u.id}/role`,{role:v});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select>
+                      <Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:"var(--fs-body)",color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{await api.patch(`/admin/users/${u.id}/role`,{role:v});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select>
                     </div>
                     <div className="arow-meta">
                       <span className="arow-meta-label">Joined</span>

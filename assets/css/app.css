@@ -521,11 +521,6 @@ button.post-tag-more{border:none;font-family:inherit;line-height:inherit;cursor:
 .tgl{flex-shrink:0;}
 
 /* Members admin table — collapse to card-like rows */
-/* Actions drop to their own line rather than squeezing the identity column. */
-.arow{flex-wrap:wrap;gap:8px;}
-.arow-meta{text-align:left;flex-direction:row;align-items:baseline;gap:6px;}
-.arow-actions{width:100%;}
-
 .atbl.members-tbl thead{display:none;}
 .atbl.members-tbl tr{display:block;padding:12px 14px;border-bottom:0.5px solid rgba(255,255,255,0.06);}
 .atbl.members-tbl td{display:block;padding:2px 0;border:none;}
@@ -1008,6 +1003,25 @@ em-emoji-picker{--font-family:inherit;--border-radius:14px;--category-icon-size:
 .arow-meta-value{font-size:var(--fs-body);color:var(--t3);}
 .arow-actions{display:flex;gap:6px;flex-shrink:0;}
 .arow-empty{padding:16px 14px;color:var(--t5);font-size:var(--fs-body);}
+
+@media(max-width:767.99px){
+/* Phone layout: the record stacks rather than compressing.
+
+   flex-wrap alone was not enough — .arow-main and the meta blocks still fitted
+   on one line, so the identity column collapsed to a few characters and both
+   username and email truncated to "xene" / "mbor…". Giving .arow-main the full
+   width puts the thing you are identifying on its own line at full size, and
+   the labelled values flow underneath. */
+.arow{flex-wrap:wrap;gap:10px;}
+.arow-main{flex:1 0 100%;min-width:0;}
+/* Emails are the long value here and are worth reading in full, so they wrap
+   instead of ellipsing once there is a whole line to use. */
+.arow-sub{white-space:normal;overflow-wrap:anywhere;}
+.arow-title>span{white-space:normal;}
+/* Label and value sit inline to keep the stack short. */
+.arow-meta{flex:0 1 auto;text-align:left;flex-direction:row;align-items:baseline;gap:6px;}
+.arow-actions{width:100%;}
+}
 
 .atbl{width:100%;border-collapse:collapse;}
 .atbl th{text-align:left;font-size:var(--fs-ui);color:var(--t5);padding:10px 14px;letter-spacing:.05em;text-transform:uppercase;border-bottom:0.5px solid var(--b1);}
