@@ -2841,7 +2841,7 @@ function TopBar({currentUser, navigate, onLogout, notifCount=0, msgCount=0, onSe
   return (
     <div className="topbar">
       <div className="tb-search" ref={searchRef} style={{position:"relative"}} onClick={e=>{if(e.currentTarget===e.target||e.target.closest("i"))searchRef.current?.querySelector("input")?.focus();}}>
-        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:searching?"var(--ac)":"rgba(255,255,255,0.25)",transition:"color .2s",flexShrink:0}}></i>
+        <i className="fa-solid fa-magnifying-glass" style={{fontSize:14,color:searching?"var(--ac)":"var(--t5)",transition:"color .2s",flexShrink:0}}></i>
         <input placeholder="search threads…" value={q}
           onChange={onChange}
           onKeyDown={e=>{if(e.key==="Enter"){clearTimeout(debounceRef.current);goAll();}if(e.key==="Escape"){setDrop(null);setQ("");}}}
