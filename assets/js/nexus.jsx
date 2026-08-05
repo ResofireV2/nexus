@@ -4623,13 +4623,24 @@ function App() {
       const lc=s.layout||{};
       // Rehydrate helper: restores live onClick references on ext buttons after
       // deserializing from DB (onClick can't be stored as JSON).
+      // Refreshes every property from the live definition, keeping only the
+      // admin's own choices (hidden, and position via array order).
+      //
+      // This previously restored onClick alone, and only for extension
+      // buttons, so anything else baked into a saved toolbar — label, tip,
+      // wrap, style — persisted forever. Changing a built-in button's icon
+      // updated the admin Layout editor, which has its own refreshing merge,
+      // while the composer kept rendering the old one from saved settings.
+      //
+      // An entry with no live definition is carried forward untouched, so an
+      // uninstalled extension's button stays visible for the admin to remove.
       function rehydrate(items){
         var live=getAllToolbarButtons();
         return items.map(function(item){
-          if(!item._ext) return item;
+          if(item.sep) return item;
           var liveBtn=live.find(function(l){return l.type===item.type;});
           if(!liveBtn) return item;
-          return Object.assign({},item,{onClick:liveBtn.onClick});
+          return Object.assign({},liveBtn,{hidden:item.hidden});
         });
       }
       // Seed helper: build default toolbar with hidden flags based on scope
