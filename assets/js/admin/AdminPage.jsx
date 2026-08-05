@@ -1042,11 +1042,11 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
 
                 {/* Per-theme color tabs */}
                 <div style={{marginBottom:16}}>
-                  <div style={{display:"flex",gap:0,borderBottom:"0.5px solid var(--b1)",marginBottom:20}}>
+                  <div className="admin-tabs-underline" style={{marginBottom:20}}>
                     {[darkOn&&{id:"dark",label:"Dark theme",icon:"fa-moon"},lightOn&&{id:"light",label:"Light theme",icon:"fa-sun"}].filter(Boolean).map(t=>(
-                      <button key={t.id} onClick={()=>setAppTab(t.id)}
-                        style={{display:"flex",alignItems:"center",gap:7,padding:"9px 16px",background:"none",border:"none",borderBottom:appTab===t.id?"2px solid var(--ac)":"2px solid transparent",color:appTab===t.id?"var(--ac-text)":"var(--t4)",fontWeight:appTab===t.id?500:400,fontSize:13,cursor:"pointer",fontFamily:"inherit",marginBottom:-1}}>
-                        <i className={`fa-solid ${t.icon}`} style={{fontSize:11}}/>{t.label}
+                      <button key={t.id} type="button" onClick={()=>setAppTab(t.id)}
+                        className={`admin-tab-underline${appTab===t.id?" active":""}`}>
+                        <i className={`fa-solid ${t.icon}`}/>{t.label}
                       </button>
                     ))}
                   </div>

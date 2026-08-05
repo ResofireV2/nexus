@@ -716,14 +716,9 @@ function SettingsPage({currentUser, onUpdate, navigate}) {
         {/* Desktop — hidden on mobile via CSS */}
         <div className="settings-desktop-tabs" style={{gap:0,marginBottom:-1}}>
           {[{k:"profile",icon:"fa-user",label:"Profile"},{k:"password",icon:"fa-lock",label:"Password"},{k:"notifications",icon:"fa-bell",label:"Notifications"},{k:"security",icon:"fa-shield",label:"Security"},...((window._darkEnabled!==false&&window._lightEnabled!==false)?[{k:"appearance",icon:"fa-circle-half-stroke",label:"Appearance"}]:[])].map(s=>(
-            <button key={s.k} onClick={()=>setTab(s.k)}
-              style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",
-                background:"none",border:"none",
-                borderBottom:tab===s.k?"2px solid var(--ac)":"2px solid transparent",
-                color:tab===s.k?"var(--ac-text)":"var(--t4)",
-                fontWeight:tab===s.k?500:400,fontSize:13,cursor:"pointer",
-                fontFamily:"inherit",marginBottom:-1,transition:"color .1s"}}>
-              <i className={`fa-solid ${s.icon}`} style={{fontSize:12}}/>
+            <button key={s.k} type="button" onClick={()=>setTab(s.k)}
+              className={`admin-tab-underline${tab===s.k?" active":""}`}>
+              <i className={`fa-solid ${s.icon}`}/>
               {s.label}
             </button>
           ))}

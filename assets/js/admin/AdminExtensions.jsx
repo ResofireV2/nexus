@@ -2045,11 +2045,11 @@ function TabbedPanel({ tabs=[] }) {
   const currentTab = tabs.find(t=>t.key===activeTab)||tabs[0];
   return (
     <div>
-      {/* Desktop: horizontal pill bar */}
-      <div className="admin-tabs">
+      {/* Desktop: underline tab row, matching every core admin panel */}
+      <div className="admin-tabs-underline">
         {tabs.map(t=>(
-          <button key={t.key} onClick={()=>setActiveTab(t.key)}
-            className={`admin-tab${activeTab===t.key?" active":""}`}>
+          <button key={t.key} type="button" onClick={()=>setActiveTab(t.key)}
+            className={`admin-tab-underline${activeTab===t.key?" active":""}`}>
             {t.icon&&<i className={`fa-solid ${t.icon}`}/>}
             {t.label}
           </button>

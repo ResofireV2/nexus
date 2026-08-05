@@ -73,13 +73,6 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
     }
   }, [tab]);
 
-  const tabStyle = active => ({
-    padding:"6px 16px", borderRadius:20, fontSize:12, fontWeight:500, cursor:"pointer",
-    background: active ? "var(--ac-bg)" : "transparent",
-    color: active ? "var(--ac-text)" : "var(--t4)",
-    border: active ? "0.5px solid var(--ac)" : "0.5px solid transparent",
-  });
-
   const numInput = (key, def, opts={}) => (
     <input type="number" value={spamCfg[key]??def}
       onChange={e=>setSpamCfg(p=>({...p,[key]:parseFloat(e.target.value)||def}))}
@@ -97,10 +90,11 @@ function AdminAntiSpamPanel({spamCfg, setSpamCfg}) {
 
   return (
     <div>
-      <div style={{display:"flex",gap:8,marginBottom:24}}>
-        <button style={tabStyle(tab==="settings")}     onClick={()=>setTab("settings")}>Settings</button>
-        <button style={tabStyle(tab==="composition")}  onClick={()=>setTab("composition")}>Composition analysis</button>
-        <button style={tabStyle(tab==="log")}          onClick={()=>setTab("log")}>Blocked registrations</button>
+      <div className="admin-tabs-underline">
+        {[{k:"settings",label:"Settings"},{k:"composition",label:"Composition analysis"},{k:"log",label:"Blocked registrations"}].map(t=>(
+          <button key={t.k} type="button" onClick={()=>setTab(t.k)}
+            className={`admin-tab-underline${tab===t.k?" active":""}`}>{t.label}</button>
+        ))}
       </div>
 
       {/* ── Settings tab ── */}
