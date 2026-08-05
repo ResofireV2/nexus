@@ -1938,6 +1938,13 @@ function deriveTintVarsLight(hex, intensity) {
 }
 
 // Light-mode CSS variable overrides (text, borders)
+// Base surfaces for each theme when no tint is configured. These belong with
+// the other per-theme base values — they are the palette, not a stand-in for an
+// unset admin colour. Must match the :root / [data-theme="light"] values in
+// app.css and Nexus.Appearance.ThemeVars.
+const DARK_SURFACES  = {bg:"#111111", s1:"#1a1a1a", s2:"#222222", s3:"#2a2a2a"};
+const LIGHT_SURFACES = {bg:"#f4f4f5", s1:"#ffffff", s2:"#e4e4e7", s3:"#d4d4d8"};
+
 const LIGHT_VARS = {
   "--t1": "#1a1428",
   "--t2": "rgba(26,20,80,0.86)",
@@ -1998,10 +2005,19 @@ function applyTheme(mode, app={}) {
       const acVars = deriveAccentVarsLight(ac);
       if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
     }
-    // 3. Admin surface tint
-    if (app.light_tint_color) {
-      const tint = deriveTintVarsLight(app.light_tint_color, app.light_tint_intensity);
-      if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
+    // 3. Surfaces — tinted if the admin set a tint, otherwise this theme's base
+    //    palette. The untinted branch is NOT a fallback for a missing setting:
+    //    applyTheme writes inline styles on documentElement, which beat the
+    //    stylesheet, so switching dark -> light must actively overwrite the
+    //    surface values the dark branch left behind. Without it the text vars
+    //    flip while the backgrounds stay dark.
+    {
+      const tint = app.light_tint_color
+        ? deriveTintVarsLight(app.light_tint_color, app.light_tint_intensity)
+        : null;
+      const surf = tint || LIGHT_SURFACES;
+      r.style.setProperty("--bg",surf.bg); r.style.setProperty("--s1",surf.s1);
+      r.style.setProperty("--s2",surf.s2); r.style.setProperty("--s3",surf.s3);
     }
     // 4. Content link color (post/reply body hyperlinks only)
     if (app.light_link_color) r.style.setProperty("--link-color", app.light_link_color);
@@ -2016,10 +2032,15 @@ function applyTheme(mode, app={}) {
       const acVars = deriveAccentVars(ac);
       if (acVars) { r.style.setProperty("--ac-on",acVars.onAccent); r.style.setProperty("--ac-bg",acVars.acBg); r.style.setProperty("--ac-border",acVars.acBorder); r.style.setProperty("--ac-text",acVars.acText); }
     }
-    // 3. Admin surface tint
-    if (app.tint_color) {
-      const tint = deriveTintVars(app.tint_color, app.tint_intensity);
-      if (tint) { r.style.setProperty("--bg",tint.bg); r.style.setProperty("--s1",tint.s1); r.style.setProperty("--s2",tint.s2); r.style.setProperty("--s3",tint.s3); }
+    // 3. Surfaces — see the light branch above for why the untinted case must
+    //    still write these.
+    {
+      const tint = app.tint_color
+        ? deriveTintVars(app.tint_color, app.tint_intensity)
+        : null;
+      const surf = tint || DARK_SURFACES;
+      r.style.setProperty("--bg",surf.bg); r.style.setProperty("--s1",surf.s1);
+      r.style.setProperty("--s2",surf.s2); r.style.setProperty("--s3",surf.s3);
     }
     // 4. Content link color (post/reply body hyperlinks only)
     if (app.link_color) r.style.setProperty("--link-color", app.link_color);
