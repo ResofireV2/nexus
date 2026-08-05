@@ -206,14 +206,14 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
           {followingOnly && extFollowingTabs.length > 0 && (
             <div style={{display:"flex",alignItems:"center",gap:4,padding:"8px 18px",borderBottom:"0.5px solid var(--b1)",flexShrink:0}}>
               <div
-                className={`sort-pill${activeFollowingTab === "posts" ? " active" : ""}`}
+                className={`pill sort-pill${activeFollowingTab === "posts" ? " active" : ""}`}
                 onClick={() => setActiveFollowingTab("posts")}>
                 Posts
               </div>
               {extFollowingTabs.map(tab => (
                 <div
                   key={tab.key}
-                  className={`sort-pill${activeFollowingTab === tab.key ? " active" : ""}`}
+                  className={`pill sort-pill${activeFollowingTab === tab.key ? " active" : ""}`}
                   onClick={() => setActiveFollowingTab(tab.key)}>
                   {tab.label}
                 </div>
@@ -232,7 +232,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
               {/* Only show sort pills on the Posts tab */}
               {(!followingOnly || activeFollowingTab === "posts") && (
                 <div className="sort-pills">
-                  {["latest","rising","top"].map(s=><div key={s} className={`sort-pill ${sort===s?"active":""}`} onClick={()=>setSort(s)}>{s}</div>)}
+                  {["latest","rising","top"].map(s=><div key={s} className={`pill sort-pill ${sort===s?"active":""}`} onClick={()=>setSort(s)}>{s}</div>)}
                 </div>
               )}
               {currentUser && hasUnread && (!followingOnly || activeFollowingTab === "posts") && (

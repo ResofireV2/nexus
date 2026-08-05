@@ -215,7 +215,7 @@ export function ReactionButton({postId, replyId, initialReactions=[], initialUse
       {reactions.filter(r=>r.count>0).length > 0 && (
         <div className="rx-pills">
           {reactions.filter(r=>r.count>0).map(r=>(
-            <div key={r.emoji} className={`rx-pill ${userReaction===r.emoji?"mine":""}`}
+            <div key={r.emoji} className={`pill rx-pill ${userReaction===r.emoji?"mine":""}`}
               onClick={()=>react(r.emoji)} title={getReactions().find(x=>x.emoji===r.emoji)?.label||r.emoji}>
               <span style={{fontSize:14}}>{r.emoji}</span>
               <span>{r.count}</span>

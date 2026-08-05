@@ -169,7 +169,7 @@ function ComposePage({spaces, tags, navigate, currentUser, pageProps={}}) {
           )}
           {/* Selected tags */}
           {selTags.map(id=>{const t=tags.find(x=>x.id===id);return t?(
-            <span key={id} className="comp-tag-pill" onClick={()=>toggleTag(id)}
+            <span key={id} className="pill active comp-tag-pill" onClick={()=>toggleTag(id)}
               style={{background:t.color?`${t.color}22`:"var(--ac-bg)",color:t.color||"var(--ac-text)",borderColor:t.color?`${t.color}44`:"var(--ac-border)"}}>
               #{t.name}<i className="fa-solid fa-xmark" style={{fontSize:11}}/>
             </span>
