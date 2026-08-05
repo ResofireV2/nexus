@@ -173,7 +173,7 @@ function TagsAdmin({tags, onRefresh}) {
               <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{t.slug}</td>
               <td>{t.post_count||0}</td>
               <td style={{textAlign:"right"}}>
-                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(t)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(t)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(t)} className="pill pill-info">edit</button><button onClick={()=>del(t)} className="pill pill-danger">delete</button></div>
               </td>
             </tr>
           ))}</tbody>
@@ -302,10 +302,10 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
                 <tr key={s.id}>
                   <td><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0}}></span><span style={{fontWeight:500,color:"var(--t1)"}}>{s.name}</span></div></td>
                   <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{s.slug}</td>
-                  <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{s.visibility}</span></td>
+                  <td><span className="pill pill-sm pill-static">{s.visibility}</span></td>
                   <td>{s.post_count||0}</td>
                   <td style={{textAlign:"right"}}>
-                    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(s)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
+                    <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(s)} className="pill pill-info">edit</button><button onClick={()=>del(s)} className="pill pill-danger">delete</button></div>
                   </td>
                 </tr>
               );
@@ -314,10 +314,10 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
                   <tr key={sub.id} style={{background:"rgba(255,255,255,0.02)"}}>
                     <td><div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:20}}><span style={{width:6,height:6,borderRadius:"50%",background:col,flexShrink:0,opacity:0.7}}></span><span style={{color:"var(--t3)"}}>{sub.name}</span></div></td>
                     <td style={{color:"var(--t5)",fontFamily:"monospace",fontSize:11}}>{sub.slug}</td>
-                    <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,0.05)",color:"var(--t3)"}}>{sub.visibility}</span></td>
+                    <td><span className="pill pill-sm pill-static">{sub.visibility}</span></td>
                     <td>{sub.post_count||0}</td>
                     <td style={{textAlign:"right"}}>
-                      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(sub)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>edit</button><button onClick={()=>del(sub)} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>delete</button></div>
+                      <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><button onClick={()=>openEdit(sub)} className="pill pill-info">edit</button><button onClick={()=>del(sub)} className="pill pill-danger">delete</button></div>
                     </td>
                   </tr>
                 );
@@ -1212,16 +1212,16 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     <td style={{textAlign:"right"}}>
                       {u.id!==currentUser.id&&<>
                         <div style={{display:"flex",gap:6,justifyContent:"flex-end",flexWrap:"wrap",alignItems:"center"}}>
-                          {!u.email_verified&&<button onClick={async()=>{const d=await api.patch(`/admin/users/${u.id}/verify-email`,{});if(d.ok){setUsers(p=>p.map(x=>x.id===u.id?{...x,email_verified:true}:x));toast("Email verified");}else toast(d.error||"Failed","err");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(96,165,250,0.25)",background:"rgba(96,165,250,0.12)",color:"#60a5fa",cursor:"pointer",fontFamily:"inherit"}}>verify email</button>}
+                          {!u.email_verified&&<button onClick={async()=>{const d=await api.patch(`/admin/users/${u.id}/verify-email`,{});if(d.ok){setUsers(p=>p.map(x=>x.id===u.id?{...x,email_verified:true}:x));toast("Email verified");}else toast(d.error||"Failed","err");}} className="pill pill-info">verify email</button>}
                           {u.email_verified&&<span style={{fontSize:10,color:"var(--green)",display:"flex",alignItems:"center",gap:3}}><i className="fa-solid fa-circle-check" style={{fontSize:10}}/>verified</span>}
                           {u.status==="banned"
-                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(52,211,153,0.25)",background:"rgba(52,211,153,0.12)",color:"#34d399",cursor:"pointer",fontFamily:"inherit"}}>unban</button>
-                            :<button onClick={async()=>{if(!confirm(`Ban ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/ban`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"banned"}:x));toast("User banned");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.25)",background:"rgba(248,113,113,0.12)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>ban</button>}
+                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}} className="pill pill-success">unban</button>
+                            :<button onClick={async()=>{if(!confirm(`Ban ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/ban`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"banned"}:x));toast("User banned");}} className="pill pill-danger">ban</button>}
                           {u.status==="suspended"
-                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(52,211,153,0.25)",background:"rgba(52,211,153,0.12)",color:"#34d399",cursor:"pointer",fontFamily:"inherit"}}>unsuspend</button>
-                            :<button onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(251,191,36,0.25)",background:"rgba(251,191,36,0.12)",color:"#fbbf24",cursor:"pointer",fontFamily:"inherit"}}>suspend</button>}
-                          <button onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(248,113,113,0.15)",background:"rgba(248,113,113,0.07)",color:"rgba(248,113,113,0.6)",cursor:"pointer",fontFamily:"inherit"}}>delete</button>
-                          <button onClick={async()=>{if(!confirm(`Mark ${u.username} as spammer? This will ban them and delete all their posts and DMs.`))return;const d=await api.post(`/admin/users/${u.id}/mark-spammer`,{});if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("Marked as spammer");}else toast(d.error||"Failed","err");}} style={{fontSize:11,fontWeight:500,padding:"3px 10px",borderRadius:20,border:"0.5px solid rgba(251,146,60,0.25)",background:"rgba(251,146,60,0.1)",color:"#fb923c",cursor:"pointer",fontFamily:"inherit"}}>mark spammer</button>
+                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}} className="pill pill-success">unsuspend</button>
+                            :<button onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}} className="pill pill-warn">suspend</button>}
+                          <button onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}} className="pill pill-danger" style={{opacity:.65}}>delete</button>
+                          <button onClick={async()=>{if(!confirm(`Mark ${u.username} as spammer? This will ban them and delete all their posts and DMs.`))return;const d=await api.post(`/admin/users/${u.id}/mark-spammer`,{});if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("Marked as spammer");}else toast(d.error||"Failed","err");}} className="pill pill-warn">mark spammer</button>
                         </div>
                       </>}
                     </td>
@@ -1313,7 +1313,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                 <div key={cat.key||i} style={{display:"grid",gridTemplateColumns:"1fr auto auto",alignItems:"center",gap:12,padding:"11px 14px",borderBottom:i<(cookieCfg.categories||[]).length-1?"0.5px solid var(--b1)":"none"}}>
                   <div>
                     <span style={{fontSize:13,color:"var(--t2)",fontWeight:500}}>{cat.name}</span>
-                    {cat.required&&<span style={{fontSize:10,background:"rgba(255,255,255,0.06)",border:"0.5px solid var(--b1)",borderRadius:20,padding:"2px 8px",color:"var(--t4)",marginLeft:8}}>Always on</span>}
+                    {cat.required&&<span className="pill pill-sm pill-static" style={{marginLeft:8}}>Always on</span>}
                     {cat.description&&<div style={{fontSize:11,color:"var(--t4)",marginTop:2}}>{cat.description}</div>}
                   </div>
                   <span style={{fontSize:11,color:"var(--t5)",whiteSpace:"nowrap"}}>{cat.required?"Required":"Optional"}</span>
@@ -1431,7 +1431,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         : <i className="fa-solid fa-puzzle-piece" style={{fontSize:12,color:"var(--t4)"}}/>}
                     </div>
                     <span style={{fontSize:13,fontWeight:500,color:"var(--t1)"}}>{ext.name}</span>
-                    <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:"rgba(167,139,250,0.08)",color:"var(--ac)",border:"0.5px solid rgba(167,139,250,0.2)"}}>extension</span>
+                    <span className="pill pill-sm pill-static active">extension</span>
                   </div>
                   {/* Permission rows */}
                   <div style={{background:"var(--s2)",border:"0.5px solid var(--b1)",borderRadius:12,overflow:"hidden"}}>
@@ -1648,7 +1648,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
             <div className="fgt" style={{marginTop:8}}>All uploads</div>
             <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
               {["","post_image","avatar","logo","favicon"].map(f=>(
-                <button key={f} className={uploadFilter===f?"btn-primary":"btn-ghost"} style={{fontSize:11,padding:"4px 12px",borderRadius:20}} onClick={()=>{setUploadFilter(f);setUploadPage(1);fetchUploadData(1);}}>
+                <button key={f} type="button" className={`pill${uploadFilter===f?" active":""}`} onClick={()=>{setUploadFilter(f);setUploadPage(1);fetchUploadData(1);}}>
                   {f||"all"}
                 </button>
               ))}

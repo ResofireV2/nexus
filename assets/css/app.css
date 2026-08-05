@@ -357,6 +357,8 @@ select option{background:var(--s2);color:var(--t1);}
 .pill-lg{font-size:13px;padding:5px 14px;}
 .pill-success{color:var(--green);border-color:rgba(52,211,153,0.25);background:rgba(52,211,153,0.12);}
 .pill-danger{color:var(--red);border-color:rgba(248,113,113,0.25);background:rgba(248,113,113,0.12);}
+.pill-info{color:var(--blue);border-color:rgba(96,165,250,0.25);background:rgba(96,165,250,0.12);}
+.pill-warn{color:var(--amber);border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.12);}
 .pill-muted{color:var(--t5);border-color:var(--b1);background:rgba(255,255,255,0.03);}
 [data-theme="light"] .pill{background:rgba(0,0,0,0.03);}
 [data-theme="light"] .pill-muted{background:rgba(0,0,0,0.02);}
