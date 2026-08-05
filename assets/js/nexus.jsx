@@ -3096,15 +3096,10 @@ function SearchFilterWidget({navigate, currentUser, pageProps}) {
 // inputs inside them lose focus after each keystroke.
 function FilterPills({options, value, onChange}) {
   return (
-    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+    <div className="pill-row">
       {options.map(({v,label}) => (
-        <button key={v} onClick={()=>onChange(v)} style={{
-          fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
-          fontFamily:"inherit", border:"0.5px solid",
-          borderColor: value===v ? "var(--ac-border)" : "var(--b2)",
-          background:  value===v ? "var(--ac-bg)"     : "transparent",
-          color:       value===v ? "var(--ac-text)"   : "var(--t4)",
-        }}>{label}</button>
+        <button key={v} type="button" onClick={()=>onChange(v)}
+          className={`pill${value===v?" active":""}`}>{label}</button>
       ))}
     </div>
   );
@@ -3232,22 +3227,12 @@ function SearchFilterPanel({spaces=[], tags=[], navigate}) {
 
       {spaces.length > 0 && (
         <FilterSection label="space">
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            <button onClick={()=>onSpace("")} style={{
-              fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
-              fontFamily:"inherit", border:"0.5px solid",
-              borderColor: !space ? "var(--ac-border)" : "var(--b2)",
-              background:  !space ? "var(--ac-bg)"     : "transparent",
-              color:       !space ? "var(--ac-text)"   : "var(--t4)",
-            }}>All</button>
+          <div className="pill-row">
+            <button type="button" onClick={()=>onSpace("")}
+              className={`pill${!space?" active":""}`}>All</button>
             {spaces.map(s => (
-              <button key={s.id} onClick={()=>onSpace(space===s.slug?"":s.slug)} style={{
-                fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
-                fontFamily:"inherit", border:"0.5px solid",
-                borderColor: space===s.slug ? "var(--ac-border)" : "var(--b2)",
-                background:  space===s.slug ? "var(--ac-bg)"     : "transparent",
-                color:       space===s.slug ? "var(--ac-text)"   : "var(--t4)",
-              }}>{s.name}</button>
+              <button key={s.id} type="button" onClick={()=>onSpace(space===s.slug?"":s.slug)}
+                className={`pill${space===s.slug?" active":""}`}>{s.name}</button>
             ))}
           </div>
         </FilterSection>
@@ -3255,7 +3240,7 @@ function SearchFilterPanel({spaces=[], tags=[], navigate}) {
 
       {tags.length > 0 && (
         <FilterSection label="tag">
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+          <div className="pill-row">
             <button onClick={()=>onTag("")} style={{
               fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
               fontFamily:"inherit", border:"0.5px solid",
@@ -3264,13 +3249,8 @@ function SearchFilterPanel({spaces=[], tags=[], navigate}) {
               color:       !tag ? "var(--ac-text)"   : "var(--t4)",
             }}>All</button>
             {tags.map(t => (
-              <button key={t.id} onClick={()=>onTag(tag===t.slug?"":t.slug)} style={{
-                fontSize:11, padding:"3px 10px", borderRadius:20, cursor:"pointer",
-                fontFamily:"inherit", border:"0.5px solid",
-                borderColor: tag===t.slug ? "var(--ac-border)" : "var(--b2)",
-                background:  tag===t.slug ? "var(--ac-bg)"     : "transparent",
-                color:       tag===t.slug ? "var(--ac-text)"   : "var(--t4)",
-              }}>#{t.name}</button>
+              <button key={t.id} type="button" onClick={()=>onTag(tag===t.slug?"":t.slug)}
+                className={`pill${tag===t.slug?" active":""}`}>#{t.name}</button>
             ))}
           </div>
         </FilterSection>

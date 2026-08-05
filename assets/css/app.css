@@ -319,6 +319,48 @@ select option{background:var(--s2);color:var(--t1);}
 .feed-hero-body .md-body p:last-child{margin-bottom:0;}
 .feed-space-desc{padding:8px 18px;border-bottom:0.5px solid var(--b1);font-size:12px;color:var(--t4);line-height:1.5;}
 .feed-title{font-size:var(--fs-body);font-weight:500;color:var(--t2);}
+/* ── Pills ───────────────────────────────────────────────────────────────────
+   One shape for every filter chip, segmented control and tag-style label.
+
+   There were ~100 hand-rolled `borderRadius: 20` style objects across the admin
+   panel and pages and four near-identical classes (.sort-pill, .rx-pill,
+   .comp-tag-pill, .thread-tag), which is why the same control looked slightly
+   different on every screen. Inline styles also cannot be themed or
+   media-queried, so each one was a place a later rule would not reach.
+
+   Sizes:      .pill (default, 11px) · .pill-sm (10px) · .pill-lg (13px)
+   States:     .active — accent tint, for the selected item in a filter row
+               .pill-static — non-interactive label (no cursor, no hover)
+   Tones:      .pill-success · .pill-danger · .pill-muted
+               For status labels. A tone is presentation, not selection; do not
+               combine with .active.
+
+   Colour comes from --ac-bg/--ac-text/--ac-border so pills follow the admin's
+   accent, and from --green/--red for tones rather than the rgba() literals the
+   inline versions carried. */
+.pill-row{display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:500;font-family:inherit;line-height:1.45;
+  padding:3px 10px;border-radius:20px;
+  border:0.5px solid var(--b1);
+  background:rgba(255,255,255,0.04);
+  color:var(--t3);
+  cursor:pointer;white-space:nowrap;
+  transition:color .1s, border-color .1s, background .1s;
+}
+.pill:hover:not(.active):not(.pill-static){color:var(--t2);border-color:var(--b2);}
+.pill.active{color:var(--ac-text);border-color:var(--ac-border);background:var(--ac-bg);}
+/* Labels rather than controls — a tag on a post, a status on a row. */
+.pill-static{cursor:default;}
+.pill-sm{font-size:10px;padding:2px 8px;}
+.pill-lg{font-size:13px;padding:5px 14px;}
+.pill-success{color:var(--green);border-color:rgba(52,211,153,0.25);background:rgba(52,211,153,0.12);}
+.pill-danger{color:var(--red);border-color:rgba(248,113,113,0.25);background:rgba(248,113,113,0.12);}
+.pill-muted{color:var(--t5);border-color:var(--b1);background:rgba(255,255,255,0.03);}
+[data-theme="light"] .pill{background:rgba(0,0,0,0.03);}
+[data-theme="light"] .pill-muted{background:rgba(0,0,0,0.02);}
+
 .sort-pills{display:flex;gap:4px;}
 .sort-pill{font-size:var(--fs-ui);color:var(--t3);padding:4px 11px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.08);cursor:pointer;transition:all .1s;}
 .sort-pill.active{color:var(--ac-text);border-color:var(--ac-border);background:var(--ac-bg);}
