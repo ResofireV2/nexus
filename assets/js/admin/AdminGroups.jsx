@@ -96,14 +96,14 @@ function GroupModal({ group, onClose, onSaved }) {
     else toast(res.error || JSON.stringify(res.errors) || "Failed", "err");
   };
 
+  // Mirrors the shared .fi rule. Kept as an object because it is spread in
+  // places ({...fi, flex:1}), which a className cannot express — but the values
+  // now match rather than being a second, smaller input style.
   const fi = {
-    width: "100%", background: "var(--s1)", border: "0.5px solid var(--b2)",
-    borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "var(--t2)",
+    width: "100%", background: "rgba(255,255,255,0.05)",
+    border: "0.5px solid rgba(255,255,255,0.1)",
+    borderRadius: 12, padding: "11px 15px", fontSize: 15, color: "var(--t1)",
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-  };
-  const fieldLabel = {
-    fontSize: 11, fontWeight: 500, color: "var(--t5)",
-    textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6, display: "block",
   };
 
   return (
@@ -123,14 +123,14 @@ function GroupModal({ group, onClose, onSaved }) {
 
         {/* Name */}
         <div style={{ marginBottom: 14 }}>
-          <label style={fieldLabel}>Name</label>
+          <label className="f-label">Name</label>
           <input style={fi} value={form.name} onChange={e => handleName(e.target.value)}
             placeholder="e.g. Donors, Super Members, Beta Testers"/>
         </div>
 
         {/* Slug */}
         <div style={{ marginBottom: 14 }}>
-          <label style={fieldLabel}>
+          <label className="f-label">
             Slug
             <span style={{ fontSize: 10, color: "var(--t5)", marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
               — used in permissions and extension APIs
@@ -143,7 +143,7 @@ function GroupModal({ group, onClose, onSaved }) {
 
         {/* Description */}
         <div style={{ marginBottom: 14 }}>
-          <label style={fieldLabel}>
+          <label className="f-label">
             Description
             <span style={{ fontSize: 10, color: "var(--t5)", marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
               optional
@@ -181,7 +181,7 @@ function GroupModal({ group, onClose, onSaved }) {
 
             {/* Badge label */}
             <div style={{ marginBottom: 12 }}>
-              <label style={fieldLabel}>Badge label</label>
+              <label className="f-label">Badge label</label>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <input style={{ ...fi, flex: 1 }}
                   value={form.badge_label} onChange={e => set("badge_label", e.target.value)}
@@ -194,13 +194,13 @@ function GroupModal({ group, onClose, onSaved }) {
 
             {/* Badge color */}
             <div style={{ marginBottom: 12 }}>
-              <label style={fieldLabel}>Badge color</label>
+              <label className="f-label">Badge color</label>
               <ColorPicker value={form.badge_color} onChange={v => set("badge_color", v)}/>
             </div>
 
             {/* Badge icon */}
             <div style={{ marginBottom: 12 }}>
-              <label style={fieldLabel}>
+              <label className="f-label">
                 Badge icon
                 <span style={{ fontSize: 10, color: "var(--t5)", marginLeft: 6, textTransform: "none", letterSpacing: 0 }}>
                   optional
@@ -236,7 +236,7 @@ function GroupModal({ group, onClose, onSaved }) {
 
             {/* Show on */}
             <div>
-              <label style={fieldLabel}>Show badge on</label>
+              <label className="f-label">Show badge on</label>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {[
                   { key: "show_on_profile", label: "Profile page" },
@@ -296,9 +296,12 @@ function MembersModal({ group, onClose }) {
     else toast(res.error || "Failed", "err");
   };
 
+  // Same values as the shared .fi rule, with flex:1 for the inline row it sits
+  // in. Was a second, smaller input style defined separately in this file.
   const fi = {
-    flex: 1, background: "var(--s1)", border: "0.5px solid var(--b2)",
-    borderRadius: 8, padding: "8px 12px", fontSize: 13, color: "var(--t2)",
+    flex: 1, background: "rgba(255,255,255,0.05)",
+    border: "0.5px solid rgba(255,255,255,0.1)",
+    borderRadius: 12, padding: "11px 15px", fontSize: 15, color: "var(--t1)",
     fontFamily: "inherit", outline: "none",
   };
 

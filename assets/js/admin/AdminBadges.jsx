@@ -155,7 +155,7 @@ function BadgesPage({currentUser, navigate}) {
   };
 
   const Section = ({label, items, renderItem}) => items.length===0?null:<>
-    <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:12,marginTop:20,display:"flex",alignItems:"center",gap:8}}>
+    <div className="fgt" style={{marginTop:20,display:"flex",alignItems:"center",gap:8}}>
       {label}<div style={{flex:1,height:"0.5px",background:"var(--b1)"}}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
@@ -382,16 +382,16 @@ function AdminBadgesPanel() {
           <div style={{width:"100%",maxWidth:480,background:"var(--s2)",border:"0.5px solid var(--b2)",borderRadius:16,padding:28,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:16,fontWeight:600,color:"var(--t1)",marginBottom:20}}>{editing==="new"?"New badge":"Edit badge"}</div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Name</div>
+              <label className="f-label">Name</label>
               <input style={fi} value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="Badge name"/>
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Description</div>
+              <label className="f-label">Description</label>
               <textarea style={{...fi,resize:"vertical",minHeight:72}} value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="What does a member need to do to earn this?"/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Icon (Font Awesome class)</div>
+                <label className="f-label">Icon (Font Awesome class)</label>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <input style={{...fi,flex:1}} value={form.icon} onChange={e=>setForm(p=>({...p,icon:e.target.value.trim()}))} placeholder="fa-medal"/>
                   <div style={{width:34,height:34,borderRadius:8,background:`${form.color}22`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -400,7 +400,7 @@ function AdminBadgesPanel() {
                 </div>
               </div>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Color</div>
+                <label className="f-label">Color</label>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <input type="color" value={form.color} onChange={e=>setForm(p=>({...p,color:e.target.value}))} style={{width:36,height:36,borderRadius:8,border:"0.5px solid var(--b2)",padding:2,background:"var(--s1)",cursor:"pointer",flexShrink:0}}/>
                   <input style={{...fi,flex:1}} value={form.color} onChange={e=>setForm(p=>({...p,color:e.target.value}))} placeholder="#a78bfa"/>
@@ -409,13 +409,13 @@ function AdminBadgesPanel() {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Rarity</div>
+                <label className="f-label">Rarity</label>
                 <Select style={fi} value={form.rarity} onChange={v=>setForm(p=>({...p,rarity:v}))}>
                   {["common","rare","epic","legendary"].map(r=><option key={r} value={r}>{r}</option>)}
                 </Select>
               </div>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Award type</div>
+                <label className="f-label">Award type</label>
                 <Select style={fi} value={form.award_type} onChange={v=>setForm(p=>({...p,award_type:v}))}>
                   <option value="auto">Automatic</option>
                   <option value="manual">Manual</option>
@@ -424,13 +424,13 @@ function AdminBadgesPanel() {
             </div>
             {form.award_type==="auto"&&<>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Trigger condition</div>
+                <label className="f-label">Trigger condition</label>
                 <Select style={fi} value={form.trigger_type} onChange={v=>setForm(p=>({...p,trigger_type:v}))}>
                   {Object.entries(TRIGGER_TYPE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
                 </Select>
               </div>
               <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Threshold (must reach this value)</div>
+                <label className="f-label">Threshold (must reach this value)</label>
                 <input style={fi} type="number" min="1" value={form.trigger_threshold} onChange={e=>setForm(p=>({...p,trigger_threshold:e.target.value}))} placeholder="e.g. 100"/>
               </div>
             </>}

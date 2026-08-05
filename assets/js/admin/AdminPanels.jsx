@@ -510,7 +510,7 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
         <div style={{fontSize:13,fontWeight:500,color:"var(--t2)",marginBottom:16}}>Send schedule</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Timezone</div>
+            <label className="f-label">Timezone</label>
             <Select style={fi} value={cfg.timezone||"UTC"} onChange={v=>set("timezone",v)}>
               {TIMEZONES.map(g=>(
                 <optgroup key={g.group} label={g.group}>
@@ -520,12 +520,12 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
             </Select>
           </div>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Send time</div>
+            <label className="f-label">Send time</label>
             <input style={{...fi,width:"100%"}} type="time" value={cfg.send_time||"08:00"} onChange={e=>set("send_time",e.target.value)}/>
           </div>
           {enabledFreqs.includes("weekly")&&(
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Weekly send day</div>
+              <label className="f-label">Weekly send day</label>
               <Select style={fi} value={cfg.weekly_day||"monday"} onChange={v=>set("weekly_day",v)}>
                 {weekDays.map(d=><option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
               </Select>
@@ -533,7 +533,7 @@ function AdminDigestPanel({digestCfg, setDigestCfg, saving, saveSection}) {
           )}
           {enabledFreqs.includes("monthly")&&(
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Monthly send day</div>
+              <label className="f-label">Monthly send day</label>
               <Select style={fi} value={cfg.monthly_day||1} onChange={v=>set("monthly_day",parseInt(v))}>
                 {Array.from({length:28},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
               </Select>
@@ -651,7 +651,7 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
         {/* Enabled toggle */}
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Enabled</div>
+            <label className="f-label">Enabled</label>
             <div style={{fontSize:12,color:"var(--t4)"}}>Show the leaderboard page and rank stats to members.</div>
           </div>
           <div style={{position:"relative",width:40,height:22,borderRadius:11,background:lbCfg.enabled!==false?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
@@ -662,7 +662,7 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
         {/* Exclude staff toggle */}
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Exclude admins &amp; moderators</div>
+            <label className="f-label">Exclude admins &amp; moderators</label>
             <div style={{fontSize:12,color:"var(--t4)"}}>Remove staff from rankings so members compete on an equal footing. Staff scores are still tracked — only their visibility is affected.</div>
           </div>
           <div style={{position:"relative",width:40,height:22,borderRadius:11,background:lbCfg.exclude_staff?"var(--ac)":"rgba(255,255,255,0.1)",cursor:"pointer",transition:"background .15s",flexShrink:0}}
@@ -672,7 +672,7 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
         </div>
         {/* Currency name */}
         <div>
-          <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Points currency name</div>
+          <label className="f-label">Points currency name</label>
           <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>What members see (e.g. "points", "kudos", "karma", "stars").</div>
           <input style={{...fi,width:200}} value={lbCfg.points_name||"points"} onChange={e=>setLbCfg(p=>({...p,points_name:e.target.value}))} placeholder="points"/>
         </div>
@@ -701,14 +701,14 @@ function AdminLeaderboardPanel({lbCfg, setLbCfg, saving, saveSection}) {
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px",marginBottom:14}}>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Multiplier per streak day</div>
+            <label className="f-label">Multiplier per streak day</label>
             <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>e.g. 0.1 means +10% per day</div>
             <input style={{...fi,width:120}} type="number" min={0} step={0.05}
               value={lbCfg.streak_multiplier ?? 0.1}
               onChange={e=>setLbCfg(p=>({...p,streak_multiplier:parseFloat(e.target.value)||0}))}/>
           </div>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,fontWeight:500,color:"var(--t5)",textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:6}}>Maximum multiplier</div>
+            <label className="f-label">Maximum multiplier</label>
             <div style={{fontSize:11,color:"var(--t5)",opacity:0.7,marginBottom:6}}>e.g. 3.0 means up to 3× base</div>
             <input style={{...fi,width:120}} type="number" min={1} step={0.5}
               value={lbCfg.streak_cap ?? 3.0}
