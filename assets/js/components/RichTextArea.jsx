@@ -27,6 +27,11 @@ const SLASH_ITEMS = [
 ];
 
 // Built-in toolbar button definitions
+// A toolbar label is either a Font Awesome class string or a literal glyph.
+export function isIconLabel(label) {
+  return typeof label === "string" && label.indexOf("fa-") === 0;
+}
+
 export const TB_BTNS = [
   {type:"bold",    label:"B",   tip:"Bold",          style:{fontWeight:700},                   wrap:["**","**"]},
   {type:"italic",  label:"I",   tip:"Italic",        style:{fontStyle:"italic"},               wrap:["*","*"]},
@@ -245,7 +250,9 @@ function OverflowMenuPortal({
     return (
       <button key={b.type} className="comp-tb-btn" title={b.tip} style={ROW}
         onMouseDown={e=>{e.preventDefault();onFormat(b.wrap);}}>
-        <span style={{...b.style,fontSize:16,width:20,textAlign:"center",display:"inline-block"}}>{b.label}</span>
+        <span style={{...b.style,fontSize:16,width:20,textAlign:"center",display:"inline-block"}}>
+          {isIconLabel(b.label) ? <i className={b.label}/> : b.label}
+        </span>
         <span style={{fontSize:13}}>{b.tip}</span>
       </button>
     );
@@ -853,7 +860,12 @@ export function RichTextArea({value, onChange, placeholder, minHeight=200, autoF
             return (
               <button key={b.type} className="comp-tb-btn" title={b.tip}
                 style={b.style} onMouseDown={e=>{e.preventDefault(); if(inOverflow)setOverflowOpen(false); applyFormat(b.wrap);}}>
-                {b.label}
+                {/* A label is either a Font Awesome class or a literal glyph
+                    ("B", "H1", "</>"). The icon branches above are gated on
+                    behaviour flags (b.list, b.grid), so a wrap-style button
+                    with an icon class fell through here and rendered the class
+                    name as text. Decide by the label, not by the behaviour. */}
+                {isIconLabel(b.label) ? <i className={b.label} style={{fontSize:16}}/> : b.label}
               </button>
             );
           };
