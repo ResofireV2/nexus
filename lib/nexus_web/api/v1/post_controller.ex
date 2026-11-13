@@ -11,14 +11,21 @@ defmodule NexusWeb.API.V1.PostController do
     if !conn.assigns[:current_user] && !Nexus.Permissions.guest_browsing?() do
       conn |> put_status(:unauthorized) |> json(%{error: "Please log in to view this forum"})
     else
+    viewer = conn.assigns[:current_user]
     case Forum.get_post(id) do
+      # A post the viewer may not see answers 404, not 403, so the response
+      # doesn't confirm that a restricted or held post exists.
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       post ->
+        if !Forum.viewable_post?(post, viewer) do
+          conn |> put_status(:not_found) |> json(%{error: "Post not found"})
+        else
         reactions = Forum.list_reactions(post_id: post.id)
         user_reaction = if conn.assigns[:current_user] do
           Forum.get_user_reaction(conn.assigns.current_user.id, post_id: post.id)
         end
         json(conn, %{post: Map.merge(post_json(post), %{reactions: reactions, user_reaction: user_reaction})})
+        end
     end
     end
   end
@@ -124,7 +131,16 @@ defmodule NexusWeb.API.V1.PostController do
     case Forum.get_post!(id) do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       post ->
-        if can_edit?(user, post) do
+        cond do
+          !can_edit?(user, post) ->
+            conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})
+
+          # Moving a post is a post into the destination space, so it needs the
+          # same permission as creating one there.
+          !can_move_to?(params["space_id"], post, user) ->
+            conn |> put_status(:forbidden) |> json(%{error: "You do not have permission to post in that space"})
+
+          true ->
           tag_ids = Map.get(params, "tag_ids")
           case Forum.update_post(post, params, tag_ids) do
             {:ok, updated} ->
@@ -145,8 +161,6 @@ defmodule NexusWeb.API.V1.PostController do
               json(conn, %{post: post_json(updated)})
             {:error, cs}   -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
           end
-        else
-          conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})
         end
     end
   end
@@ -243,6 +257,19 @@ defmodule NexusWeb.API.V1.PostController do
     user.id == post.user_id || User.moderator?(user)
   end
 
+  # No space_id in the edit, or the same space: nothing to check.
+  defp can_move_to?(nil, _post, _user), do: true
+  defp can_move_to?(space_id, post, user) do
+    if to_string(space_id) == to_string(post.space_id) do
+      true
+    else
+      case Forum.get_space(space_id) do
+        nil   -> false
+        space -> Nexus.Forum.SpacePermissions.can_post?(space, user)
+      end
+    end
+  end
+
   defp post_json(post) do
     %{
       id: post.id,
@@ -320,8 +347,12 @@ defmodule NexusWeb.API.V1.PostController do
     user = conn.assigns.current_user
     post = Forum.get_post!(post_id)
     if post && (post.user_id == user.id || user.role in ["admin", "moderator"]) do
-      Forum.accept_answer(String.to_integer(post_id), String.to_integer(reply_id))
-      json(conn, %{ok: true, accepted_reply_id: String.to_integer(reply_id)})
+      with {reply_id, ""} <- Integer.parse(reply_id),
+           {:ok, :accepted} <- Forum.accept_answer(post.id, reply_id) do
+        json(conn, %{ok: true, accepted_reply_id: reply_id})
+      else
+        _ -> conn |> put_status(:unprocessable_entity) |> json(%{error: "That reply isn't part of this post"})
+      end
     else
       conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})
     end
@@ -332,7 +363,7 @@ defmodule NexusWeb.API.V1.PostController do
     user = conn.assigns.current_user
     post = Forum.get_post!(post_id)
     if post && (post.user_id == user.id || user.role in ["admin", "moderator"]) do
-      Forum.unaccept_answer(String.to_integer(post_id))
+      Forum.unaccept_answer(post.id)
       json(conn, %{ok: true, accepted_reply_id: nil})
     else
       conn |> put_status(:forbidden) |> json(%{error: "Not authorized"})

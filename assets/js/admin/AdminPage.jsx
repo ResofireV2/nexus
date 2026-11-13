@@ -152,7 +152,8 @@ function TagsAdmin({tags, onRefresh}) {
 
   const del=async t=>{
     if(!confirm(`Delete tag "#${t.name}"?`))return;
-    await api.delete(`/tags/${t.slug}`);
+    const r_ = await api.delete(`/tags/${t.slug}`);
+    if (r_.error) { toast(r_.error, "err"); return; }
     toast("Tag deleted"); onRefresh();
   };
 
@@ -262,7 +263,8 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
 
   const del=async(s)=>{
     if(!confirm(`Delete space "${s.name}"? This cannot be undone.`))return;
-    await api.delete(`/admin/spaces/${s.slug}`);
+    const d = await api.delete(`/admin/spaces/${s.slug}`);
+    if (d.error) { toast(d.error, "err"); return; }
     toast("Space deleted"); onRefresh();
   };
 
@@ -1402,7 +1404,7 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                         with nothing saying which was which. */}
                     <div className="arow-meta">
                       <span className="arow-meta-label">Role</span>
-                      <Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:"var(--fs-body)",color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{await api.patch(`/admin/users/${u.id}/role`,{role:v});setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select>
+                      <Select style={{background:"rgba(255,255,255,0.05)",border:"0.5px solid var(--b1)",borderRadius:6,padding:"3px 8px",fontSize:"var(--fs-body)",color:"var(--t1)",fontFamily:"inherit",outline:"none",cursor:"pointer"}} value={u.role} onChange={async v=>{{const r_=await api.patch(`/admin/users/${u.id}/role`,{role:v});if(r_.error){toast(r_.error,"err");return;}}setUsers(p=>p.map(x=>x.id===u.id?{...x,role:v}:x));toast("Role updated");}} disabled={u.id===currentUser.id}><option value="member">member</option><option value="moderator">moderator</option><option value="admin">admin</option></Select>
                     </div>
                     <div className="arow-meta">
                       <span className="arow-meta-label">Joined</span>
@@ -1418,11 +1420,11 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                           {!u.email_verified&&<button onClick={async()=>{const d=await api.patch(`/admin/users/${u.id}/verify-email`,{});if(d.ok){setUsers(p=>p.map(x=>x.id===u.id?{...x,email_verified:true}:x));toast("Email verified");}else toast(d.error||"Failed","err");}} className="pill pill-info">verify email</button>}
                           {u.email_verified&&<span style={{fontSize:10,color:"var(--green)",display:"flex",alignItems:"center",gap:3}}><i className="fa-solid fa-circle-check" style={{fontSize:10}}/>verified</span>}
                           {u.status==="banned"
-                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}} className="pill pill-success">unban</button>
-                            :<button onClick={async()=>{if(!confirm(`Ban ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/ban`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"banned"}:x));toast("User banned");}} className="pill pill-danger">ban</button>}
+                            ?<button onClick={async()=>{{const r_=await api.delete(`/moderation/users/${u.username}/ban`);if(r_.error){toast(r_.error,"err");return;}}setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}} className="pill pill-success">unban</button>
+                            :<button onClick={async()=>{if(!confirm(`Ban ${u.username}?`))return;{const r_=await api.post(`/moderation/users/${u.username}/ban`,{reason:"Admin action"});if(r_.error){toast(r_.error,"err");return;}}setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"banned"}:x));toast("User banned");}} className="pill pill-danger">ban</button>}
                           {u.status==="suspended"
-                            ?<button onClick={async()=>{await api.delete(`/moderation/users/${u.username}/suspend`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}} className="pill pill-success">unsuspend</button>
-                            :<button onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}} className="pill pill-warn">suspend</button>}
+                            ?<button onClick={async()=>{{const r_=await api.delete(`/moderation/users/${u.username}/suspend`);if(r_.error){toast(r_.error,"err");return;}}setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("Suspension lifted");}} className="pill pill-success">unsuspend</button>
+                            :<button onClick={async()=>{if(!confirm(`Suspend ${u.username}?`))return;{const r_=await api.post(`/moderation/users/${u.username}/suspend`,{reason:"Admin action"});if(r_.error){toast(r_.error,"err");return;}}setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"suspended"}:x));toast("User suspended");}} className="pill pill-warn">suspend</button>}
                           <button onClick={async()=>{if(!confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;const d=await api.delete(`/admin/users/${u.id}`);if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("User deleted");}else toast(d.error||"Failed","err");}} className="pill pill-danger" style={{opacity:.65}}>delete</button>
                           <button onClick={async()=>{if(!confirm(`Mark ${u.username} as spammer? This will ban them and delete all their posts and DMs.`))return;const d=await api.post(`/admin/users/${u.id}/mark-spammer`,{});if(d.ok){setUsers(p=>p.filter(x=>x.id!==u.id));toast("Marked as spammer");}else toast(d.error||"Failed","err");}} className="pill pill-warn">mark spammer</button>
                         </div>
@@ -1691,13 +1693,15 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                     </div>
                     <div style={{display:"flex",gap:8,flexShrink:0}}>
                       <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--green)"}} onClick={async()=>{
-                        await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                        const r_ = await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                        if (r_.error) { toast(r_.error, "err"); return; }
                         setPendingItems(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
                         toast("Approved");
                       }}>Approve</button>
                       <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--red)"}} onClick={async()=>{
                         if(!confirm("Reject and delete this content?"))return;
-                        await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                        const r_ = await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                        if (r_.error) { toast(r_.error, "err"); return; }
                         setPendingItems(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
                         toast("Rejected");
                       }}>Reject</button>
@@ -1881,7 +1885,8 @@ export function AdminPage({currentUser, navigate, onSpacesUpdated, layoutCfg={},
                           <td>
                             <span style={{fontSize:11,color:"var(--red)",cursor:"pointer"}} onClick={async()=>{
                               if(!confirm("Delete this file?"))return;
-                              await api.delete(`/admin/uploads/${u.id}`);
+                              const r_ = await api.delete(`/admin/uploads/${u.id}`);
+                              if (r_.error) { toast(r_.error, "err"); return; }
                               setUploads(p=>p.filter(x=>x.id!==u.id));
                               fetchUploadData();
                               toast("Deleted");

@@ -6,10 +6,17 @@ defmodule NexusWeb.NotificationChannel do
   @impl true
   def join("notifications:" <> user_id_str, _payload, socket) do
     current_user_id = socket.assigns[:current_user_id]
-    requested_id    = String.to_integer(user_id_str)
 
-    if current_user_id == requested_id do
-      Phoenix.PubSub.subscribe(Nexus.PubSub, "notifications:#{current_user_id}")
+    requested_id =
+      case Integer.parse(user_id_str) do
+        {id, ""} -> id
+        _        -> :invalid
+      end
+
+    # No manual PubSub.subscribe here: joining "notifications:<id>" already
+    # subscribes this process to that topic. Subscribing again delivered every
+    # message twice, so each notification and DM was pushed to the client twice.
+    if current_user_id != nil and current_user_id == requested_id do
       send(self(), :after_join)
       {:ok, socket}
     else

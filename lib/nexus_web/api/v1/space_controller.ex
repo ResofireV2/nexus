@@ -98,8 +98,18 @@ defmodule NexusWeb.API.V1.SpaceController do
         conn |> put_status(:not_found) |> json(%{error: "Space not found"})
 
       space ->
-        {:ok, _} = Forum.delete_space(space)
-        json(conn, %{ok: true})
+        case Forum.delete_space(space) do
+          {:ok, _} ->
+            json(conn, %{ok: true})
+
+          {:error, :has_posts} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "This space still has posts. Move or delete them first."})
+
+          {:error, _} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: "Could not delete this space"})
+        end
     end
   end
 

@@ -7,11 +7,14 @@ defmodule NexusWeb.API.V1.ReplyController do
 
   # GET /api/v1/posts/:post_id/replies
   def index(conn, %{"post_id" => post_id} = params) do
-    case Forum.get_post(post_id) do
-      nil -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
-      post ->
+    viewer = conn.assigns[:current_user]
+    post   = Forum.get_post(post_id)
+
+    if is_nil(post) or !Forum.viewable_post?(post, viewer) do
+      conn |> put_status(:not_found) |> json(%{error: "Post not found"})
+    else
         %{replies: replies, next_cursor: next_cursor} =
-          Forum.list_replies(post.id, cursor: params["cursor"])
+          Forum.list_replies(post.id, cursor: params["cursor"], viewer: viewer)
 
         # Batch-fetch reactions in one query. edit_count is now a denormalized
         # column on replies, so no separate query is needed for that.
@@ -32,7 +35,10 @@ defmodule NexusWeb.API.V1.ReplyController do
     if user.status in ["banned", "suspended"] do
       conn |> put_status(:forbidden) |> json(%{error: "Your account is not permitted to post"})
     else
-    case Forum.get_post(post_id) do
+    post = Forum.get_post(post_id)
+    post = if post && Forum.viewable_post?(post, user), do: post, else: nil
+
+    case post do
       nil  -> conn |> put_status(:not_found) |> json(%{error: "Post not found"})
       %{locked: true} -> conn |> put_status(:forbidden) |> json(%{error: "Post is locked"})
       post ->

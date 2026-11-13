@@ -591,6 +591,10 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
   },[postId,currentUser]);
 
   useEffect(()=>{
+    // Set false when postId changes. Opening two posts in quick succession
+    // otherwise let the first, slower response land after the second and fill
+    // the page with the wrong post's content, replies and read position.
+    let live = true;
     (async()=>{ setLoading(true);
       setLastReadReplyId(undefined); // reset to "not yet fetched" for new post
       try { const [pd,rd,rp]=await Promise.all([
@@ -598,6 +602,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           api.get(`/posts/${postId}/replies`),
           currentUser?api.get(`/posts/${postId}/read-position`):Promise.resolve({})
         ]);
+        if(!live) return;
         setPost(pd.post);
         setReplies(rd.replies||[]);
         setReplyCursor(rd.next_cursor||null);
@@ -634,14 +639,14 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           // check one post. GET /posts/:id/saved → {saved: bool},
           // GET /posts/:id/replies/saved → {saved_reply_ids: [...]}.
           api.get(`/posts/${postId}/saved`).then(d=>{
-            if(d.saved !== undefined) setPostSaved(d.saved);
+            if(live && d.saved !== undefined) setPostSaved(d.saved);
           }).catch(()=>{});
           api.get(`/posts/${postId}/replies/saved`).then(d=>{
-            setSavedReplyIds(new Set(d.saved_reply_ids||[]));
+            if(live) setSavedReplyIds(new Set(d.saved_reply_ids||[]));
           }).catch(()=>{});
           // Load follow state
           api.get(`/posts/${postId}/follow`).then(d=>{
-            if(d.followed !== undefined) setPostFollowed(d.followed);
+            if(live && d.followed !== undefined) setPostFollowed(d.followed);
           }).catch(()=>{}); // silently ignore until endpoint exists
 
           // Mark any unread notifications for this post as read —
@@ -649,8 +654,9 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
           api.post(`/notifications/mark-read-by-post`, {post_id: postId}).catch(()=>{});
         }
       }
-      finally { setLoading(false); }
+      finally { if(live) setLoading(false); }
     })();
+    return ()=>{ live = false; };
   },[postId]);
 
   // Track whether we've done the initial position restore for this post.
@@ -831,7 +837,8 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
     else { await api.post(`/posts/${post.id}/replies/${replyId}/save`,{}); setSavedReplyIds(p=>new Set([...p,replyId])); }
   };
   const modAction=async(action)=>{
-    await api.post(`/posts/${post.id}/${action}`,{});
+    const r_ = await api.post(`/posts/${post.id}/${action}`,{});
+    if (r_.error) { toast(r_.error, "err"); return; }
     setPost(p=>({...p, [action]:!p[action]}));
     toast(action.charAt(0).toUpperCase()+action.slice(1)+"d");
   };
@@ -1255,7 +1262,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
                     {/* Delete */}
                     {(currentUser.id===post.user?.id||isMod)&&<>
                       <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
-                      <button onClick={async()=>{setPostMenuOpen(false);if(!confirm("Delete this post?"))return;await api.delete(`/posts/${post.id}`);navigate("feed");toast("Post deleted");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                      <button onClick={async()=>{setPostMenuOpen(false);if(!confirm("Delete this post?"))return;{const r_=await api.delete(`/posts/${post.id}`);if(r_.error){toast(r_.error,"err");return;}}navigate("feed");toast("Post deleted");}} style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
                         onMouseLeave={e=>e.currentTarget.style.background="none"}>
                         <i className="fa-solid fa-trash" style={{fontSize:11,color:"var(--red)",width:14}}/>Delete post
@@ -1408,7 +1415,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
                             <i className="fa-solid fa-pen" style={{fontSize:11,color:"var(--t4)",width:14}}/>Edit reply
                           </button>}
                           <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
-                          <button onClick={async()=>{setOpenReplyMenu(null);if(!confirm("Delete this reply?"))return;await api.delete(`/posts/${postId}/replies/${r.id}`);setReplies(p=>p.filter(x=>x.id!==r.id));setPost(p=>({...p,reply_count:p.reply_count-1}));toast("Reply deleted");}}
+                          <button onClick={async()=>{setOpenReplyMenu(null);if(!confirm("Delete this reply?"))return;{const r_=await api.delete(`/posts/${postId}/replies/${r.id}`);if(r_.error){toast(r_.error,"err");return;}}setReplies(p=>p.filter(x=>x.id!==r.id));setPost(p=>({...p,reply_count:p.reply_count-1}));toast("Reply deleted");}}
                             style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                             onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
                             onMouseLeave={e=>e.currentTarget.style.background="none"}>
@@ -1417,7 +1424,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
                         </>}
                         {isMod&&<>
                           <div style={{height:"0.5px",background:"var(--b1)",margin:"4px 0"}}/>
-                          <button onClick={async()=>{setOpenReplyMenu(null);await api.post(`/posts/${postId}/replies/${r.id}/hide`,{});setReplies(p=>p.filter(x=>x.id!==r.id));toast("Reply hidden");}}
+                          <button onClick={async()=>{setOpenReplyMenu(null);{const r_=await api.post(`/posts/${postId}/replies/${r.id}/hide`,{});if(r_.error){toast(r_.error,"err");return;}}setReplies(p=>p.filter(x=>x.id!==r.id));toast("Reply hidden");}}
                             style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                             onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
                             onMouseLeave={e=>e.currentTarget.style.background="none"}>

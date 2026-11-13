@@ -9,6 +9,29 @@ import { Md } from "../components/Markdown";
 // ── ReportCard, ModerationPage, AdminModerationPanel ─────────────────────────
 
 // ── Shared report card component ─────────────────────────────────────────────
+// Shared by the Moderation page and the admin panel's Reports tab, which had
+// drifted apart: one hid reported replies only by accident, the other not at
+// all. A reply report also carries its post's id (for "view"), so the reply
+// check must come first or removing a reply would hide the whole post.
+// Returns false if the action was cancelled or failed.
+async function applyReportAction(action, r, navigate) {
+  if (action === "view") {
+    if (r.post_id) navigate("post", {id: r.post_id});
+    return false;
+  }
+  if (action === "remove") {
+    if (!confirm("Remove this content?")) return false;
+    let d = {};
+    if (r.reply_id && r.post_id) d = await api.post(`/posts/${r.post_id}/replies/${r.reply_id}/hide`, {});
+    else if (r.post_id)          d = await api.post(`/posts/${r.post_id}/hide`, {});
+    if (d.error) { toast(d.error, "err"); return false; }
+  }
+  const status = action === "remove" ? "actioned" : "dismissed";
+  const d = await api.patch(`/reports/${r.id}`, {status});
+  if (d.error) { toast(d.error, "err"); return false; }
+  return status;
+}
+
 function ReportCard({r, onAction, isAdmin}) {
   const urgent = r.status === "pending" && (r._count || 1) >= 3;
   const resolved = r.status !== "pending";
@@ -139,17 +162,8 @@ function ModerationPage({currentUser, navigate}) {
   useEffect(() => { load(); }, [load]);
 
   const handleAction = async (action, r) => {
-    if (action === "view") {
-      if (r.post_id) navigate("post", {id: r.post_id});
-      return;
-    }
-    const status = action === "remove" ? "actioned" : "dismissed";
-    if (action === "remove") {
-      if (!confirm("Remove this content?")) return;
-      if (r.post_id) await api.post(`/posts/${r.post_id}/hide`, {});
-      else if (r.reply_id) await api.post(`/posts/${r.post_id}/replies/${r.reply_id}/hide`, {});
-    }
-    await api.patch(`/reports/${r.id}`, {status});
+    const status = await applyReportAction(action, r, navigate);
+    if (!status) return;
     setReports(p => p.map(x => x.id === r.id ? {...x, status} : x));
     toast(action === "remove" ? "Content removed" : "Report dismissed");
   };
@@ -254,13 +268,15 @@ function ModerationPage({currentUser, navigate}) {
                         </div>
                         <div style={{display:"flex",gap:8,flexShrink:0}}>
                           <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--green)"}} onClick={async()=>{
-                            await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                            const r_ = await api.post(`/admin/pending/${item.type}/${item.id}/approve`,{});
+                            if (r_.error) { toast(r_.error, "err"); return; }
                             setPending(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
                             toast("Approved");
                           }}>Approve</button>
                           <button className="btn-ghost" style={{fontSize:11,padding:"4px 12px",color:"var(--red)"}} onClick={async()=>{
                             if(!confirm("Reject and delete this content?"))return;
-                            await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                            const r_ = await api.delete(`/admin/pending/${item.type}/${item.id}`);
+                            if (r_.error) { toast(r_.error, "err"); return; }
                             setPending(p=>p.filter(x=>!(x.type===item.type&&x.id===item.id)));
                             toast("Rejected");
                           }}>Reject</button>
@@ -340,7 +356,7 @@ function ModerationPage({currentUser, navigate}) {
                   </div>
                   <div style={{fontSize:11,color:"var(--t5)"}}>banned {ago(u.updated_at||u.inserted_at)}</div>
                   {(currentUser?.role==="admin")&&<span style={{fontSize:11,color:"var(--green)",cursor:"pointer",marginLeft:8}}
-                    onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setBanned(p=>p.filter(x=>x.id!==u.id));toast("User unbanned");}}>
+                    onClick={async()=>{{const r_=await api.delete(`/moderation/users/${u.username}/ban`);if(r_.error){toast(r_.error,"err");return;}}setBanned(p=>p.filter(x=>x.id!==u.id));toast("User unbanned");}}>
                     unban
                   </span>}
                 </div>
@@ -394,13 +410,8 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
   const bannedUsers = users.filter(u=>u.status==="banned");
 
   const handleAction = async(action, r) => {
-    if(action==="view"){if(r.post_id)navigate("post",{id:r.post_id});return;}
-    const status = action==="remove"?"actioned":"dismissed";
-    if(action==="remove"){
-      if(!confirm("Remove this content?"))return;
-      if(r.post_id) await api.post(`/posts/${r.post_id}/hide`,{});
-    }
-    await api.patch(`/reports/${r.id}`,{status});
+    const status = await applyReportAction(action, r, navigate);
+    if(!status) return;
     setReports(p=>p.map(x=>x.id===r.id?{...x,status}:x));
     toast(action==="remove"?"Content removed":"Report dismissed");
   };
@@ -510,7 +521,7 @@ function AdminModerationPanel({reports, setReports, modLogs, users, setUsers, cu
                 </div>
                 <div style={{fontSize:11,color:"var(--t5)"}}>joined {fmtDate(u.inserted_at)}</div>
                 <span style={{fontSize:11,color:"var(--green)",cursor:"pointer"}}
-                  onClick={async()=>{await api.delete(`/moderation/users/${u.username}/ban`);setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}}>
+                  onClick={async()=>{{const r_=await api.delete(`/moderation/users/${u.username}/ban`);if(r_.error){toast(r_.error,"err");return;}}setUsers(p=>p.map(x=>x.id===u.id?{...x,status:"active"}:x));toast("User unbanned");}}>
                   unban
                 </span>
               </div>

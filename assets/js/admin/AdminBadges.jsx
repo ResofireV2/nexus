@@ -265,7 +265,8 @@ function AdminBadgesPanel() {
 
   const del = async(b)=>{
     if(!confirm(`Delete badge "${b.name}"? This will also remove it from all users.`))return;
-    await api.delete(`/admin/badges/${b.id}`);
+    const r_ = await api.delete(`/admin/badges/${b.id}`);
+    if (r_.error) { toast(r_.error, "err"); return; }
     load(); toast("Badge deleted");
   };
 

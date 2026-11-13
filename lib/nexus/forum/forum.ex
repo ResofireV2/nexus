@@ -59,7 +59,16 @@ defmodule Nexus.Forum do
     :ok
   end
 
-  def delete_space(%Space{} = space), do: Repo.delete(space)
+  # posts.space_id is ON DELETE RESTRICT, so deleting a space that still holds
+  # posts (hidden ones included) raised a constraint error and 500'd. Checked
+  # up front so the admin gets a reason instead.
+  def delete_space(%Space{} = space) do
+    if Repo.exists?(from p in Post, where: p.space_id == ^space.id) do
+      {:error, :has_posts}
+    else
+      Repo.delete(space)
+    end
+  end
 
   # ---------------------------------------------------------------------------
   # Tags
@@ -91,6 +100,43 @@ defmodule Nexus.Forum do
     |> where([p], p.id == ^id and p.hidden == false)
     |> preload([:user, :space, :tags])
     |> Repo.one()
+  end
+
+  @doc """
+  Whether `user` (nil for a guest) may see `post`: they must pass the space's
+  read gate, and a post held for approval is visible only to its author and to
+  staff. Every path that serves a single post by id goes through this — the
+  feed already filtered both, but the post page, its replies and the live
+  channel did not, so restricted and held posts were readable by id.
+
+  Expects `post.space` to be preloaded, as `get_post/1` does.
+  """
+  def viewable_post?(%Post{} = post, user) do
+    guest_can_see_space?(post.space, user) and
+      Nexus.Forum.SpacePermissions.can_read?(post.space, user) and
+      (not post.pending_approval or author_or_staff?(post.user_id, user))
+  end
+
+  # Mirrors filter_by_visibility/2 on the feed: guests only see public spaces.
+  defp guest_can_see_space?(space, nil), do: space.visibility == "public"
+  defp guest_can_see_space?(_space, _user), do: true
+
+  defp author_or_staff?(_author_id, nil), do: false
+  defp author_or_staff?(author_id, user),
+    do: user.id == author_id or Nexus.Accounts.User.moderator?(user)
+
+  @doc """
+  Hides content held for approval from everyone but its author and staff.
+  Works on any query whose first binding has `pending_approval` and `user_id`
+  columns — posts and replies both do.
+  """
+  def filter_pending(query, nil), do: where(query, [x], x.pending_approval == false)
+  def filter_pending(query, user) do
+    if Nexus.Accounts.User.moderator?(user) do
+      query
+    else
+      where(query, [x], x.pending_approval == false or x.user_id == ^user.id)
+    end
   end
 
   def get_post!(id) do
@@ -174,7 +220,7 @@ defmodule Nexus.Forum do
     old_space_id = post.space_id
     old_tag_ids  = if tag_ids, do: current_tag_ids(post), else: nil
 
-    changeset = Post.changeset(post, normalize_attrs(attrs))
+    changeset = Post.update_changeset(post, normalize_attrs(attrs))
 
     changeset =
       if tag_ids do
@@ -331,11 +377,13 @@ defmodule Nexus.Forum do
 
   def list_replies(post_id, opts \\ []) do
     cursor = Keyword.get(opts, :cursor)
+    viewer = Keyword.get(opts, :viewer)
     limit  = 25
 
     query =
       Reply
       |> where([r], r.post_id == ^post_id and r.hidden == false)
+      |> filter_pending(viewer)
       |> preload([:user])
       |> order_by([r], [asc: r.inserted_at, asc: r.id])
       |> limit(^(limit + 1))
@@ -400,7 +448,7 @@ defmodule Nexus.Forum do
   end
 
   def update_reply(%Reply{} = reply, attrs) do
-    reply |> Reply.changeset(normalize_attrs(attrs)) |> Repo.update()
+    reply |> Reply.update_changeset(normalize_attrs(attrs)) |> Repo.update()
   end
 
   def delete_reply(%Reply{} = reply) do
@@ -603,32 +651,38 @@ defmodule Nexus.Forum do
     query = filter_pinned_for_context(query, space_slug)
     query = filter_by_tag(query, tag_slug)
     query = filter_by_visibility(query, user)
+    query = filter_pending(query, user)
     query = if following && user, do: filter_by_following(query, user.id), else: query
     query = if username, do: filter_by_username(query, username), else: query
+    # Pinned posts float to the top of every query, but page 1 has already
+    # returned them. Without this they matched the cursor again on every later
+    # page and were appended to the feed once per page.
+    query = if cursor, do: where(query, [p], p.pinned == false), else: query
     query = apply_cursor(query, cursor, sort)
     query = apply_sort(query, sort)
     query = limit(query, @page_size + 1)
 
     raw = Repo.all(query)
 
+    # Whether another page exists, and where it starts, is decided from the
+    # rows the database returned. This used to be decided after the read
+    # filter below, so a page containing even one post the user can't read
+    # dropped under the page size, returned no cursor, and ended the feed.
+    {page, next_cursor} =
+      if length(raw) > @page_size do
+        page = Enum.take(raw, @page_size)
+        {page, next_feed_cursor(page, sort, cursor)}
+      else
+        {raw, nil}
+      end
+
     # Post-filter by space read permission. The query already handles the
     # guest/visibility case via filter_by_visibility/2. For authenticated
-    # users, we additionally enforce space-level read gates here.
-    # NOTE: filtering happens before pagination so the has-more-pages
-    # detection is based on the filtered count, not the raw DB count.
-    # This means a page may contain fewer than @page_size items when some
-    # posts are filtered out, but the next_cursor will always be correct.
-    posts = Enum.filter(raw, fn post ->
+    # users, we additionally enforce space-level read gates here. A page may
+    # hold fewer than @page_size posts as a result; the cursor is unaffected.
+    posts = Enum.filter(page, fn post ->
       Nexus.Forum.SpacePermissions.can_read?(post.space, user)
     end)
-
-    {posts, next_cursor} =
-      if length(posts) > @page_size do
-        items = Enum.take(posts, @page_size)
-        {items, encode_cursor(List.last(items), sort)}
-      else
-        {posts, nil}
-      end
 
     %{posts: posts, next_cursor: next_cursor}
   end
@@ -706,9 +760,12 @@ defmodule Nexus.Forum do
   defp apply_cursor(query, nil, _sort), do: query
   defp apply_cursor(query, cursor, sort) do
     case decode_cursor(cursor) do
-      {:ok, %{"inserted_at" => ts, "id" => id}} when sort == "rising" ->
-        dt = DateTime.from_unix!(ts)
-        where(query, [p], p.inserted_at < ^dt or (p.inserted_at == ^dt and p.id < ^id))
+      # Rising orders by a score that depends on the current time, so no column
+      # value can mark a position in it. It pages by offset instead: the order
+      # can shift slightly between loads, but posts are no longer skipped and
+      # repeated wholesale the way paging by inserted_at did.
+      {:ok, %{"offset" => n}} when sort == "rising" and is_integer(n) and n >= 0 ->
+        offset(query, ^n)
 
       {:ok, %{"last_reply_at" => ts, "id" => id}} when sort in ["latest", "activity"] ->
         dt = DateTime.from_unix!(ts)
@@ -754,6 +811,20 @@ defmodule Nexus.Forum do
       desc: p.inserted_at, desc: p.id
     ])
   end
+
+  # The offset counts unpinned posts only: later pages exclude pinned posts, so
+  # the pinned ones on page 1 must not advance it.
+  defp next_feed_cursor(page, "rising", cursor) do
+    previous =
+      case cursor && decode_cursor(cursor) do
+        {:ok, %{"offset" => n}} when is_integer(n) -> n
+        _ -> 0
+      end
+
+    %{"offset" => previous + Enum.count(page, &(!&1.pinned))}
+    |> Jason.encode!() |> Base.url_encode64(padding: false)
+  end
+  defp next_feed_cursor(page, sort, _cursor), do: encode_cursor(List.last(page), sort)
 
   defp encode_cursor(post, "top") do
     %{"reaction_count" => post.reaction_count, "id" => post.id}
@@ -1171,12 +1242,25 @@ defmodule Nexus.Forum do
 
   # ── Question / accepted answer ────────────────────────────────────────────
 
+  # The reply must belong to this post and be visible. Previously any reply id
+  # was accepted: one from another thread left the post showing no answer, and
+  # one that didn't exist hit the foreign key and 500'd.
   def accept_answer(post_id, reply_id) do
-    Repo.update_all(
-      from(p in Post, where: p.id == ^post_id),
-      set: [accepted_reply_id: reply_id]
-    )
-    {:ok, :accepted}
+    belongs? =
+      Repo.exists?(
+        from r in Reply,
+          where: r.id == ^reply_id and r.post_id == ^post_id and r.hidden == false
+      )
+
+    if belongs? do
+      Repo.update_all(
+        from(p in Post, where: p.id == ^post_id),
+        set: [accepted_reply_id: reply_id]
+      )
+      {:ok, :accepted}
+    else
+      {:error, :reply_not_in_post}
+    end
   end
 
   def unaccept_answer(post_id) do

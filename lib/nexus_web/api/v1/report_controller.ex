@@ -76,7 +76,10 @@ defmodule NexusWeb.API.V1.ReportController do
           reply = report.reply
           body  = reply.body || ""
           excerpt = body |> String.replace(~r/[#*`>\[\]!]/, "") |> String.slice(0, 280)
-          {"reply", excerpt, report.post_id, nil, nil, reply.user}
+          # A report targets one thing, so report.post_id is nil for a reply
+          # report. The reply's own post_id is what moderators need to open
+          # the thread and to hide the reply.
+          {"reply", excerpt, reply.post_id, nil, nil, reply.user}
 
         report.user != nil ->
           {"user", nil, nil, nil, nil, report.user}

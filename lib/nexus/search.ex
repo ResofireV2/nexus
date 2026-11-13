@@ -62,7 +62,7 @@ defmodule Nexus.Search do
 
       replies =
         if kind in ["all", "replies"] do
-          search_replies(query_string, space_slug, sort, cursor, author, date_from, date_to)
+          search_replies(query_string, space_slug, sort, cursor, user, author, date_from, date_to)
         else
           %{results: [], next_cursor: nil}
         end
@@ -94,6 +94,7 @@ defmodule Nexus.Search do
     query = filter_posts_by_space(query, space_slug)
     query = filter_posts_by_tag(query, tag_slug)
     query = filter_posts_by_visibility(query, user)
+    query = Nexus.Forum.filter_pending(query, user)
     query = filter_by_author(query, author, :post)
     query = filter_by_date(query, date_from, date_to, :post)
 
@@ -156,17 +157,20 @@ defmodule Nexus.Search do
     # Filter out posts the requesting user cannot read based on space permissions.
     # Filtering before pagination means a page may contain fewer than @page_size
     # items when some results are filtered out, but next_cursor is always correct.
-    results = Enum.filter(raw, fn post ->
+    # Whether another page exists, and where it starts, is decided from the
+    # unfiltered rows. Deciding it after filtering ended the results early
+    # whenever a page held a post the user can't read.
+    {page, next_cursor} =
+      if length(raw) > @page_size do
+        page = Enum.take(raw, @page_size)
+        {page, encode_post_cursor(List.last(page), sort)}
+      else
+        {raw, nil}
+      end
+
+    results = Enum.filter(page, fn post ->
       Nexus.Forum.SpacePermissions.can_read?(post.space, user)
     end)
-
-    {results, next_cursor} =
-      if length(results) > @page_size do
-        items = Enum.take(results, @page_size)
-        {items, encode_post_cursor(List.last(items), sort)}
-      else
-        {results, nil}
-      end
 
     %{results: results, next_cursor: next_cursor}
   end
@@ -333,7 +337,7 @@ defmodule Nexus.Search do
   # Reply search — now with pagination and space filtering
   # ---------------------------------------------------------------------------
 
-  defp search_replies(query_string, space_slug, sort, cursor, author, date_from, date_to) do
+  defp search_replies(query_string, space_slug, sort, cursor, user, author, date_from, date_to) do
     tsquery = build_tsquery(query_string)
 
     query =
@@ -342,6 +346,7 @@ defmodule Nexus.Search do
         select: %{r | search_vector: nil},
         preload: [:user, post: [:space]]
 
+    query = Nexus.Forum.filter_pending(query, user)
     query = filter_by_author(query, author, :reply)
     query = filter_by_date(query, date_from, date_to, :reply)
 
@@ -408,16 +413,23 @@ defmodule Nexus.Search do
     query = apply_reply_cursor(active_query, cursor, sort)
     query = limit(query, @page_size + 1)
 
-    results = Repo.all(query)
-    results = attach_reply_highlights(results, active_tsquery)
+    raw = Repo.all(query)
 
-    {results, next_cursor} =
-      if length(results) > @page_size do
-        items = Enum.take(results, @page_size)
-        {items, encode_reply_cursor(List.last(items), sort, tsquery)}
+    {page, next_cursor} =
+      if length(raw) > @page_size do
+        page = Enum.take(raw, @page_size)
+        {page, encode_reply_cursor(List.last(page), sort, tsquery)}
       else
-        {results, nil}
+        {raw, nil}
       end
+
+    # Reply search had no read check at all: replies in spaces the user can't
+    # read, and replies under hidden or held posts, were all returned. The
+    # parent post decides, through the same rule as the post page.
+    results =
+      page
+      |> Enum.filter(fn r -> r.post && !r.post.hidden && Nexus.Forum.viewable_post?(r.post, user) end)
+      |> attach_reply_highlights(active_tsquery)
 
     %{results: results, next_cursor: next_cursor}
   end

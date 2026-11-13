@@ -5,16 +5,22 @@ defmodule NexusWeb.PostChannel do
 
   @impl true
   def join("post:" <> post_id, _payload, socket) do
-    post_id = String.to_integer(post_id)
+    # The channel pushes every new reply live, so it needs the same read check
+    # as GET /posts/:id — otherwise a restricted post could be watched by id.
+    viewer = socket.assigns[:current_user_id] && Accounts.get_user(socket.assigns.current_user_id)
 
-    case Forum.get_post(post_id) do
-      nil ->
-        {:error, %{reason: "Post not found"}}
+    post =
+      case Integer.parse(post_id) do
+        {id, ""} -> Forum.get_post(id)
+        _        -> nil
+      end
 
-      post ->
-        send(self(), :after_join)
-        socket = assign(socket, :post_id, post.id)
-        {:ok, %{post_id: post.id, title: post.title}, socket}
+    if is_nil(post) or !Forum.viewable_post?(post, viewer) do
+      {:error, %{reason: "Post not found"}}
+    else
+      send(self(), :after_join)
+      socket = assign(socket, :post_id, post.id)
+      {:ok, %{post_id: post.id, title: post.title}, socket}
     end
   end
 

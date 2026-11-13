@@ -30,6 +30,18 @@ defmodule Nexus.Forum.Reply do
     |> foreign_key_constraint(:post_id)
   end
 
+  # Edits may change the body only. `changeset/2` casts post_id, user_id and
+  # pending_approval for creation, where the server overwrites them; on an
+  # update a PATCH could otherwise move the reply to another post, reassign it,
+  # or self-approve it.
+  def update_changeset(reply, attrs) do
+    reply
+    |> cast(attrs, [:body, :body_format])
+    |> validate_required([:body])
+    |> validate_length(:body, min: 1, max: 50_000)
+    |> validate_inclusion(:body_format, ~w(markdown rich))
+  end
+
   def hide_changeset(reply, moderator_id) do
     reply
     |> change(hidden: true, hidden_at: DateTime.utc_now() |> DateTime.truncate(:second), hidden_by_id: moderator_id)

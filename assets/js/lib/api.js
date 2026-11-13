@@ -42,6 +42,33 @@ try {
   window._pwaVisitCount = 1;
 }
 
+// Every failed response carries a string `error`, whatever the server sent.
+//
+// Controllers answer `{error: "..."}`, changeset failures answer
+// `{errors: {field: [...]}}`, Phoenix's own error pages answer
+// `{errors: {detail: "..."}}`, and a proxy error page isn't JSON at all. Callers
+// check `d.error`, so only the first shape was ever seen as a failure — a 500,
+// a validation error or a 502 all looked like success.
+function withError(data, status) {
+  const body = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (typeof body.error === "string" && body.error) return body;
+  return { ...body, error: describeErrors(body.errors) || `Request failed (${status})` };
+}
+
+function describeErrors(errors) {
+  if (!errors) return null;
+  if (typeof errors === "string") return errors;
+  if (typeof errors.detail === "string") return errors.detail;
+  if (typeof errors === "object") {
+    const [field, msgs] = Object.entries(errors)[0] || [];
+    if (!field) return null;
+    const msg = Array.isArray(msgs) ? msgs[0] : msgs;
+    if (typeof msg !== "string") return null;
+    return field === "base" ? msg : `${field.replace(/_/g, " ")} ${msg}`;
+  }
+  return null;
+}
+
 export const api = {
   token: localStorage.getItem("nexus_token"),
   refreshing: false,
@@ -78,10 +105,12 @@ export const api = {
 
       // Guard against non-JSON responses (e.g. 502 Bad Gateway returns HTML)
       const ct = res.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) return {};
-      return res.json();
+      const data = ct.includes("application/json") ? await res.json().catch(() => ({})) : {};
+      return res.ok ? data : withError(data, res.status);
     } catch {
-      return {};
+      // Network failure. Previously this returned {}, which callers checking
+      // d.error read as success.
+      return { error: "Couldn't reach the server. Check your connection and try again." };
     }
   },
 
@@ -160,10 +189,10 @@ export const api = {
       }
 
       const ct = res.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) return {};
-      return res.json();
+      const data = ct.includes("application/json") ? await res.json().catch(() => ({})) : {};
+      return res.ok ? data : withError(data, res.status);
     } catch {
-      return {};
+      return { error: "Couldn't reach the server. Check your connection and try again." };
     }
   },
 };

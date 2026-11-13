@@ -120,7 +120,8 @@ export function AdminPagesPanel() {
     if (!confirm(`Delete "${page.title}"? This cannot be undone.`)) return;
     setDeletingPage(page.id);
     try {
-      await api.delete(`/admin/pages/${page.id}`);
+      const r_ = await api.delete(`/admin/pages/${page.id}`);
+      if (r_.error) { toast(r_.error, "err"); return; }
       toast("Page deleted");
       fetchPages();
     } catch {
@@ -186,7 +187,8 @@ export function AdminPagesPanel() {
     if (!deleteWidgetTarget) return;
     const { widget } = deleteWidgetTarget;
     try {
-      await api.delete(`/admin/page-widgets/${widget.id}`, { on_pages: onPages });
+      const r_ = await api.delete(`/admin/page-widgets/${widget.id}`, { on_pages: onPages });
+      if (r_.error) { toast(r_.error, "err"); return; }
       toast("Widget deleted");
       fetchWidgets();
       fetchPages(); // page widget_ids may have changed

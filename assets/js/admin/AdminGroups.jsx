@@ -401,8 +401,9 @@ export function AdminGroupsPanel() {
   const del = async (g) => {
     if (!confirm(`Delete group "${g.name}"? All memberships will be removed.`)) return;
     setDeleting(g.id);
-    await api.delete(`/admin/groups/${g.id}`);
+    const r_ = await api.delete(`/admin/groups/${g.id}`);
     setDeleting(null);
+    if (r_.error) { toast(r_.error, "err"); return; }
     load();
     toast("Group deleted");
   };

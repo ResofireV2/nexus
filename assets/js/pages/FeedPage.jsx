@@ -400,7 +400,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                               </button>
                             )}
                         {(currentUser.role==="admin"||currentUser.role==="moderator")&&(
-                              <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);await api.post(`/posts/${p.id}/hide`,{});setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post hidden");}}
+                              <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);{const r_=await api.post(`/posts/${p.id}/hide`,{});if(r_.error){toast(r_.error,"err");return;}}setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post hidden");}}
                                 style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                                 onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
                                 onMouseLeave={e=>e.currentTarget.style.background="none"}>
@@ -408,7 +408,7 @@ function FeedPage({spaces, tags, currentUser, navigate, notifCount=0, msgCount=0
                               </button>
                             )}
                             {(currentUser.id===p.user?.id||(currentUser.role==="admin"||currentUser.role==="moderator"))&&(
-                              <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);if(!confirm(`Delete "${p.title}"?`))return;await api.delete(`/posts/${p.id}`);setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post deleted");}}
+                              <button onClick={async e=>{e.stopPropagation();setOpenPostMenu(null);if(!confirm(`Delete "${p.title}"?`))return;{const r_=await api.delete(`/posts/${p.id}`);if(r_.error){toast(r_.error,"err");return;}}setPosts(ps=>ps.filter(x=>x.id!==p.id));toast("Post deleted");}}
                                 style={{width:"100%",textAlign:"left",padding:"8px 14px",background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:12,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                                 onMouseEnter={e=>e.currentTarget.style.background="rgba(248,113,113,0.06)"}
                                 onMouseLeave={e=>e.currentTarget.style.background="none"}>

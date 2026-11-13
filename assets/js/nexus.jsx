@@ -61,6 +61,17 @@ import { TagsPage }                                        from "./pages/TagsPag
 import { MemberCard, MembersPage }                         from "./pages/MembersPage";
 import { DraftsPage, useDraftAutosave }                    from "./pages/DraftsPage";
 
+
+// JWT payloads are base64url ("-" and "_" instead of "+" and "/", no padding).
+// atob() rejects those characters, so plain atob failed for any token whose
+// payload happened to contain one, and the fast startup path fell through.
+function decodeJwtPayload(token) {
+  try {
+    const b64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(b64.padEnd(b64.length + (4 - b64.length % 4) % 4, "=")));
+  } catch { return null; }
+}
+
 // Expose React and ReactDOM globally so extension bundles can access them
 window.React = React;
 window.ReactDOM = ReactDOM;
@@ -3708,6 +3719,8 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const desiredTopics = useRef(new Set());
   // Topics actually joined on the current live socket.
   const joinedTopics = useRef(new Set());
+  // Rejected joins per topic, so a permanently refused join stops retrying.
+  const joinFailures = useRef(new Map());
   const mountedRef = useRef(true);
 
   const onNewPostRef = useRef(onNewPost);
@@ -3737,6 +3750,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
   const leaveTopic = useCallback((topic) => {
     desiredTopics.current.delete(topic);
     joinedTopics.current.delete(topic);
+    joinFailures.current.delete(topic);
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify([null, String(refSeq.current++), topic, "phx_leave", {}]));
@@ -3754,8 +3768,16 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     mountedRef.current = true;
     if (!token || !userId) return;
 
+    // True only while this run of the effect is current. A closing socket's
+    // onclose fires asynchronously, after the next run has already set
+    // mountedRef back to true, so mountedRef alone let a socket from before a
+    // logout reconnect with the old token and keep receiving that user's
+    // notifications and DMs. Every handler below also checks that it belongs to
+    // the socket in wsRef, so a stale socket can't act on the current one.
+    let active = true;
+
     const connect = () => {
-      if (!mountedRef.current) return;
+      if (!active || !mountedRef.current) return;
       clearTimeout(reconnectRef.current);
 
       const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/socket/websocket?token=${token}&vsn=2.0.0`;
@@ -3779,10 +3801,12 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           send([null, String(refSeq.current++), topic, "phx_join", {}]);
           joinedTopics.current.add(topic);
         });
+        clearInterval(heartbeatRef.current);
         heartbeatRef.current = setInterval(() => send([null, String(refSeq.current++), "phoenix", "heartbeat", {}]), 30000);
       };
 
       ws.onmessage = (e) => {
+        if (wsRef.current !== ws) return;
         try {
           const [, , topic, event, payload] = JSON.parse(e.data);
           if (event === "new_post" && topic === "feed:global") onNewPostRef.current?.(payload);
@@ -3805,11 +3829,21 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
           if (event === "dm_message_deleted" && topic === `notifications:${userId}`) {
             window.dispatchEvent(new CustomEvent("nexus:dm_message_deleted", {detail: payload}));
           }
-          // Retry failed channel joins (rejected at join time)
-          if (event === "phx_reply" && payload?.status === "error") {
-            joinedTopics.current.delete(topic);
-            if (desiredTopics.current.has(topic)) {
-              setTimeout(() => joinTopic(topic), 1000);
+          // Retry failed channel joins (rejected at join time), a few times
+          // with backoff. Most rejections are permanent — "Post not found",
+          // "Unauthorized", a thread you've left — and retrying every second
+          // with no limit hammered the server for as long as the page stayed
+          // open. A successful join clears the count.
+          if (event === "phx_reply" && topic !== "phoenix") {
+            if (payload?.status === "error") {
+              joinedTopics.current.delete(topic);
+              const n = (joinFailures.current.get(topic) || 0) + 1;
+              joinFailures.current.set(topic, n);
+              if (n <= 3 && desiredTopics.current.has(topic)) {
+                setTimeout(() => joinTopic(topic), 1000 * 2 ** (n - 1));
+              }
+            } else if (payload?.status === "ok") {
+              joinFailures.current.delete(topic);
             }
           }
           // phx_error = channel process crashed after joining -> must rejoin
@@ -3873,6 +3907,9 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
 
       ws.onerror = () => {};
       ws.onclose = () => {
+        // A replaced socket must not clear the current socket's heartbeat or
+        // joined topics, or schedule a reconnect of its own.
+        if (!active || wsRef.current !== ws) return;
         clearInterval(heartbeatRef.current);
         joinedTopics.current.clear();
         // Only schedule a reconnect if the tab is visible. If it's hidden,
@@ -3892,7 +3929,7 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     // is not already open. This covers the case where the tab was hidden while
     // the server closed the connection due to a missed heartbeat.
     const onVisible = () => {
-      if (!mountedRef.current || !token || !userId) return;
+      if (!active || !mountedRef.current || !token || !userId) return;
       if (document.hidden) return;
       const ws = wsRef.current;
       if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
@@ -3906,11 +3943,15 @@ function useSocket(token, userId, onNewPost, onNewNotif, onNewMsg, onUnreadCount
     connect();
 
     return () => {
+      active = false;
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", onVisible);
       clearTimeout(reconnectRef.current);
       clearInterval(heartbeatRef.current);
-      if (wsRef.current) wsRef.current.close();
+      const ws = wsRef.current;
+      wsRef.current = null;
+      joinedTopics.current.clear();
+      if (ws) { ws.onclose = null; ws.onmessage = null; ws.close(); }
     };
   }, [token, userId]);
 
@@ -4351,7 +4392,7 @@ function App() {
     // loading overlay shows while the async refresh runs.
     if (!localStorage.getItem("nexus_token") || !localStorage.getItem("nexus_user")) return false;
     try {
-      const payload = JSON.parse(atob(localStorage.getItem("nexus_token").split(".")[1]));
+      const payload = decodeJwtPayload(localStorage.getItem("nexus_token"));
       const exp = payload?.exp ?? 0;
       return (exp - Math.floor(Date.now() / 1000)) > 30; // token valid for > 30s
     } catch { return false; }
@@ -4524,7 +4565,7 @@ function App() {
       // from the home screen — the cookie jar is loaded asynchronously. A single
       // retry after 800ms covers this window without any visible delay to the user.
       const tokenPayload = (() => {
-        try { return JSON.parse(atob(api.token.split(".")[1])); } catch { return null; }
+        return decodeJwtPayload(api.token);
       })();
       const expiresAt = tokenPayload?.exp ?? 0;
       const nowSec = Math.floor(Date.now() / 1000);
@@ -4545,7 +4586,7 @@ function App() {
       // Instead keep the cached user in place; the next API call will
       // re-attempt the refresh automatically via the 401 retry path.
       const tokenAfterRefresh = (() => {
-        try { return JSON.parse(atob(api.token.split(".")[1])); } catch { return null; }
+        return decodeJwtPayload(api.token);
       })();
       const tokenNowValid = tokenAfterRefresh && (tokenAfterRefresh.exp - Math.floor(Date.now() / 1000)) > 0;
 

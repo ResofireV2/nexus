@@ -42,6 +42,21 @@ defmodule Nexus.Forum.Post do
     |> foreign_key_constraint(:space_id)
   end
 
+  # Edits cast only what an author may change. `changeset/2` is for creation,
+  # where the server overwrites user_id and pending_approval afterwards; on an
+  # update nothing did, so a PATCH could reassign authorship or self-approve a
+  # held post. space_id is allowed here, but the controller checks can_post? on
+  # the destination space first.
+  def update_changeset(post, attrs) do
+    post
+    |> cast(attrs, [:title, :body, :body_format, :space_id])
+    |> validate_required([:title, :body, :space_id])
+    |> validate_length(:title, min: 3, max: 255)
+    |> validate_length(:body, min: 1, max: 100_000)
+    |> validate_inclusion(:body_format, ~w(markdown rich))
+    |> foreign_key_constraint(:space_id)
+  end
+
   def hide_changeset(post, moderator_id) do
     post
     |> change(hidden: true, hidden_at: DateTime.utc_now() |> DateTime.truncate(:second), hidden_by_id: moderator_id)
