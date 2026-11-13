@@ -647,8 +647,12 @@ defmodule Nexus.Forum do
       |> where([p], p.hidden == false)
       |> preload([:user, :space, :tags])
 
+    # Which pinned posts float to the top here: in a Space, every pin; on the
+    # main feed, only global pins. A post pinned to a Space appears on the main
+    # feed as an ordinary post in its normal position.
+    scope = if space_slug, do: :space, else: :global
+
     query = filter_by_space(query, space_slug)
-    query = filter_pinned_for_context(query, space_slug)
     query = filter_by_tag(query, tag_slug)
     query = filter_by_visibility(query, user)
     query = filter_pending(query, user)
@@ -657,9 +661,9 @@ defmodule Nexus.Forum do
     # Pinned posts float to the top of every query, but page 1 has already
     # returned them. Without this they matched the cursor again on every later
     # page and were appended to the feed once per page.
-    query = if cursor, do: where(query, [p], p.pinned == false), else: query
+    query = if cursor, do: exclude_floating(query, scope), else: query
     query = apply_cursor(query, cursor, sort)
-    query = apply_sort(query, sort)
+    query = apply_sort(query, sort, scope)
     query = limit(query, @page_size + 1)
 
     raw = Repo.all(query)
@@ -671,7 +675,7 @@ defmodule Nexus.Forum do
     {page, next_cursor} =
       if length(raw) > @page_size do
         page = Enum.take(raw, @page_size)
-        {page, next_feed_cursor(page, sort, cursor)}
+        {page, next_feed_cursor(page, sort, cursor, scope)}
       else
         {raw, nil}
       end
@@ -700,10 +704,14 @@ defmodule Nexus.Forum do
 
   # Global feed: exclude posts pinned only to a space (they'd appear without context)
   # Space feed: include all posts — space-pinned and globally-pinned both float
-  defp filter_pinned_for_context(query, nil) do
-    where(query, [p], is_nil(p.pin_scope) or p.pin_scope == "global")
-  end
-  defp filter_pinned_for_context(query, _space_slug), do: query
+  # A pinned post with no pin_scope predates scoped pins and counts as global.
+  defp floats?(%{pinned: true}, :space), do: true
+  defp floats?(%{pinned: true, pin_scope: scope}, :global), do: scope in [nil, "global"]
+  defp floats?(_post, _scope), do: false
+
+  defp exclude_floating(query, :space), do: where(query, [p], p.pinned == false)
+  defp exclude_floating(query, :global),
+    do: where(query, [p], p.pinned == false or p.pin_scope == "space")
 
   defp filter_by_tag(query, nil), do: query
 
@@ -781,24 +789,32 @@ defmodule Nexus.Forum do
     end
   end
 
-  # Pinned posts always float to the top, then normal sort applies.
-  # For space-filtered feeds, only space-pinned and globally-pinned posts float.
-  # For the global feed, only globally-pinned posts float.
+  # Floating pinned posts come first, then the normal sort applies. In a Space
+  # every pin floats; on the main feed only global pins do (see floats?/2).
+  defp apply_sort(query, sort, scope) do
+    query
+    |> order_by_floating(scope)
+    |> apply_sort(sort)
+  end
+
+  defp order_by_floating(query, :space),
+    do: order_by(query, [p], fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned))
+  defp order_by_floating(query, :global),
+    do: order_by(query, [p], fragment(
+      "CASE WHEN ? = true AND COALESCE(?, 'global') = 'global' THEN 0 ELSE 1 END",
+      p.pinned, p.pin_scope
+    ))
+
   defp apply_sort(query, "top") do
-    order_by(query, [p], [
-      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
-      desc: p.reaction_count, desc: p.id
-    ])
+    order_by(query, [p], [desc: p.reaction_count, desc: p.id])
   end
   defp apply_sort(query, sort) when sort in ["latest", "activity"] do
     order_by(query, [p], [
-      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
       desc: fragment("COALESCE(?, ?)", p.last_reply_at, p.inserted_at), desc: p.id
     ])
   end
   defp apply_sort(query, "rising") do
     order_by(query, [p], [
-      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
       fragment(
         "((? + ?) / power(extract(epoch from (now() - ?)) / 3600.0 + 2, 1.5)) DESC, ? DESC",
         p.reply_count, p.reaction_count, p.inserted_at, p.id
@@ -806,25 +822,22 @@ defmodule Nexus.Forum do
     ])
   end
   defp apply_sort(query, _) do
-    order_by(query, [p], [
-      fragment("CASE WHEN ? = true THEN 0 ELSE 1 END", p.pinned),
-      desc: p.inserted_at, desc: p.id
-    ])
+    order_by(query, [p], [desc: p.inserted_at, desc: p.id])
   end
 
-  # The offset counts unpinned posts only: later pages exclude pinned posts, so
-  # the pinned ones on page 1 must not advance it.
-  defp next_feed_cursor(page, "rising", cursor) do
+  # The offset counts non-floating posts only: later pages exclude floating
+  # pins, so the ones on page 1 must not advance it.
+  defp next_feed_cursor(page, "rising", cursor, scope) do
     previous =
       case cursor && decode_cursor(cursor) do
         {:ok, %{"offset" => n}} when is_integer(n) -> n
         _ -> 0
       end
 
-    %{"offset" => previous + Enum.count(page, &(!&1.pinned))}
+    %{"offset" => previous + Enum.count(page, &(!floats?(&1, scope)))}
     |> Jason.encode!() |> Base.url_encode64(padding: false)
   end
-  defp next_feed_cursor(page, sort, _cursor), do: encode_cursor(List.last(page), sort)
+  defp next_feed_cursor(page, sort, _cursor, _scope), do: encode_cursor(List.last(page), sort)
 
   defp encode_cursor(post, "top") do
     %{"reaction_count" => post.reaction_count, "id" => post.id}
