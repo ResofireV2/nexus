@@ -229,13 +229,16 @@ function SpacesAdmin({spaces, onRefresh, layoutCfg={}, setLayoutCfg}) {
     if(savedOrder.length) ordered.sort(function(a,b){var ai=savedOrder.indexOf(a.id);var bi=savedOrder.indexOf(b.id);if(ai===-1)return 1;if(bi===-1)return -1;return ai-bi;});
     return ordered;
   })();
-  function saveSpacesOrder(ordered) {
+  // Saving the layout also writes each space's position on the server, so the
+  // sidebar, this page's list and the composer all share one order. The spaces
+  // are then reloaded: without that, everything except the sidebar kept the
+  // order from when the page was opened.
+  async function saveSpacesOrder(ordered) {
     var next = Object.assign({}, layoutCfg, {spaces_order: ordered.map(function(s){return s.id;})});
     if(setLayoutCfg) setLayoutCfg(next);
-    api.patch("/admin/settings/layout", {value: next}).catch(function(){});
-    // Also update the position column on each space so list_spaces() returns
-    // them in the correct order everywhere — composer, All Spaces table, API.
-    api.post("/admin/spaces/reorder", {order: ordered.map(function(s){return s.id;})}).catch(function(){});
+    const d = await api.patch("/admin/settings/layout", {value: next});
+    if (d.error) { toast(d.error, "err"); return; }
+    onRefresh();
   }
 
   const openNew=()=>{ setPermsOpen(false); setForm({name:"",slug:"",description:"",color:"#a78bfa",icon:"fa-layer-group",visibility:"public",parent_id:"",permissions:{view:{role:"everyone",groups:[]},read:{role:"everyone",groups:[]},post:{role:"member",groups:[]},reply:{role:"member",groups:[]}}}); setEditing("new"); };

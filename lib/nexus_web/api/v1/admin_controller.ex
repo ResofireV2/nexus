@@ -285,10 +285,23 @@ defmodule NexusWeb.API.V1.AdminController do
   def update_settings(conn, %{"key" => key, "value" => value}) do
     admin_id = conn.assigns.current_user.id
     case Admin.update_setting(key, value, admin_id) do
-      {:ok, _}   -> json(conn, %{ok: true, settings: Admin.get_settings_for_api()})
+      {:ok, _}   ->
+        if key == "layout", do: sync_space_positions(value)
+        json(conn, %{ok: true, settings: Admin.get_settings_for_api()})
       {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(cs)})
     end
   end
+
+  # The sidebar reads space order from the layout setting; everything else (the
+  # composer, the admin list, the API) reads the spaces.position column. The
+  # two were written by separate requests and the second was fire-and-forget,
+  # so they could disagree. Saving the layout now writes both.
+  defp sync_space_positions(%{"spaces_order" => ids}) when is_list(ids) do
+    ids
+    |> Enum.filter(&is_integer/1)
+    |> Nexus.Forum.reorder_spaces()
+  end
+  defp sync_space_positions(_), do: :ok
 
   # GET /api/v1/admin/logs/settings
   def setting_changes(conn, _params) do
