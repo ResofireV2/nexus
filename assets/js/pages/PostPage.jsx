@@ -1312,7 +1312,7 @@ function PostPage({postId, currentUser, navigate, spaces, tags=[], onAuthRequire
               <div className="reply-meta">
                 {r.user?.avatar_url
                   ?<img src={r.user.avatar_url} className="reply-av" style={{objectFit:"cover",cursor:"pointer"}} alt={r.user.username} onClick={e=>{e.stopPropagation();openUserCard(r.user.username,e.currentTarget);}}/>
-                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff"}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
+                  :<div className="reply-av" style={{background:userColor(r.user),color:"#fff",cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(r.user?.username)openUserCard(r.user.username,e.currentTarget);}}>{(r.user?.username||"?").slice(0,2).toUpperCase()}</div>}
                 <span className="reply-author" style={{cursor:"pointer"}} onClick={()=>navigate("profile",{username:r.user?.username})}>{r.user?.username}</span>
                 {(r.user?.groups||[]).map(g=>(
                   <span key={g.slug} style={{
